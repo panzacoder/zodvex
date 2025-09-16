@@ -1,4 +1,5 @@
 # zodvex
+
 #### [Zod](https://zod.dev/) + [Convex](https://www.convex.dev/)
 
 Type-safe Convex functions with Zod schemas. Preserve Convex's optional/nullable semantics while leveraging Zod's powerful validation.
@@ -8,20 +9,23 @@ Type-safe Convex functions with Zod schemas. Preserve Convex's optional/nullable
 ## 📦 Installation
 
 ```bash
-# Using npm
 npm install zodvex zod convex convex-helpers
+```
 
-# Using pnpm
+```bash
 pnpm add zodvex zod convex convex-helpers
+```
 
-# Using yarn
+```bash
 yarn add zodvex zod convex convex-helpers
+```
 
-# Using bun
+```bash
 bun add zodvex zod convex convex-helpers
 ```
 
 **Peer dependencies:**
+
 - `zod` (v4)
 - `convex` (>= 1.27)
 - `convex-helpers` (>= 0.1.101-alpha.1)
@@ -32,63 +36,57 @@ bun add zodvex zod convex convex-helpers
 
 ```ts
 // convex/users.ts
-import { z } from 'zod'
-import { query, mutation } from './_generated/server'
-import { zQuery, zMutation } from 'zodvex'
+import { z } from "zod";
+import { query, mutation } from "./_generated/server";
+import { zQuery, zMutation } from "zodvex";
 
 // Define your schema
 const UserInput = z.object({
   name: z.string().min(1),
   email: z.string().email(),
-  age: z.number().optional()
-})
+  age: z.number().optional(),
+});
 
 // Create type-safe queries
 export const getUser = zQuery(
   query,
   { id: z.string() },
   async (ctx, { id }) => {
-    return await ctx.db.get(id)
-  }
-)
+    return await ctx.db.get(id);
+  },
+);
 
 // Create type-safe mutations
-export const createUser = zMutation(
-  mutation,
-  UserInput,
-  async (ctx, user) => {
-    // `user` is fully typed and validated!
-    return await ctx.db.insert('users', user)
-  }
-)
+export const createUser = zMutation(mutation, UserInput, async (ctx, user) => {
+  // `user` is fully typed and validated!
+  return await ctx.db.insert("users", user);
+});
 ```
 
 ### 2. Use with Convex schemas
 
 ```ts
 // convex/schema.ts
-import { defineSchema } from 'convex/server'
-import { z } from 'zod'
-import { zodTable } from 'zodvex'
+import { defineSchema } from "convex/server";
+import { z } from "zod";
+import { zodTable } from "zodvex";
 
 // Define a table from a Zod schema
 const UsersSchema = z.object({
   name: z.string(),
   email: z.string().email(),
-  age: z.number().optional(),      // → v.optional(v.float64())
-  deletedAt: z.date().nullable()   // → v.union(v.float64(), v.null())
-})
+  age: z.number().optional(), // → v.optional(v.float64())
+  deletedAt: z.date().nullable(), // → v.union(v.float64(), v.null())
+});
 
-export const Users = zodTable('users', UsersSchema)
+export const Users = zodTable("users", UsersSchema);
 
 // Use in your Convex schema
 export default defineSchema({
-  users: Users.table
-    .index('by_email', ['email'])
-    .searchIndex('search_name', {
-      searchField: 'name'
-    })
-})
+  users: Users.table.index("by_email", ["email"]).searchIndex("search_name", {
+    searchField: "name",
+  }),
+});
 ```
 
 ## ✨ Features
@@ -110,18 +108,18 @@ export default defineSchema({
 Convert Zod schemas to Convex validators:
 
 ```ts
-import { z } from 'zod'
-import { zodToConvex, zodToConvexFields } from 'zodvex'
+import { z } from "zod";
+import { zodToConvex, zodToConvexFields } from "zodvex";
 
 // Convert a single Zod type to a Convex validator
-const validator = zodToConvex(z.string().optional())
+const validator = zodToConvex(z.string().optional());
 // → v.optional(v.string())
 
 // Convert a Zod object shape to Convex field validators
 const fields = zodToConvexFields({
   name: z.string(),
-  age: z.number().nullable()
-})
+  age: z.number().nullable(),
+});
 // → { name: v.string(), age: v.union(v.float64(), v.null()) }
 ```
 
@@ -130,9 +128,9 @@ const fields = zodToConvexFields({
 Type-safe wrappers for Convex functions:
 
 ```ts
-import { z } from 'zod'
-import { query, mutation, action } from './_generated/server'
-import { zQuery, zMutation, zAction } from 'zodvex'
+import { z } from "zod";
+import { query, mutation, action } from "./_generated/server";
+import { zQuery, zMutation, zAction } from "zodvex";
 
 // Query with validated input and optional return validation
 export const getById = zQuery(
@@ -142,20 +140,20 @@ export const getById = zQuery(
   {
     returns: z.object({
       name: z.string(),
-      createdAt: z.date()
-    })
-  }
-)
+      createdAt: z.date(),
+    }),
+  },
+);
 
 // Mutation with Zod object
 export const updateUser = zMutation(
   mutation,
   z.object({
     id: z.string(),
-    name: z.string().min(1)
+    name: z.string().min(1),
   }),
-  async (ctx, { id, name }) => ctx.db.patch(id, { name })
-)
+  async (ctx, { id, name }) => ctx.db.patch(id, { name }),
+);
 
 // Action with single value (normalizes to { value })
 export const sendEmail = zAction(
@@ -163,11 +161,11 @@ export const sendEmail = zAction(
   z.string().email(),
   async (ctx, { value: email }) => {
     // Send email to the address
-  }
-)
+  },
+);
 
 // Internal functions also supported
-import { zInternalQuery, zInternalMutation, zInternalAction } from 'zodvex'
+import { zInternalQuery, zInternalMutation, zInternalAction } from "zodvex";
 ```
 
 ### Codecs
@@ -175,34 +173,34 @@ import { zInternalQuery, zInternalMutation, zInternalAction } from 'zodvex'
 Convert between Zod-shaped data and Convex-safe JSON:
 
 ```ts
-import { convexCodec } from 'zodvex'
-import { z } from 'zod'
+import { convexCodec } from "zodvex";
+import { z } from "zod";
 
 const UserSchema = z.object({
   name: z.string(),
   birthday: z.date().optional(),
-  metadata: z.record(z.string())
-})
+  metadata: z.record(z.string()),
+});
 
-const codec = convexCodec(UserSchema)
+const codec = convexCodec(UserSchema);
 
 // Get Convex validators for table definition
-const validators = codec.toConvexSchema()
+const validators = codec.toConvexSchema();
 
 // Encode: Zod data → Convex JSON (Date → timestamp, omit undefined)
 const encoded = codec.encode({
-  name: 'Alice',
-  birthday: new Date('1990-01-01'),
-  metadata: { role: 'admin' }
-})
+  name: "Alice",
+  birthday: new Date("1990-01-01"),
+  metadata: { role: "admin" },
+});
 // → { name: 'Alice', birthday: 631152000000, metadata: { role: 'admin' } }
 
 // Decode: Convex JSON → Zod data (timestamp → Date)
-const decoded = codec.decode(encoded)
+const decoded = codec.decode(encoded);
 // → { name: 'Alice', birthday: Date('1990-01-01'), metadata: { role: 'admin' } }
 
 // Create sub-codecs (ZodObject only)
-const nameCodec = codec.pick({ name: true })
+const nameCodec = codec.pick({ name: true });
 ```
 
 ### Table Helpers
@@ -210,33 +208,33 @@ const nameCodec = codec.pick({ name: true })
 Define Convex tables from Zod schemas:
 
 ```ts
-import { z } from 'zod'
-import { zodTable } from 'zodvex'
-import { defineSchema } from 'convex/server'
+import { z } from "zod";
+import { zodTable } from "zodvex";
+import { defineSchema } from "convex/server";
 
 // Define your schema
 const PostSchema = z.object({
   title: z.string(),
   content: z.string(),
-  authorId: zid('users'),  // Convex ID reference
+  authorId: zid("users"), // Convex ID reference
   published: z.boolean().default(false),
-  tags: z.array(z.string()).optional()
-})
+  tags: z.array(z.string()).optional(),
+});
 
 // Create table helper
-export const Posts = zodTable('posts', PostSchema)
+export const Posts = zodTable("posts", PostSchema);
 
 // Access properties
-Posts.table   // → Table definition for defineSchema
-Posts.schema  // → Original Zod schema
-Posts.codec   // → ConvexCodec instance
+Posts.table; // → Table definition for defineSchema
+Posts.schema; // → Original Zod schema
+Posts.codec; // → ConvexCodec instance
 
 // Use in schema.ts
 export default defineSchema({
   posts: Posts.table
-    .index('by_author', ['authorId'])
-    .index('by_published', ['published'])
-})
+    .index("by_author", ["authorId"])
+    .index("by_published", ["published"]),
+});
 ```
 
 ### CRUD Operations
@@ -244,12 +242,12 @@ export default defineSchema({
 Generate complete CRUD operations from a table:
 
 ```ts
-import { zCrud, zid } from 'zodvex'
-import { query, mutation } from './_generated/server'
-import { Posts } from './schemas/posts'
+import { zCrud, zid } from "zodvex";
+import { query, mutation } from "./_generated/server";
+import { Posts } from "./schemas/posts";
 
 // Generate CRUD operations
-export const postsCrud = zCrud(Posts, query, mutation)
+export const postsCrud = zCrud(Posts, query, mutation);
 
 // Now you have:
 // postsCrud.create   - Create a new post
@@ -266,25 +264,25 @@ export const postsCrud = zCrud(Posts, query, mutation)
 ### Custom Validators with Zod
 
 ```ts
-import { z } from 'zod'
-import { zCustomQuery } from 'zodvex'
-import { customQuery } from 'convex-helpers/server/customFunctions'
+import { z } from "zod";
+import { zCustomQuery } from "zodvex";
+import { customQuery } from "convex-helpers/server/customFunctions";
 
 // Use with custom function builders
 export const authenticatedQuery = zCustomQuery(
   customQuery(query, {
     args: { sessionId: v.string() },
     input: async (ctx, { sessionId }) => {
-      const user = await getUser(ctx, sessionId)
-      return { user }
-    }
+      const user = await getUser(ctx, sessionId);
+      return { user };
+    },
   }),
   { postId: z.string() },
   async (ctx, { postId }) => {
     // ctx.user is available from custom input
-    return ctx.db.get(postId)
-  }
-)
+    return ctx.db.get(postId);
+  },
+);
 ```
 
 ### Working with Dates
@@ -294,10 +292,10 @@ export const authenticatedQuery = zCustomQuery(
 const EventSchema = z.object({
   title: z.string(),
   startDate: z.date(),
-  endDate: z.date().nullable()
-})
+  endDate: z.date().nullable(),
+});
 
-const Event = zodTable('events', EventSchema)
+const Event = zodTable("events", EventSchema);
 
 // In mutations - Date objects work seamlessly
 export const createEvent = zMutation(
@@ -306,44 +304,44 @@ export const createEvent = zMutation(
   async (ctx, event) => {
     // event.startDate is a Date object
     // It's automatically converted to timestamp for storage
-    return ctx.db.insert('events', event)
-  }
-)
+    return ctx.db.insert("events", event);
+  },
+);
 ```
 
 ### Using Convex IDs
 
 ```ts
-import { zid } from 'zodvex'
+import { zid } from "zodvex";
 
 const CommentSchema = z.object({
   text: z.string(),
-  postId: zid('posts'),     // Reference to posts table
-  authorId: zid('users'),   // Reference to users table
-  parentId: zid('comments').optional()  // Self-reference
-})
+  postId: zid("posts"), // Reference to posts table
+  authorId: zid("users"), // Reference to users table
+  parentId: zid("comments").optional(), // Self-reference
+});
 ```
 
 ## ⚙️ Behavior & Semantics
 
 ### Type Mappings
 
-| Zod Type | Convex Validator |
-|----------|-----------------|
-| `z.string()` | `v.string()` |
-| `z.number()` | `v.float64()` |
-| `z.bigint()` | `v.int64()` |
-| `z.boolean()` | `v.boolean()` |
-| `z.date()` | `v.float64()` (timestamp) |
-| `z.null()` | `v.null()` |
-| `z.array(T)` | `v.array(T)` |
-| `z.object({...})` | `v.object({...})` |
-| `z.record(T)` | `v.record(v.string(), T)` |
-| `z.union([...])` | `v.union(...)` |
-| `z.literal(x)` | `v.literal(x)` |
-| `z.enum([...])` | `v.union(literals...)` |
-| `z.optional(T)` | `v.optional(T)` |
-| `z.nullable(T)` | `v.union(T, v.null())` |
+| Zod Type          | Convex Validator          |
+| ----------------- | ------------------------- |
+| `z.string()`      | `v.string()`              |
+| `z.number()`      | `v.float64()`             |
+| `z.bigint()`      | `v.int64()`               |
+| `z.boolean()`     | `v.boolean()`             |
+| `z.date()`        | `v.float64()` (timestamp) |
+| `z.null()`        | `v.null()`                |
+| `z.array(T)`      | `v.array(T)`              |
+| `z.object({...})` | `v.object({...})`         |
+| `z.record(T)`     | `v.record(v.string(), T)` |
+| `z.union([...])`  | `v.union(...)`            |
+| `z.literal(x)`    | `v.literal(x)`            |
+| `z.enum([...])`   | `v.union(literals...)`    |
+| `z.optional(T)`   | `v.optional(T)`           |
+| `z.nullable(T)`   | `v.union(T, v.null())`    |
 
 ### Important Notes
 
