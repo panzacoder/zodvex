@@ -1,4 +1,7 @@
-zodvex
+# zodvex
+## [Zod](https://zod.dev/) + [Convex](https://www.convex.dev/)
+
+> Heavily inspired by [convex-helpers](https://github.com/get-convex/convex-helpers?tab=readme-ov-file). Some of those utilities are still being directly imported.
 
 Zod v4 → Convex validator mapping with correct optional vs nullable semantics. Thin, practical glue around `convex-helpers` that preserves Convex’s notion of optional fields and offers ergonomic wrappers/codecs.
 
