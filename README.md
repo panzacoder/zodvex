@@ -1,5 +1,5 @@
 # zodvex
-## [Zod](https://zod.dev/) + [Convex](https://www.convex.dev/)
+#### [Zod](https://zod.dev/) + [Convex](https://www.convex.dev/)
 
 > Heavily inspired by [convex-helpers](https://github.com/get-convex/convex-helpers?tab=readme-ov-file). Some of those utilities are still being directly imported.
 
