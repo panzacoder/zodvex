@@ -1,0 +1,37 @@
+# Source files (when we ship dist)
+src/
+index.ts
+tsconfig.json
+tsup.config.ts
+
+# Test files
+__tests__/
+*.test.ts
+*.spec.ts
+coverage/
+.nyc_output/
+vitest.config.ts
+
+# Development files
+.turbo/
+.github/
+.vscode/
+.idea/
+*.log
+*.tsbuildinfo
+
+# Documentation source
+docs/
+examples/
+
+# Config files
+.eslintrc*
+.prettierrc*
+.gitignore
+.npmrc
+
+# Misc
+CONTRIBUTING.md
+*.md
+!README.md
+!LICENSE
