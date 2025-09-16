@@ -51,7 +51,9 @@ export function simpleToConvex(schema: z.ZodTypeAny): any {
     if (m?.isConvexId && m?.tableName && typeof m.tableName === 'string') {
       return v.id(m.tableName)
     }
-  } catch {}
+  } catch {
+    // Ignore metadata errors - fallback to type-based conversion
+  }
 
   if (inner instanceof z.ZodString) return v.string()
   if (inner instanceof z.ZodNumber) return v.float64()

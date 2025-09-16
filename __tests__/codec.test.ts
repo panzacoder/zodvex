@@ -92,7 +92,8 @@ describe('convexCodec', () => {
     const codec = convexCodec(schema)
     const pickedCodec = codec.pick({ name: true, email: true })
 
-    const original = { id: '123', name: 'John', email: 'john@example.com', age: 30 }
+    // Test data - original has more fields than picked
+    // const original = { id: '123', name: 'John', email: 'john@example.com', age: 30 }
     const picked = { name: 'John', email: 'john@example.com' }
 
     const encoded = pickedCodec.encode(picked)

@@ -38,12 +38,10 @@ export function toConvexJS(schema: z.ZodTypeAny, value: any): any {
     return out
   }
 
-
   if (schema instanceof z.ZodArray && Array.isArray(value)) {
     const el = (schema as z.ZodArray<any>).element as z.ZodTypeAny
     return value.map(item => toConvexJS(el, item))
   }
-
 
   if (schema instanceof z.ZodDate && value instanceof Date) {
     return value.getTime()
