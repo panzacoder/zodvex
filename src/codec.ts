@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zodToConvex, zodToConvexFields, getObjectShape } from './mapping'
+import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 
 export type ConvexCodec<T = any> = {
   schema: z.ZodTypeAny
@@ -25,7 +25,7 @@ export function toConvexJS(schema: z.ZodTypeAny, value: any): any {
   }
   // Pipeline: encode according to output side
   if ((schema as any) && (schema as any).type === 'pipe' && 'out' in (schema as any)) {
-    return toConvexJS(((schema as any).out as z.ZodTypeAny), value)
+    return toConvexJS((schema as any).out as z.ZodTypeAny, value)
   }
 
   if (schema instanceof z.ZodObject && value && typeof value === 'object') {
@@ -38,10 +38,12 @@ export function toConvexJS(schema: z.ZodTypeAny, value: any): any {
     return out
   }
 
+
   if (schema instanceof z.ZodArray && Array.isArray(value)) {
     const el = (schema as z.ZodArray<any>).element as z.ZodTypeAny
-    return value.map((item) => toConvexJS(el, item))
+    return value.map(item => toConvexJS(el, item))
   }
+
 
   if (schema instanceof z.ZodDate && value instanceof Date) {
     return value.getTime()
@@ -53,7 +55,7 @@ export function fromConvexJS(schema: z.ZodTypeAny, value: any): any {
   if (value === undefined) return undefined
 
   if ((schema as any) && (schema as any).type === 'pipe' && 'out' in (schema as any)) {
-    return fromConvexJS(((schema as any).out as z.ZodTypeAny), value)
+    return fromConvexJS((schema as any).out as z.ZodTypeAny, value)
   }
   if (schema instanceof z.ZodDefault) {
     return fromConvexJS((schema as any).unwrap(), value)
@@ -78,7 +80,7 @@ export function fromConvexJS(schema: z.ZodTypeAny, value: any): any {
 
   if (schema instanceof z.ZodArray && Array.isArray(value)) {
     const el = (schema as z.ZodArray<any>).element as z.ZodTypeAny
-    return value.map((item) => fromConvexJS(el, item))
+    return value.map(item => fromConvexJS(el, item))
   }
 
   if (schema instanceof z.ZodDate && typeof value === 'number') {
@@ -103,11 +105,11 @@ export function convexCodec<T = any>(schema: z.ZodTypeAny): ConvexCodec<T> {
   const decode = (data: any) => fromConvexJS(schema, data)
 
   const pick = (keys: Record<string, true>): ConvexCodec<any> => {
-    if (!(schema instanceof z.ZodObject)) throw new Error('pick() is only supported on ZodObject schemas')
+    if (!(schema instanceof z.ZodObject))
+      throw new Error('pick() is only supported on ZodObject schemas')
     const picked = (schema as z.ZodObject<any>).pick(keys as any)
     return convexCodec(picked)
   }
 
   return { schema, toConvexSchema, encode, decode, pick }
 }
-

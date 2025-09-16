@@ -1,10 +1,15 @@
-import { z } from 'zod'
-import { ConvexError } from 'convex/values'
-import { type PropertyValidators } from 'convex/values'
-import { type FunctionVisibility, type GenericDataModel, type GenericQueryCtx, type GenericMutationCtx, type GenericActionCtx } from 'convex/server'
+import {
+  type FunctionVisibility,
+  type GenericActionCtx,
+  type GenericDataModel,
+  type GenericMutationCtx,
+  type GenericQueryCtx
+} from 'convex/server'
+import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type CustomBuilder, type Customization, NoOp } from 'convex-helpers/server/customFunctions'
-import { zodToConvex, zodToConvexFields } from './mapping'
+import { z } from 'zod'
 import { toConvexJS } from './codec'
+import { zodToConvex, zodToConvexFields } from './mapping'
 import { pick } from './utils'
 
 function customFnBuilder(
@@ -17,8 +22,10 @@ function customFnBuilder(
   return function customBuilder(fn: any): any {
     const { args, handler = fn, returns: maybeObject, ...extra } = fn
 
-    const returns = maybeObject && !(maybeObject instanceof z.ZodType) ? z.object(maybeObject) : maybeObject
-    const returnValidator = returns && !fn.skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
+    const returns =
+      maybeObject && !(maybeObject instanceof z.ZodType) ? z.object(maybeObject) : maybeObject
+    const returnValidator =
+      returns && !fn.skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
 
     if (args && !fn.skipConvexValidation) {
       let argsValidator = args
@@ -26,7 +33,9 @@ function customFnBuilder(
         if (argsValidator instanceof z.ZodObject) {
           argsValidator = (argsValidator as z.ZodObject<any>).shape
         } else {
-          throw new Error('Unsupported zod type as args validator: ' + argsValidator.constructor.name)
+          throw new Error(
+            'Unsupported zod type as args validator: ' + argsValidator.constructor.name
+          )
         }
       }
       const convexValidator = zodToConvexFields(argsValidator)
@@ -38,7 +47,9 @@ function customFnBuilder(
           const rawArgs = pick(allArgs, Object.keys(argsValidator))
           const parsed = z.object(argsValidator).safeParse(rawArgs)
           if (!parsed.success) {
-            throw new ConvexError({ ZodError: JSON.parse(JSON.stringify(parsed.error.flatten(), null, 2)) })
+            throw new ConvexError({
+              ZodError: JSON.parse(JSON.stringify(parsed.error.flatten(), null, 2))
+            })
           }
           const result = await handler({ ...ctx, ...added }, parsed.data)
           if (returns && !fn.skipConvexValidation) {
@@ -73,9 +84,22 @@ export function zCustomQuery<
   DataModel extends GenericDataModel
 >(
   query: any,
-  customization: Customization<GenericQueryCtx<DataModel>, CustomArgsValidator, CustomCtx, CustomMadeArgs>
+  customization: Customization<
+    GenericQueryCtx<DataModel>,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs
+  >
 ) {
-  return customFnBuilder(query, customization) as CustomBuilder<'query', CustomArgsValidator, CustomCtx, CustomMadeArgs, GenericQueryCtx<DataModel>, Visibility, Record<string, any>>
+  return customFnBuilder(query, customization) as CustomBuilder<
+    'query',
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    GenericQueryCtx<DataModel>,
+    Visibility,
+    Record<string, any>
+  >
 }
 
 export function zCustomMutation<
@@ -86,9 +110,22 @@ export function zCustomMutation<
   DataModel extends GenericDataModel
 >(
   mutation: any,
-  customization: Customization<GenericMutationCtx<DataModel>, CustomArgsValidator, CustomCtx, CustomMadeArgs>
+  customization: Customization<
+    GenericMutationCtx<DataModel>,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs
+  >
 ) {
-  return customFnBuilder(mutation, customization) as CustomBuilder<'mutation', CustomArgsValidator, CustomCtx, CustomMadeArgs, GenericMutationCtx<DataModel>, Visibility, Record<string, any>>
+  return customFnBuilder(mutation, customization) as CustomBuilder<
+    'mutation',
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    GenericMutationCtx<DataModel>,
+    Visibility,
+    Record<string, any>
+  >
 }
 
 export function zCustomAction<
@@ -99,8 +136,20 @@ export function zCustomAction<
   DataModel extends GenericDataModel
 >(
   action: any,
-  customization: Customization<GenericActionCtx<DataModel>, CustomArgsValidator, CustomCtx, CustomMadeArgs>
+  customization: Customization<
+    GenericActionCtx<DataModel>,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs
+  >
 ) {
-  return customFnBuilder(action, customization) as CustomBuilder<'action', CustomArgsValidator, CustomCtx, CustomMadeArgs, GenericActionCtx<DataModel>, Visibility, Record<string, any>>
+  return customFnBuilder(action, customization) as CustomBuilder<
+    'action',
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    GenericActionCtx<DataModel>,
+    Visibility,
+    Record<string, any>
+  >
 }
-

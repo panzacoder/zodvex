@@ -1,7 +1,13 @@
 import { z } from 'zod'
-import { zodToConvex, zodToConvexFields, getObjectShape } from './mapping'
 import { toConvexJS } from './codec'
-import { type InferArgs, type InferReturns, type ExtractCtx, type PreserveReturnType, type ZodToConvexArgs } from './types'
+import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
+import {
+  type ExtractCtx,
+  type InferArgs,
+  type InferReturns,
+  type PreserveReturnType,
+  type ZodToConvexArgs
+} from './types'
 
 export function zQuery<
   Builder extends (fn: any) => any,
@@ -10,7 +16,10 @@ export function zQuery<
 >(
   query: Builder,
   input: A,
-  handler: (ctx: ExtractCtx<Builder>, args: InferArgs<A>) => Promise<InferReturns<R>> | InferReturns<R>,
+  handler: (
+    ctx: ExtractCtx<Builder>,
+    args: InferArgs<A>
+  ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
 ): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   let zodSchema: z.ZodTypeAny
@@ -49,7 +58,10 @@ export function zInternalQuery<
 >(
   internalQuery: Builder,
   input: A,
-  handler: (ctx: ExtractCtx<Builder>, args: InferArgs<A>) => Promise<InferReturns<R>> | InferReturns<R>,
+  handler: (
+    ctx: ExtractCtx<Builder>,
+    args: InferArgs<A>
+  ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
 ): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   return zQuery(internalQuery, input, handler, options)
@@ -62,7 +74,10 @@ export function zMutation<
 >(
   mutation: Builder,
   input: A,
-  handler: (ctx: ExtractCtx<Builder>, args: InferArgs<A>) => Promise<InferReturns<R>> | InferReturns<R>,
+  handler: (
+    ctx: ExtractCtx<Builder>,
+    args: InferArgs<A>
+  ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
 ): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   let zodSchema: z.ZodTypeAny
@@ -101,7 +116,10 @@ export function zInternalMutation<
 >(
   internalMutation: Builder,
   input: A,
-  handler: (ctx: ExtractCtx<Builder>, args: InferArgs<A>) => Promise<InferReturns<R>> | InferReturns<R>,
+  handler: (
+    ctx: ExtractCtx<Builder>,
+    args: InferArgs<A>
+  ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
 ): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   return zMutation(internalMutation, input, handler, options)
@@ -114,7 +132,10 @@ export function zAction<
 >(
   action: Builder,
   input: A,
-  handler: (ctx: ExtractCtx<Builder>, args: InferArgs<A>) => Promise<InferReturns<R>> | InferReturns<R>,
+  handler: (
+    ctx: ExtractCtx<Builder>,
+    args: InferArgs<A>
+  ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
 ): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   let zodSchema: z.ZodTypeAny
@@ -153,9 +174,11 @@ export function zInternalAction<
 >(
   internalAction: Builder,
   input: A,
-  handler: (ctx: ExtractCtx<Builder>, args: InferArgs<A>) => Promise<InferReturns<R>> | InferReturns<R>,
+  handler: (
+    ctx: ExtractCtx<Builder>,
+    args: InferArgs<A>
+  ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
 ): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   return zAction(internalAction, input, handler, options)
 }
-

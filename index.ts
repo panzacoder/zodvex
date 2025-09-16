@@ -4,12 +4,5 @@ export { zQuery, zInternalQuery, zMutation, zInternalMutation, zAction, zInterna
 export { zCustomQuery, zCustomMutation, zCustomAction } from './src/custom'
 export { zodTable, zCrud } from './src/tables'
 export type { InferArgs, InferReturns, ExtractCtx, PreserveReturnType, ZodToConvexArgs } from './src/types'
-export { zid, type Zid } from 'convex-helpers/server/zodV4'
-
-import { zodToConvex as _zodToConvex, zodToConvexFields as _zodToConvexFields } from './src/mapping'
-const defaultExport = {
-  zodToConvex: _zodToConvex,
-  zodToConvexFields: _zodToConvexFields
-}
-export default defaultExport
+export { zid, type Zid } from './src/zodV4Compat'
 

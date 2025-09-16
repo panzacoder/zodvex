@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
-import { z } from 'zod'
 import { v } from 'convex/values'
-import { zodToConvex, zodToConvexFields, analyzeZod } from '../src/mapping'
+import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { analyzeZod, zodToConvex, zodToConvexFields } from '../src/mapping'
 
 describe('analyzeZod', () => {
   it('identifies optional fields', () => {

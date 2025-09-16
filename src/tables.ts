@@ -1,11 +1,14 @@
-import { z } from 'zod'
+import { paginationOptsValidator } from 'convex/server'
 import { Table } from 'convex-helpers/server'
-import { zid } from 'convex-helpers/server/zodV4'
+import { z } from 'zod'
 import { convexCodec } from './codec'
 import { zMutation, zQuery } from './wrappers'
-import { paginationOptsValidator } from 'convex/server'
+import { zid } from './zodV4Compat'
 
-export function zodTable<T extends z.ZodObject<any>, TableName extends string>(name: TableName, schema: T) {
+export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
+  name: TableName,
+  schema: T
+) {
   const codec = convexCodec(schema)
   const tableDefinition = Table(name, codec.toConvexSchema())
   return { ...tableDefinition, codec, schema }
@@ -53,4 +56,3 @@ export function zCrud<
     })
   }
 }
-

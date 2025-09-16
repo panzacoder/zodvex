@@ -31,14 +31,16 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "type-check": "tsc --noEmit",
-    "test": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "lint": "eslint . --ext .ts",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "prepublishOnly": "pnpm run build && pnpm run test && pnpm run type-check"
+    "build": "bun run tsup",
+    "dev": "bun run tsup --watch",
+    "type-check": "bun run tsc --noEmit",
+    "test": "bun test",
+    "test:vitest": "bun run vitest",
+    "test:coverage": "bun run vitest run --coverage",
+    "lint": "bun x biome check src __tests__",
+    "lint:fix": "bun x biome check --write src __tests__",
+    "format": "bun x biome format --write src __tests__",
+    "prepublishOnly": "bun run build && bun test && bun run type-check"
   },
   "peerDependencies": {
     "convex": "^1.27.0",
@@ -46,18 +48,17 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.2.4",
+    "@types/bun": "^1.2.22",
     "@types/node": "^20.0.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
     "@vitest/coverage-v8": "^1.0.0",
-    "eslint": "^8.57.0",
-    "prettier": "^3.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20",
+    "bun": ">=1.0.0"
   },
   "publishConfig": {
     "access": "public"

@@ -1,6 +1,6 @@
+import { type Validator, v } from 'convex/values'
 import { z } from 'zod'
-import { v, type Validator } from 'convex/values'
-import { registryHelpers } from 'convex-helpers/server/zodV4'
+import { registryHelpers } from './zodV4Compat'
 
 // union helpers
 export function makeUnion(members: any[]): any {
@@ -35,7 +35,7 @@ export function analyzeZod(schema: z.ZodTypeAny): {
   }
   if (s instanceof z.ZodUnion) {
     const opts = (s as z.ZodUnion<any>).options as z.ZodTypeAny[]
-    if (opts && opts.some((o) => o instanceof z.ZodNull)) {
+    if (opts && opts.some(o => o instanceof z.ZodNull)) {
       nullable = true
     }
   }
@@ -75,8 +75,8 @@ export function simpleToConvex(schema: z.ZodTypeAny): any {
 
   if (inner instanceof z.ZodUnion) {
     const opts: z.ZodTypeAny[] = (inner as z.ZodUnion<any>).options
-    const nonNull = opts.filter((o) => !(o instanceof z.ZodNull))
-    const members = nonNull.map((o) => simpleToConvex(o))
+    const nonNull = opts.filter(o => !(o instanceof z.ZodNull))
+    const members = nonNull.map(o => simpleToConvex(o))
     return makeUnion(members)
   }
 
@@ -101,12 +101,12 @@ export function simpleToConvex(schema: z.ZodTypeAny): any {
 
   if (inner instanceof z.ZodRecord) {
     const valueType = (inner as z.ZodRecord<any>).valueType as z.ZodTypeAny
-    return v.record(v.string(), simpleToConvex(valueType))
+    return v.record(v.string(), valueType ? simpleToConvex(valueType) : v.any())
   }
 
   if ((z as any).ZodTuple && inner instanceof (z as any).ZodTuple) {
     const items = ((inner as any)._def?.items ?? []) as z.ZodTypeAny[]
-    const member = items.length ? makeUnion(items.map((i) => simpleToConvex(i))) : v.any()
+    const member = items.length ? makeUnion(items.map(i => simpleToConvex(i))) : v.any()
     return v.array(member)
   }
 
@@ -185,4 +185,3 @@ export function zodToConvexFields(
   }
   return out
 }
-
