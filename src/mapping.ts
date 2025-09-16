@@ -103,7 +103,8 @@ export function simpleToConvex(schema: z.ZodTypeAny): any {
 
   if (inner instanceof z.ZodRecord) {
     const valueType = (inner as z.ZodRecord<any>).valueType as z.ZodTypeAny
-    return v.record(v.string(), valueType ? simpleToConvex(valueType) : v.any())
+    // When z.record(z.string()) is used, valueType is undefined and defaults to z.string()
+    return v.record(v.string(), valueType ? simpleToConvex(valueType) : v.string())
   }
 
   if ((z as any).ZodTuple && inner instanceof (z as any).ZodTuple) {
