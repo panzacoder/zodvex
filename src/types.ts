@@ -26,53 +26,30 @@ export type ExtractCtx<Builder> = Builder extends {
   ? Ctx
   : never
 
-export type PreserveReturnType<Builder, ArgsType, ReturnsType> = Builder extends QueryBuilder<
-  any,
-  infer Visibility
->
-  ? RegisteredQuery<
-      Visibility,
-      ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-      Promise<ReturnsType>
-    >
-  : Builder extends MutationBuilder<any, infer Visibility>
-    ? RegisteredMutation<
-        Visibility,
-        ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-        Promise<ReturnsType>
-      >
-    : Builder extends ActionBuilder<any, infer Visibility>
-      ? RegisteredAction<
-          Visibility,
-          ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-          Promise<ReturnsType>
-        >
-      : Builder extends CustomBuilder<'query', any, any, any, any, infer V, any>
-        ? RegisteredQuery<
-            V,
-            ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-            Promise<ReturnsType>
-          >
-        : Builder extends CustomBuilder<'mutation', any, any, any, any, infer V, any>
-          ? RegisteredMutation<
-              V,
-              ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-              Promise<ReturnsType>
-            >
-          : Builder extends CustomBuilder<'action', any, any, any, any, infer V, any>
-            ? RegisteredAction<
-                V,
-                ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-                Promise<ReturnsType>
-              >
-            : Builder extends (...args: any[]) => any
-              ? ReturnType<Builder>
-              : never
 
-export type ZodToConvexArgs<A> = A extends z.ZodObject<infer Shape>
-  ? { [K in keyof Shape]: any }
-  : A extends Record<string, z.ZodTypeAny>
-    ? { [K in keyof A]: any }
-    : A extends z.ZodTypeAny
-      ? { value: any }
-      : Record<string, never>
+// Flattens mapped/conditional types for better readability and sometimes helps instantiation
+type Simplify<T> = { [K in keyof T]: T[K] } & {}
+
+// Remap only Args/Returns on an already-registered function type
+type WithArgsAndReturns<F, ArgsType, ReturnsType> =
+  F extends RegisteredQuery<infer V, any, any>
+    ? RegisteredQuery<V, ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs, ReturnsType>
+    : F extends RegisteredMutation<infer V, any, any>
+      ? RegisteredMutation<V, ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs, ReturnsType>
+      : F extends RegisteredAction<infer V, any, any>
+        ? RegisteredAction<V, ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs, ReturnsType>
+        : never
+
+// Base on the actual registered type returned by the builder and only swap args/returns.
+// Note: no Promise wrapper here; Convex codegen will await-normalize on the client side.
+export type PreserveReturnType<Builder, ArgsType, ReturnsType> =
+  WithArgsAndReturns<ReturnType<Builder>, ArgsType, ReturnsType>
+export type ZodToConvexArgs<A> = Simplify<
+  A extends z.ZodObject<infer Shape>
+    ? { [K in keyof Shape]: any }
+    : A extends Record<string, z.ZodTypeAny>
+      ? { [K in keyof A]: any }
+      : A extends z.ZodTypeAny
+        ? { value: any }
+        : Record<string, never>
+>
