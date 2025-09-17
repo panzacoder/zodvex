@@ -1,13 +1,9 @@
 import {
-  type ActionBuilder,
   type DefaultFunctionArgs,
-  type MutationBuilder,
-  type QueryBuilder,
   type RegisteredAction,
   type RegisteredMutation,
   type RegisteredQuery
 } from 'convex/server'
-import type { CustomBuilder } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 
 export type InferArgs<A> = A extends z.ZodObject<infer S>
@@ -26,24 +22,37 @@ export type ExtractCtx<Builder> = Builder extends {
   ? Ctx
   : never
 
-
 // Flattens mapped/conditional types for better readability and sometimes helps instantiation
 type Simplify<T> = { [K in keyof T]: T[K] } & {}
 
 // Remap only Args/Returns on an already-registered function type
-type WithArgsAndReturns<F, ArgsType, ReturnsType> =
-  F extends RegisteredQuery<infer V, any, any>
-    ? RegisteredQuery<V, ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs, ReturnsType>
-    : F extends RegisteredMutation<infer V, any, any>
-      ? RegisteredMutation<V, ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs, ReturnsType>
-      : F extends RegisteredAction<infer V, any, any>
-        ? RegisteredAction<V, ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs, ReturnsType>
-        : never
+type WithArgsAndReturns<F, ArgsType, ReturnsType> = F extends RegisteredQuery<infer V, any, any>
+  ? RegisteredQuery<
+      V,
+      ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
+      ReturnsType
+    >
+  : F extends RegisteredMutation<infer V, any, any>
+    ? RegisteredMutation<
+        V,
+        ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
+        ReturnsType
+      >
+    : F extends RegisteredAction<infer V, any, any>
+      ? RegisteredAction<
+          V,
+          ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
+          ReturnsType
+        >
+      : never
 
 // Base on the actual registered type returned by the builder and only swap args/returns.
 // Note: no Promise wrapper here; Convex codegen will await-normalize on the client side.
-export type PreserveReturnType<Builder, ArgsType, ReturnsType> =
-  WithArgsAndReturns<ReturnType<Builder>, ArgsType, ReturnsType>
+export type PreserveReturnType<
+  Builder extends (...args: any) => any,
+  ArgsType,
+  ReturnsType
+> = WithArgsAndReturns<ReturnType<Builder>, ArgsType, ReturnsType>
 export type ZodToConvexArgs<A> = Simplify<
   A extends z.ZodObject<infer Shape>
     ? { [K in keyof Shape]: any }
