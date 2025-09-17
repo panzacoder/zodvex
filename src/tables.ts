@@ -3,7 +3,7 @@ import { Table } from "convex-helpers/server";
 import { z } from "zod";
 import { convexCodec } from "./codec";
 import { zMutation, zQuery } from "./wrappers";
-import { zid } from "./zodV4Compat";
+import { zid } from "./ids";
 
 export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
   name: TableName,
