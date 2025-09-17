@@ -1,16 +1,11 @@
 import { z } from 'zod'
 import { toConvexJS } from './codec'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
-import {
-  type ExtractCtx,
-  type InferArgs,
-  type InferReturns,
-  type PreserveReturnType,
-  type ZodToConvexArgs
-} from './types'
+import { type ExtractCtx, type InferArgs, type InferReturns } from './types'
+import type { RegisteredQuery, RegisteredMutation, RegisteredAction } from 'convex/server'
 
 export function zQuery<
-  Builder extends (fn: any) => any,
+  Builder extends (fn: any) => RegisteredQuery<any, any, any>,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
@@ -21,7 +16,7 @@ export function zQuery<
     args: InferArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
+): ReturnType<Builder> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -48,11 +43,11 @@ export function zQuery<
       }
       return raw as any
     }
-  }) as PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>>
+  }) as unknown as ReturnType<Builder>
 }
 
 export function zInternalQuery<
-  Builder extends (fn: any) => any,
+  Builder extends (fn: any) => RegisteredQuery<any, any, any>,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
@@ -63,12 +58,12 @@ export function zInternalQuery<
     args: InferArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
+): ReturnType<Builder> {
   return zQuery(internalQuery, input, handler, options)
 }
 
 export function zMutation<
-  Builder extends (fn: any) => any,
+  Builder extends (fn: any) => RegisteredMutation<any, any, any>,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
@@ -79,7 +74,7 @@ export function zMutation<
     args: InferArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
+): ReturnType<Builder> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -106,11 +101,11 @@ export function zMutation<
       }
       return raw as any
     }
-  }) as PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>>
+  }) as unknown as ReturnType<Builder>
 }
 
 export function zInternalMutation<
-  Builder extends (fn: any) => any,
+  Builder extends (fn: any) => RegisteredMutation<any, any, any>,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
@@ -121,12 +116,12 @@ export function zInternalMutation<
     args: InferArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
+): ReturnType<Builder> {
   return zMutation(internalMutation, input, handler, options)
 }
 
 export function zAction<
-  Builder extends (fn: any) => any,
+  Builder extends (fn: any) => RegisteredAction<any, any, any>,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
@@ -137,7 +132,7 @@ export function zAction<
     args: InferArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
+): ReturnType<Builder> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -164,11 +159,11 @@ export function zAction<
       }
       return raw as any
     }
-  }) as PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>>
+  }) as unknown as ReturnType<Builder>
 }
 
 export function zInternalAction<
-  Builder extends (fn: any) => any,
+  Builder extends (fn: any) => RegisteredAction<any, any, any>,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
@@ -179,6 +174,6 @@ export function zInternalAction<
     args: InferArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
+): ReturnType<Builder> {
   return zAction(internalAction, input, handler, options)
 }

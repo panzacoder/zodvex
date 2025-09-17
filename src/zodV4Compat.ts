@@ -17,20 +17,19 @@ export const registryHelpers = {
 /**
  * Create a Zod validator for a Convex Id
  */
-export function zid<TableName extends string>(tableName: TableName): z.ZodTypeAny {
-  const schema = z
-    .string()
-    .refine((val): val is GenericId<TableName> => typeof val === 'string' && val.length > 0, {
-      message: `Invalid ID for table "${tableName}"`
-    })
+export function zid<TableName extends string>(tableName: TableName): z.ZodType<GenericId<TableName>> {
+  // Use z.custom to preserve the GenericId<TableName> inference while validating as a string
+  const schema = z.custom<GenericId<TableName>>((val) => typeof val === 'string' && val.length > 0, {
+    message: `Invalid ID for table "${tableName}"`
+  })
 
-  // Store metadata for registry lookup
+  // Store metadata for registry lookup so mapping can convert to v.id(tableName)
   registryHelpers.setMetadata(schema, {
     isConvexId: true,
     tableName
   })
 
-  return schema as z.ZodTypeAny
+  return schema as z.ZodType<GenericId<TableName>>
 }
 
 export type Zid<TableName extends string> = ReturnType<typeof zid<TableName>>

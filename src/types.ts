@@ -53,12 +53,16 @@ export type PreserveReturnType<
   ArgsType,
   ReturnsType
 > = WithArgsAndReturns<ReturnType<Builder>, ArgsType, ReturnsType>
+
+// Preserve precise argument types for better client API types.
+// Fall back to empty object when no args.
 export type ZodToConvexArgs<A> = Simplify<
-  A extends z.ZodObject<infer Shape>
-    ? { [K in keyof Shape]: any }
+  // For large object schemas, keep client args shallow to avoid type explosion
+  A extends z.ZodObject<any>
+    ? Record<string, unknown>
     : A extends Record<string, z.ZodTypeAny>
-      ? { [K in keyof A]: any }
+      ? { [K in keyof A]: unknown }
       : A extends z.ZodTypeAny
-        ? { value: any }
+        ? { value: unknown }
         : Record<string, never>
 >
