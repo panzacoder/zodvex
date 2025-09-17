@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { toConvexJS } from './codec'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
-import { type ExtractCtx, type InferArgs, type InferReturns } from './types'
+import { type InferReturns, type ZodToConvexArgs, type ExtractCtx, type PreserveReturnType } from './types'
 import type { RegisteredQuery, RegisteredMutation, RegisteredAction } from 'convex/server'
 
 export function zQuery<
@@ -13,10 +13,10 @@ export function zQuery<
   input: A,
   handler: (
     ctx: ExtractCtx<Builder>,
-    args: InferArgs<A>
+    args: ZodToConvexArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): ReturnType<Builder> {
+): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -35,7 +35,7 @@ export function zQuery<
     args,
     returns,
     handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
-      const parsed = zodSchema.parse(argsObject) as InferArgs<A>
+      const parsed = zodSchema.parse(argsObject) as ZodToConvexArgs<A>
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
         const validated = (options.returns as z.ZodTypeAny).parse(raw)
@@ -43,7 +43,7 @@ export function zQuery<
       }
       return raw as any
     }
-  }) as unknown as ReturnType<Builder>
+  }) as unknown as PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>>
 }
 
 export function zInternalQuery<
@@ -55,10 +55,10 @@ export function zInternalQuery<
   input: A,
   handler: (
     ctx: ExtractCtx<Builder>,
-    args: InferArgs<A>
+    args: ZodToConvexArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): ReturnType<Builder> {
+): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   return zQuery(internalQuery, input, handler, options)
 }
 
@@ -71,10 +71,10 @@ export function zMutation<
   input: A,
   handler: (
     ctx: ExtractCtx<Builder>,
-    args: InferArgs<A>
+    args: ZodToConvexArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): ReturnType<Builder> {
+): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -93,7 +93,7 @@ export function zMutation<
     args,
     returns,
     handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
-      const parsed = zodSchema.parse(argsObject) as InferArgs<A>
+      const parsed = zodSchema.parse(argsObject) as ZodToConvexArgs<A>
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
         const validated = (options.returns as z.ZodTypeAny).parse(raw)
@@ -101,7 +101,7 @@ export function zMutation<
       }
       return raw as any
     }
-  }) as unknown as ReturnType<Builder>
+  }) as unknown as PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>>
 }
 
 export function zInternalMutation<
@@ -113,10 +113,10 @@ export function zInternalMutation<
   input: A,
   handler: (
     ctx: ExtractCtx<Builder>,
-    args: InferArgs<A>
+    args: ZodToConvexArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): ReturnType<Builder> {
+): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   return zMutation(internalMutation, input, handler, options)
 }
 
@@ -129,10 +129,10 @@ export function zAction<
   input: A,
   handler: (
     ctx: ExtractCtx<Builder>,
-    args: InferArgs<A>
+    args: ZodToConvexArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): ReturnType<Builder> {
+): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -151,7 +151,7 @@ export function zAction<
     args,
     returns,
     handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
-      const parsed = zodSchema.parse(argsObject) as InferArgs<A>
+      const parsed = zodSchema.parse(argsObject) as ZodToConvexArgs<A>
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
         const validated = (options.returns as z.ZodTypeAny).parse(raw)
@@ -159,7 +159,7 @@ export function zAction<
       }
       return raw as any
     }
-  }) as unknown as ReturnType<Builder>
+  }) as unknown as PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>>
 }
 
 export function zInternalAction<
@@ -171,9 +171,9 @@ export function zInternalAction<
   input: A,
   handler: (
     ctx: ExtractCtx<Builder>,
-    args: InferArgs<A>
+    args: ZodToConvexArgs<A>
   ) => Promise<InferReturns<R>> | InferReturns<R>,
   options?: { returns?: R }
-): ReturnType<Builder> {
+): PreserveReturnType<Builder, ZodToConvexArgs<A>, InferReturns<R>> {
   return zAction(internalAction, input, handler, options)
 }

@@ -3,7 +3,10 @@ import {
   type GenericActionCtx,
   type GenericDataModel,
   type GenericMutationCtx,
-  type GenericQueryCtx
+  type GenericQueryCtx,
+  type QueryBuilder,
+  type MutationBuilder,
+  type ActionBuilder
 } from 'convex/server'
 import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type CustomBuilder, type Customization, NoOp } from 'convex-helpers/server/customFunctions'
@@ -12,9 +15,22 @@ import { toConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
 import { pick } from './utils'
 
-function customFnBuilder(
-  builder: (args: any) => any,
-  customization: Customization<any, any, any, any>
+function customFnBuilder<
+  Ctx extends Record<string, any>,
+  Builder extends (fn: any) => any,
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  builder: Builder,
+  customization: Customization<
+    Ctx,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >
 ) {
   const customInput = customization.input ?? NoOp.input
   const inputArgs = customization.args ?? NoOp.args
@@ -42,8 +58,12 @@ function customFnBuilder(
       return builder({
         args: { ...convexValidator, ...inputArgs },
         ...returnValidator,
-        handler: async (ctx: any, allArgs: any) => {
-          const added = await customInput(ctx, pick(allArgs, Object.keys(inputArgs)) as any, extra)
+        handler: async (ctx: Ctx, allArgs: any) => {
+          const added: any = await customInput(
+            ctx,
+            pick(allArgs, Object.keys(inputArgs)) as any,
+            extra
+          )
           const rawArgs = pick(allArgs, Object.keys(argsValidator))
           const parsed = z.object(argsValidator).safeParse(rawArgs)
           if (!parsed.success) {
@@ -51,26 +71,46 @@ function customFnBuilder(
               ZodError: JSON.parse(JSON.stringify(parsed.error.flatten(), null, 2))
             })
           }
-          const result = await handler({ ...ctx, ...added }, parsed.data)
+          const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
+          const finalArgs = { ...parsed.data, ...(added?.args ?? {}) }
+          const ret = await handler(finalCtx, finalArgs)
           if (returns && !fn.skipConvexValidation) {
-            const validated = (returns as z.ZodTypeAny).parse(result)
+            const validated = (returns as z.ZodTypeAny).parse(ret)
+            if (added?.onSuccess) {
+              await added.onSuccess({ ctx, args: parsed.data, result: validated })
+            }
             return toConvexJS(returns as z.ZodTypeAny, validated)
           }
-          return result
+          if (added?.onSuccess) {
+            await added.onSuccess({ ctx, args: parsed.data, result: ret })
+          }
+          return ret
         }
       })
     }
     return builder({
       args: inputArgs,
       ...returnValidator,
-      handler: async (ctx: any, allArgs: any) => {
-        const added = await customInput(ctx, pick(allArgs, Object.keys(inputArgs)) as any, extra)
-        const result = await handler({ ...ctx, ...added }, allArgs)
+      handler: async (ctx: Ctx, allArgs: any) => {
+        const added: any = await customInput(
+          ctx,
+          pick(allArgs, Object.keys(inputArgs)) as any,
+          extra
+        )
+        const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
+        const finalArgs = { ...allArgs, ...(added?.args ?? {}) }
+        const ret = await handler(finalCtx, finalArgs)
         if (returns && !fn.skipConvexValidation) {
-          const validated = (returns as z.ZodTypeAny).parse(result)
+          const validated = (returns as z.ZodTypeAny).parse(ret)
+          if (added?.onSuccess) {
+            await added.onSuccess({ ctx, args: allArgs, result: validated })
+          }
           return toConvexJS(returns as z.ZodTypeAny, validated)
         }
-        return result
+        if (added?.onSuccess) {
+          await added.onSuccess({ ctx, args: allArgs, result: ret })
+        }
+        return ret
       }
     })
   }
@@ -81,24 +121,33 @@ export function zCustomQuery<
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
+  DataModel extends GenericDataModel,
+  ExtraArgs extends Record<string, any> = Record<string, any>
 >(
-  query: any,
+  query: QueryBuilder<DataModel, Visibility>,
   customization: Customization<
     GenericQueryCtx<DataModel>,
     CustomArgsValidator,
     CustomCtx,
-    CustomMadeArgs
+    CustomMadeArgs,
+    ExtraArgs
   >
 ) {
-  return customFnBuilder(query, customization) as CustomBuilder<
+  return customFnBuilder<
+    GenericQueryCtx<DataModel>,
+    typeof query,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >(query, customization) as CustomBuilder<
     'query',
     CustomArgsValidator,
     CustomCtx,
     CustomMadeArgs,
     GenericQueryCtx<DataModel>,
     Visibility,
-    Record<string, any>
+    ExtraArgs
   >
 }
 
@@ -107,24 +156,33 @@ export function zCustomMutation<
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
+  DataModel extends GenericDataModel,
+  ExtraArgs extends Record<string, any> = Record<string, any>
 >(
-  mutation: any,
+  mutation: MutationBuilder<DataModel, Visibility>,
   customization: Customization<
     GenericMutationCtx<DataModel>,
     CustomArgsValidator,
     CustomCtx,
-    CustomMadeArgs
+    CustomMadeArgs,
+    ExtraArgs
   >
 ) {
-  return customFnBuilder(mutation, customization) as CustomBuilder<
+  return customFnBuilder<
+    GenericMutationCtx<DataModel>,
+    typeof mutation,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >(mutation, customization) as CustomBuilder<
     'mutation',
     CustomArgsValidator,
     CustomCtx,
     CustomMadeArgs,
     GenericMutationCtx<DataModel>,
     Visibility,
-    Record<string, any>
+    ExtraArgs
   >
 }
 
@@ -133,23 +191,32 @@ export function zCustomAction<
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
+  DataModel extends GenericDataModel,
+  ExtraArgs extends Record<string, any> = Record<string, any>
 >(
-  action: any,
+  action: ActionBuilder<DataModel, Visibility>,
   customization: Customization<
     GenericActionCtx<DataModel>,
     CustomArgsValidator,
     CustomCtx,
-    CustomMadeArgs
+    CustomMadeArgs,
+    ExtraArgs
   >
 ) {
-  return customFnBuilder(action, customization) as CustomBuilder<
+  return customFnBuilder<
+    GenericActionCtx<DataModel>,
+    typeof action,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >(action, customization) as CustomBuilder<
     'action',
     CustomArgsValidator,
     CustomCtx,
     CustomMadeArgs,
     GenericActionCtx<DataModel>,
     Visibility,
-    Record<string, any>
+    ExtraArgs
   >
 }

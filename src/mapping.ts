@@ -1,6 +1,6 @@
 import { type Validator, v } from 'convex/values'
 import { z } from 'zod'
-import { registryHelpers } from './zodV4Compat'
+import { registryHelpers } from './ids'
 
 // union helpers
 export function makeUnion(members: any[]): any {

@@ -56,13 +56,17 @@ export type PreserveReturnType<
 
 // Preserve precise argument types for better client API types.
 // Fall back to empty object when no args.
+// Mark a Zod schema as "loose" to opt-out of deep type instantiation.
+export type Loose<T extends z.ZodTypeAny> = T & { _zodvexLooseBrand?: true }
+
 export type ZodToConvexArgs<A> = Simplify<
-  // For large object schemas, keep client args shallow to avoid type explosion
   A extends z.ZodObject<any>
-    ? Record<string, unknown>
+    ? (A extends { _zodvexLooseBrand?: true }
+        ? Record<string, unknown>
+        : z.infer<A>)
     : A extends Record<string, z.ZodTypeAny>
-      ? { [K in keyof A]: unknown }
+      ? { [K in keyof A]: z.infer<A[K]> }
       : A extends z.ZodTypeAny
-        ? { value: unknown }
+        ? { value: z.infer<A> }
         : Record<string, never>
 >

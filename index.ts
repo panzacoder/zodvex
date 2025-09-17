@@ -3,6 +3,7 @@ export { convexCodec, type ConvexCodec, toConvexJS, fromConvexJS } from './src/c
 export { zQuery, zInternalQuery, zMutation, zInternalMutation, zAction, zInternalAction } from './src/wrappers'
 export { zCustomQuery, zCustomMutation, zCustomAction } from './src/custom'
 export { zodTable, zCrud } from './src/tables'
-export type { InferArgs, InferReturns, ExtractCtx, PreserveReturnType, ZodToConvexArgs } from './src/types'
-export { zid, type Zid } from './src/zodV4Compat'
+export { zLoose } from './src/loose'
+export type { InferArgs, InferReturns, ExtractCtx, PreserveReturnType, ZodToConvexArgs, Loose } from './src/types'
+export { zid, type Zid } from './src/ids'
 
