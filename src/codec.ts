@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
+import { findBaseCodec } from './registry'
 
 export type ConvexCodec<T = any> = {
   schema: z.ZodTypeAny
@@ -75,9 +76,9 @@ export function toConvexJS(schemaOrValue: any, value?: any): any {
     return value.map(item => toConvexJS(el, item))
   }
 
-  if (schema instanceof z.ZodDate && value instanceof Date) {
-    return value.getTime()
-  }
+  // Base type registry encode fallback
+  const base = findBaseCodec(schema)
+  if (base) return base.encode(value, schema)
   return value
 }
 
@@ -113,9 +114,9 @@ export function fromConvexJS(value: any, schema: z.ZodTypeAny): any {
     return value.map(item => fromConvexJS(item, el))
   }
 
-  if (schema instanceof z.ZodDate && typeof value === 'number') {
-    return new Date(value)
-  }
+  // Base type registry decode fallback
+  const base = findBaseCodec(schema)
+  if (base) return base.decode(value, schema)
   return value
 }
 

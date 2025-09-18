@@ -11,7 +11,7 @@ import {
 import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type CustomBuilder, type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
-import { toConvexJS } from './codec'
+import { toConvexJS, fromConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
 import { pick } from './utils'
 
@@ -65,7 +65,9 @@ function customFnBuilder<
             extra
           )
           const rawArgs = pick(allArgs, Object.keys(argsValidator))
-          const parsed = z.object(argsValidator).safeParse(rawArgs)
+          const argsSchema = z.object(argsValidator)
+          const decoded = fromConvexJS(rawArgs, argsSchema)
+          const parsed = argsSchema.safeParse(decoded)
           if (!parsed.success) {
             throw new ConvexError({
               ZodError: JSON.parse(JSON.stringify(parsed.error.flatten(), null, 2))

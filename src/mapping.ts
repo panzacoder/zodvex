@@ -1,6 +1,7 @@
 import { type Validator, v } from 'convex/values'
 import { z } from 'zod'
 import { registryHelpers } from './ids'
+import { findBaseCodec } from './registry'
 
 // union helpers
 export function makeUnion(members: any[]): any {
@@ -54,6 +55,10 @@ export function simpleToConvex(schema: z.ZodTypeAny): any {
   } catch {
     // Ignore metadata errors - fallback to type-based conversion
   }
+
+  // Try base type registry first
+  const base = findBaseCodec(inner)
+  if (base) return base.toValidator(inner)
 
   if (inner instanceof z.ZodString) return v.string()
   if (inner instanceof z.ZodNumber) return v.float64()
