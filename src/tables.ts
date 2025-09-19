@@ -11,8 +11,10 @@ export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
 ) {
   const codec = convexCodec(schema);
   const tableDefinition = Table(name, codec.toConvexSchema());
+  const docSchema = schema.extend({ _id: zid(name), _creationTime: z.number() })
+  const docArray = z.array(docSchema)
   // Ensure the returned shape carries the literal table name type parameter
-  return { ...tableDefinition, name, codec, schema } as {
+  return { ...tableDefinition, name, codec, schema, docSchema, docArray } as {
     name: TableName;
     table: any;
     doc: any;
@@ -22,6 +24,8 @@ export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
     _id: any;
     codec: ReturnType<typeof convexCodec<T>>;
     schema: T;
+    docSchema: typeof docSchema;
+    docArray: typeof docArray;
   };
 }
 

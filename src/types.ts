@@ -16,6 +16,9 @@ export type InferArgs<A> = A extends z.ZodObject<infer S>
 
 export type InferReturns<R> = R extends z.ZodTypeAny ? z.output<R> : R extends undefined ? any : R
 
+// For handler authoring: what the handler returns before wrapper validation/encoding
+export type InferHandlerReturns<R> = R extends z.ZodTypeAny ? z.input<R> : any
+
 export type ExtractCtx<Builder> = Builder extends {
   (fn: { handler: (ctx: infer Ctx, ...args: any[]) => any }): any
 }

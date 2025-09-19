@@ -4,6 +4,6 @@ export { zQuery, zInternalQuery, zMutation, zInternalMutation, zAction, zInterna
 export { zCustomQuery, zCustomMutation, zCustomAction } from './src/custom'
 export { zodTable, zCrud } from './src/tables'
 export { zLoose } from './src/loose'
-export type { InferArgs, InferReturns, ExtractCtx, PreserveReturnType, ZodToConvexArgs, Loose } from './src/types'
+export type { InferArgs, InferReturns, InferHandlerReturns, ExtractCtx, PreserveReturnType, ZodToConvexArgs, Loose } from './src/types'
 export { zid, type Zid } from './src/ids'
-
+export { returnsAs } from './src/utils'

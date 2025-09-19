@@ -18,9 +18,14 @@ export const registryHelpers = {
  */
 export function zid<TableName extends string>(tableName: TableName): z.ZodType<GenericId<TableName>> {
   // Use z.custom to preserve the GenericId<TableName> inference while validating as a string
-  const schema = z.custom<GenericId<TableName>>((val) => typeof val === 'string' && val.length > 0, {
-    message: `Invalid ID for table "${tableName}"`
-  })
+  const schema = z
+    .custom<GenericId<TableName>>((val) => typeof val === 'string' && val.length > 0, {
+      message: `Invalid ID for table "${tableName}"`
+    })
+    // Add a human-readable marker for client-side introspection utilities
+    // used in apps/native (e.g., to detect relationship fields in dynamic forms).
+    // This does not affect server-side mapping which relies on an internal registry.
+    .describe(`convexId:${tableName}`)
 
   // Store metadata for registry lookup so mapping can convert to v.id(tableName)
   registryHelpers.setMetadata(schema, {

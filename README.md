@@ -190,6 +190,59 @@ export const sendEmail = zAction(
 
 // Internal functions also supported
 import { zInternalQuery, zInternalMutation, zInternalAction } from "zodvex";
+
+// Handler return typing
+// When `returns` is provided, your handler must return z.input<typeof returns>
+// (domain values like Date). zodvex validates and encodes to Convex Values for you.
+```
+
+#### Return Typing + Helpers
+
+Handlers should return domain values shaped by your `returns` schema. zodvex validates and encodes them to Convex Values for you. For common patterns:
+
+```ts
+import { z } from "zod";
+import { zQuery, zodTable, returnsAs } from "zodvex";
+import { query } from "./_generated/server";
+
+// Table + doc helpers
+const UserSchema = z.object({ name: z.string(), createdAt: z.date() });
+export const Users = zodTable("users", UserSchema);
+
+// 1) Return full docs, strongly typed
+export const listUsers = zQuery(
+  query,
+  {},
+  async (ctx) => {
+    const rows = await ctx.db.query("users").collect();
+    // No cast needed — handler returns domain values; wrapper encodes to Convex Values
+    return rows;
+  },
+  { returns: Users.docArray }
+);
+
+// 2) Return a custom shape (with Dates)
+export const createdBounds = zQuery(
+  query,
+  {},
+  async (ctx) => {
+    const first = await ctx.db.query("users").order("asc").first();
+    const last = await ctx.db.query("users").order("desc").first();
+    return { first: first?.createdAt ?? null, last: last?.createdAt ?? null };
+  },
+  { returns: z.object({ first: z.date().nullable(), last: z.date().nullable() }) }
+);
+
+// 3) In tricky inference spots, use a typed identity
+export const listUsersOk = zQuery(
+  query,
+  {},
+  async (ctx) => {
+    const rows = await ctx.db.query("users").collect();
+    return returnsAs<typeof Users.docArray>()(rows);
+  },
+  { returns: Users.docArray }
+);
 ```
 
 ### Codecs
