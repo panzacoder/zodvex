@@ -13,7 +13,7 @@ import { type CustomBuilder, type Customization, NoOp } from 'convex-helpers/ser
 import { z } from 'zod'
 import { toConvexJS, fromConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
-import { pick } from './utils'
+import { pick, formatZodIssues } from './utils'
 
 function customFnBuilder<
   Ctx extends Record<string, any>,
@@ -69,15 +69,21 @@ function customFnBuilder<
           const decoded = fromConvexJS(rawArgs, argsSchema)
           const parsed = argsSchema.safeParse(decoded)
           if (!parsed.success) {
-            throw new ConvexError({
-              ZodError: JSON.parse(JSON.stringify(parsed.error.flatten(), null, 2))
-            })
+            throw new ConvexError(formatZodIssues(parsed.error, 'args'))
           }
           const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
           const finalArgs = { ...parsed.data, ...(added?.args ?? {}) }
           const ret = await handler(finalCtx, finalArgs)
           if (returns && !fn.skipConvexValidation) {
-            const validated = (returns as z.ZodTypeAny).parse(ret)
+            let validated: any
+            try {
+              validated = (returns as z.ZodTypeAny).parse(ret)
+            } catch (e) {
+              if (e instanceof z.ZodError) {
+                throw new ConvexError(formatZodIssues(e, 'returns'))
+              }
+              throw e
+            }
             if (added?.onSuccess) {
               await added.onSuccess({ ctx, args: parsed.data, result: validated })
             }
@@ -103,7 +109,15 @@ function customFnBuilder<
         const finalArgs = { ...allArgs, ...(added?.args ?? {}) }
         const ret = await handler(finalCtx, finalArgs)
         if (returns && !fn.skipConvexValidation) {
-          const validated = (returns as z.ZodTypeAny).parse(ret)
+          let validated: any
+          try {
+            validated = (returns as z.ZodTypeAny).parse(ret)
+          } catch (e) {
+            if (e instanceof z.ZodError) {
+              throw new ConvexError(formatZodIssues(e, 'returns'))
+            }
+            throw e
+          }
           if (added?.onSuccess) {
             await added.onSuccess({ ctx, args: allArgs, result: validated })
           }

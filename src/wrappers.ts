@@ -1,7 +1,9 @@
 import { z } from 'zod'
+import { ConvexError } from 'convex/values'
 import { toConvexJS, fromConvexJS } from './codec'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 import { type InferReturns, type InferHandlerReturns, type ZodToConvexArgs, type ExtractCtx, type PreserveReturnType } from './types'
+import { formatZodIssues } from './utils'
 import type { RegisteredQuery, RegisteredMutation, RegisteredAction } from 'convex/server'
 
 export function zQuery<
@@ -36,11 +38,26 @@ export function zQuery<
     returns,
     handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
-      const parsed = zodSchema.parse(decoded) as ZodToConvexArgs<A>
+      let parsed: ZodToConvexArgs<A>
+      try {
+        parsed = zodSchema.parse(decoded) as ZodToConvexArgs<A>
+      } catch (e) {
+        if (e instanceof z.ZodError) {
+          throw new ConvexError(formatZodIssues(e, 'args'))
+        }
+        throw e
+      }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        const validated = (options.returns as z.ZodTypeAny).parse(raw)
-        return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        try {
+          const validated = (options.returns as z.ZodTypeAny).parse(raw)
+          return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        } catch (e) {
+          if (e instanceof z.ZodError) {
+            throw new ConvexError(formatZodIssues(e, 'returns'))
+          }
+          throw e
+        }
       }
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
       return toConvexJS(raw) as any
@@ -96,11 +113,26 @@ export function zMutation<
     returns,
     handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
-      const parsed = zodSchema.parse(decoded) as ZodToConvexArgs<A>
+      let parsed: ZodToConvexArgs<A>
+      try {
+        parsed = zodSchema.parse(decoded) as ZodToConvexArgs<A>
+      } catch (e) {
+        if (e instanceof z.ZodError) {
+          throw new ConvexError(formatZodIssues(e, 'args'))
+        }
+        throw e
+      }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        const validated = (options.returns as z.ZodTypeAny).parse(raw)
-        return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        try {
+          const validated = (options.returns as z.ZodTypeAny).parse(raw)
+          return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        } catch (e) {
+          if (e instanceof z.ZodError) {
+            throw new ConvexError(formatZodIssues(e, 'returns'))
+          }
+          throw e
+        }
       }
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
       return toConvexJS(raw) as any
@@ -156,11 +188,26 @@ export function zAction<
     returns,
     handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
-      const parsed = zodSchema.parse(decoded) as ZodToConvexArgs<A>
+      let parsed: ZodToConvexArgs<A>
+      try {
+        parsed = zodSchema.parse(decoded) as ZodToConvexArgs<A>
+      } catch (e) {
+        if (e instanceof z.ZodError) {
+          throw new ConvexError(formatZodIssues(e, 'args'))
+        }
+        throw e
+      }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        const validated = (options.returns as z.ZodTypeAny).parse(raw)
-        return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        try {
+          const validated = (options.returns as z.ZodTypeAny).parse(raw)
+          return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        } catch (e) {
+          if (e instanceof z.ZodError) {
+            throw new ConvexError(formatZodIssues(e, 'returns'))
+          }
+          throw e
+        }
       }
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
       return toConvexJS(raw) as any
