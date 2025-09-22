@@ -6,6 +6,13 @@ import {
 } from 'convex/server'
 import { z } from 'zod'
 
+// Type flattening utility from convex-helpers
+// Forces TypeScript to eagerly evaluate intersection types into single object types
+// This prevents deep instantiation issues with complex type intersections
+export type Expand<T> = T extends Record<any, any>
+  ? { [K in keyof T]: T[K] }
+  : T
+
 export type InferArgs<A> = A extends z.ZodObject<infer S>
   ? z.infer<z.ZodObject<S>>
   : A extends Record<string, z.ZodTypeAny>

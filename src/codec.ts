@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 import { findBaseCodec } from './registry'
+import { getDef, isZ4Schema } from './z4'
 
 export type ConvexCodec<T = any> = {
   schema: z.ZodTypeAny
@@ -42,38 +43,38 @@ export function toConvexJS(schemaOrValue: any, value?: any): any {
   }
 
   // Two arguments: use schema-based conversion
-  const schema = schemaOrValue as z.ZodTypeAny
+  const schema = schemaOrValue as any
   if (value === undefined) return undefined
 
-  if (schema instanceof z.ZodDefault) {
-    return toConvexJS((schema as any).unwrap(), value)
-  }
-  if (schema instanceof z.ZodOptional) {
-    if (value === undefined) return undefined
-    return toConvexJS((schema as any).unwrap(), value)
-  }
-  if (schema instanceof z.ZodNullable) {
-    if (value === null) return null
-    return toConvexJS((schema as any).unwrap(), value)
-  }
-  // Pipeline: encode according to output side
-  if ((schema as any) && (schema as any).type === 'pipe' && 'out' in (schema as any)) {
-    return toConvexJS((schema as any).out as z.ZodTypeAny, value)
-  }
-
-  if (schema instanceof z.ZodObject && value && typeof value === 'object') {
-    const shape = getObjectShape(schema)
-    const out: any = {}
-    for (const [k, child] of Object.entries(shape)) {
-      const v = toConvexJS(child, (value as any)[k])
-      if (v !== undefined) out[k] = v
+  if (isZ4Schema(schema)) {
+    const def = getDef(schema)
+    if (def.type === 'default') {
+      return toConvexJS(def.innerType, value)
     }
-    return out
-  }
-
-  if (schema instanceof z.ZodArray && Array.isArray(value)) {
-    const el = (schema as z.ZodArray<any>).element as z.ZodTypeAny
-    return value.map(item => toConvexJS(el, item))
+    if (def.type === 'optional') {
+      if (value === undefined) return undefined
+      return toConvexJS(def.innerType, value)
+    }
+    if (def.type === 'nullable') {
+      if (value === null) return null
+      return toConvexJS(def.innerType, value)
+    }
+    if (def.type === 'pipe') {
+      return toConvexJS(def.out, value)
+    }
+    if (def.type === 'object' && value && typeof value === 'object') {
+      const shape = getObjectShape(schema)
+      const out: any = {}
+      for (const [k, child] of Object.entries(shape)) {
+        const v = toConvexJS(child, (value as any)[k])
+        if (v !== undefined) out[k] = v
+      }
+      return out
+    }
+    if (def.type === 'array' && Array.isArray(value)) {
+      const el = def.element
+      return value.map(item => toConvexJS(el, item))
+    }
   }
 
   // Base type registry encode fallback
@@ -85,33 +86,35 @@ export function toConvexJS(schemaOrValue: any, value?: any): any {
 export function fromConvexJS(value: any, schema: z.ZodTypeAny): any {
   if (value === undefined) return undefined
 
-  if ((schema as any) && (schema as any).type === 'pipe' && 'out' in (schema as any)) {
-    return fromConvexJS(value, (schema as any).out as z.ZodTypeAny)
-  }
-  if (schema instanceof z.ZodDefault) {
-    return fromConvexJS(value, (schema as any).unwrap())
-  }
-  if (schema instanceof z.ZodOptional) {
-    if (value === undefined) return undefined
-    return fromConvexJS(value, (schema as any).unwrap())
-  }
-  if (schema instanceof z.ZodNullable) {
-    if (value === null) return null
-    return fromConvexJS(value, (schema as any).unwrap())
-  }
-
-  if (schema instanceof z.ZodObject && value && typeof value === 'object') {
-    const shape = getObjectShape(schema)
-    const out: any = {}
-    for (const [k, child] of Object.entries(shape)) {
-      if (k in (value as any)) out[k] = fromConvexJS((value as any)[k], child)
+  const anySchema: any = schema as any
+  if (isZ4Schema(anySchema)) {
+    const def = getDef(anySchema)
+    if (def.type === 'pipe') {
+      return fromConvexJS(value, def.out as any)
     }
-    return out
-  }
-
-  if (schema instanceof z.ZodArray && Array.isArray(value)) {
-    const el = (schema as z.ZodArray<any>).element as z.ZodTypeAny
-    return value.map(item => fromConvexJS(item, el))
+    if (def.type === 'default') {
+      return fromConvexJS(value, def.innerType as any)
+    }
+    if (def.type === 'optional') {
+      if (value === undefined) return undefined
+      return fromConvexJS(value, def.innerType as any)
+    }
+    if (def.type === 'nullable') {
+      if (value === null) return null
+      return fromConvexJS(value, def.innerType as any)
+    }
+    if (def.type === 'object' && value && typeof value === 'object') {
+      const shape = getObjectShape(anySchema)
+      const out: any = {}
+      for (const [k, child] of Object.entries(shape)) {
+        if (k in (value as any)) out[k] = fromConvexJS((value as any)[k], child as any)
+      }
+      return out
+    }
+    if (def.type === 'array' && Array.isArray(value)) {
+      const el = def.element
+      return value.map(item => fromConvexJS(item, el))
+    }
   }
 
   // Base type registry decode fallback
@@ -122,11 +125,11 @@ export function fromConvexJS(value: any, schema: z.ZodTypeAny): any {
 
 export function convexCodec<T = any>(schema: z.ZodTypeAny): ConvexCodec<T> {
   const toConvexSchema = () => {
-    if (schema instanceof z.ZodObject) {
-      const shape = getObjectShape(schema)
-      return zodToConvexFields(shape)
+    const anySchema: any = schema as any
+    if (isZ4Schema(anySchema) && getDef(anySchema).type === 'object') {
+      return zodToConvexFields(anySchema)
     }
-    return zodToConvex(schema)
+    return zodToConvex(schema as any)
   }
 
   const encode = (data: any) => {

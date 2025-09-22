@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { toConvexJS, fromConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
 import { pick, formatZodIssues } from './utils'
+import { isObjectSchema, isZ4Schema } from './z4'
 
 function customFnBuilder<
   Ctx extends Record<string, any>,
@@ -44,17 +45,16 @@ function customFnBuilder<
       returns && !fn.skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
 
     if (args && !fn.skipConvexValidation) {
-      let argsValidator = args
-      if (argsValidator instanceof z.ZodType) {
-        if (argsValidator instanceof z.ZodObject) {
-          argsValidator = (argsValidator as z.ZodObject<any>).shape
-        } else {
-          throw new Error(
-            'Unsupported zod type as args validator: ' + argsValidator.constructor.name
-          )
-        }
+      let argsSchema: any
+      if (isObjectSchema(args)) {
+        argsSchema = args as any
+      } else if (isZ4Schema(args)) {
+        throw new Error('Unsupported non-object Zod schema for args; use z.object({...})')
+      } else {
+        // assume raw shape
+        argsSchema = z.object(args as Record<string, any>)
       }
-      const convexValidator = zodToConvexFields(argsValidator)
+      const convexValidator = zodToConvexFields(argsSchema)
       return builder({
         args: { ...convexValidator, ...inputArgs },
         ...returnValidator,
@@ -64,8 +64,8 @@ function customFnBuilder<
             pick(allArgs, Object.keys(inputArgs)) as any,
             extra
           )
-          const rawArgs = pick(allArgs, Object.keys(argsValidator))
-          const argsSchema = z.object(argsValidator)
+          const argKeys = Object.keys(convexValidator)
+          const rawArgs = pick(allArgs, argKeys as any)
           const decoded = fromConvexJS(rawArgs, argsSchema)
           const parsed = argsSchema.safeParse(decoded)
           if (!parsed.success) {
