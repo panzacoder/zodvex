@@ -9,7 +9,7 @@ import {
   type ActionBuilder
 } from 'convex/server'
 import { ConvexError, type PropertyValidators } from 'convex/values'
-import { type CustomBuilder, type Customization, NoOp } from 'convex-helpers/server/customFunctions'
+import { type CustomBuilder, type Customization, NoOp } from './customTypes'
 import { z } from 'zod'
 import { toConvexJS, fromConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'

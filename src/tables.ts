@@ -1,10 +1,9 @@
-import { Table } from "convex-helpers/server";
+import { Table } from "./customTypes";
 import { z } from "zod";
 import { zodToConvexFields, getObjectShape } from "./mapping";
 import { paginationOptsValidator } from "convex/server";
 import { zMutation, zQuery } from "./wrappers";
-// Use convex-helpers zid to test
-import { zid } from "convex-helpers/server/zodV4";
+import { zid } from "./ids";
 
 // Simplified table definition that avoids type recursion
 export function zodTable<TableName extends string>(

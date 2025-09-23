@@ -7,3 +7,4 @@ export type { InferArgs, InferReturns, InferHandlerReturns, ExtractCtx, Preserve
 export { zid, type Zid } from './src/ids'
 export { returnsAs } from './src/utils'
 export { pickShape, safePick, safeOmit } from './src/pick'
+export { Table, type Customization, type CustomBuilder, NoOp } from './src/customTypes'

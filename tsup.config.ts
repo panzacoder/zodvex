@@ -9,7 +9,7 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   minify: false,
-  external: ['zod', 'convex', 'convex-helpers'],
+  external: ['zod', 'convex'],
   outDir: 'dist',
   target: 'node18',
   esbuildOptions(options) {
