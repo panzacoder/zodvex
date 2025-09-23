@@ -246,10 +246,8 @@ export function getObjectShape(obj: any): Record<string, any> {
 }
 
 // Internal conversion function using ZodType with def.type detection
-// The useOptional parameter determines whether to use v.optional() for optional fields
 function zodToConvexInternal<Z extends z.ZodTypeAny>(
-  zodValidator: Z,
-  useOptional: boolean = false
+  zodValidator: Z
 ): ConvexValidatorFromZod<Z, 'required'> {
   // Check for default and optional wrappers
   let actualValidator = zodValidator
@@ -607,9 +605,9 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
     }
   }
 
-  // For optional fields, use v.optional() if useOptional is true, otherwise union with null
+  // For optional fields, always use v.optional()
   const finalValidator = isOptional
-    ? (useOptional ? v.optional(convexValidator) : v.union(convexValidator, v.null()))
+    ? v.optional(convexValidator)
     : convexValidator
 
   // Add metadata if there's a default value
@@ -649,11 +647,6 @@ export function zodToConvex<Z extends z.ZodTypeAny | ZodValidator>(
 
 export function zodToConvexFields<Z extends ZodValidator>(zod: Z) {
   return Object.fromEntries(
-    Object.entries(zod).map(([k, v]) => {
-      // Check if this field is optional to determine if we should use v.optional()
-      const isFieldOptional = v instanceof z.ZodOptional ||
-        (v instanceof z.ZodDefault && v.def?.innerType instanceof z.ZodOptional)
-      return [k, zodToConvexInternal(v, isFieldOptional)]
-    })
+    Object.entries(zod).map(([k, v]) => [k, zodToConvexInternal(v)])
   ) as ConvexValidatorFromZodFieldsAuto<Z>
 }
