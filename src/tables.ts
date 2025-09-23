@@ -8,29 +8,49 @@ import { zid } from "./ids";
 import type { Validator } from "convex/values";
 
 // Helper to create a Zod schema for a Convex document
-export function zodDoc<TableName extends string, Schema extends z.ZodObject<any>>(
+export function zodDoc<
+  TableName extends string,
+  Shape extends z.ZodRawShape,
+  Schema extends z.ZodObject<Shape>
+>(
   tableName: TableName,
   schema: Schema
-) {
+): z.ZodObject<Shape & {
+  _id: ReturnType<typeof zid<TableName>>;
+  _creationTime: z.ZodNumber;
+}> {
   // Use extend to preserve the original schema's type information
   return schema.extend({
     _id: zid(tableName),
     _creationTime: z.number()
-  });
+  }) as any;
 }
 
 // Helper to create nullable doc schema
-export function zodDocOrNull<TableName extends string, Schema extends z.ZodObject<any>>(
+export function zodDocOrNull<
+  TableName extends string,
+  Shape extends z.ZodRawShape,
+  Schema extends z.ZodObject<Shape>
+>(
   tableName: TableName,
   schema: Schema
 ) {
   return z.union([zodDoc(tableName, schema), z.null()]);
 }
 
+// Type for the extended document schema
+type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> = ReturnType<Schema['extend']> extends z.ZodObject<infer Shape>
+  ? z.ZodObject<Shape & {
+      _id: ReturnType<typeof zid<TableName>>;
+      _creationTime: z.ZodNumber;
+    }>
+  : never;
+
 // Simplified table definition that preserves types from convex-helpers
 export function zodTable<
   TableName extends string,
-  Schema extends z.ZodObject<any>
+  Shape extends z.ZodRawShape,
+  Schema extends z.ZodObject<Shape>
 >(
   name: TableName,
   schema: Schema,
@@ -41,12 +61,16 @@ export function zodTable<
   // Create the base table definition from convex-helpers
   const base = Table(name, convexFields as Record<string, Validator<any, any, any>>);
 
+  // Pre-create the doc schemas to ensure consistent types
+  const docSchema = zodDoc(name, schema);
+  const docOrNullSchema = zodDocOrNull(name, schema);
+
   // Augment with a reference to the original Zod schema and doc helpers
   return {
     ...base,
     schema,
-    doc: () => zodDoc(name, schema),
-    docOrNull: () => zodDocOrNull(name, schema)
+    doc: () => docSchema,
+    docOrNull: () => docOrNullSchema
   };
 }
 
