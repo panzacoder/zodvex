@@ -12,9 +12,8 @@ export function zodDoc<TableName extends string, Schema extends z.ZodObject<any>
   tableName: TableName,
   schema: Schema
 ) {
-  const shape = getObjectShape(schema);
-  return z.object({
-    ...shape,
+  // Use extend to preserve the original schema's type information
+  return schema.extend({
     _id: zid(tableName),
     _creationTime: z.number()
   });
