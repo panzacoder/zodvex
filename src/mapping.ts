@@ -646,9 +646,11 @@ export function zodToConvex<Z extends z.ZodTypeAny | ZodValidator>(
 }
 
 export function zodToConvexFields<Z extends ZodValidator>(zod: Z): ConvexValidatorFromZodFieldsAuto<Z>
-export function zodToConvexFields<T extends z.ZodRawShape>(zod: T): ConvexValidatorFromZodFieldsAuto<T>
+export function zodToConvexFields<T extends z.ZodRawShape>(schema: z.ZodObject<T>): ConvexValidatorFromZodFieldsAuto<T>
 export function zodToConvexFields(zod: any) {
+  // Extract shape if it's a ZodObject
+  const fields = zod instanceof z.ZodObject ? zod.shape : zod
   return Object.fromEntries(
-    Object.entries(zod).map(([k, v]) => [k, zodToConvexInternal(v as z.ZodTypeAny)])
+    Object.entries(fields).map(([k, v]) => [k, zodToConvexInternal(v as z.ZodTypeAny)])
   ) as any
 }

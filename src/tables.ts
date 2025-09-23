@@ -55,8 +55,8 @@ export function zodTable<
   name: TableName,
   schema: Schema,
 ) {
-  // Convert fields with proper types - use shape directly for type preservation
-  const convexFields = zodToConvexFields(schema.shape);
+  // Convert fields with proper types - pass ZodObject directly for type preservation
+  const convexFields = zodToConvexFields(schema);
 
   // Create the base table definition from convex-helpers
   // The type is now properly inferred from zodToConvexFields
@@ -80,8 +80,8 @@ export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends s
   name: TableName,
   schema: T,
 ) {
-  // Use zodToConvexFields with proper types - use shape directly for type preservation
-  const convexFields = zodToConvexFields(schema.shape);
+  // Use zodToConvexFields with proper types - pass ZodObject directly for type preservation
+  const convexFields = zodToConvexFields(schema);
 
   // Simplified: only convert dates at top level to avoid deep recursion
   const shape = getObjectShape(schema)
