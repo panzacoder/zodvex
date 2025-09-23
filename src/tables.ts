@@ -4,9 +4,22 @@ import { zodToConvexFields, getObjectShape } from "./mapping";
 import { paginationOptsValidator } from "convex/server";
 import { zMutation, zQuery } from "./wrappers";
 import { zid } from "./ids";
-import { convexCodec } from "./codec";
 
-export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
+// Simplified table definition that avoids type recursion
+export function zodTable<TableName extends string>(
+  name: TableName,
+  schema: z.ZodObject<any>,
+) {
+  // Convert fields once
+  const convexFields = zodToConvexFields(schema);
+
+  // Return the table with minimal type inference
+  // The Table function from convex-helpers already has proper types
+  return Table(name, convexFields);
+}
+
+// Keep the old implementation available for backward compatibility
+export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends string>(
   name: TableName,
   schema: T,
 ) {
@@ -95,7 +108,8 @@ export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
   const docArray = z.array(docSchema)
 
   const base = Table(name, convexFields) as any
-  return { ...base, schema, codec: convexCodec(schema as any), docSchema, docArray } as any
+  // Return with docSchema and docArray for backward compatibility
+  return { ...base, schema, docSchema, docArray } as any
 }
 
 export function zCrud<

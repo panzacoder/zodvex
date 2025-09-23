@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zQuery } from '../src/wrappers'
 import { zMutation, zAction } from '../src/wrappers'
-import { zodTable } from '../src/tables'
+import { zodTableWithDocs } from '../src/tables'
 import { zid } from '../src/ids'
 
 // Minimal builder stub that mimics Convex builder shape
@@ -85,10 +85,10 @@ describe('wrappers arg decoding', () => {
   })
 })
 
-describe('zodTable docSchema/docArray', () => {
+describe('zodTableWithDocs docSchema/docArray', () => {
   it('exposes docSchema with system fields', () => {
     const userSchema = z.object({ name: z.string() })
-    const Users = zodTable('users', userSchema as any)
+    const Users = zodTableWithDocs('users', userSchema as any)
     const doc = { _id: '123', _creationTime: 0, name: 'A' }
     // Runtime parse should succeed
     const parsed = Users.docSchema.parse(doc)

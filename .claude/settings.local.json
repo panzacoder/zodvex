@@ -8,7 +8,9 @@
       "Bash(cat:*)",
       "WebFetch(domain:zod.dev)",
       "Bash(bun:*)",
-      "Read(//Users/jshebert/Development/plfx/motiion/**)"
+      "Read(//Users/jshebert/Development/plfx/motiion/**)",
+      "Bash(timeout 30 npm run type-check)",
+      "Bash(npm run type-check:*)"
     ],
     "deny": [],
     "ask": []
