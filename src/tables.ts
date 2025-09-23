@@ -1,6 +1,6 @@
 import { Table } from "convex-helpers/server";
 import { z } from "zod";
-import { zodToConvexFields, getObjectShape } from "./mapping";
+import { zodToConvexFields, getObjectShape, type ConvexValidatorFromZod } from "./mapping";
 import { paginationOptsValidator } from "convex/server";
 import type { GenericDataModel, QueryBuilder, MutationBuilder, GenericQueryCtx, GenericMutationCtx } from "convex/server";
 import { zMutation, zQuery } from "./wrappers";
@@ -55,11 +55,12 @@ export function zodTable<
   name: TableName,
   schema: Schema,
 ) {
-  // Convert fields once
-  const convexFields = zodToConvexFields(schema);
+  // Convert fields with proper types - extract shape from ZodObject
+  const convexFields = zodToConvexFields(getObjectShape(schema));
 
   // Create the base table definition from convex-helpers
-  const base = Table(name, convexFields as Record<string, Validator<any, any, any>>);
+  // The type is now properly inferred from zodToConvexFields
+  const base = Table(name, convexFields);
 
   // Pre-create the doc schemas to ensure consistent types
   const docSchema = zodDoc(name, schema);
@@ -79,8 +80,8 @@ export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends s
   name: TableName,
   schema: T,
 ) {
-  // Directly use zodToConvexFields to avoid codec complexity
-  const convexFields = zodToConvexFields(schema);
+  // Use zodToConvexFields with proper types - extract shape from ZodObject
+  const convexFields = zodToConvexFields(getObjectShape(schema));
 
   // Simplified: only convert dates at top level to avoid deep recursion
   const shape = getObjectShape(schema)
@@ -110,7 +111,7 @@ export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends s
   const docSchema = z.object({ ...mapped, _id: zid(name), _creationTime: z.number() })
   const docArray = z.array(docSchema)
 
-  const base = Table(name, convexFields as Record<string, Validator<any, any, any>>)
+  const base = Table(name, convexFields)
   // Return with docSchema and docArray for backward compatibility
   return { ...base, schema, docSchema, docArray }
 }
