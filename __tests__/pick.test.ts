@@ -30,9 +30,9 @@ describe('pick helpers', () => {
     const shape = pickShape(User, ['firstName', 'createdAt'])
     const validators = zodToConvexFields(shape)
     // Optional string → v.optional(v.string())
-    expect(validators.firstName?.type).toBe('optional')
+    expect((validators.firstName as any)?.isOptional).toBe('optional')
     // Date nullable → v.union(v.float64(), v.null())
-    expect(validators.createdAt?.type).toBe('union')
+    expect((validators.createdAt as any)?.kind).toBe('union')
   })
 })
 

@@ -3,7 +3,8 @@ import { z } from "zod";
 import { zodToConvexFields, getObjectShape } from "./mapping";
 import { paginationOptsValidator } from "convex/server";
 import { zMutation, zQuery } from "./wrappers";
-import { zid } from "./ids";
+// Use convex-helpers zid to test
+import { zid } from "convex-helpers/server/zodV4";
 
 // Simplified table definition that avoids type recursion
 export function zodTable<TableName extends string>(

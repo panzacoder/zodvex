@@ -126,13 +126,17 @@ export function simpleToConvex(schema: z.ZodTypeAny): any {
     const shape = getObjectShape(inner)
     const fields: Record<string, any> = {}
     for (const [k, child] of Object.entries(shape)) {
-      fields[k] = convertWithMeta(child as z.ZodTypeAny, simpleToConvex(child as z.ZodTypeAny))
+      // Don't call convertWithMeta here - just simpleToConvex to avoid double recursion
+      fields[k] = simpleToConvex(child as z.ZodTypeAny)
     }
     return v.object(fields)
   }
 
   if (inner instanceof z.ZodRecord) {
-    const valueType = inner.valueType as z.ZodTypeAny
+    // In Zod v4, z.record() has two forms:
+    // - Single arg: z.record(valueType) - valueType is stored in keyType, keys are strings
+    // - Two args: z.record(keyType, valueType) - both are stored properly
+    const valueType = (inner.valueType || inner.keyType) as z.ZodTypeAny
     return v.record(v.string(), simpleToConvex(valueType))
   }
 
