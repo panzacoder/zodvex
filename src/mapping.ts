@@ -645,19 +645,8 @@ export function zodToConvex<Z extends z.ZodTypeAny | ZodValidator>(
   return zodToConvexInternal(zod as z.ZodTypeAny) as any
 }
 
-export function zodToConvexFields<Z extends ZodValidator>(zod: Z): ConvexValidatorFromZodFieldsAuto<Z>
-export function zodToConvexFields<T extends z.ZodRawShape>(schema: z.ZodObject<T>): ConvexValidatorFromZodFieldsAuto<T>
-export function zodToConvexFields(zod: any) {
-  if (zod instanceof z.ZodObject) {
-    // For ZodObject<T>, extract shape and return properly typed result
-    const shape = zod.shape
-    return Object.fromEntries(
-      Object.entries(shape).map(([k, v]) => [k, zodToConvexInternal(v as z.ZodTypeAny)])
-    ) as ConvexValidatorFromZodFieldsAuto<typeof shape>
-  } else {
-    // For plain ZodValidator objects
-    return Object.fromEntries(
-      Object.entries(zod).map(([k, v]) => [k, zodToConvexInternal(v as z.ZodTypeAny)])
-    ) as ConvexValidatorFromZodFieldsAuto<typeof zod>
-  }
+export function zodToConvexFields<Z extends ZodValidator>(zod: Z) {
+  return Object.fromEntries(
+    Object.entries(zod).map(([k, v]) => [k, zodToConvexInternal(v)])
+  ) as { [K in keyof Z]: ConvexValidatorFromZod<Z[K], 'required'> }
 }
