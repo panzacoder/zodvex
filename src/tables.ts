@@ -1,4 +1,4 @@
-import { Table } from "./customTypes";
+import { Table } from "convex-helpers/server";
 import { z } from "zod";
 import { zodToConvexFields, getObjectShape } from "./mapping";
 import { paginationOptsValidator } from "convex/server";

@@ -43,8 +43,9 @@
     "prepublishOnly": "bun run build && bun test && bun run type-check"
   },
   "peerDependencies": {
-    "convex": "^1.27.0",
-    "zod": "^4.1.8"
+    "convex": "1.27.0",
+    "convex-helpers": "0.1.101-alpha.1",
+    "zod": "4.1.8"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
