@@ -2,23 +2,28 @@ import { Table } from "convex-helpers/server";
 import { z } from "zod";
 import { zodToConvexFields, getObjectShape } from "./mapping";
 import { paginationOptsValidator } from "convex/server";
+import type { GenericDataModel, QueryBuilder, MutationBuilder, GenericQueryCtx, GenericMutationCtx } from "convex/server";
 import { zMutation, zQuery } from "./wrappers";
 import { zid } from "./ids";
+import type { Validator } from "convex/values";
 
-// Simplified table definition that avoids type recursion
-export function zodTable<TableName extends string>(
+// Simplified table definition that preserves types from convex-helpers
+export function zodTable<
+  TableName extends string,
+  Schema extends z.ZodObject<any>
+>(
   name: TableName,
-  schema: z.ZodObject<any>,
+  schema: Schema,
 ) {
   // Convert fields once
   const convexFields = zodToConvexFields(schema);
 
   // Create the base table definition from convex-helpers
-  const base = Table(name, convexFields) as any;
+  const base = Table(name, convexFields as Record<string, Validator<any, any, any>>);
 
   // Augment with a reference to the original Zod schema so downstream
   // helpers (e.g., zCrud) can derive field shapes without heavy types.
-  return { ...base, schema } as any;
+  return { ...base, schema };
 }
 
 // Keep the old implementation available for backward compatibility
@@ -28,7 +33,6 @@ export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends s
 ) {
   // Directly use zodToConvexFields to avoid codec complexity
   const convexFields = zodToConvexFields(schema);
-
 
   // Simplified: only convert dates at top level to avoid deep recursion
   const shape = getObjectShape(schema)
@@ -58,9 +62,9 @@ export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends s
   const docSchema = z.object({ ...mapped, _id: zid(name), _creationTime: z.number() })
   const docArray = z.array(docSchema)
 
-  const base = Table(name, convexFields) as any
+  const base = Table(name, convexFields as Record<string, Validator<any, any, any>>)
   // Return with docSchema and docArray for backward compatibility
-  return { ...base, schema, docSchema, docArray } as any
+  return { ...base, schema, docSchema, docArray }
 }
 
 export function zCrud<
@@ -78,19 +82,19 @@ export function zCrud<
   const shape = getObjectShape(table.schema as any) as Record<string, any>;
 
   return {
-    create: zMutation(mutationBuilder, shape, async (ctx: any, args) => {
-      return await ctx.db.insert(tableName, args);
+    create: zMutation(mutationBuilder as any, shape, async (ctx, args) => {
+      return await (ctx as any).db.insert(tableName, args);
     }),
 
     read: zQuery(
-      queryBuilder,
+      queryBuilder as any,
       { id: zid(tableName) },
-      async (ctx: any, { id }) => {
-        return await ctx.db.get(id);
+      async (ctx, { id }) => {
+        return await (ctx as any).db.get(id);
       },
     ),
 
-    paginate: queryBuilder({
+    paginate: (queryBuilder as any)({
       args: { paginationOpts: paginationOptsValidator },
       handler: async (ctx: any, { paginationOpts }: any) => {
         return await ctx.db.query(tableName).paginate(paginationOpts);
@@ -98,22 +102,22 @@ export function zCrud<
     }),
 
     update: zMutation(
-      mutationBuilder,
+      mutationBuilder as any,
       {
         id: zid(tableName),
         patch: z.object(shape as any).partial(),
       },
-      async (ctx: any, { id, patch }) => {
-        await ctx.db.patch(id, patch);
+      async (ctx, { id, patch }) => {
+        await (ctx as any).db.patch(id, patch);
       },
     ),
 
     destroy: zMutation(
-      mutationBuilder,
+      mutationBuilder as any,
       { id: zid(tableName) },
-      async (ctx: any, { id }) => {
-        const doc = await ctx.db.get(id);
-        if (doc) await ctx.db.delete(id);
+      async (ctx, { id }) => {
+        const doc = await (ctx as any).db.get(id);
+        if (doc) await (ctx as any).db.delete(id);
         return doc;
       },
     ),

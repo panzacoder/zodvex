@@ -3,7 +3,7 @@ import { ConvexError } from 'convex/values'
 import { toConvexJS, fromConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
 // Typing helpers to keep handler args/returns precise without deep remapping
-import type { InferHandlerReturns, ZodToConvexArgs } from './types'
+import type { InferHandlerReturns, ZodToConvexArgs, ExtractCtx } from './types'
 import { formatZodIssues } from './utils'
 import type { RegisteredQuery, RegisteredMutation, RegisteredAction } from 'convex/server'
 
@@ -15,7 +15,7 @@ export function zQuery<
   query: Builder,
   input: A,
   handler: (
-    ctx: any,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
@@ -38,7 +38,7 @@ export function zQuery<
   return query({
     args,
     returns,
-    handler: async (ctx: any, argsObject: unknown) => {
+    handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
       let parsed: any
       try {
@@ -75,7 +75,7 @@ export function zInternalQuery<
   internalQuery: Builder,
   input: A,
   handler: (
-    ctx: any,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
@@ -91,7 +91,7 @@ export function zMutation<
   mutation: Builder,
   input: A,
   handler: (
-    ctx: any,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
@@ -113,7 +113,7 @@ export function zMutation<
   return mutation({
     args,
     returns,
-    handler: async (ctx: any, argsObject: unknown) => {
+    handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
       let parsed: any
       try {
@@ -150,7 +150,7 @@ export function zInternalMutation<
   internalMutation: Builder,
   input: A,
   handler: (
-    ctx: any,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
@@ -166,7 +166,7 @@ export function zAction<
   action: Builder,
   input: A,
   handler: (
-    ctx: any,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
@@ -188,7 +188,7 @@ export function zAction<
   return action({
     args,
     returns,
-    handler: async (ctx: any, argsObject: unknown) => {
+    handler: async (ctx: ExtractCtx<Builder>, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
       let parsed: any
       try {
@@ -225,7 +225,7 @@ export function zInternalAction<
   internalAction: Builder,
   input: A,
   handler: (
-    ctx: any,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }

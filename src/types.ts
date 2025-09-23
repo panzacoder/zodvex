@@ -4,6 +4,7 @@ import {
   type RegisteredMutation,
   type RegisteredQuery
 } from 'convex/server'
+import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 
 export type InferArgs<A> = A extends z.ZodObject<infer S>
@@ -50,12 +51,19 @@ export type PreserveReturnType<
         >
       : ReturnType<Builder>
 
-// Preserve keys for proper Convex type generation, but use 'any' for values to avoid deep instantiation
+// Helper type to extract value while preserving Id types
+type ExtractValue<T> = T extends z.ZodType<infer U>
+  ? U extends GenericId<any>
+    ? U
+    : any
+  : any
+
+// Preserve keys and Id types for proper Convex type generation
 export type ZodToConvexArgs<A> =
-  A extends z.ZodObject<any>
-    ? { [K in keyof z.infer<A>]: any }
+  A extends z.ZodObject<infer Shape>
+    ? { [K in keyof Shape]: ExtractValue<Shape[K]> }
     : A extends Record<string, z.ZodTypeAny>
-      ? { [K in keyof A]: any }
+      ? { [K in keyof A]: ExtractValue<A[K]> }
       : A extends z.ZodTypeAny
         ? { value: any }
         : Record<string, never>
