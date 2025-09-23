@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { ConvexError } from 'convex/values'
 import { toConvexJS, fromConvexJS } from './codec'
-import { zodToConvex, zodToConvexFields } from './mapping'
+import { zodToConvex, zodToConvexFields, getObjectShape } from './mapping'
 // Typing helpers to keep handler args/returns precise without deep remapping
 import type { InferHandlerReturns, ZodToConvexArgs, ExtractCtx } from './types'
 import { formatZodIssues } from './utils'
@@ -42,7 +42,7 @@ export function zQuery<
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
     zodSchema = input as any
-    args = zodToConvexFields(input as any)
+    args = zodToConvexFields(getObjectShape(input))
   } else if (input instanceof z.ZodType) {
     // Single schema → normalize to { value }
     zodSchema = z.object({ value: input as any })
@@ -121,7 +121,7 @@ export function zMutation<
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
     zodSchema = input as any
-    args = zodToConvexFields(input as any)
+    args = zodToConvexFields(getObjectShape(input))
   } else if (input instanceof z.ZodType) {
     zodSchema = z.object({ value: input as any })
     args = { value: zodToConvex(input as any) }
@@ -199,7 +199,7 @@ export function zAction<
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
     zodSchema = input as any
-    args = zodToConvexFields(input as any)
+    args = zodToConvexFields(getObjectShape(input))
   } else if (input instanceof z.ZodType) {
     zodSchema = z.object({ value: input as any })
     args = { value: zodToConvex(input as any) }
