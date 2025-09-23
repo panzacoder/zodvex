@@ -13,9 +13,12 @@ export function zodTable<TableName extends string>(
   // Convert fields once
   const convexFields = zodToConvexFields(schema);
 
-  // Return the table with minimal type inference
-  // The Table function from convex-helpers already has proper types
-  return Table(name, convexFields);
+  // Create the base table definition from convex-helpers
+  const base = Table(name, convexFields) as any;
+
+  // Augment with a reference to the original Zod schema so downstream
+  // helpers (e.g., zCrud) can derive field shapes without heavy types.
+  return { ...base, schema } as any;
 }
 
 // Keep the old implementation available for backward compatibility

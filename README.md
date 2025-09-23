@@ -133,7 +133,7 @@ Convert Zod schemas to Convex validators:
 
 ```ts
 import { z } from "zod";
-import { zodToConvex, zodToConvexFields } from "zodvex";
+import { zodToConvex, zodToConvexFields, pickShape, safePick } from "zodvex";
 
 // Convert a single Zod type to a Convex validator
 const validator = zodToConvex(z.string().optional());
@@ -145,6 +145,24 @@ const fields = zodToConvexFields({
   age: z.number().nullable(),
 });
 // → { name: v.string(), age: v.union(v.float64(), v.null()) }
+
+// Safe picking from large schemas without Zod's .pick()
+const User = z.object({
+  id: z.string(),
+  email: z.string().email(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  createdAt: z.date().nullable(),
+});
+
+// 1) Get a raw shape for wrappers or validators
+const clerkShape = pickShape(User, ["email", "firstName", "lastName"]);
+// Use in a wrapper
+// zQuery(query, clerkShape, async (ctx, args) => { /* ... */ })
+
+// 2) Or build a new Zod object directly
+const Clerk = safePick(User, { email: true, firstName: true, lastName: true });
+// zMutation(mutation, Clerk, async (ctx, args) => { /* ... */ })
 ```
 
 ### Function Wrappers
