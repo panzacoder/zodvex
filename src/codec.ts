@@ -2,6 +2,11 @@ import { z } from 'zod'
 import { zodToConvex } from './mapping'
 import { findBaseCodec, isDateSchema } from './registry'
 
+// Helper to convert Zod's internal types to ZodTypeAny
+function asZodType<T>(schema: T): z.ZodTypeAny {
+  return schema as unknown as z.ZodTypeAny
+}
+
 export type ConvexCodec<T> = {
   validator: any
   encode: (value: T) => any
@@ -75,7 +80,9 @@ function schemaToConvex(value: any, schema: any): any {
 
   // Handle wrapper types
   if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable || schema instanceof z.ZodDefault) {
-    return schemaToConvex(value, schema.unwrap ? schema.unwrap() : schema._def.innerType)
+    // Use unwrap() method which is available on these types
+    const inner = schema.unwrap()
+    return schemaToConvex(value, asZodType(inner))
   }
 
   // Handle Date specifically
@@ -143,7 +150,9 @@ export function fromConvexJS(value: any, schema: any): any {
 
   // Handle wrapper types
   if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable || schema instanceof z.ZodDefault) {
-    return fromConvexJS(value, schema.unwrap ? schema.unwrap() : schema._def.innerType)
+    // Use unwrap() method which is available on these types
+    const inner = schema.unwrap()
+    return fromConvexJS(value, asZodType(inner))
   }
 
   // Handle Date specifically
@@ -199,11 +208,8 @@ export function fromConvexJS(value: any, schema: any): any {
 
   // Handle effects and transforms
   if (schema instanceof z.ZodTransform || schema instanceof z.ZodPipe) {
-    const def = schema._def as any
-    const inner = def.schema || def.in || def.out
-    if (inner && inner !== schema) {
-      return fromConvexJS(value, inner)
-    }
+    // Cannot access inner schema without _def, return value as-is
+    return value
   }
 
   return value

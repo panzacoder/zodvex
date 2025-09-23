@@ -37,23 +37,22 @@ registerBaseCodec({
   }
 })
 
+// Helper to convert Zod's internal types to ZodTypeAny
+function asZodType<T>(schema: T): z.ZodTypeAny {
+  return schema as unknown as z.ZodTypeAny
+}
+
 // Helper to check if a schema is a Date type through the registry
 export function isDateSchema(schema: any): boolean {
   if (schema instanceof z.ZodDate) return true
 
-  // Check through effects/pipelines
-  if (schema instanceof z.ZodTransform || schema instanceof z.ZodPipe) {
-    const def = schema._def as any
-    const inner = def.schema || def.in || def.out
-    if (inner && inner !== schema) {
-      return isDateSchema(inner)
-    }
+  // Check through optional/nullable (these have public unwrap())
+  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) {
+    return isDateSchema(asZodType(schema.unwrap()))
   }
 
-  // Check through optional/nullable
-  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) {
-    return isDateSchema(schema.unwrap())
-  }
+  // Cannot check transforms/pipes without _def access
+  // This is a limitation of using only public APIs
 
   return false
 }

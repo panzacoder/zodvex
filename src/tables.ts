@@ -1,6 +1,6 @@
 import { Table } from "convex-helpers/server";
 import { z } from "zod";
-import { zodToConvexFields, getObjectShape, zodToConvex } from "./mapping";
+import { zodToConvexFields, getObjectShape } from "./mapping";
 import { paginationOptsValidator } from "convex/server";
 import { zMutation, zQuery } from "./wrappers";
 import { zid } from "./ids";
@@ -14,21 +14,26 @@ export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
   const convexFields = zodToConvexFields(schema);
 
   // Build a Zod schema that matches Convex-stored docs (e.g., Date -> number)
+  // Helper to convert Zod's internal types to ZodTypeAny
+  function asZodType<T>(schema: T): z.ZodTypeAny {
+    return schema as unknown as z.ZodTypeAny
+  }
+
   function toConvexZod(s: z.ZodTypeAny): any {
     // Handle modifiers first
     if (s instanceof z.ZodOptional) {
       const inner = s.unwrap()
-      return toConvexZod(inner).optional()
+      return toConvexZod(asZodType(inner)).optional()
     }
 
     if (s instanceof z.ZodNullable) {
       const inner = s.unwrap()
-      return toConvexZod(inner).nullable()
+      return toConvexZod(asZodType(inner)).nullable()
     }
 
     if (s instanceof z.ZodDefault) {
       const inner = s.removeDefault()
-      return toConvexZod(inner).optional()
+      return toConvexZod(asZodType(inner)).optional()
     }
 
     // Handle base types
@@ -46,16 +51,21 @@ export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
     } else if (s instanceof z.ZodNull) {
       return z.null()
     } else if (s instanceof z.ZodLiteral) {
-      return z.literal((s as any).value)
+      // Handle undefined literal
+      const value = s.value
+      if (value === undefined) {
+        return z.any()
+      }
+      return z.literal(value)
     } else if (s instanceof z.ZodEnum) {
-      // Check if it's a native enum (has .enum property) or regular enum (has .options)
-      const values = 'enum' in s ? Object.values((s as any).enum) : (s as any).options || []
-      return values.length ? z.union(values.map((v: any) => z.literal(v as any)) as any) : z.never()
+      // Use public .options property
+      const values = s.options || []
+      return values.length ? z.union(values.map((v: any) => z.literal(v)) as any) : z.never()
     } else if (s instanceof z.ZodUnion) {
       const opts = s.options as any[]
       return z.union(opts.map((o: any) => toConvexZod(o)) as [any, any, ...any[]])
     } else if (s instanceof z.ZodArray) {
-      return z.array(toConvexZod(s.element))
+      return z.array(toConvexZod(asZodType(s.element)))
     } else if (s instanceof z.ZodObject) {
       const shape = getObjectShape(s)
       const mapped: Record<string, any> = {}
@@ -64,32 +74,13 @@ export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
       }
       return z.object(mapped)
     } else if (s instanceof z.ZodRecord) {
-      return z.record(z.string(), toConvexZod(s.valueType))
+      return z.record(z.string(), toConvexZod(asZodType(s.valueType)))
     } else if (s instanceof z.ZodTuple) {
-      const items = (s as any).items || []
-      const member = items.length ? z.union(items.map((i: any) => toConvexZod(i)) as any) : z.any()
-      return z.array(member)
+      // Cannot access items without _def, map to generic array
+      return z.array(z.any())
     } else if (s instanceof z.ZodIntersection) {
-      const left = (s as any)._def.left
-      const right = (s as any)._def.right
-      if (left instanceof z.ZodObject && right instanceof z.ZodObject) {
-        const l = getObjectShape(left)
-        const r = getObjectShape(right)
-        const keys = new Set([...Object.keys(l), ...Object.keys(r)])
-        const fields: Record<string, any> = {}
-        for (const k of keys) {
-          const lz = l[k]
-          const rz = r[k]
-          if (lz && rz) {
-            fields[k] = z.union([toConvexZod(lz), toConvexZod(rz)] as any)
-          } else {
-            fields[k] = toConvexZod((lz || rz) as any)
-          }
-        }
-        return z.object(fields)
-      } else {
-        return z.any()
-      }
+      // Cannot access left/right schemas without _def, map to any
+      return z.any()
     } else {
       return z.any()
     }

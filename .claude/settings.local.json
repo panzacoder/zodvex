@@ -6,7 +6,9 @@
       "Bash(bun run:*)",
       "Bash(bun test:*)",
       "Bash(cat:*)",
-      "WebFetch(domain:zod.dev)"
+      "WebFetch(domain:zod.dev)",
+      "Bash(bun:*)",
+      "Read(//Users/jshebert/Development/plfx/motiion/**)"
     ],
     "deny": [],
     "ask": []

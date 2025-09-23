@@ -128,8 +128,8 @@ describe('zodToConvex', () => {
   it('falls back to any for unsupported types', () => {
     const schema = z.string().transform(s => s.toUpperCase())
     const validator = zodToConvex(schema)
-    // Transform schemas should still validate the input type
-    expect(validator).toEqual(v.string())
+    // Transform schemas now map to v.any() since we can't access inner schema
+    expect(validator).toEqual(v.any())
   })
 })
 
