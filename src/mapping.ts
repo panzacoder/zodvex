@@ -645,8 +645,10 @@ export function zodToConvex<Z extends z.ZodTypeAny | ZodValidator>(
   return zodToConvexInternal(zod as z.ZodTypeAny) as any
 }
 
-export function zodToConvexFields<Z extends ZodValidator>(zod: Z) {
+export function zodToConvexFields<Z extends ZodValidator>(zod: Z): ConvexValidatorFromZodFieldsAuto<Z>
+export function zodToConvexFields<T extends z.ZodRawShape>(zod: T): ConvexValidatorFromZodFieldsAuto<T>
+export function zodToConvexFields(zod: any) {
   return Object.fromEntries(
-    Object.entries(zod).map(([k, v]) => [k, zodToConvexInternal(v)])
-  ) as ConvexValidatorFromZodFieldsAuto<Z>
+    Object.entries(zod).map(([k, v]) => [k, zodToConvexInternal(v as z.ZodTypeAny)])
+  ) as any
 }
