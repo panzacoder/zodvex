@@ -4,7 +4,9 @@
       "WebSearch",
       "Bash(bun install:*)",
       "Bash(bun run:*)",
-      "Bash(bun test:*)"
+      "Bash(bun test:*)",
+      "Bash(cat:*)",
+      "WebFetch(domain:zod.dev)"
     ],
     "deny": [],
     "ask": []

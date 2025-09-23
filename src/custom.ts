@@ -14,7 +14,6 @@ import { z } from 'zod'
 import { toConvexJS, fromConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
 import { pick, formatZodIssues } from './utils'
-import { isObjectSchema, isZ4Schema } from './z4'
 
 function customFnBuilder<
   Ctx extends Record<string, any>,
@@ -46,9 +45,9 @@ function customFnBuilder<
 
     if (args && !fn.skipConvexValidation) {
       let argsSchema: any
-      if (isObjectSchema(args)) {
+      if (args instanceof z.ZodObject) {
         argsSchema = args as any
-      } else if (isZ4Schema(args)) {
+      } else if (args instanceof z.ZodType) {
         throw new Error('Unsupported non-object Zod schema for args; use z.object({...})')
       } else {
         // assume raw shape
