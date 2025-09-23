@@ -7,6 +7,24 @@ import type { InferHandlerReturns, ZodToConvexArgs, ExtractCtx } from './types'
 import { formatZodIssues } from './utils'
 import type { RegisteredQuery, RegisteredMutation, RegisteredAction } from 'convex/server'
 
+// Check if a schema contains z.custom types (runtime check)
+function containsCustom(schema: z.ZodTypeAny): boolean {
+  if (schema instanceof z.ZodCustom) return true
+  if (schema instanceof z.ZodUnion) {
+    return (schema.options as z.ZodTypeAny[]).some(containsCustom)
+  }
+  if (schema instanceof z.ZodOptional) {
+    return containsCustom(schema.unwrap() as z.ZodTypeAny)
+  }
+  if (schema instanceof z.ZodNullable) {
+    return containsCustom(schema.unwrap() as z.ZodTypeAny)
+  }
+  if (schema instanceof z.ZodDefault) {
+    return containsCustom(schema.removeDefault() as z.ZodTypeAny)
+  }
+  return false
+}
+
 export function zQuery<
   Builder extends (fn: any) => RegisteredQuery<any, any, any>,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
@@ -33,7 +51,10 @@ export function zQuery<
     zodSchema = z.object(input as Record<string, any>)
     args = zodToConvexFields(input as Record<string, any>)
   }
-  const returns = options?.returns ? zodToConvex(options.returns) : undefined
+  // Skip returns validator for schemas with custom types to avoid type depth issues
+  const returns = options?.returns && !containsCustom(options.returns)
+    ? zodToConvex(options.returns)
+    : undefined
 
   return query({
     args,
@@ -108,7 +129,10 @@ export function zMutation<
     zodSchema = z.object(input as Record<string, any>)
     args = zodToConvexFields(input as Record<string, any>)
   }
-  const returns = options?.returns ? zodToConvex(options.returns) : undefined
+  // Skip returns validator for schemas with custom types to avoid type depth issues
+  const returns = options?.returns && !containsCustom(options.returns)
+    ? zodToConvex(options.returns)
+    : undefined
 
   return mutation({
     args,
@@ -183,7 +207,10 @@ export function zAction<
     zodSchema = z.object(input as Record<string, any>)
     args = zodToConvexFields(input as Record<string, any>)
   }
-  const returns = options?.returns ? zodToConvex(options.returns) : undefined
+  // Skip returns validator for schemas with custom types to avoid type depth issues
+  const returns = options?.returns && !containsCustom(options.returns)
+    ? zodToConvex(options.returns)
+    : undefined
 
   return action({
     args,

@@ -15,10 +15,32 @@ export type InferArgs<A> = A extends z.ZodObject<infer S>
       ? z.infer<A>
       : Record<string, never>
 
-export type InferReturns<R> = R extends z.ZodTypeAny ? z.output<R> : R extends undefined ? any : R
+// Import ZodCustom type if available
+type ZodCustomType = z.ZodType extends { _brand: 'ZodCustom' } ? z.ZodType : any
+
+// Helper to extract type from ZodCustom without deep recursion
+type ExtractCustomOutput<T> = T extends z.ZodType<infer O, any, any>
+  ? T extends { _def: { type: 'custom' } }
+    ? O
+    : never
+  : never
+
+// Return type inference with immediate bailout for unions/custom to avoid depth
+export type InferReturns<R> =
+  R extends z.ZodUnion<any> ? any :        // Bail immediately for unions
+  R extends z.ZodCustom<any> ? any :       // Bail immediately for custom
+  R extends z.ZodType<any, any, any> ?
+    z.output<R> :                           // Use z.output for other schemas
+  R extends undefined ? any :
+  R
 
 // For handler authoring: what the handler returns before wrapper validation/encoding
-export type InferHandlerReturns<R> = R extends z.ZodTypeAny ? z.input<R> : any
+export type InferHandlerReturns<R> =
+  R extends z.ZodUnion<any> ? any :        // Bail immediately for unions
+  R extends z.ZodCustom<any> ? any :       // Bail immediately for custom
+  R extends z.ZodType<any, any, any> ?
+    z.input<R> :                            // Use z.input for other schemas
+  any
 
 export type ExtractCtx<Builder> = Builder extends {
   (fn: { handler: (ctx: infer Ctx, ...args: any[]) => any }): any
@@ -35,19 +57,19 @@ export type PreserveReturnType<
   ? RegisteredQuery<
       V,
       ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-      ReturnsType
+      Promise<ReturnsType>
     >
   : ReturnType<Builder> extends RegisteredMutation<infer V, any, any>
     ? RegisteredMutation<
         V,
         ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-        ReturnsType
+        Promise<ReturnsType>
       >
     : ReturnType<Builder> extends RegisteredAction<infer V, any, any>
       ? RegisteredAction<
           V,
           ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-          ReturnsType
+          Promise<ReturnsType>
         >
       : ReturnType<Builder>
 

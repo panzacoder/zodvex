@@ -50,6 +50,9 @@ export function analyzeZod(schema: z.ZodTypeAny): {
     }
   }
 
+  // Handle branded and piped types - these don't have unwrap methods
+  // For our zid case, the branded pipe should still have metadata
+
   // Check for null in union types
   if (s instanceof z.ZodUnion) {
     const opts = s.options as z.ZodTypeAny[]
@@ -63,10 +66,20 @@ export function analyzeZod(schema: z.ZodTypeAny): {
 
 // Simple conversion for base types without modifiers
 export function simpleToConvex(schema: z.ZodTypeAny): any {
+  // First check metadata on the original schema (for branded/piped types)
+  try {
+    const m = registryHelpers.getMetadata(schema as any)
+    if (m?.isConvexId && m?.tableName && typeof m.tableName === 'string') {
+      return v.id(m.tableName)
+    }
+  } catch {
+    // ignore metadata errors
+  }
+
   const meta = analyzeZod(schema)
   const inner = meta.base
 
-  // Check for custom Convex ID type
+  // Also check metadata on the unwrapped schema
   try {
     const m = registryHelpers.getMetadata(inner as any)
     if (m?.isConvexId && m?.tableName && typeof m.tableName === 'string') {

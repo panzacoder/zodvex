@@ -7,6 +7,27 @@ import { zMutation, zQuery } from "./wrappers";
 import { zid } from "./ids";
 import type { Validator } from "convex/values";
 
+// Helper to create a Zod schema for a Convex document
+export function zodDoc<TableName extends string, Schema extends z.ZodObject<any>>(
+  tableName: TableName,
+  schema: Schema
+) {
+  const shape = getObjectShape(schema);
+  return z.object({
+    ...shape,
+    _id: zid(tableName),
+    _creationTime: z.number()
+  });
+}
+
+// Helper to create nullable doc schema
+export function zodDocOrNull<TableName extends string, Schema extends z.ZodObject<any>>(
+  tableName: TableName,
+  schema: Schema
+) {
+  return z.union([zodDoc(tableName, schema), z.null()]);
+}
+
 // Simplified table definition that preserves types from convex-helpers
 export function zodTable<
   TableName extends string,
@@ -21,9 +42,13 @@ export function zodTable<
   // Create the base table definition from convex-helpers
   const base = Table(name, convexFields as Record<string, Validator<any, any, any>>);
 
-  // Augment with a reference to the original Zod schema so downstream
-  // helpers (e.g., zCrud) can derive field shapes without heavy types.
-  return { ...base, schema };
+  // Augment with a reference to the original Zod schema and doc helpers
+  return {
+    ...base,
+    schema,
+    doc: () => zodDoc(name, schema),
+    docOrNull: () => zodDocOrNull(name, schema)
+  };
 }
 
 // Keep the old implementation available for backward compatibility
