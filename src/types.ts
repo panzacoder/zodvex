@@ -73,19 +73,12 @@ export type PreserveReturnType<
         >
       : ReturnType<Builder>
 
-// Helper type to extract value while preserving Id types
-type ExtractValue<T> = T extends z.ZodType<infer U>
-  ? U extends GenericId<any>
-    ? U
-    : any
-  : any
-
 // Preserve keys and Id types for proper Convex type generation
 export type ZodToConvexArgs<A> =
-  A extends z.ZodObject<infer Shape>
-    ? { [K in keyof Shape]: ExtractValue<Shape[K]> }
+  A extends z.ZodObject<any>
+    ? z.infer<A>
     : A extends Record<string, z.ZodTypeAny>
-      ? { [K in keyof A]: ExtractValue<A[K]> }
+      ? { [K in keyof A]: z.infer<A[K]> }
       : A extends z.ZodTypeAny
-        ? { value: any }
+        ? { value: z.infer<A> }
         : Record<string, never>

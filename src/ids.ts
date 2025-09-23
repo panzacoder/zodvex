@@ -19,7 +19,7 @@ export const registryHelpers = {
  * Uses the string → transform → brand pattern for proper type narrowing with ctx.db.get()
  * This aligns with Zod v4 best practices and matches convex-helpers implementation
  */
-export function zid<TableName extends string>(tableName: TableName): z.ZodType<GenericId<TableName>> {
+export function zid<TableName extends string>(tableName: TableName): z.ZodType<GenericId<TableName>> & { _tableName: TableName } {
   // Use the string → transform → brand pattern (aligned with Zod v4 best practices)
   const baseSchema = z
     .string()
@@ -41,7 +41,11 @@ export function zid<TableName extends string>(tableName: TableName): z.ZodType<G
     tableName
   })
 
-  return baseSchema as z.ZodType<GenericId<TableName>>
+  // Add the tableName property for type-level detection
+  const branded = baseSchema as any
+  branded._tableName = tableName
+
+  return branded as z.ZodType<GenericId<TableName>> & { _tableName: TableName }
 }
 
 export type Zid<TableName extends string> = ReturnType<typeof zid<TableName>>
