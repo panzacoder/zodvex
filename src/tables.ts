@@ -29,83 +29,31 @@ export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends s
   // Directly use zodToConvexFields to avoid codec complexity
   const convexFields = zodToConvexFields(schema);
 
-  // Build a Zod schema that matches Convex-stored docs (e.g., Date -> number)
-  // Helper to convert Zod's internal types to ZodTypeAny
-  function asZodType<T>(schema: T): z.ZodTypeAny {
-    return schema as unknown as z.ZodTypeAny
-  }
 
-  function toConvexZod(s: z.ZodTypeAny): any {
-    // Handle modifiers first
-    if (s instanceof z.ZodOptional) {
-      const inner = s.unwrap()
-      return toConvexZod(asZodType(inner)).optional()
-    }
-
-    if (s instanceof z.ZodNullable) {
-      const inner = s.unwrap()
-      return toConvexZod(asZodType(inner)).nullable()
-    }
-
-    if (s instanceof z.ZodDefault) {
-      const inner = s.removeDefault()
-      return toConvexZod(asZodType(inner)).optional()
-    }
-
-    // Handle base types
-    if (s instanceof z.ZodString) {
-      return z.string()
-    } else if (s instanceof z.ZodNumber) {
-      return z.number()
-    } else if (s instanceof z.ZodBigInt) {
-      return z.bigint()
-    } else if (s instanceof z.ZodBoolean) {
-      return z.boolean()
-    } else if (s instanceof z.ZodDate) {
-      // Stored as timestamp in Convex
-      return z.number()
-    } else if (s instanceof z.ZodNull) {
-      return z.null()
-    } else if (s instanceof z.ZodLiteral) {
-      // Handle undefined literal
-      const value = s.value
-      if (value === undefined) {
-        return z.any()
-      }
-      return z.literal(value)
-    } else if (s instanceof z.ZodEnum) {
-      // Use public .options property
-      const values = s.options || []
-      return values.length ? z.union(values.map((v: any) => z.literal(v)) as any) : z.never()
-    } else if (s instanceof z.ZodUnion) {
-      const opts = s.options as any[]
-      return z.union(opts.map((o: any) => toConvexZod(o)) as [any, any, ...any[]])
-    } else if (s instanceof z.ZodArray) {
-      return z.array(toConvexZod(asZodType(s.element)))
-    } else if (s instanceof z.ZodObject) {
-      const shape = getObjectShape(s)
-      const mapped: Record<string, any> = {}
-      for (const [k, v] of Object.entries(shape)) {
-        mapped[k] = toConvexZod(v as z.ZodTypeAny)
-      }
-      return z.object(mapped)
-    } else if (s instanceof z.ZodRecord) {
-      return z.record(z.string(), toConvexZod(asZodType(s.valueType)))
-    } else if (s instanceof z.ZodTuple) {
-      // Cannot access items without _def, map to generic array
-      return z.array(z.any())
-    } else if (s instanceof z.ZodIntersection) {
-      // Cannot access left/right schemas without _def, map to any
-      return z.any()
-    } else {
-      return z.any()
-    }
-  }
-
+  // Simplified: only convert dates at top level to avoid deep recursion
   const shape = getObjectShape(schema)
   const mapped: Record<string, any> = {}
-  for (const [k, v] of Object.entries(shape)) {
-    mapped[k] = toConvexZod(v as z.ZodTypeAny)
+
+  for (const [k, field] of Object.entries(shape)) {
+    const f = field as z.ZodTypeAny
+    // Only handle simple Date fields at top level
+    if (f instanceof z.ZodDate) {
+      mapped[k] = z.number()
+    } else if (f instanceof z.ZodOptional && f.unwrap() instanceof z.ZodDate) {
+      mapped[k] = z.number().optional()
+    } else if (f instanceof z.ZodNullable && f.unwrap() instanceof z.ZodDate) {
+      mapped[k] = z.number().nullable()
+    } else if (f instanceof z.ZodDefault) {
+      const inner = f.removeDefault()
+      if (inner instanceof z.ZodDate) {
+        mapped[k] = z.number().optional()
+      } else {
+        mapped[k] = f // Keep original for non-date defaults
+      }
+    } else {
+      // For all other types, use the original schema
+      mapped[k] = f
+    }
   }
   const docSchema = z.object({ ...mapped, _id: zid(name), _creationTime: z.number() })
   const docArray = z.array(docSchema)

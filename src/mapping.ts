@@ -3,13 +3,6 @@ import { z } from 'zod'
 import { registryHelpers } from './ids'
 import { findBaseCodec } from './registry'
 
-// Zod v4 uses $ZodType internally, but it's compatible with ZodType at runtime
-// This helper ensures type compatibility without using 'as any'
-function asZodType<T>(schema: T): z.ZodTypeAny {
-  // Runtime: this is always safe as Zod's internal types are ZodType instances
-  // TypeScript: we're asserting the type system's limitation
-  return schema as unknown as z.ZodTypeAny
-}
 
 // union helpers
 export function makeUnion(members: any[]): any {
@@ -31,44 +24,51 @@ export function getObjectShape(obj: any): Record<string, any> {
   return {}
 }
 
-// Main conversion function that handles modifiers recursively
-export function zodToConvex(schema: z.ZodTypeAny): Validator<any, any, any> {
-  // Handle modifier types by recursively converting inner type
-  if (schema instanceof z.ZodOptional) {
-    const inner = schema.unwrap()
-    return v.optional(zodToConvex(asZodType(inner)))
-  }
+// Two-pass approach: first analyze the schema to understand modifiers
+export function analyzeZod(schema: z.ZodTypeAny): {
+  base: z.ZodTypeAny
+  optional: boolean
+  nullable: boolean
+  hasDefault: boolean
+} {
+  let s: z.ZodTypeAny = schema
+  let optional = false
+  let nullable = false
+  let hasDefault = false
 
-  if (schema instanceof z.ZodNullable) {
-    const inner = schema.unwrap()
-    // If inner is optional, we need to handle it specially
-    if (inner instanceof z.ZodOptional) {
-      const innerInner = inner.unwrap()
-      return v.optional(v.union(zodToConvex(asZodType(innerInner)), v.null()))
+  // Unwrap modifiers
+  while (s instanceof z.ZodDefault || s instanceof z.ZodOptional || s instanceof z.ZodNullable) {
+    if (s instanceof z.ZodDefault) {
+      hasDefault = true
+      s = s.removeDefault() as z.ZodTypeAny
+    } else if (s instanceof z.ZodOptional) {
+      optional = true
+      s = s.unwrap() as z.ZodTypeAny
+    } else if (s instanceof z.ZodNullable) {
+      nullable = true
+      s = s.unwrap() as z.ZodTypeAny
     }
-    return v.union(zodToConvex(asZodType(inner)), v.null())
   }
 
-  if (schema instanceof z.ZodDefault) {
-    const inner = schema.removeDefault()
-    return v.optional(zodToConvex(asZodType(inner)))
+  // Check for null in union types
+  if (s instanceof z.ZodUnion) {
+    const opts = s.options as z.ZodTypeAny[]
+    if (opts && opts.some((o) => o instanceof z.ZodNull)) {
+      nullable = true
+    }
   }
 
-
-  if (schema instanceof z.ZodPipe) {
-    // Cannot access inner schema without _def, map to any
-    return v.any()
-  }
-
-  // All base types handled here
-  return convertBaseType(schema)
+  return { base: s, optional: optional || hasDefault, nullable, hasDefault }
 }
 
-// Convert base Zod types (no modifiers) to Convex validators
-function convertBaseType(schema: z.ZodTypeAny): any {
+// Simple conversion for base types without modifiers
+export function simpleToConvex(schema: z.ZodTypeAny): any {
+  const meta = analyzeZod(schema)
+  const inner = meta.base
+
   // Check for custom Convex ID type
   try {
-    const m = registryHelpers.getMetadata(schema as any)
+    const m = registryHelpers.getMetadata(inner as any)
     if (m?.isConvexId && m?.tableName && typeof m.tableName === 'string') {
       return v.id(m.tableName)
     }
@@ -77,116 +77,135 @@ function convertBaseType(schema: z.ZodTypeAny): any {
   }
 
   // Base type codec registry (for Date, etc.)
-  const codec = findBaseCodec(schema as any)
+  const codec = findBaseCodec(inner as any)
   if (codec) {
-    return codec.toValidator(schema)
+    return codec.toValidator(inner)
   }
 
   // Handle all base Zod types
-  if (schema instanceof z.ZodString) {
-    return v.string()
-  }
-  if (schema instanceof z.ZodNumber) {
-    return v.float64()
-  }
-  if (schema instanceof z.ZodBigInt) {
-    return v.int64()
-  }
-  if (schema instanceof z.ZodBoolean) {
-    return v.boolean()
-  }
-  if (schema instanceof z.ZodDate) {
-    return v.float64() // Dates stored as timestamps
-  }
-  if (schema instanceof z.ZodNull) {
-    return v.null()
-  }
-  if (schema instanceof z.ZodUndefined || schema instanceof z.ZodVoid || schema instanceof z.ZodNever) {
-    return v.any()
-  }
-  if (schema instanceof z.ZodAny || schema instanceof z.ZodUnknown) {
-    return v.any()
-  }
-  if (schema instanceof z.ZodLiteral) {
-    // ZodLiteral.value can be undefined or null
-    // Convex doesn't support undefined literals, so map to any
-    const value = schema.value
-    if (value === undefined) {
-      return v.any()
-    }
-    if (value === null) {
-      return v.null()
-    }
+  if (inner instanceof z.ZodString) return v.string()
+  if (inner instanceof z.ZodNumber) return v.float64()
+  if (inner instanceof z.ZodBigInt) return v.int64()
+  if (inner instanceof z.ZodBoolean) return v.boolean()
+  if (inner instanceof z.ZodDate) return v.float64()
+  if (inner instanceof z.ZodNull) return v.null()
+  if (inner instanceof z.ZodAny || inner instanceof z.ZodUnknown) return v.any()
+  if (inner instanceof z.ZodUndefined || inner instanceof z.ZodVoid || inner instanceof z.ZodNever) return v.any()
+
+  if (inner instanceof z.ZodLiteral) {
+    const value = inner.value
+    if (value === undefined) return v.any()
+    if (value === null) return v.null()
     return v.literal(value as string | number | bigint | boolean)
   }
-  if (schema instanceof z.ZodEnum) {
-    // Use public .options property for enum values
-    const values = schema.options || []
+
+  if (inner instanceof z.ZodEnum) {
+    const values = inner.options || []
     return makeUnion(values.map((val: any) => v.literal(val)))
   }
-  if (schema instanceof z.ZodUnion) {
-    const opts = schema.options
-    const members = opts.map(o => zodToConvex(asZodType(o)))
+
+  if (inner instanceof z.ZodUnion) {
+    const opts = inner.options as z.ZodTypeAny[]
+    const nonNull = opts.filter((o) => !(o instanceof z.ZodNull))
+    const members = nonNull.map((o) => simpleToConvex(o))
     return makeUnion(members)
   }
-  if (schema instanceof z.ZodDiscriminatedUnion) {
-    const opts = (schema as any).options as any[]
-    const members = opts.map((o: any) => zodToConvex(o))
+
+  if (inner instanceof z.ZodDiscriminatedUnion) {
+    const opts = (inner as any).options as any[]
+    const members = opts.map((o: z.ZodTypeAny) => simpleToConvex(o))
     return makeUnion(members)
   }
-  if (schema instanceof z.ZodArray) {
-    const element = schema.element
-    return v.array(zodToConvex(asZodType(element)))
+
+  if (inner instanceof z.ZodArray) {
+    const el = inner.element as z.ZodTypeAny
+    return v.array(simpleToConvex(el))
   }
-  if (schema instanceof z.ZodObject) {
-    const shape = schema.shape
+
+  if (inner instanceof z.ZodObject) {
+    const shape = getObjectShape(inner)
     const fields: Record<string, any> = {}
     for (const [k, child] of Object.entries(shape)) {
-      fields[k] = zodToConvex(child as z.ZodTypeAny)
+      fields[k] = convertWithMeta(child as z.ZodTypeAny, simpleToConvex(child as z.ZodTypeAny))
     }
     return v.object(fields)
   }
-  if (schema instanceof z.ZodRecord) {
-    // Use public .keyType and .valueType properties
-    const valueType = schema.valueType || schema.keyType
-    return v.record(v.string(), valueType ? zodToConvex(asZodType(valueType)) : v.string())
+
+  if (inner instanceof z.ZodRecord) {
+    const valueType = inner.valueType as z.ZodTypeAny
+    return v.record(v.string(), simpleToConvex(valueType))
   }
-  if (schema instanceof z.ZodTuple) {
+
+  if (inner instanceof z.ZodTuple) {
     // Cannot access items without _def, map to generic array
     return v.array(v.any())
   }
-  if (schema instanceof z.ZodIntersection) {
+
+  if (inner instanceof z.ZodIntersection) {
     // Cannot access left/right schemas without _def, map to any
     return v.any()
   }
-  if (schema instanceof z.ZodLazy) {
-    // Cannot access getter without _def, map to any
+
+  if (inner instanceof z.ZodLazy) {
     // Lazy schemas are typically for recursive types which Convex doesn't support
     return v.any()
   }
-  if (schema instanceof z.ZodTransform) {
-    // Cannot access input schema without _def, map to any
+
+  if (inner instanceof z.ZodTransform || inner instanceof z.ZodPipe) {
+    // Cannot access inner schema without _def, map to any
     return v.any()
   }
 
-  // Fallback for unknown types
   return v.any()
+}
+
+// Second pass: apply modifiers to the base validator
+export function convertWithMeta(zodField: z.ZodTypeAny, baseValidator: any): any {
+  const meta = analyzeZod(zodField)
+  let core = baseValidator
+
+  const inner = meta.base
+  if (inner instanceof z.ZodObject) {
+    const childShape = getObjectShape(inner as any)
+    const baseChildren: Record<string, any> = Object.fromEntries(
+      Object.entries(childShape).map(([k, v]) => [k, simpleToConvex(v as z.ZodTypeAny)])
+    )
+    const rebuiltChildren: Record<string, any> = {}
+    for (const [k, childZ] of Object.entries(childShape)) {
+      rebuiltChildren[k] = convertWithMeta(childZ as z.ZodTypeAny, baseChildren[k])
+    }
+    core = v.object(rebuiltChildren)
+  } else if (inner instanceof z.ZodArray) {
+    const elZod = inner.element as z.ZodTypeAny
+    const baseEl = simpleToConvex(elZod)
+    const rebuiltEl = convertWithMeta(elZod, baseEl)
+    core = v.array(rebuiltEl)
+  }
+
+  // Apply modifiers
+  if (meta.nullable) {
+    core = makeUnion([core, v.null()])
+  }
+  if (meta.optional) {
+    core = v.optional(core)
+  }
+  return core
+}
+
+// Main conversion function using two-pass approach
+export function zodToConvex(schema: z.ZodTypeAny): Validator<any, any, any> {
+  return convertWithMeta(schema, simpleToConvex(schema))
 }
 
 export function zodToConvexFields(schemaOrShape: any): Record<string, any> {
   // Handle both ZodObject and plain shape objects
   const shape = schemaOrShape instanceof z.ZodObject
-    ? schemaOrShape.shape
+    ? getObjectShape(schemaOrShape)
     : schemaOrShape
 
   const result: Record<string, any> = {}
   for (const [key, value] of Object.entries(shape)) {
-    result[key] = zodToConvex(value as z.ZodTypeAny)
+    result[key] = convertWithMeta(value as z.ZodTypeAny, simpleToConvex(value as z.ZodTypeAny))
   }
   return result
-}
-
-// For backwards compatibility - will be removed
-export function simpleToConvex(schema: any): any {
-  return convertBaseType(schema)
 }
