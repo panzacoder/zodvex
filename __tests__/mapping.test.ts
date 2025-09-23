@@ -1,42 +1,42 @@
-import { v } from 'convex/values'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { analyzeZod, zodToConvex, zodToConvexFields } from '../src/mapping'
+import { v } from 'convex/values'
+import { zodToConvex, zodToConvexFields } from '../src/mapping'
 
-describe('analyzeZod', () => {
-  it('identifies optional fields', () => {
+describe('zodToConvex optional/nullable handling', () => {
+  it('handles optional fields correctly', () => {
     const schema = z.string().optional()
-    const result = analyzeZod(schema)
-
-    expect(result.optional).toBe(true)
-    expect(result.nullable).toBe(false)
-    expect(result.hasDefault).toBe(false)
+    const validator = zodToConvex(schema)
+    // Should be v.optional(v.string())
+    expect(validator).toEqual(v.optional(v.string()))
   })
 
-  it('identifies nullable fields', () => {
+  it('handles nullable fields correctly', () => {
     const schema = z.string().nullable()
-    const result = analyzeZod(schema)
-
-    expect(result.optional).toBe(false)
-    expect(result.nullable).toBe(true)
-    expect(result.hasDefault).toBe(false)
+    const validator = zodToConvex(schema)
+    // Should be v.union(v.string(), v.null())
+    expect(validator).toEqual(v.union(v.string(), v.null()))
   })
 
-  it('identifies fields with defaults', () => {
-    const schema = z.string().default('test')
-    const result = analyzeZod(schema)
-
-    expect(result.optional).toBe(true)
-    expect(result.nullable).toBe(false)
-    expect(result.hasDefault).toBe(true)
+  it('handles fields with defaults as optional', () => {
+    const schema = z.string().default('hello')
+    const validator = zodToConvex(schema)
+    // Default fields should be optional in Convex
+    expect(validator).toEqual(v.optional(v.string()))
   })
 
-  it('handles optional nullable fields', () => {
+  it('handles optional nullable fields correctly', () => {
     const schema = z.string().optional().nullable()
-    const result = analyzeZod(schema)
+    const validator = zodToConvex(schema)
+    // Should be v.optional(v.union(v.string(), v.null()))
+    expect(validator).toEqual(v.optional(v.union(v.string(), v.null())))
+  })
 
-    expect(result.optional).toBe(true)
-    expect(result.nullable).toBe(true)
+  it('handles nullable optional fields correctly', () => {
+    const schema = z.string().nullable().optional()
+    const validator = zodToConvex(schema)
+    // The order matters - nullable then optional results in optional(union)
+    expect(validator).toEqual(v.optional(v.union(v.string(), v.null())))
   })
 })
 
@@ -108,9 +108,9 @@ describe('zodToConvex', () => {
   })
 
   it('maps literals', () => {
-    const schema = z.literal('test')
+    const schema = z.literal('hello')
     const validator = zodToConvex(schema)
-    expect(validator).toEqual(v.literal('test'))
+    expect(validator).toEqual(v.literal('hello'))
   })
 
   it('maps unions', () => {
@@ -128,7 +128,8 @@ describe('zodToConvex', () => {
   it('falls back to any for unsupported types', () => {
     const schema = z.string().transform(s => s.toUpperCase())
     const validator = zodToConvex(schema)
-    expect(validator).toEqual(v.any())
+    // Transform schemas should still validate the input type
+    expect(validator).toEqual(v.string())
   })
 })
 
@@ -136,16 +137,18 @@ describe('zodToConvexFields', () => {
   it('converts object shape to field validators', () => {
     const shape = {
       name: z.string(),
-      age: z.number().optional(),
-      active: z.boolean()
+      age: z.number(),
+      email: z.string().email(),
+      isActive: z.boolean().optional()
     }
 
     const validators = zodToConvexFields(shape)
 
     expect(validators).toEqual({
       name: v.string(),
-      age: v.optional(v.float64()),
-      active: v.boolean()
+      age: v.float64(),
+      email: v.string(),
+      isActive: v.optional(v.boolean())
     })
   })
 
@@ -153,7 +156,9 @@ describe('zodToConvexFields', () => {
     const shape = {
       user: z.object({
         name: z.string(),
-        email: z.string()
+        profile: z.object({
+          bio: z.string().optional()
+        })
       })
     }
 
@@ -162,22 +167,24 @@ describe('zodToConvexFields', () => {
     expect(validators).toEqual({
       user: v.object({
         name: v.string(),
-        email: v.string()
+        profile: v.object({
+          bio: v.optional(v.string())
+        })
       })
     })
   })
 
   it('accepts ZodObject directly', () => {
     const schema = z.object({
-      id: z.string(),
-      count: z.number()
+      name: z.string(),
+      age: z.number().optional()
     })
 
     const validators = zodToConvexFields(schema)
 
     expect(validators).toEqual({
-      id: v.string(),
-      count: v.float64()
+      name: v.string(),
+      age: v.optional(v.float64())
     })
   })
 
@@ -186,7 +193,7 @@ describe('zodToConvexFields', () => {
       required: z.string(),
       optional: z.string().optional(),
       nullable: z.string().nullable(),
-      both: z.string().optional().nullable()
+      optionalNullable: z.string().optional().nullable()
     }
 
     const validators = zodToConvexFields(shape)
@@ -195,7 +202,7 @@ describe('zodToConvexFields', () => {
       required: v.string(),
       optional: v.optional(v.string()),
       nullable: v.union(v.string(), v.null()),
-      both: v.optional(v.union(v.string(), v.null()))
+      optionalNullable: v.optional(v.union(v.string(), v.null()))
     })
   })
 })

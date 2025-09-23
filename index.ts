@@ -1,4 +1,4 @@
-export { zodToConvex, zodToConvexFields, analyzeZod, getObjectShape, makeUnion, simpleToConvex } from './src/mapping'
+export { zodToConvex, zodToConvexFields, getObjectShape, makeUnion } from './src/mapping'
 export { convexCodec, type ConvexCodec, toConvexJS, fromConvexJS } from './src/codec'
 export { zQuery, zInternalQuery, zMutation, zInternalMutation, zAction, zInternalAction } from './src/wrappers'
 export { zCustomQuery, zCustomMutation, zCustomAction } from './src/custom'

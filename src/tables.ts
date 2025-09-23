@@ -1,6 +1,6 @@
 import { Table } from "convex-helpers/server";
 import { z } from "zod";
-import { zodToConvexFields, getObjectShape, analyzeZod } from "./mapping";
+import { zodToConvexFields, getObjectShape, zodToConvex } from "./mapping";
 import { paginationOptsValidator } from "convex/server";
 import { zMutation, zQuery } from "./wrappers";
 import { zid } from "./ids";
@@ -14,52 +14,64 @@ export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
   const convexFields = zodToConvexFields(schema);
 
   // Build a Zod schema that matches Convex-stored docs (e.g., Date -> number)
-  function toConvexZod(s: any): any {
-    const meta = analyzeZod(s)
-    let base = meta.base
-    let out: any
+  function toConvexZod(s: z.ZodTypeAny): any {
+    // Handle modifiers first
+    if (s instanceof z.ZodOptional) {
+      const inner = s.unwrap()
+      return toConvexZod(inner).optional()
+    }
 
-    // Use instanceof checks instead of internal type checking
-    if (base instanceof z.ZodString) {
-      out = z.string()
-    } else if (base instanceof z.ZodNumber) {
-      out = z.number()
-    } else if (base instanceof z.ZodBigInt) {
-      out = z.bigint()
-    } else if (base instanceof z.ZodBoolean) {
-      out = z.boolean()
-    } else if (base instanceof z.ZodDate) {
+    if (s instanceof z.ZodNullable) {
+      const inner = s.unwrap()
+      return toConvexZod(inner).nullable()
+    }
+
+    if (s instanceof z.ZodDefault) {
+      const inner = s.removeDefault()
+      return toConvexZod(inner).optional()
+    }
+
+    // Handle base types
+    if (s instanceof z.ZodString) {
+      return z.string()
+    } else if (s instanceof z.ZodNumber) {
+      return z.number()
+    } else if (s instanceof z.ZodBigInt) {
+      return z.bigint()
+    } else if (s instanceof z.ZodBoolean) {
+      return z.boolean()
+    } else if (s instanceof z.ZodDate) {
       // Stored as timestamp in Convex
-      out = z.number()
-    } else if (base instanceof z.ZodNull) {
-      out = z.null()
-    } else if (base instanceof z.ZodLiteral) {
-      out = z.literal(base.value)
-    } else if (base instanceof z.ZodEnum) {
+      return z.number()
+    } else if (s instanceof z.ZodNull) {
+      return z.null()
+    } else if (s instanceof z.ZodLiteral) {
+      return z.literal((s as any).value)
+    } else if (s instanceof z.ZodEnum) {
       // Check if it's a native enum (has .enum property) or regular enum (has .options)
-      const values = 'enum' in base ? Object.values((base as any).enum) : (base as any).options || []
-      out = values.length ? z.union(values.map((v: any) => z.literal(v as any)) as any) : z.never()
-    } else if (base instanceof z.ZodUnion) {
-      const opts = base.options as any[]
-      out = z.union(opts.map((o: any) => toConvexZod(o)) as [any, any, ...any[]])
-    } else if (base instanceof z.ZodArray) {
-      out = z.array(toConvexZod(base.element))
-    } else if (base instanceof z.ZodObject) {
-      const shape = getObjectShape(base)
+      const values = 'enum' in s ? Object.values((s as any).enum) : (s as any).options || []
+      return values.length ? z.union(values.map((v: any) => z.literal(v as any)) as any) : z.never()
+    } else if (s instanceof z.ZodUnion) {
+      const opts = s.options as any[]
+      return z.union(opts.map((o: any) => toConvexZod(o)) as [any, any, ...any[]])
+    } else if (s instanceof z.ZodArray) {
+      return z.array(toConvexZod(s.element))
+    } else if (s instanceof z.ZodObject) {
+      const shape = getObjectShape(s)
       const mapped: Record<string, any> = {}
       for (const [k, v] of Object.entries(shape)) {
-        mapped[k] = toConvexZod(v)
+        mapped[k] = toConvexZod(v as z.ZodTypeAny)
       }
-      out = z.object(mapped)
-    } else if (base instanceof z.ZodRecord) {
-      out = z.record(z.string(), toConvexZod(base.valueType))
-    } else if (base instanceof z.ZodTuple) {
-      const items = (base as any).items || []
+      return z.object(mapped)
+    } else if (s instanceof z.ZodRecord) {
+      return z.record(z.string(), toConvexZod(s.valueType))
+    } else if (s instanceof z.ZodTuple) {
+      const items = (s as any).items || []
       const member = items.length ? z.union(items.map((i: any) => toConvexZod(i)) as any) : z.any()
-      out = z.array(member)
-    } else if (base instanceof z.ZodIntersection) {
-      const left = base._def.left
-      const right = base._def.right
+      return z.array(member)
+    } else if (s instanceof z.ZodIntersection) {
+      const left = (s as any)._def.left
+      const right = (s as any)._def.right
       if (left instanceof z.ZodObject && right instanceof z.ZodObject) {
         const l = getObjectShape(left)
         const r = getObjectShape(right)
@@ -74,23 +86,19 @@ export function zodTable<T extends z.ZodObject<any>, TableName extends string>(
             fields[k] = toConvexZod((lz || rz) as any)
           }
         }
-        out = z.object(fields)
+        return z.object(fields)
       } else {
-        out = z.any()
+        return z.any()
       }
     } else {
-      out = z.any()
+      return z.any()
     }
-
-    if (meta.nullable) out = out.nullable()
-    if (meta.optional) out = out.optional()
-    return out
   }
 
   const shape = getObjectShape(schema)
   const mapped: Record<string, any> = {}
   for (const [k, v] of Object.entries(shape)) {
-    mapped[k] = toConvexZod(v)
+    mapped[k] = toConvexZod(v as z.ZodTypeAny)
   }
   const docSchema = z.object({ ...mapped, _id: zid(name), _creationTime: z.number() })
   const docArray = z.array(docSchema)
