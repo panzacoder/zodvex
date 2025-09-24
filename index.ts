@@ -1,4 +1,4 @@
-export { zodToConvex, zodToConvexFields, getObjectShape, makeUnion, type ConvexValidatorFromZod } from './src/mapping'
+export { zodToConvex, zodToConvexFields, getObjectShape, makeUnion, type ConvexValidatorFromZod, type ZodValidator } from './src/mapping'
 export { convexCodec, type ConvexCodec, toConvexJS, fromConvexJS } from './src/codec'
 export { zQuery, zInternalQuery, zMutation, zInternalMutation, zAction, zInternalAction } from './src/wrappers'
 export { zCustomQuery, zCustomMutation, zCustomAction } from './src/custom'
@@ -7,4 +7,4 @@ export type { InferArgs, InferReturns, InferHandlerReturns, ExtractCtx, Preserve
 export { zid, type Zid } from './src/ids'
 export { returnsAs } from './src/utils'
 export { pickShape, safePick, safeOmit } from './src/pick'
-// Note: Table, Customization, CustomBuilder, NoOp are now from convex-helpers
+// Note: Table, Customization, CustomBuilder, NoOp should be imported from convex-helpers, not zodvex

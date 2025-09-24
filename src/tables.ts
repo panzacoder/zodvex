@@ -51,41 +51,28 @@ export function zodDocOrNull<
 // Type for the extended document schema
 type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> =
   ReturnType<Schema['extend']> extends z.ZodObject<infer Shape>
-  ? z.ZodObject<
-    Shape & {
-      _id: ReturnType<typeof zid<TableName>>
-      _creationTime: z.ZodNumber
-    }
-  >
-  : never
+    ? z.ZodObject<
+        Shape & {
+          _id: ReturnType<typeof zid<TableName>>
+          _creationTime: z.ZodNumber
+        }
+      >
+    : never
 
-// Simplified table definition that preserves types from convex-helpers
-export function zodTable<
-  TableName extends string,
-  Shape extends z.ZodRawShape,
-  Schema extends z.ZodObject<Shape>
->(name: TableName, schema: Schema) {
-  // Convert fields with proper types - pass ZodObject directly for type preservation
-  const convexFields = zodToConvexFields(schema.shape as any as ZodValidator)
+// Table definition - only accepts raw shapes for better type inference
+// Returns both the Table and the shape for use with zCrud
+export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
+  name: TableName,
+  shape: Shape
+) {
+  // Convert fields with proper types
+  const convexFields = zodToConvexFields(shape)
 
-  // Create the base table definition from convex-helpers
-  // The type is now properly inferred from zodToConvexFields
-  const base = Table(name, convexFields)
-  const table = base.table
+  // Create the Table from convex-helpers
+  const table = Table(name, convexFields)
 
-  // Pre-create the doc schemas to ensure consistent types
-  const docSchema = zodDoc(name, schema)
-  const docOrNullSchema = zodDocOrNull(name, schema)
-
-  // Augment with a reference to the original Zod schema and doc helpers
-  const newTable = {
-    ...base,
-    schema,
-    doc: () => docSchema,
-    docOrNull: () => docOrNullSchema
-  }
-
-  return newTable
+  // Attach the shape for zCrud usage
+  return Object.assign(table, { shape, zDoc: zodDoc(name, z.object(shape)) })
 }
 
 // Keep the old implementation available for backward compatibility
@@ -93,8 +80,8 @@ export function zodTableWithDocs<
   T extends z.ZodObject<any>,
   TableName extends string
 >(name: TableName, schema: T) {
-  // Use zodToConvexFields with proper types - pass ZodObject directly for type preservation
-  const convexFields = zodToConvexFields(schema.shape as any as ZodValidator)
+  // Use zodToConvexFields with proper types - pass the shape for type preservation
+  const convexFields = zodToConvexFields(schema.shape)
 
   // Simplified: only convert dates at top level to avoid deep recursion
   const shape = getObjectShape(schema)
@@ -135,17 +122,17 @@ export function zodTableWithDocs<
 
 export function zCrud<
   TableName extends string,
-  TSchema extends z.ZodObject<any>,
-  TableDefinition extends { name: TableName; schema: TSchema },
+  Shape extends z.ZodRawShape,
+  TableWithShape extends { name: TableName; shape: Shape },
   QueryBuilder extends (fn: any) => any,
   MutationBuilder extends (fn: any) => any
 >(
-  table: TableDefinition,
+  table: TableWithShape,
   queryBuilder: QueryBuilder,
   mutationBuilder: MutationBuilder
 ) {
   const tableName: TableName = table.name
-  const shape = getObjectShape(table.schema as any) as Record<string, any>
+  const shape = table.shape as Record<string, any>
 
   return {
     create: zMutation(mutationBuilder as any, shape, async (ctx, args) => {
