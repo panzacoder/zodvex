@@ -22,7 +22,10 @@ describe('zodToConvex optional/nullable handling', () => {
     const schema = z.string().default('hello')
     const validator = zodToConvex(schema)
     // Default fields should be optional in Convex
-    expect(validator).toEqual(v.optional(v.string()))
+    expect(validator.isOptional).toEqual('optional')
+    expect(validator.kind).toEqual('string')
+    // Should preserve default value as metadata
+    expect((validator as any)._zodDefault).toEqual('hello')
   })
 
   it('handles optional nullable fields correctly', () => {

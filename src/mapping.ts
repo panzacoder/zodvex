@@ -508,7 +508,17 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
       case 'record': {
         // Use classic API: ZodRecord has .valueType property
         if (actualValidator instanceof z.ZodRecord) {
-          const valueType = (actualValidator as any).valueType
+          // In Zod v4, when z.record(z.string()) is used with one argument,
+          // the argument becomes the value type and key defaults to string.
+          // The valueType is stored in _def.valueType (or undefined if single arg)
+          let valueType = (actualValidator as any)._def?.valueType
+
+          // If valueType is undefined, it means single argument form was used
+          // where the argument is actually the value type (stored in keyType)
+          if (!valueType) {
+            valueType = (actualValidator as any)._def?.keyType
+          }
+
           if (valueType && valueType instanceof z.ZodType) {
             // First check if the Zod value type is optional before conversion
             const isZodOptional =
@@ -681,8 +691,8 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
     }
   }
 
-  // For optional fields, always use v.optional()
-  const finalValidator = isOptional
+  // For optional or default fields, always use v.optional()
+  const finalValidator = isOptional || hasDefault
     ? v.optional(convexValidator)
     : convexValidator
 
@@ -715,8 +725,11 @@ export function zodToConvex<Z extends z.ZodTypeAny | ZodValidator>(
 export function zodToConvexFields<Z extends ZodValidator | z.ZodRawShape>(
   zod: Z
 ) {
+  // If it's a ZodObject, extract the shape
+  const fields = zod instanceof z.ZodObject ? zod.shape : zod
+
   return Object.fromEntries(
-    Object.entries(zod).map(([k, v]) => [
+    Object.entries(fields).map(([k, v]) => [
       k,
       zodToConvexInternal(v as z.ZodTypeAny)
     ])
