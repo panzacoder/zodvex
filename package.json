@@ -36,6 +36,8 @@
     "type-check": "bun run tsc --noEmit",
     "test": "bun test",
     "test:vitest": "bun run vitest",
+    "test:types": "bun run vitest --typecheck.only",
+    "test:all": "bun test && bun run test:types",
     "test:coverage": "bun run vitest run --coverage",
     "lint": "bun x biome check src __tests__",
     "lint:fix": "bun x biome check --write src __tests__",
