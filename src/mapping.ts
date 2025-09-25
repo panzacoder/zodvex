@@ -286,12 +286,18 @@ type ConvexValidatorFromZodFields<
 }
 
 // Auto-detect optional fields and apply appropriate constraints
-type ConvexValidatorFromZodFieldsAuto<T extends { [key: string]: any }> = {
+export type ConvexValidatorFromZodFieldsAuto<T extends { [key: string]: any }> = {
   [K in keyof T]: T[K] extends z.ZodOptional<any>
     ? ConvexValidatorFromZod<T[K], 'optional'>
-    : T[K] extends z.ZodTypeAny
-      ? ConvexValidatorFromZod<T[K], 'required'>
-      : VAny<'required'>
+    : T[K] extends z.ZodDefault<any>
+      ? ConvexValidatorFromZod<T[K], 'optional'>
+      : T[K] extends z.ZodNullable<any>
+        ? ConvexValidatorFromZod<T[K], 'required'>
+        : T[K] extends z.ZodEnum<any>
+          ? ConvexValidatorFromZod<T[K], 'required'>
+          : T[K] extends z.ZodTypeAny
+            ? ConvexValidatorFromZod<T[K], 'required'>
+            : VAny<'required'>
 }
 
 // union helpers
@@ -724,14 +730,15 @@ export function zodToConvex<Z extends z.ZodTypeAny | ZodValidator>(
 
 export function zodToConvexFields<Z extends ZodValidator | z.ZodRawShape>(
   zod: Z
-) {
+): ConvexValidatorFromZodFieldsAuto<Z> {
   // If it's a ZodObject, extract the shape
   const fields = zod instanceof z.ZodObject ? zod.shape : zod
 
-  return Object.fromEntries(
-    Object.entries(fields).map(([k, v]) => [
-      k,
-      zodToConvexInternal(v as z.ZodTypeAny)
-    ])
-  ) as ConvexValidatorFromZodFieldsAuto<Z>
+  // Build the result object directly to preserve types
+  const result: any = {}
+  for (const [key, value] of Object.entries(fields)) {
+    result[key] = zodToConvexInternal(value as z.ZodTypeAny)
+  }
+
+  return result as ConvexValidatorFromZodFieldsAuto<Z>
 }

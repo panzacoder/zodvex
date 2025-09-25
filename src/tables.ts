@@ -2,8 +2,10 @@ import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
 import {
   zodToConvexFields,
+  zodToConvex,
   getObjectShape,
   type ConvexValidatorFromZod,
+  type ConvexValidatorFromZodFieldsAuto,
   type ZodValidator
 } from './mapping'
 import { paginationOptsValidator } from 'convex/server'
@@ -51,28 +53,47 @@ export function zodDocOrNull<
 // Type for the extended document schema
 type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> =
   ReturnType<Schema['extend']> extends z.ZodObject<infer Shape>
-    ? z.ZodObject<
-        Shape & {
-          _id: ReturnType<typeof zid<TableName>>
-          _creationTime: z.ZodNumber
-        }
-      >
-    : never
+  ? z.ZodObject<
+    Shape & {
+      _id: ReturnType<typeof zid<TableName>>
+      _creationTime: z.ZodNumber
+    }
+  >
+  : never
+
+// Type for the return value of zodTable
+type ZodTableReturn<
+  TableName extends string,
+  Shape extends Record<string, z.ZodTypeAny>
+> = ReturnType<
+  typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>
+> & {
+  shape: Shape
+  zDoc: z.ZodObject<
+    Shape & {
+      _id: ReturnType<typeof zid<TableName>>
+      _creationTime: z.ZodNumber
+    }
+  >
+}
 
 // Table definition - only accepts raw shapes for better type inference
 // Returns both the Table and the shape for use with zCrud
-export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
-  name: TableName,
-  shape: Shape
-) {
+export function zodTable<
+  TableName extends string,
+  Shape extends Record<string, z.ZodTypeAny>
+>(name: TableName, shape: Shape): ZodTableReturn<TableName, Shape> {
   // Convert fields with proper types
   const convexFields = zodToConvexFields(shape)
 
-  // Create the Table from convex-helpers
+  // Create the Table from convex-helpers with explicit type
   const table = Table(name, convexFields)
 
   // Attach the shape for zCrud usage
-  return Object.assign(table, { shape, zDoc: zodDoc(name, z.object(shape)) })
+  return Object.assign(table, {
+    shape,
+    zDoc: zodDoc(name, z.object(shape))
+  }) as ZodTableReturn<TableName, Shape>
 }
 
 // Keep the old implementation available for backward compatibility
