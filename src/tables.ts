@@ -11,14 +11,19 @@ import {
 import { paginationOptsValidator } from 'convex/server'
 import type {
   GenericDataModel,
-  QueryBuilder,
-  MutationBuilder,
+  QueryBuilder as ConvexQueryBuilder,
+  MutationBuilder as ConvexMutationBuilder,
   GenericQueryCtx,
-  GenericMutationCtx
+  GenericMutationCtx,
+  RegisteredQuery,
+  RegisteredMutation,
+  FunctionVisibility,
+  WithoutSystemFields,
+  PaginationResult
 } from 'convex/server'
 import { zMutation, zQuery } from './wrappers'
 import { zid } from './ids'
-import type { Validator } from 'convex/values'
+import type { Validator, GenericId, Infer } from 'convex/values'
 
 // Helper to create a Zod schema for a Convex document
 export function zodDoc<
@@ -141,59 +146,141 @@ export function zodTableWithDocs<
   return { ...base, schema, docSchema, docArray }
 }
 
+// Type to extract the input shape from a Zod schema
+type InferInputType<Shape extends Record<string, z.ZodTypeAny>> = z.infer<z.ZodObject<Shape>>
+
+// Type to extract the document shape (with system fields)
+type InferDocType<
+  TableName extends string,
+  Shape extends Record<string, z.ZodTypeAny>
+> = InferInputType<Shape> & {
+  _id: GenericId<TableName>
+  _creationTime: number
+}
+
+// Helper to extract visibility from builders
+type ExtractQueryVisibility<B> = B extends (fn: any) => RegisteredQuery<infer V, any, any> ? V : 'public'
+type ExtractMutationVisibility<B> = B extends (fn: any) => RegisteredMutation<infer V, any, any> ? V : 'public'
+
+// Type-safe CRUD operations for a zodTable
 export function zCrud<
   TableName extends string,
-  Shape extends z.ZodRawShape,
-  TableWithShape extends { name: TableName; shape: Shape },
-  QueryBuilder extends (fn: any) => any,
-  MutationBuilder extends (fn: any) => any
+  Shape extends Record<string, z.ZodTypeAny>,
+  TableWithShape extends { name: TableName; shape: Shape; zDoc: z.ZodObject<any> },
+  QueryBuilder extends (fn: any) => RegisteredQuery<any, any, any>,
+  MutationBuilder extends (fn: any) => RegisteredMutation<any, any, any>,
+  QueryVisibility extends FunctionVisibility = ExtractQueryVisibility<QueryBuilder>,
+  MutationVisibility extends FunctionVisibility = ExtractMutationVisibility<MutationBuilder>
 >(
   table: TableWithShape,
   queryBuilder: QueryBuilder,
   mutationBuilder: MutationBuilder
-) {
-  const tableName: TableName = table.name
-  const shape = table.shape as Record<string, any>
+): {
+  create: RegisteredMutation<
+    MutationVisibility,
+    InferInputType<Shape>,
+    Promise<InferDocType<TableName, Shape>>
+  >
+  read: RegisteredQuery<
+    QueryVisibility,
+    { id: GenericId<TableName> },
+    Promise<InferDocType<TableName, Shape> | null>
+  >
+  paginate: RegisteredQuery<
+    QueryVisibility,
+    { paginationOpts: Infer<typeof paginationOptsValidator> },
+    Promise<PaginationResult<any>>
+  >
+  update: RegisteredMutation<
+    MutationVisibility,
+    {
+      id: GenericId<TableName>
+      patch: Partial<InferInputType<Shape>>
+    },
+    Promise<InferDocType<TableName, Shape> | null>
+  >
+  destroy: RegisteredMutation<
+    MutationVisibility,
+    { id: GenericId<TableName> },
+    Promise<InferDocType<TableName, Shape> | null>
+  >
+} {
+  const tableName = table.name
+  const shape = table.shape
+  const docShape = table.zDoc
 
   return {
-    create: zMutation(mutationBuilder as any, shape, async (ctx, args) => {
-      return await (ctx as any).db.insert(tableName, args)
-    }),
+    create: zMutation(
+      mutationBuilder,
+      shape,
+      async (ctx: any, args: any) => {
+        const id = await ctx.db.insert(tableName, args)
+        return await ctx.db.get(id)
+      },
+      { returns: docShape }
+    ) as RegisteredMutation<
+      MutationVisibility,
+      InferInputType<Shape>,
+      Promise<InferDocType<TableName, Shape>>
+    >,
 
     read: zQuery(
-      queryBuilder as any,
+      queryBuilder,
       { id: zid(tableName) },
-      async (ctx, { id }) => {
-        return await (ctx as any).db.get(id)
-      }
-    ),
+      async (ctx: any, { id }: any) => {
+        return await ctx.db.get(id)
+      },
+      { returns: docShape.nullable() }
+    ) as RegisteredQuery<
+      QueryVisibility,
+      { id: GenericId<TableName> },
+      Promise<InferDocType<TableName, Shape> | null>
+    >,
 
-    paginate: (queryBuilder as any)({
+    paginate: queryBuilder({
       args: { paginationOpts: paginationOptsValidator },
       handler: async (ctx: any, { paginationOpts }: any) => {
         return await ctx.db.query(tableName).paginate(paginationOpts)
       }
-    }),
+    }) as any as RegisteredQuery<
+      QueryVisibility,
+      { paginationOpts: Infer<typeof paginationOptsValidator> },
+      Promise<PaginationResult<any>>
+    >,
 
     update: zMutation(
-      mutationBuilder as any,
+      mutationBuilder,
       {
         id: zid(tableName),
-        patch: z.object(shape as any).partial()
+        patch: z.object(shape).partial()
       },
-      async (ctx, { id, patch }) => {
-        await (ctx as any).db.patch(id, patch)
-      }
-    ),
+      async (ctx: any, { id, patch }: any) => {
+        await ctx.db.patch(id, patch)
+        return await ctx.db.get(id)
+      },
+      { returns: docShape.nullable() }
+    ) as RegisteredMutation<
+      MutationVisibility,
+      {
+        id: GenericId<TableName>
+        patch: Partial<InferInputType<Shape>>
+      },
+      Promise<InferDocType<TableName, Shape> | null>
+    >,
 
     destroy: zMutation(
-      mutationBuilder as any,
+      mutationBuilder,
       { id: zid(tableName) },
-      async (ctx, { id }) => {
-        const doc = await (ctx as any).db.get(id)
-        if (doc) await (ctx as any).db.delete(id)
+      async (ctx: any, { id }: any) => {
+        const doc = await ctx.db.get(id)
+        if (doc) await ctx.db.delete(id)
         return doc
-      }
-    )
+      },
+      { returns: docShape.nullable() }
+    ) as RegisteredMutation<
+      MutationVisibility,
+      { id: GenericId<TableName> },
+      Promise<InferDocType<TableName, Shape> | null>
+    >
   }
 }
