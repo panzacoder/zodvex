@@ -56,22 +56,23 @@ export function zodDocOrNull<
 }
 
 // Type for the extended document schema
-type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> = ReturnType<
-  Schema['extend']
-> extends z.ZodObject<infer Shape>
-  ? z.ZodObject<
-      Shape & {
-        _id: ReturnType<typeof zid<TableName>>
-        _creationTime: z.ZodNumber
-      }
-    >
-  : never
+type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> =
+  ReturnType<Schema['extend']> extends z.ZodObject<infer Shape>
+    ? z.ZodObject<
+        Shape & {
+          _id: ReturnType<typeof zid<TableName>>
+          _creationTime: z.ZodNumber
+        }
+      >
+    : never
 
 // Type for the return value of zodTable
 type ZodTableReturn<
   TableName extends string,
   Shape extends Record<string, z.ZodTypeAny>
-> = ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
+> = ReturnType<
+  typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>
+> & {
   shape: Shape
   zDoc: z.ZodObject<
     Shape & {
@@ -83,10 +84,10 @@ type ZodTableReturn<
 
 // Table definition - only accepts raw shapes for better type inference
 // Returns both the Table and the shape for use with zCrud
-export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
-  name: TableName,
-  shape: Shape
-): ZodTableReturn<TableName, Shape> {
+export function zodTable<
+  TableName extends string,
+  Shape extends Record<string, z.ZodTypeAny>
+>(name: TableName, shape: Shape): ZodTableReturn<TableName, Shape> {
   // Convert fields with proper types
   const convexFields = zodToConvexFields(shape)
 
@@ -101,10 +102,10 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
 }
 
 // Keep the old implementation available for backward compatibility
-export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends string>(
-  name: TableName,
-  schema: T
-) {
+export function zodTableWithDocs<
+  T extends z.ZodObject<any>,
+  TableName extends string
+>(name: TableName, schema: T) {
   // Use zodToConvexFields with proper types - pass the shape for type preservation
   const convexFields = zodToConvexFields(schema.shape)
 
@@ -146,7 +147,9 @@ export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends s
 }
 
 // Type to extract the input shape from a Zod schema
-type InferInputType<Shape extends Record<string, z.ZodTypeAny>> = z.infer<z.ZodObject<Shape>>
+type InferInputType<Shape extends Record<string, z.ZodTypeAny>> = z.infer<
+  z.ZodObject<Shape>
+>
 
 // Type to extract the document shape (with system fields)
 type InferDocType<
@@ -158,10 +161,14 @@ type InferDocType<
 }
 
 // Helper to extract visibility from builders
-type ExtractQueryVisibility<B> = B extends (fn: any) => RegisteredQuery<infer V, any, any>
+type ExtractQueryVisibility<B> = B extends (
+  fn: any
+) => RegisteredQuery<infer V, any, any>
   ? V
   : 'public'
-type ExtractMutationVisibility<B> = B extends (fn: any) => RegisteredMutation<infer V, any, any>
+type ExtractMutationVisibility<B> = B extends (
+  fn: any
+) => RegisteredMutation<infer V, any, any>
   ? V
   : 'public'
 
@@ -169,11 +176,17 @@ type ExtractMutationVisibility<B> = B extends (fn: any) => RegisteredMutation<in
 export function zCrud<
   TableName extends string,
   Shape extends Record<string, z.ZodTypeAny>,
-  TableWithShape extends { name: TableName; shape: Shape; zDoc: z.ZodObject<any> },
+  TableWithShape extends {
+    name: TableName
+    shape: Shape
+    zDoc: z.ZodObject<any>
+  },
   QueryBuilder extends (fn: any) => RegisteredQuery<any, any, any>,
   MutationBuilder extends (fn: any) => RegisteredMutation<any, any, any>,
-  QueryVisibility extends FunctionVisibility = ExtractQueryVisibility<QueryBuilder>,
-  MutationVisibility extends FunctionVisibility = ExtractMutationVisibility<MutationBuilder>
+  QueryVisibility extends
+    FunctionVisibility = ExtractQueryVisibility<QueryBuilder>,
+  MutationVisibility extends
+    FunctionVisibility = ExtractMutationVisibility<MutationBuilder>
 >(
   table: TableWithShape,
   queryBuilder: QueryBuilder,
@@ -221,35 +234,23 @@ export function zCrud<
         return await ctx.db.get(id)
       },
       { returns: docShape }
-    ) as RegisteredMutation<
-      MutationVisibility,
-      InferInputType<Shape>,
-      Promise<InferDocType<TableName, Shape>>
-    >,
+    ),
 
     read: zQuery(
       queryBuilder,
       { id: zid(tableName) },
-      async (ctx: any, { id }: any) => {
+      async (ctx: any, { id }) => {
         return await ctx.db.get(id)
       },
       { returns: docShape.nullable() }
-    ) as RegisteredQuery<
-      QueryVisibility,
-      { id: GenericId<TableName> },
-      Promise<InferDocType<TableName, Shape> | null>
-    >,
+    ),
 
     paginate: queryBuilder({
       args: { paginationOpts: paginationOptsValidator },
       handler: async (ctx: any, { paginationOpts }: any) => {
         return await ctx.db.query(tableName).paginate(paginationOpts)
       }
-    }) as any as RegisteredQuery<
-      QueryVisibility,
-      { paginationOpts: Infer<typeof paginationOptsValidator> },
-      Promise<PaginationResult<any>>
-    >,
+    }),
 
     update: zMutation(
       mutationBuilder,
@@ -262,14 +263,7 @@ export function zCrud<
         return await ctx.db.get(id)
       },
       { returns: docShape.nullable() }
-    ) as RegisteredMutation<
-      MutationVisibility,
-      {
-        id: GenericId<TableName>
-        patch: Partial<InferInputType<Shape>>
-      },
-      Promise<InferDocType<TableName, Shape> | null>
-    >,
+    ),
 
     destroy: zMutation(
       mutationBuilder,
@@ -280,7 +274,32 @@ export function zCrud<
         return doc
       },
       { returns: docShape.nullable() }
-    ) as RegisteredMutation<
+    )
+  } as unknown as {
+    create: RegisteredMutation<
+      MutationVisibility,
+      InferInputType<Shape>,
+      Promise<InferDocType<TableName, Shape>>
+    >
+    read: RegisteredQuery<
+      QueryVisibility,
+      { id: GenericId<TableName> },
+      Promise<InferDocType<TableName, Shape> | null>
+    >
+    paginate: RegisteredQuery<
+      QueryVisibility,
+      { paginationOpts: Infer<typeof paginationOptsValidator> },
+      Promise<PaginationResult<any>>
+    >
+    update: RegisteredMutation<
+      MutationVisibility,
+      {
+        id: GenericId<TableName>
+        patch: Partial<InferInputType<Shape>>
+      },
+      Promise<InferDocType<TableName, Shape> | null>
+    >
+    destroy: RegisteredMutation<
       MutationVisibility,
       { id: GenericId<TableName> },
       Promise<InferDocType<TableName, Shape> | null>

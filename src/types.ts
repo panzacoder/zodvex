@@ -51,13 +51,18 @@ export type InferHandlerReturns<R> = R extends z.ZodUnion<any>
       : // Use z.input for other schemas
         any
 
+/**
+ * @deprecated Use GenericQueryCtx, GenericMutationCtx, or GenericActionCtx directly instead
+ */
 export type ExtractCtx<Builder> = Builder extends {
   (fn: { handler: (ctx: infer Ctx, ...args: any[]) => any }): any
 }
   ? Ctx
   : never
 
-// Simplified: directly map to the registered types without intermediate type utilities
+/**
+ * @deprecated Return types are now specified explicitly using RegisteredQuery, RegisteredMutation, or RegisteredAction
+ */
 export type PreserveReturnType<
   Builder extends (...args: any) => any,
   ArgsType,
