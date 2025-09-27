@@ -1,18 +1,13 @@
-import { describe, it, expectTypeOf } from 'vitest'
-import { z } from 'zod'
 import type { TableDefinition, VObject } from 'convex/server'
-import { zodTable } from '../src/tables'
+import type { VLiteral, VUnion } from 'convex/values'
+import { describe, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import { zid } from '../src/ids'
-import type { VUnion, VLiteral } from 'convex/values'
+import { zodTable } from '../src/tables'
 
 describe('Table introspection preserves enum types', () => {
   it('should preserve enum type in direct validator fields', () => {
-    const PROJECT_TYPES = [
-      'tv-film',
-      'music-video',
-      'live-performance',
-      'commercial'
-    ] as const
+    const PROJECT_TYPES = ['tv-film', 'music-video', 'live-performance', 'commercial'] as const
 
     const projects = {
       type: z.enum(PROJECT_TYPES)
@@ -28,11 +23,7 @@ describe('Table introspection preserves enum types', () => {
 
     // Check the actual type structure
     expectTypeOf<ValidatorFields['type']>().toMatchTypeOf<
-      VUnion<
-        'tv-film' | 'music-video' | 'live-performance' | 'commercial',
-        any[],
-        'required'
-      >
+      VUnion<'tv-film' | 'music-video' | 'live-performance' | 'commercial', any[], 'required'>
     >()
   })
 
@@ -53,12 +44,7 @@ describe('Table introspection preserves enum types', () => {
     // This test should FAIL with current implementation
     // Reproducing the exact issue from packages/backend/convex/schemas/projects.ts
 
-    const PROJECT_TYPES = [
-      'tv-film',
-      'music-video',
-      'live-performance',
-      'commercial'
-    ] as const
+    const PROJECT_TYPES = ['tv-film', 'music-video', 'live-performance', 'commercial'] as const
 
     const LIVE_EVENT_SUBTYPES = [
       'festival',
@@ -103,12 +89,7 @@ describe('Table introspection preserves enum types', () => {
     type ProjectsTable = typeof Projects.table
 
     // Extract the document type from the table
-    type ProjectsDoc = ProjectsTable extends TableDefinition<
-      infer V,
-      any,
-      any,
-      any
-    >
+    type ProjectsDoc = ProjectsTable extends TableDefinition<infer V, any, any, any>
       ? V extends VObject<infer Fields, any, any, any>
         ? Fields
         : never
@@ -145,12 +126,7 @@ describe('Table introspection preserves enum types', () => {
     const TestTable = zodTable('test', shape)
 
     type TestTableType = typeof TestTable.table
-    type TestDoc = TestTableType extends TableDefinition<
-      infer V,
-      any,
-      any,
-      any
-    >
+    type TestDoc = TestTableType extends TableDefinition<infer V, any, any, any>
       ? V extends VObject<infer Fields, any, any, any>
         ? Fields
         : never

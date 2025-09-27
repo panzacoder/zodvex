@@ -1,7 +1,7 @@
-import { test, expect } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { z } from 'zod'
-import { zodTable, zCrud } from '../src/tables'
-import { query, mutation, internalQuery, internalMutation } from '../test-utils/convex-mocks'
+import { zCrud, zodTable } from '../src/tables'
+import { internalMutation, internalQuery, mutation, query } from '../test-utils/convex-mocks'
 
 test('zCrud returns properly typed functions', () => {
   const userShape = {

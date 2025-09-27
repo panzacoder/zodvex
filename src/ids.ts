@@ -19,18 +19,20 @@ export const registryHelpers = {
  * Uses the string → transform → brand pattern for proper type narrowing with ctx.db.get()
  * This aligns with Zod v4 best practices and matches convex-helpers implementation
  */
-export function zid<TableName extends string>(tableName: TableName): z.ZodType<GenericId<TableName>> & { _tableName: TableName } {
+export function zid<TableName extends string>(
+  tableName: TableName
+): z.ZodType<GenericId<TableName>> & { _tableName: TableName } {
   // Use the string → transform → brand pattern (aligned with Zod v4 best practices)
   const baseSchema = z
     .string()
-    .refine((val) => typeof val === 'string' && val.length > 0, {
+    .refine(val => typeof val === 'string' && val.length > 0, {
       message: `Invalid ID for table "${tableName}"`
     })
-    .transform((val) => {
+    .transform(val => {
       // Cast to GenericId while keeping the string value
-      return val as string & GenericId<TableName>;
+      return val as string & GenericId<TableName>
     })
-    .brand(`ConvexId_${tableName}`)  // Use native Zod v4 .brand() method
+    .brand(`ConvexId_${tableName}`) // Use native Zod v4 .brand() method
     // Add a human-readable marker for client-side introspection utilities
     // used in apps/native (e.g., to detect relationship fields in dynamic forms).
     .describe(`convexId:${tableName}`)

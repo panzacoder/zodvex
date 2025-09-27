@@ -1,11 +1,4 @@
 import type {
-  GenericValidator,
-  ObjectType,
-  PropertyValidators,
-  Validator
-} from 'convex/values'
-import { v } from 'convex/values'
-import type {
   ArgsArrayForOptionalValidator,
   ArgsArrayToObject,
   DefaultArgsForOptionalValidator,
@@ -18,6 +11,8 @@ import type {
   TableDefinition
 } from 'convex/server'
 import { defineTable } from 'convex/server'
+import type { GenericValidator, ObjectType, PropertyValidators, Validator } from 'convex/values'
+import { v } from 'convex/values'
 
 // Helper type to expand object types for better IDE hints
 type Expand<T extends Record<any, any>> = T extends Record<any, any>
@@ -44,23 +39,25 @@ export type Customization<
     ctx: Ctx,
     args: ObjectType<CustomArgsValidator>,
     extra: ExtraArgs
-  ) => Promise<{
-    ctx: CustomCtx
-    args: CustomMadeArgs
-    onSuccess?: (obj: {
-      ctx: Ctx
-      args: Record<string, unknown>
-      result: unknown
-    }) => void | Promise<void>
-  }> | {
-    ctx: CustomCtx
-    args: CustomMadeArgs
-    onSuccess?: (obj: {
-      ctx: Ctx
-      args: Record<string, unknown>
-      result: unknown
-    }) => void | Promise<void>
-  }
+  ) =>
+    | Promise<{
+        ctx: CustomCtx
+        args: CustomMadeArgs
+        onSuccess?: (obj: {
+          ctx: Ctx
+          args: Record<string, unknown>
+          result: unknown
+        }) => void | Promise<void>
+      }>
+    | {
+        ctx: CustomCtx
+        args: CustomMadeArgs
+        onSuccess?: (obj: {
+          ctx: Ctx
+          args: Record<string, unknown>
+          result: unknown
+        }) => void | Promise<void>
+      }
 }
 
 /**
@@ -95,8 +92,8 @@ type ArgsForHandlerType<
 > = CustomMadeArgs extends Record<string, never>
   ? OneOrZeroArgs
   : OneOrZeroArgs extends [infer A]
-  ? [Expand<A & CustomMadeArgs>]
-  : [CustomMadeArgs]
+    ? [Expand<A & CustomMadeArgs>]
+    : [CustomMadeArgs]
 
 /**
  * A builder that customizes a Convex function
@@ -114,7 +111,8 @@ export type CustomBuilder<
     ArgsValidator extends PropertyValidators | void | Validator<any, any, any>,
     ReturnsValidator extends PropertyValidators | GenericValidator | void,
     ReturnValue extends ReturnValueForOptionalValidator<ReturnsValidator> = any,
-    OneOrZeroArgs extends ArgsArrayForOptionalValidator<ArgsValidator> = DefaultArgsForOptionalValidator<ArgsValidator>
+    OneOrZeroArgs extends
+      ArgsArrayForOptionalValidator<ArgsValidator> = DefaultArgsForOptionalValidator<ArgsValidator>
   >(
     func:
       | ({
@@ -140,8 +138,8 @@ export type CustomBuilder<
       CustomArgsValidator extends Record<string, never>
         ? OneOrZeroArgs
         : OneOrZeroArgs extends [infer A]
-        ? [Expand<A & ObjectType<CustomArgsValidator>>]
-        : [ObjectType<CustomArgsValidator>]
+          ? [Expand<A & ObjectType<CustomArgsValidator>>]
+          : [ObjectType<CustomArgsValidator>]
     >,
     ReturnValue
   >
@@ -151,10 +149,7 @@ export type CustomBuilder<
  * Define a table with system fields _id and _creationTime.
  * This also returns helpers for working with the table in validators.
  */
-export function Table<
-  T extends Record<string, Validator<any, any, any>>,
-  TableName extends string
->(
+export function Table<T extends Record<string, Validator<any, any, any>>, TableName extends string>(
   name: TableName,
   fields: T
 ): {

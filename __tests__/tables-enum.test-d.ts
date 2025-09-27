@@ -1,19 +1,14 @@
-import { describe, it, expectTypeOf } from 'vitest'
-import { z } from 'zod'
-import { v } from 'convex/values'
 import type { Id } from 'convex/_generated/dataModel'
-import { zodTable } from '../src/tables'
+import type { VLiteral, VOptional, VUnion } from 'convex/values'
+import { v } from 'convex/values'
+import { describe, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import { zid } from '../src/ids'
-import type { VUnion, VLiteral, VOptional } from 'convex/values'
+import { zodTable } from '../src/tables'
 
 describe('zodTable enum preservation', () => {
   it('preserves enum types in table definition', () => {
-    const PROJECT_TYPES = [
-      'tv-film',
-      'music-video',
-      'live-performance',
-      'commercial'
-    ] as const
+    const PROJECT_TYPES = ['tv-film', 'music-video', 'live-performance', 'commercial'] as const
 
     const testShape = {
       type: z.enum(PROJECT_TYPES),
@@ -83,10 +78,7 @@ describe('zodTable enum preservation', () => {
     expectTypeOf<Fields['profileType']>().toMatchTypeOf<
       VUnion<
         'dancer' | 'choreographer',
-        [
-          VLiteral<'dancer', 'required'>,
-          VLiteral<'choreographer', 'required'>
-        ],
+        [VLiteral<'dancer', 'required'>, VLiteral<'choreographer', 'required'>],
         'required'
       >
     >()
@@ -104,13 +96,7 @@ describe('zodTable enum preservation', () => {
 
     // Union of IDs
     expectTypeOf<Fields['profileId']>().toMatchTypeOf<
-      VOptional<
-        VUnion<
-          Id<'dancers'> | Id<'choreographers'>,
-          any[],
-          'required'
-        >
-      >
+      VOptional<VUnion<Id<'dancers'> | Id<'choreographers'>, any[], 'required'>>
     >()
   })
 
@@ -125,9 +111,7 @@ describe('zodTable enum preservation', () => {
     type Fields = typeof TestTable.table.validator.fields
 
     // Single value enum should be a literal
-    expectTypeOf<Fields['singleEnum']>().toMatchTypeOf<
-      VLiteral<'only-value', 'required'>
-    >()
+    expectTypeOf<Fields['singleEnum']>().toMatchTypeOf<VLiteral<'only-value', 'required'>>()
 
     // Optional single value enum
     expectTypeOf<Fields['optionalSingle']>().toMatchTypeOf<

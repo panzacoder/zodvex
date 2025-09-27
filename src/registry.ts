@@ -1,5 +1,5 @@
-import { z } from 'zod'
 import { v } from 'convex/values'
+import { z } from 'zod'
 
 // Registry for base type codecs
 type BaseCodec = {
@@ -21,15 +21,15 @@ export function findBaseCodec(schema: any): BaseCodec | undefined {
 
 // Built-in codec for Date
 registerBaseCodec({
-  check: (schema) => schema instanceof z.ZodDate,
+  check: schema => schema instanceof z.ZodDate,
   toValidator: () => v.float64(),
-  fromConvex: (value) => {
+  fromConvex: value => {
     if (typeof value === 'number') {
       return new Date(value)
     }
     return value
   },
-  toConvex: (value) => {
+  toConvex: value => {
     if (value instanceof Date) {
       return value.getTime()
     }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { pickShape, safePick } from '../src/pick'
 import { zodToConvexFields } from '../src/mapping'
+import { pickShape, safePick } from '../src/pick'
 
 describe('pick helpers', () => {
   const User = z.object({
@@ -9,7 +9,7 @@ describe('pick helpers', () => {
     email: z.string().email(),
     firstName: z.string().optional(),
     lastName: z.string().optional(),
-    createdAt: z.date().nullable(),
+    createdAt: z.date().nullable()
   })
 
   it('pickShape returns subset shape', () => {
@@ -35,4 +35,3 @@ describe('pick helpers', () => {
     expect((validators.createdAt as any)?.kind).toBe('union')
   })
 })
-

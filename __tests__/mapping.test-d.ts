@@ -1,10 +1,10 @@
-import { describe, it, expectTypeOf } from 'vitest'
-import { z } from 'zod'
-import { v } from 'convex/values'
 import type { Id } from 'convex/_generated/dataModel'
-import { zodToConvexFields, type ConvexValidatorFromZodFieldsAuto } from '../src/mapping'
+import type { VArray, VId, VNumber, VOptional, VString } from 'convex/values'
+import { v } from 'convex/values'
+import { describe, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import { zid } from '../src/ids'
-import type { VOptional, VId, VString, VNumber, VArray } from 'convex/values'
+import { type ConvexValidatorFromZodFieldsAuto, zodToConvexFields } from '../src/mapping'
 
 describe('ConvexValidatorFromZodFieldsAuto type preservation', () => {
   it('preserves specific ID types in optional fields', () => {
@@ -44,7 +44,9 @@ describe('ConvexValidatorFromZodFieldsAuto type preservation', () => {
     expectTypeOf<Result['nullable']>().toMatchTypeOf<v.ValidatorTypeFor<string | null>>()
 
     // Optional nullable should be optional union
-    expectTypeOf<Result['optionalNullable']>().toMatchTypeOf<VOptional<v.ValidatorTypeFor<string | null>>>()
+    expectTypeOf<Result['optionalNullable']>().toMatchTypeOf<
+      VOptional<v.ValidatorTypeFor<string | null>>
+    >()
   })
 
   it('handles nested object types', () => {
@@ -53,25 +55,33 @@ describe('ConvexValidatorFromZodFieldsAuto type preservation', () => {
         id: zid('users'),
         name: z.string()
       }),
-      optionalUser: z.object({
-        id: zid('users'),
-        name: z.string()
-      }).optional()
+      optionalUser: z
+        .object({
+          id: zid('users'),
+          name: z.string()
+        })
+        .optional()
     }
 
     type Result = ConvexValidatorFromZodFieldsAuto<typeof shape>
 
     // Nested objects should maintain their structure
-    expectTypeOf<Result['user']>().toMatchTypeOf<v.ValidatorTypeFor<{
-      id: Id<'users'>
-      name: string
-    }>>()
+    expectTypeOf<Result['user']>().toMatchTypeOf<
+      v.ValidatorTypeFor<{
+        id: Id<'users'>
+        name: string
+      }>
+    >()
 
     // Optional nested objects should be wrapped in VOptional
-    expectTypeOf<Result['optionalUser']>().toMatchTypeOf<VOptional<v.ValidatorTypeFor<{
-      id: Id<'users'>
-      name: string
-    }>>>()
+    expectTypeOf<Result['optionalUser']>().toMatchTypeOf<
+      VOptional<
+        v.ValidatorTypeFor<{
+          id: Id<'users'>
+          name: string
+        }>
+      >
+    >()
   })
 })
 
@@ -124,26 +134,38 @@ describe('zodToConvexFields type inference', () => {
 
     // Union types should be preserved
     expectTypeOf(result.status).toMatchTypeOf<v.ValidatorTypeFor<'active' | 'inactive'>>()
-    expectTypeOf(result.nullableStatus).toMatchTypeOf<v.ValidatorTypeFor<'active' | 'inactive' | null>>()
+    expectTypeOf(result.nullableStatus).toMatchTypeOf<
+      v.ValidatorTypeFor<'active' | 'inactive' | null>
+    >()
   })
 })
 
 describe('Complex type scenarios', () => {
   it('handles deeply nested optional arrays of IDs', () => {
     const shape = {
-      teams: z.array(z.object({
-        name: z.string(),
-        memberIds: z.array(zid('users')).optional()
-      })).optional()
+      teams: z
+        .array(
+          z.object({
+            name: z.string(),
+            memberIds: z.array(zid('users')).optional()
+          })
+        )
+        .optional()
     }
 
     type Result = ConvexValidatorFromZodFieldsAuto<typeof shape>
 
     // The nested structure should preserve ID types
-    expectTypeOf<Result['teams']>().toMatchTypeOf<VOptional<VArray<v.ValidatorTypeFor<{
-      name: string
-      memberIds?: Id<'users'>[]
-    }>>>>()
+    expectTypeOf<Result['teams']>().toMatchTypeOf<
+      VOptional<
+        VArray<
+          v.ValidatorTypeFor<{
+            name: string
+            memberIds?: Id<'users'>[]
+          }>
+        >
+      >
+    >()
   })
 
   it('preserves enum types', () => {
@@ -155,7 +177,9 @@ describe('Complex type scenarios', () => {
     type Result = ConvexValidatorFromZodFieldsAuto<typeof shape>
 
     expectTypeOf<Result['role']>().toMatchTypeOf<v.ValidatorTypeFor<'admin' | 'user' | 'guest'>>()
-    expectTypeOf<Result['optionalRole']>().toMatchTypeOf<VOptional<v.ValidatorTypeFor<'admin' | 'user' | 'guest'>>>()
+    expectTypeOf<Result['optionalRole']>().toMatchTypeOf<
+      VOptional<v.ValidatorTypeFor<'admin' | 'user' | 'guest'>>
+    >()
   })
 
   it('handles literal types', () => {

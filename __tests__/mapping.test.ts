@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { z } from 'zod'
 import { v } from 'convex/values'
+import { z } from 'zod'
 import { zodToConvex, zodToConvexFields } from '../src/mapping'
 
 describe('zodToConvex optional/nullable handling', () => {

@@ -1,29 +1,29 @@
+import type {
+  MutationBuilder as ConvexMutationBuilder,
+  QueryBuilder as ConvexQueryBuilder,
+  FunctionVisibility,
+  GenericDataModel,
+  GenericMutationCtx,
+  GenericQueryCtx,
+  PaginationResult,
+  RegisteredMutation,
+  RegisteredQuery,
+  WithoutSystemFields
+} from 'convex/server'
+import { paginationOptsValidator } from 'convex/server'
+import type { GenericId, Infer, Validator } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
+import { zid } from './ids'
 import {
-  zodToConvexFields,
-  zodToConvex,
-  getObjectShape,
   type ConvexValidatorFromZod,
   type ConvexValidatorFromZodFieldsAuto,
-  type ZodValidator
+  getObjectShape,
+  type ZodValidator,
+  zodToConvex,
+  zodToConvexFields
 } from './mapping'
-import { paginationOptsValidator } from 'convex/server'
-import type {
-  GenericDataModel,
-  QueryBuilder as ConvexQueryBuilder,
-  MutationBuilder as ConvexMutationBuilder,
-  GenericQueryCtx,
-  GenericMutationCtx,
-  RegisteredQuery,
-  RegisteredMutation,
-  FunctionVisibility,
-  WithoutSystemFields,
-  PaginationResult
-} from 'convex/server'
 import { zMutation, zQuery } from './wrappers'
-import { zid } from './ids'
-import type { Validator, GenericId, Infer } from 'convex/values'
 
 // Helper to create a Zod schema for a Convex document
 export function zodDoc<
@@ -56,23 +56,22 @@ export function zodDocOrNull<
 }
 
 // Type for the extended document schema
-type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> =
-  ReturnType<Schema['extend']> extends z.ZodObject<infer Shape>
+type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> = ReturnType<
+  Schema['extend']
+> extends z.ZodObject<infer Shape>
   ? z.ZodObject<
-    Shape & {
-      _id: ReturnType<typeof zid<TableName>>
-      _creationTime: z.ZodNumber
-    }
-  >
+      Shape & {
+        _id: ReturnType<typeof zid<TableName>>
+        _creationTime: z.ZodNumber
+      }
+    >
   : never
 
 // Type for the return value of zodTable
 type ZodTableReturn<
   TableName extends string,
   Shape extends Record<string, z.ZodTypeAny>
-> = ReturnType<
-  typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>
-> & {
+> = ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
   shape: Shape
   zDoc: z.ZodObject<
     Shape & {
@@ -84,10 +83,10 @@ type ZodTableReturn<
 
 // Table definition - only accepts raw shapes for better type inference
 // Returns both the Table and the shape for use with zCrud
-export function zodTable<
-  TableName extends string,
-  Shape extends Record<string, z.ZodTypeAny>
->(name: TableName, shape: Shape): ZodTableReturn<TableName, Shape> {
+export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
+  name: TableName,
+  shape: Shape
+): ZodTableReturn<TableName, Shape> {
   // Convert fields with proper types
   const convexFields = zodToConvexFields(shape)
 
@@ -102,10 +101,10 @@ export function zodTable<
 }
 
 // Keep the old implementation available for backward compatibility
-export function zodTableWithDocs<
-  T extends z.ZodObject<any>,
-  TableName extends string
->(name: TableName, schema: T) {
+export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends string>(
+  name: TableName,
+  schema: T
+) {
   // Use zodToConvexFields with proper types - pass the shape for type preservation
   const convexFields = zodToConvexFields(schema.shape)
 
@@ -159,8 +158,12 @@ type InferDocType<
 }
 
 // Helper to extract visibility from builders
-type ExtractQueryVisibility<B> = B extends (fn: any) => RegisteredQuery<infer V, any, any> ? V : 'public'
-type ExtractMutationVisibility<B> = B extends (fn: any) => RegisteredMutation<infer V, any, any> ? V : 'public'
+type ExtractQueryVisibility<B> = B extends (fn: any) => RegisteredQuery<infer V, any, any>
+  ? V
+  : 'public'
+type ExtractMutationVisibility<B> = B extends (fn: any) => RegisteredMutation<infer V, any, any>
+  ? V
+  : 'public'
 
 // Type-safe CRUD operations for a zodTable
 export function zCrud<

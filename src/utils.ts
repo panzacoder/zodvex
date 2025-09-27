@@ -24,7 +24,7 @@ export function formatZodIssues(
   return {
     error: 'ZodValidationError',
     context,
-    issues: error.issues.map((issue) => ({
+    issues: error.issues.map(issue => ({
       path: Array.isArray(issue.path) ? issue.path.join('.') : String(issue.path ?? ''),
       code: issue.code,
       message: issue.message

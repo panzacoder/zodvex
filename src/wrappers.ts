@@ -1,11 +1,11 @@
-import { z } from 'zod'
+import type { RegisteredAction, RegisteredMutation, RegisteredQuery } from 'convex/server'
 import { ConvexError } from 'convex/values'
-import { toConvexJS, fromConvexJS } from './codec'
-import { zodToConvex, zodToConvexFields, getObjectShape } from './mapping'
+import { z } from 'zod'
+import { fromConvexJS, toConvexJS } from './codec'
+import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 // Typing helpers to keep handler args/returns precise without deep remapping
-import type { InferHandlerReturns, ZodToConvexArgs, ExtractCtx } from './types'
+import type { ExtractCtx, InferHandlerReturns, ZodToConvexArgs } from './types'
 import { formatZodIssues } from './utils'
-import type { RegisteredQuery, RegisteredMutation, RegisteredAction } from 'convex/server'
 
 // Check if a schema contains z.custom types (runtime check)
 function containsCustom(schema: z.ZodTypeAny): boolean {
@@ -52,9 +52,8 @@ export function zQuery<
     args = zodToConvexFields(input as Record<string, any>)
   }
   // Skip returns validator for schemas with custom types to avoid type depth issues
-  const returns = options?.returns && !containsCustom(options.returns)
-    ? zodToConvex(options.returns)
-    : undefined
+  const returns =
+    options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
 
   return query({
     args,
@@ -130,9 +129,8 @@ export function zMutation<
     args = zodToConvexFields(input as Record<string, any>)
   }
   // Skip returns validator for schemas with custom types to avoid type depth issues
-  const returns = options?.returns && !containsCustom(options.returns)
-    ? zodToConvex(options.returns)
-    : undefined
+  const returns =
+    options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
 
   return mutation({
     args,
@@ -208,9 +206,8 @@ export function zAction<
     args = zodToConvexFields(input as Record<string, any>)
   }
   // Skip returns validator for schemas with custom types to avoid type depth issues
-  const returns = options?.returns && !containsCustom(options.returns)
-    ? zodToConvex(options.returns)
-    : undefined
+  const returns =
+    options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
 
   return action({
     args,

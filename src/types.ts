@@ -26,21 +26,30 @@ type ExtractCustomOutput<T> = T extends z.ZodType<infer O, any, any>
   : never
 
 // Return type inference with immediate bailout for unions/custom to avoid depth
-export type InferReturns<R> =
-  R extends z.ZodUnion<any> ? any :        // Bail immediately for unions
-  R extends z.ZodCustom<any> ? any :       // Bail immediately for custom
-  R extends z.ZodType<any, any, any> ?
-    z.output<R> :                           // Use z.output for other schemas
-  R extends undefined ? any :
-  R
+export type InferReturns<R> = R extends z.ZodUnion<any>
+  ? any
+  : // Bail immediately for unions
+    R extends z.ZodCustom<any>
+    ? any
+    : // Bail immediately for custom
+      R extends z.ZodType<any, any, any>
+      ? z.output<R>
+      : // Use z.output for other schemas
+        R extends undefined
+        ? any
+        : R
 
 // For handler authoring: what the handler returns before wrapper validation/encoding
-export type InferHandlerReturns<R> =
-  R extends z.ZodUnion<any> ? any :        // Bail immediately for unions
-  R extends z.ZodCustom<any> ? any :       // Bail immediately for custom
-  R extends z.ZodType<any, any, any> ?
-    z.input<R> :                            // Use z.input for other schemas
-  any
+export type InferHandlerReturns<R> = R extends z.ZodUnion<any>
+  ? any
+  : // Bail immediately for unions
+    R extends z.ZodCustom<any>
+    ? any
+    : // Bail immediately for custom
+      R extends z.ZodType<any, any, any>
+      ? z.input<R>
+      : // Use z.input for other schemas
+        any
 
 export type ExtractCtx<Builder> = Builder extends {
   (fn: { handler: (ctx: infer Ctx, ...args: any[]) => any }): any
@@ -74,11 +83,10 @@ export type PreserveReturnType<
       : ReturnType<Builder>
 
 // Preserve keys and Id types for proper Convex type generation
-export type ZodToConvexArgs<A> =
-  A extends z.ZodObject<any>
-    ? z.infer<A>
-    : A extends Record<string, z.ZodTypeAny>
-      ? { [K in keyof A]: z.infer<A[K]> }
-      : A extends z.ZodTypeAny
-        ? { value: z.infer<A> }
-        : Record<string, never>
+export type ZodToConvexArgs<A> = A extends z.ZodObject<any>
+  ? z.infer<A>
+  : A extends Record<string, z.ZodTypeAny>
+    ? { [K in keyof A]: z.infer<A[K]> }
+    : A extends z.ZodTypeAny
+      ? { value: z.infer<A> }
+      : Record<string, never>

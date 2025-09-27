@@ -1,37 +1,33 @@
 import {
-  type Validator,
-  v,
   type GenericId,
-  type VString,
-  type VFloat64,
-  type VInt64,
-  type VBoolean,
-  type VNull,
+  type GenericValidator,
+  type PropertyValidators,
   type VAny,
-  type VObject,
   type VArray,
-  type VUnion,
+  type Validator,
+  type VBoolean,
+  type VBytes,
+  type VFloat64,
+  type VId,
+  type VInt64,
   type VLiteral,
+  type VNull,
+  type VObject,
   type VOptional,
   type VRecord,
-  type VId,
-  type VBytes,
-  type PropertyValidators,
-  type GenericValidator
+  type VString,
+  type VUnion,
+  v
 } from 'convex/values'
 import { z } from 'zod'
 import { registryHelpers } from './ids'
 import { findBaseCodec } from './registry'
 
 // Check if a type has the _tableName property added by zid()
-type IsZid<T> = T extends { _tableName: infer TableName extends string }
-  ? true
-  : false
+type IsZid<T> = T extends { _tableName: infer TableName extends string } ? true : false
 
 // Extract table name from zid type (via _tableName property)
-type ExtractTableName<T> = T extends { _tableName: infer TableName }
-  ? TableName
-  : never
+type ExtractTableName<T> = T extends { _tableName: infer TableName } ? TableName : never
 
 export type ZodValidator = Record<string, z.ZodTypeAny>
 
@@ -40,22 +36,17 @@ function isZid<T extends string>(schema: z.ZodType): boolean {
   // Check our metadata registry for ConvexId marker
   const metadata = registryHelpers.getMetadata(schema)
   return (
-    metadata?.isConvexId === true &&
-    metadata?.tableName &&
-    typeof metadata.tableName === 'string'
+    metadata?.isConvexId === true && metadata?.tableName && typeof metadata.tableName === 'string'
   )
 }
 
 // Helper type to convert optional types to union with null for container elements
 // This ensures we never produce VOptional which has "optional" constraint
-type ConvexValidatorFromZodRequired<Z extends z.ZodTypeAny> =
-  Z extends z.ZodOptional<infer T extends z.ZodTypeAny>
-    ? VUnion<
-        z.infer<T> | null,
-        [ConvexValidatorFromZodBase<T>, VNull<null, 'required'>],
-        'required'
-      >
-    : ConvexValidatorFromZodBase<Z>
+type ConvexValidatorFromZodRequired<Z extends z.ZodTypeAny> = Z extends z.ZodOptional<
+  infer T extends z.ZodTypeAny
+>
+  ? VUnion<z.infer<T> | null, [ConvexValidatorFromZodBase<T>, VNull<null, 'required'>], 'required'>
+  : ConvexValidatorFromZodBase<Z>
 
 // Base type mapper that never produces VOptional
 type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
@@ -77,24 +68,11 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
               : Z extends z.ZodNull
                 ? VNull<null, 'required'>
                 : Z extends z.ZodArray<infer T extends z.ZodTypeAny>
-                  ? VArray<
-                      z.infer<Z>,
-                      ConvexValidatorFromZodRequired<T>,
-                      'required'
-                    >
+                  ? VArray<z.infer<Z>, ConvexValidatorFromZodRequired<T>, 'required'>
                   : Z extends z.ZodObject<infer T>
-                    ? VObject<
-                        z.infer<Z>,
-                        ConvexValidatorFromZodFieldsAuto<T>,
-                        'required',
-                        string
-                      >
+                    ? VObject<z.infer<Z>, ConvexValidatorFromZodFieldsAuto<T>, 'required', string>
                     : Z extends z.ZodUnion<infer T>
-                      ? T extends readonly [
-                          z.ZodTypeAny,
-                          z.ZodTypeAny,
-                          ...z.ZodTypeAny[]
-                        ]
+                      ? T extends readonly [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]
                         ? VUnion<
                             z.infer<Z>,
                             [
@@ -114,10 +92,7 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                               : T['length'] extends 2
                                 ? VUnion<
                                     T[number],
-                                    [
-                                      VLiteral<T[0], 'required'>,
-                                      VLiteral<T[1], 'required'>
-                                    ],
+                                    [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>],
                                     'required'
                                   >
                                 : VUnion<
@@ -130,10 +105,7 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                                     'required'
                                   >
                             : never
-                          : Z extends z.ZodRecord<
-                                z.ZodString,
-                                infer V extends z.ZodTypeAny
-                              >
+                          : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                             ? VRecord<
                                 Record<string, z.infer<V>>,
                                 VString<string, 'required'>,
@@ -141,12 +113,8 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                                 'required',
                                 string
                               >
-                            : Z extends z.ZodNullable<
-                                  infer Inner extends z.ZodTypeAny
-                                >
-                              ? Inner extends z.ZodOptional<
-                                  infer InnerInner extends z.ZodTypeAny
-                                >
+                            : Z extends z.ZodNullable<infer Inner extends z.ZodTypeAny>
+                              ? Inner extends z.ZodOptional<infer InnerInner extends z.ZodTypeAny>
                                 ? VOptional<
                                     VUnion<
                                       z.infer<InnerInner> | null,
@@ -159,10 +127,7 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                                   >
                                 : VUnion<
                                     z.infer<Inner> | null,
-                                    [
-                                      ConvexValidatorFromZodBase<Inner>,
-                                      VNull<null, 'required'>
-                                    ],
+                                    [ConvexValidatorFromZodBase<Inner>, VNull<null, 'required'>],
                                     'required'
                                   >
                               : Z extends z.ZodAny
@@ -186,20 +151,14 @@ export type ConvexValidatorFromZod<
           ? VOptional<
               VUnion<
                 z.infer<Inner> | null,
-                [
-                  ConvexValidatorFromZod<Inner, 'required'>,
-                  VNull<null, 'required'>
-                ],
+                [ConvexValidatorFromZod<Inner, 'required'>, VNull<null, 'required'>],
                 'required'
               >
             >
           : Constraint extends 'required'
             ? VUnion<
                 z.infer<T> | null,
-                [
-                  ConvexValidatorFromZod<T, 'required'>,
-                  VNull<null, 'required'>
-                ],
+                [ConvexValidatorFromZod<T, 'required'>, VNull<null, 'required'>],
                 'required'
               >
             : VOptional<ConvexValidatorFromZod<T, 'required'>>
@@ -226,11 +185,7 @@ export type ConvexValidatorFromZod<
                       : Z extends z.ZodNull
                         ? VNull<null, Constraint>
                         : Z extends z.ZodArray<infer T extends z.ZodTypeAny>
-                          ? VArray<
-                              z.infer<Z>,
-                              ConvexValidatorFromZodRequired<T>,
-                              Constraint
-                            >
+                          ? VArray<z.infer<Z>, ConvexValidatorFromZodRequired<T>, Constraint>
                           : Z extends z.ZodObject<infer T>
                             ? VObject<
                                 z.infer<Z>,
@@ -239,19 +194,13 @@ export type ConvexValidatorFromZod<
                                 string
                               >
                             : Z extends z.ZodUnion<infer T>
-                              ? T extends readonly [
-                                  z.ZodTypeAny,
-                                  z.ZodTypeAny,
-                                  ...z.ZodTypeAny[]
-                                ]
+                              ? T extends readonly [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]
                                 ? VUnion<
                                     z.infer<Z>,
                                     [
                                       ConvexValidatorFromZodRequired<T[0]>,
                                       ConvexValidatorFromZodRequired<T[1]>,
-                                      ...Array<
-                                        ConvexValidatorFromZodRequired<T[number]>
-                                      >
+                                      ...Array<ConvexValidatorFromZodRequired<T[number]>>
                                     ],
                                     Constraint
                                   >
@@ -276,17 +225,12 @@ export type ConvexValidatorFromZod<
                                             [
                                               VLiteral<T[0], 'required'>,
                                               VLiteral<T[1], 'required'>,
-                                              ...Array<
-                                                VLiteral<T[number], 'required'>
-                                              >
+                                              ...Array<VLiteral<T[number], 'required'>>
                                             ],
                                             Constraint
                                           >
                                     : never
-                                  : Z extends z.ZodRecord<
-                                        z.ZodString,
-                                        infer V extends z.ZodTypeAny
-                                      >
+                                  : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                                     ? VRecord<
                                         Record<string, z.infer<V>>,
                                         VString<string, 'required'>,
@@ -472,9 +416,11 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         if (options) {
           const opts = Array.isArray(options) ? options : Array.from(options)
           if (opts.length >= 2) {
-            const convexOptions = opts.map((opt: any) =>
-              zodToConvexInternal(opt)
-            ) as Validator<any, 'required', any>[]
+            const convexOptions = opts.map((opt: any) => zodToConvexInternal(opt)) as Validator<
+              any,
+              'required',
+              any
+            >[]
             convexValidator = v.union(
               convexOptions[0]!,
               convexOptions[1]!,
@@ -589,10 +535,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
               convexValidator = v.record(v.string(), unionValidator)
             } else {
               // Non-optional values can be converted normally
-              convexValidator = v.record(
-                v.string(),
-                zodToConvexInternal(valueType)
-              )
+              convexValidator = v.record(v.string(), zodToConvexInternal(valueType))
             }
           } else {
             convexValidator = v.record(v.string(), v.any())
@@ -630,9 +573,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
             if (innerSchema instanceof z.ZodOptional) {
               // For nullable(optional(T)), we want optional(union(T, null))
               const innerInnerSchema = innerSchema.unwrap()
-              const innerInnerValidator = zodToConvexInternal(
-                innerInnerSchema as z.ZodType
-              )
+              const innerInnerValidator = zodToConvexInternal(innerInnerSchema as z.ZodType)
               convexValidator = v.union(innerInnerValidator, v.null())
               isOptional = true // Mark as optional so it gets wrapped later
             } else {
@@ -650,9 +591,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
       case 'tuple': {
         // Handle tuple types as objects with numeric keys
         if (actualValidator instanceof z.ZodTuple) {
-          const items = (actualValidator as any).def?.items as
-            | z.ZodTypeAny[]
-            | undefined
+          const items = (actualValidator as any).def?.items as z.ZodTypeAny[] | undefined
           if (items && items.length > 0) {
             const convexShape: PropertyValidators = {}
             items.forEach((item, index) => {
@@ -718,16 +657,10 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
   }
 
   // For optional or default fields, always use v.optional()
-  const finalValidator = isOptional || hasDefault
-    ? v.optional(convexValidator)
-    : convexValidator
+  const finalValidator = isOptional || hasDefault ? v.optional(convexValidator) : convexValidator
 
   // Add metadata if there's a default value
-  if (
-    hasDefault &&
-    typeof finalValidator === 'object' &&
-    finalValidator !== null
-  ) {
+  if (hasDefault && typeof finalValidator === 'object' && finalValidator !== null) {
     ;(finalValidator as any)._zodDefault = defaultValue
   }
 

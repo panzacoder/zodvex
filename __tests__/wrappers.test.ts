@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zQuery } from '../src/wrappers'
-import { zMutation, zAction } from '../src/wrappers'
-import { zodTableWithDocs } from '../src/tables'
 import { zid } from '../src/ids'
+import { zodTableWithDocs } from '../src/tables'
+import { zAction, zMutation, zQuery } from '../src/wrappers'
 
 // Minimal builder stub that mimics Convex builder shape
 function makeBuilder() {
@@ -17,14 +16,10 @@ describe('wrappers arg decoding', () => {
     const builder = makeBuilder()
     let sawDateInstance = false
 
-    const fn = zQuery(
-      builder as any,
-      z.object({ when: z.date() }),
-      async (_ctx, args) => {
-        sawDateInstance = args.when instanceof Date
-        return true
-      }
-    ) as unknown as (ctx: any, args: any) => Promise<any>
+    const fn = zQuery(builder as any, z.object({ when: z.date() }), async (_ctx, args) => {
+      sawDateInstance = args.when instanceof Date
+      return true
+    }) as unknown as (ctx: any, args: any) => Promise<any>
 
     const timestamp = new Date('2025-01-01T00:00:00Z').getTime()
     const res = await fn({}, { when: timestamp })
@@ -35,13 +30,9 @@ describe('wrappers arg decoding', () => {
   it('auto-encodes Date return without returns schema', async () => {
     const builder = makeBuilder()
 
-    const fn = zQuery(
-      builder as any,
-      { id: z.string() },
-      async () => {
-        return new Date('2025-02-02T00:00:00Z')
-      }
-    ) as unknown as (ctx: any, args: any) => Promise<any>
+    const fn = zQuery(builder as any, { id: z.string() }, async () => {
+      return new Date('2025-02-02T00:00:00Z')
+    }) as unknown as (ctx: any, args: any) => Promise<any>
 
     const ret = await fn({}, { id: 'x' })
     expect(typeof ret).toBe('number')
@@ -71,13 +62,9 @@ describe('wrappers arg decoding', () => {
   it('action: encodes return without returns schema and removes undefined fields', async () => {
     const builder = makeBuilder()
 
-    const fn = zAction(
-      builder as any,
-      { id: z.string() },
-      async () => {
-        return { when: new Date('2025-04-04T00:00:00Z'), maybe: undefined as any }
-      }
-    ) as unknown as (ctx: any, args: any) => Promise<any>
+    const fn = zAction(builder as any, { id: z.string() }, async () => {
+      return { when: new Date('2025-04-04T00:00:00Z'), maybe: undefined as any }
+    }) as unknown as (ctx: any, args: any) => Promise<any>
 
     const ret = await fn({}, { id: 'x' })
     expect(typeof ret.when).toBe('number')

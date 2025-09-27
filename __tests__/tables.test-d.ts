@@ -1,11 +1,11 @@
-import { describe, it, expectTypeOf } from 'vitest'
-import { z } from 'zod'
-import { v } from 'convex/values'
 import type { Id } from 'convex/_generated/dataModel'
-import { zodTable, zCrud, zodDoc } from '../src/tables'
+import type { VArray, VId, VOptional } from 'convex/values'
+import { v } from 'convex/values'
+import { describe, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import { zid } from '../src/ids'
-import { query, mutation } from './_generated/server'
-import type { VOptional, VArray, VId } from 'convex/values'
+import { zCrud, zodDoc, zodTable } from '../src/tables'
+import { mutation, query } from './_generated/server'
 
 describe('zodTable type inference', () => {
   it('preserves specific field types for optional arrays of IDs', () => {
@@ -60,7 +60,9 @@ describe('zodTable type inference', () => {
     expectTypeOf<Fields['required']>().toMatchTypeOf<v.ValidatorTypeFor<string>>()
     expectTypeOf<Fields['optional']>().toMatchTypeOf<VOptional<v.ValidatorTypeFor<string>>>()
     expectTypeOf<Fields['nullable']>().toMatchTypeOf<v.ValidatorTypeFor<string | null>>()
-    expectTypeOf<Fields['optionalNullable']>().toMatchTypeOf<VOptional<v.ValidatorTypeFor<string | null>>>()
+    expectTypeOf<Fields['optionalNullable']>().toMatchTypeOf<
+      VOptional<v.ValidatorTypeFor<string | null>>
+    >()
   })
 
   it('provides zDoc helper with proper types', () => {

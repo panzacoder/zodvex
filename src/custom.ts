@@ -1,19 +1,19 @@
 import {
+  type ActionBuilder,
   type FunctionVisibility,
   type GenericActionCtx,
   type GenericDataModel,
   type GenericMutationCtx,
   type GenericQueryCtx,
-  type QueryBuilder,
   type MutationBuilder,
-  type ActionBuilder
+  type QueryBuilder
 } from 'convex/server'
 import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type CustomBuilder, type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
-import { toConvexJS, fromConvexJS } from './codec'
+import { fromConvexJS, toConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
-import { pick, formatZodIssues } from './utils'
+import { formatZodIssues, pick } from './utils'
 
 function customFnBuilder<
   Ctx extends Record<string, any>,
@@ -24,13 +24,7 @@ function customFnBuilder<
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   builder: Builder,
-  customization: Customization<
-    Ctx,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >
+  customization: Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
   const customInput = customization.input ?? NoOp.input
   const inputArgs = customization.args ?? NoOp.args

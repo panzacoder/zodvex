@@ -79,7 +79,11 @@ function schemaToConvex(value: any, schema: any): any {
   }
 
   // Handle wrapper types
-  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable || schema instanceof z.ZodDefault) {
+  if (
+    schema instanceof z.ZodOptional ||
+    schema instanceof z.ZodNullable ||
+    schema instanceof z.ZodDefault
+  ) {
     // Use unwrap() method which is available on these types
     const inner = schema.unwrap()
     return schemaToConvex(value, asZodType(inner))
@@ -149,7 +153,11 @@ export function fromConvexJS(value: any, schema: any): any {
   }
 
   // Handle wrapper types
-  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable || schema instanceof z.ZodDefault) {
+  if (
+    schema instanceof z.ZodOptional ||
+    schema instanceof z.ZodNullable ||
+    schema instanceof z.ZodDefault
+  ) {
     // Use unwrap() method which is available on these types
     const inner = schema.unwrap()
     return fromConvexJS(value, asZodType(inner))
