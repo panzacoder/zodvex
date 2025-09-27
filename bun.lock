@@ -13,9 +13,9 @@
         "vitest": "^1.0.0",
       },
       "peerDependencies": {
-        "convex": "^1.27.0",
-        "convex-helpers": ">=0.1.101-alpha.1",
-        "zod": "^4.0.0",
+        "convex": "1.27.0",
+        "convex-helpers": "0.1.101-alpha.1",
+        "zod": "4.1.8",
       },
     },
   },

@@ -101,6 +101,30 @@ export default defineSchema({
 - **Date handling**: Automatic conversion between JavaScript `Date` objects and Convex timestamps
 - **CRUD scaffolding**: Generate complete CRUD operations from a single schema
 
+### Supported Types
+
+This library intentionally supports only Zod types that map cleanly to Convex validators. Anything outside this list is unsupported (or best-effort with caveats).
+
+- Primitives: `z.string()`, `z.number()` → `v.float64()`, `z.boolean()`, `z.null()`
+- Date: `z.date()` → `v.float64()` (timestamp), encoded/decoded automatically
+- Literals: `z.literal(x)` → `v.literal(x)`
+- Enums: `z.enum([...])` → `v.union(v.literal(...))`
+- Arrays: `z.array(T)` → `v.array(T')`
+- Objects: `z.object({...})` → `v.object({...})`
+- Records: `z.record(T)` or `z.record(z.string(), T)` → `v.record(v.string(), T')` (string keys only)
+- Unions: `z.union([...])` (members must be supported types)
+- Optional/nullable wrappers: `.optional()` → `v.optional(T')`, `.nullable()` → `v.union(T', v.null())`
+- Convex IDs: `zid('table')` → `v.id('table')`
+
+Unsupported or partial (explicitly out-of-scope):
+
+- Tuples (fixed-length) — Convex has no fixed-length tuple validator; mapping would be lossy
+- Intersections — combining object shapes widens overlapping fields; not equivalent to true intersection
+- Transforms/effects/pipelines — not used for validator mapping; if you use them, conversions happen at runtime only
+- Lazy, function, promise, set, map, symbol, branded/readonly, NaN/catch — unsupported
+
+Note: `z.bigint()` → `v.int64()` is recognized for validator mapping but currently has no special runtime encode/decode; prefer numbers where possible.
+
 ## 📚 API Reference
 
 ### Mapping Helpers
@@ -109,7 +133,7 @@ Convert Zod schemas to Convex validators:
 
 ```ts
 import { z } from "zod";
-import { zodToConvex, zodToConvexFields } from "zodvex";
+import { zodToConvex, zodToConvexFields, pickShape, safePick } from "zodvex";
 
 // Convert a single Zod type to a Convex validator
 const validator = zodToConvex(z.string().optional());
@@ -121,6 +145,24 @@ const fields = zodToConvexFields({
   age: z.number().nullable(),
 });
 // → { name: v.string(), age: v.union(v.float64(), v.null()) }
+
+// Safe picking from large schemas without Zod's .pick()
+const User = z.object({
+  id: z.string(),
+  email: z.string().email(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  createdAt: z.date().nullable(),
+});
+
+// 1) Get a raw shape for wrappers or validators
+const clerkShape = pickShape(User, ["email", "firstName", "lastName"]);
+// Use in a wrapper
+// zQuery(query, clerkShape, async (ctx, args) => { /* ... */ })
+
+// 2) Or build a new Zod object directly
+const Clerk = safePick(User, { email: true, firstName: true, lastName: true });
+// zMutation(mutation, Clerk, async (ctx, args) => { /* ... */ })
 ```
 
 ### Function Wrappers
@@ -166,6 +208,59 @@ export const sendEmail = zAction(
 
 // Internal functions also supported
 import { zInternalQuery, zInternalMutation, zInternalAction } from "zodvex";
+
+// Handler return typing
+// When `returns` is provided, your handler must return z.input<typeof returns>
+// (domain values like Date). zodvex validates and encodes to Convex Values for you.
+```
+
+#### Return Typing + Helpers
+
+Handlers should return domain values shaped by your `returns` schema. zodvex validates and encodes them to Convex Values for you. For common patterns:
+
+```ts
+import { z } from "zod";
+import { zQuery, zodTable, returnsAs } from "zodvex";
+import { query } from "./_generated/server";
+
+// Table + doc helpers
+const UserSchema = z.object({ name: z.string(), createdAt: z.date() });
+export const Users = zodTable("users", UserSchema);
+
+// 1) Return full docs, strongly typed
+export const listUsers = zQuery(
+  query,
+  {},
+  async (ctx) => {
+    const rows = await ctx.db.query("users").collect();
+    // No cast needed — handler returns domain values; wrapper encodes to Convex Values
+    return rows;
+  },
+  { returns: Users.docArray }
+);
+
+// 2) Return a custom shape (with Dates)
+export const createdBounds = zQuery(
+  query,
+  {},
+  async (ctx) => {
+    const first = await ctx.db.query("users").order("asc").first();
+    const last = await ctx.db.query("users").order("desc").first();
+    return { first: first?.createdAt ?? null, last: last?.createdAt ?? null };
+  },
+  { returns: z.object({ first: z.date().nullable(), last: z.date().nullable() }) }
+);
+
+// 3) In tricky inference spots, use a typed identity
+export const listUsersOk = zQuery(
+  query,
+  {},
+  async (ctx) => {
+    const rows = await ctx.db.query("users").collect();
+    return returnsAs<typeof Users.docArray>()(rows);
+  },
+  { returns: Users.docArray }
+);
 ```
 
 ### Codecs
@@ -348,7 +443,11 @@ const CommentSchema = z.object({
 - **Defaults**: Zod defaults imply optional at the Convex schema level. Apply defaults in your application code.
 - **Numbers**: `z.number()` maps to `v.float64()`. For integers, use `z.bigint()` → `v.int64()`.
 - **Transforms**: Zod transforms (`.transform()`, `.refine()`) are not supported in schema mapping and fall back to `v.any()`.
-- **Return validation**: When `returns` is specified, the function's return value is validated and encoded (Date → timestamp).
+ - **Return encoding**: Return values are always encoded to Convex Values. When `returns` is specified, values are validated and then encoded according to the schema; without `returns`, values are still encoded (e.g., Date → timestamp) for runtime safety.
+
+### Runtime Conversion Consistency
+
+zodvex uses an internal base-type codec registry to keep validator mapping and runtime value conversion aligned (e.g., `Date` ↔ timestamp). Composite types (arrays, objects, records, unions, optional/nullable) are composed from these base entries.
 
 ## 📝 Compatibility
 
