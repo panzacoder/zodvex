@@ -12,6 +12,7 @@ import type {
 } from 'convex/server'
 import { paginationOptsValidator } from 'convex/server'
 import type { GenericId, Infer, Validator } from 'convex/values'
+import type { CustomBuilder } from 'convex-helpers/server/customFunctions'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
 import { zid } from './ids'
@@ -160,17 +161,21 @@ type InferDocType<
   _creationTime: number
 }
 
-// Helper to extract visibility from builders
+// Helper to extract visibility from builders (including CustomBuilder)
 type ExtractQueryVisibility<B> = B extends (
   fn: any
 ) => RegisteredQuery<infer V, any, any>
   ? V
-  : 'public'
+  : B extends CustomBuilder<'query', any, any, any, any, infer V, any>
+    ? V
+    : 'public'
 type ExtractMutationVisibility<B> = B extends (
   fn: any
 ) => RegisteredMutation<infer V, any, any>
   ? V
-  : 'public'
+  : B extends CustomBuilder<'mutation', any, any, any, any, infer V, any>
+    ? V
+    : 'public'
 
 // Type-safe CRUD operations for a zodTable
 export function zCrud<
@@ -181,8 +186,8 @@ export function zCrud<
     shape: Shape
     zDoc: z.ZodObject<any>
   },
-  QueryBuilder extends (fn: any) => RegisteredQuery<any, any, any>,
-  MutationBuilder extends (fn: any) => RegisteredMutation<any, any, any>,
+  QueryBuilder extends ConvexQueryBuilder<any, any> | CustomBuilder<'query', any, any, any, any, any, any>,
+  MutationBuilder extends ConvexMutationBuilder<any, any> | CustomBuilder<'mutation', any, any, any, any, any, any>,
   QueryVisibility extends
     FunctionVisibility = ExtractQueryVisibility<QueryBuilder>,
   MutationVisibility extends
@@ -245,7 +250,7 @@ export function zCrud<
       { returns: docShape.nullable() }
     ),
 
-    paginate: queryBuilder({
+    paginate: (queryBuilder as any)({
       args: { paginationOpts: paginationOptsValidator },
       handler: async (ctx: any, { paginationOpts }: any) => {
         return await ctx.db.query(tableName).paginate(paginationOpts)
