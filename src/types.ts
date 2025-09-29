@@ -5,7 +5,6 @@ import {
   type RegisteredQuery
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import type { CustomBuilder } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 
 export type InferArgs<A> = A extends z.ZodObject<infer S>
@@ -96,11 +95,3 @@ export type ZodToConvexArgs<A> = A extends z.ZodObject<any>
     : A extends z.ZodTypeAny
       ? { value: z.infer<A> }
       : Record<string, never>
-
-// Extract the enriched context type from a CustomBuilder, or return base context
-export type ExtractCtxFromBuilder<
-  Builder,
-  BaseCtx
-> = Builder extends CustomBuilder<any, any, infer CustomCtx, any, infer InputCtx, any, any>
-  ? Omit<InputCtx, keyof CustomCtx> & CustomCtx
-  : BaseCtx
