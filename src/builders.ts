@@ -1,81 +1,14 @@
-import type {
-  ActionBuilder,
-  FunctionVisibility,
-  GenericActionCtx,
-  GenericDataModel,
-  GenericMutationCtx,
-  GenericQueryCtx,
-  MutationBuilder,
-  QueryBuilder
-} from 'convex/server'
-import { NoOp } from 'convex-helpers/server/customFunctions'
-import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
+// This file is now empty - the plain wrappers should be created in userland
+// with the specific DataModel from your app's _generated/server
 
-export function zq<
-  Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
->(queryBuilder: QueryBuilder<DataModel, Visibility>) {
-  return zCustomQuery<
-    Record<string, never>,
-    Record<string, never>,
-    Record<string, never>,
-    Visibility,
-    DataModel
-  >(
-    queryBuilder,
-    NoOp as any
-  )
-}
-
-export function zm<
-  Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
->(mutationBuilder: MutationBuilder<DataModel, Visibility>) {
-  return zCustomMutation<
-    Record<string, never>,
-    Record<string, never>,
-    Record<string, never>,
-    Visibility,
-    DataModel
-  >(
-    mutationBuilder,
-    NoOp as any
-  )
-}
-
-export function za<
-  Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
->(actionBuilder: ActionBuilder<DataModel, Visibility>) {
-  return zCustomAction<
-    Record<string, never>,
-    Record<string, never>,
-    Record<string, never>,
-    Visibility,
-    DataModel
-  >(
-    actionBuilder,
-    NoOp as any
-  )
-}
-
-export function ziq<
-  Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
->(internalQueryBuilder: QueryBuilder<DataModel, Visibility>) {
-  return zq(internalQueryBuilder)
-}
-
-export function zim<
-  Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
->(internalMutationBuilder: MutationBuilder<DataModel, Visibility>) {
-  return zm(internalMutationBuilder)
-}
-
-export function zia<
-  Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel
->(internalActionBuilder: ActionBuilder<DataModel, Visibility>) {
-  return za(internalActionBuilder)
-}
+// Example for your backend/convex/util.ts:
+// import { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
+// import { zCustomQuery, zCustomMutation, zCustomAction } from '@packages/zodvex'
+// import { NoOp } from 'convex-helpers/server/customFunctions'
+//
+// export const zq = zCustomQuery(query, NoOp)
+// export const zm = zCustomMutation(mutation, NoOp)
+// export const za = zCustomAction(action, NoOp)
+// export const ziq = zCustomQuery(internalQuery, NoOp)
+// export const zim = zCustomMutation(internalMutation, NoOp)
+// export const zia = zCustomAction(internalAction, NoOp)

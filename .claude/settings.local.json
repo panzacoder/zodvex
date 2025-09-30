@@ -11,7 +11,8 @@
       "Read(//Users/jshebert/Development/plfx/motiion/**)",
       "Bash(timeout 30 npm run type-check)",
       "Bash(npm run type-check:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:stack.convex.dev)"
     ],
     "deny": [],
     "ask": []

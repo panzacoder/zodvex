@@ -6,14 +6,80 @@ import {
   type GenericMutationCtx,
   type GenericQueryCtx,
   type MutationBuilder,
-  type QueryBuilder
+  type QueryBuilder,
+  type DefaultFunctionArgs,
+  type ArgsArrayToObject
 } from 'convex/server'
 import { ConvexError, type PropertyValidators } from 'convex/values'
-import { type CustomBuilder, type Customization, NoOp } from 'convex-helpers/server/customFunctions'
+import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
+import { type CustomBuilder } from 'convex-helpers/server/zod'
 import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
 import { formatZodIssues, pick } from './utils'
+import type { ZodValidator } from './types'
+
+// Type helpers for args transformation (from zodV3 example)
+type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
+
+// Simple type conversion from a Convex validator to a Zod validator return type
+type NullToUndefinedOrNull<T> = T extends null ? T | undefined | void : T
+type Returns<T> = Promise<NullToUndefinedOrNull<T>> | NullToUndefinedOrNull<T>
+
+// The return value before it's been validated: returned by the handler
+type ReturnValueInput<
+  ReturnsValidator extends z.ZodTypeAny | ZodValidator | void
+> = [ReturnsValidator] extends [z.ZodTypeAny]
+  ? Returns<z.input<ReturnsValidator>>
+  : [ReturnsValidator] extends [ZodValidator]
+  ? Returns<z.input<z.ZodObject<ReturnsValidator>>>
+  : any
+
+// The return value after it's been validated: returned to the client
+type ReturnValueOutput<
+  ReturnsValidator extends z.ZodTypeAny | ZodValidator | void
+> = [ReturnsValidator] extends [z.ZodTypeAny]
+  ? Returns<z.output<ReturnsValidator>>
+  : [ReturnsValidator] extends [ZodValidator]
+  ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
+  : any
+
+// The args before they've been validated: passed from the client
+type ArgsInput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
+  ArgsValidator
+] extends [z.ZodObject<any>]
+  ? [z.input<ArgsValidator>]
+  : [ArgsValidator] extends [ZodValidator]
+  ? [z.input<z.ZodObject<ArgsValidator>>]
+  : OneArgArray
+
+// The args after they've been validated: passed to the handler
+type ArgsOutput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> =
+  [ArgsValidator] extends [z.ZodObject<any>]
+  ? [z.output<ArgsValidator>]
+  : [ArgsValidator] extends [ZodValidator]
+  ? [z.output<z.ZodObject<ArgsValidator>>]
+  : OneArgArray
+
+type Overwrite<T, U> = Omit<T, keyof U> & U
+
+// Hack to simplify how TypeScript renders object types
+type Expand<ObjectType extends Record<any, any>> =
+  ObjectType extends Record<any, any>
+  ? {
+    [Key in keyof ObjectType]: ObjectType[Key]
+  }
+  : never
+
+type ArgsForHandlerType<
+  OneOrZeroArgs extends [] | [Record<string, any>],
+  CustomMadeArgs extends Record<string, any>
+> =
+  CustomMadeArgs extends Record<string, never>
+  ? OneOrZeroArgs
+  : OneOrZeroArgs extends [infer A]
+  ? [Expand<A & CustomMadeArgs>]
+  : [CustomMadeArgs]
 
 function customFnBuilder<
   Ctx extends Record<string, any>,
@@ -38,16 +104,22 @@ function customFnBuilder<
       returns && !fn.skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
 
     if (args && !fn.skipConvexValidation) {
-      let argsSchema: any
-      if (args instanceof z.ZodObject) {
-        argsSchema = args as any
-      } else if (args instanceof z.ZodType) {
-        throw new Error('Unsupported non-object Zod schema for args; use z.object({...})')
+      let argsValidator = args
+      let argsSchema: z.ZodTypeAny
+
+      if (argsValidator instanceof z.ZodType) {
+        if (argsValidator instanceof z.ZodObject) {
+          argsSchema = argsValidator
+          argsValidator = argsValidator.shape  // Get the raw shape for zodToConvexFields
+        } else {
+          throw new Error('Unsupported non-object Zod schema for args; use z.object({...})')
+        }
       } else {
-        // assume raw shape
-        argsSchema = z.object(args as Record<string, any>)
+        // It's a raw shape object with Zod validators as values
+        argsSchema = z.object(argsValidator)
       }
-      const convexValidator = zodToConvexFields(argsSchema)
+
+      const convexValidator = zodToConvexFields(argsValidator)
       return builder({
         args: { ...convexValidator, ...inputArgs },
         ...returnValidator,
@@ -57,8 +129,8 @@ function customFnBuilder<
             pick(allArgs, Object.keys(inputArgs)) as any,
             extra
           )
-          const argKeys = Object.keys(convexValidator)
-          const rawArgs = pick(allArgs, argKeys as any)
+          const argKeys = Object.keys(argsValidator)
+          const rawArgs = pick(allArgs, argKeys)
           const decoded = fromConvexJS(rawArgs, argsSchema)
           const parsed = argsSchema.safeParse(decoded)
           if (!parsed.success) {
