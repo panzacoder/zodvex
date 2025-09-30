@@ -14,9 +14,8 @@ import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
-import { zodToConvex, zodToConvexFields } from './mapping'
+import { zodToConvex, zodToConvexFields, type ZodValidator } from './mapping'
 import { formatZodIssues, pick } from './utils'
-import type { ZodValidator } from './types'
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
@@ -292,7 +291,7 @@ export function zCustomQuery<
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel,
+  DataModel,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   query: QueryBuilder<DataModel, Visibility>,
@@ -327,7 +326,7 @@ export function zCustomMutation<
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel,
+  DataModel,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   mutation: MutationBuilder<DataModel, Visibility>,
@@ -362,7 +361,7 @@ export function zCustomAction<
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel extends GenericDataModel,
+  DataModel,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   action: ActionBuilder<DataModel, Visibility>,
