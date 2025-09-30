@@ -12,7 +12,6 @@ import {
 } from 'convex/server'
 import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
-import { type CustomBuilder } from 'convex-helpers/server/zod'
 import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields } from './mapping'
@@ -80,6 +79,97 @@ type ArgsForHandlerType<
   : OneOrZeroArgs extends [infer A]
   ? [Expand<A & CustomMadeArgs>]
   : [CustomMadeArgs]
+
+// Helper type for function registration (from zodV3)
+type Registration<
+  FuncType extends 'query' | 'mutation' | 'action',
+  Visibility extends FunctionVisibility,
+  Args extends DefaultFunctionArgs,
+  Output
+> = FuncType extends 'query'
+  ? import('convex/server').RegisteredQuery<Visibility, Args, Output>
+  : FuncType extends 'mutation'
+  ? import('convex/server').RegisteredMutation<Visibility, Args, Output>
+  : import('convex/server').RegisteredAction<Visibility, Args, Output>
+
+/**
+ * A builder that customizes a Convex function, whether or not it validates
+ * arguments. If the customization requires arguments, however, the resulting
+ * builder will require argument validation too.
+ *
+ * This is our own Zod-aware CustomBuilder type that properly handles Zod validators.
+ */
+export type CustomBuilder<
+  FuncType extends 'query' | 'mutation' | 'action',
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  InputCtx,
+  Visibility extends FunctionVisibility,
+  ExtraArgs extends Record<string, any>
+> = {
+  <
+    ArgsValidator extends ZodValidator | z.ZodObject<any> | void,
+    ReturnsZodValidator extends z.ZodTypeAny | ZodValidator | void = void,
+    ReturnValue extends ReturnValueInput<ReturnsZodValidator> = any
+  >(
+    func:
+      | ({
+          /**
+           * Specify the arguments to the function as a Zod validator.
+           */
+          args?: ArgsValidator
+          handler: (
+            ctx: Overwrite<InputCtx, CustomCtx>,
+            ...args: ArgsForHandlerType<
+              ArgsOutput<ArgsValidator>,
+              CustomMadeArgs
+            >
+          ) => ReturnValue
+          /**
+           * Validates the value returned by the function.
+           * Note: you can't pass an object directly without wrapping it
+           * in `z.object()`.
+           */
+          returns?: ReturnsZodValidator
+          /**
+           * If true, the function will not be validated by Convex,
+           * in case you're seeing performance issues with validating twice.
+           */
+          skipConvexValidation?: boolean
+        } & {
+          [key in keyof ExtraArgs as key extends
+            | 'args'
+            | 'handler'
+            | 'skipConvexValidation'
+            | 'returns'
+            ? never
+            : key]: ExtraArgs[key]
+        })
+      | {
+          (
+            ctx: Overwrite<InputCtx, CustomCtx>,
+            ...args: ArgsForHandlerType<
+              ArgsOutput<ArgsValidator>,
+              CustomMadeArgs
+            >
+          ): ReturnValue
+        }
+  ): Registration<
+    FuncType,
+    Visibility,
+    ArgsArrayToObject<
+      CustomArgsValidator extends Record<string, never>
+        ? ArgsInput<ArgsValidator>
+        : ArgsInput<ArgsValidator> extends [infer A]
+          ? [Expand<A & import('convex/values').ObjectType<CustomArgsValidator>>]
+          : [import('convex/values').ObjectType<CustomArgsValidator>]
+    >,
+    ReturnsZodValidator extends void
+      ? ReturnValue
+      : ReturnValueOutput<ReturnsZodValidator>
+  >
+}
 
 function customFnBuilder<
   Ctx extends Record<string, any>,
