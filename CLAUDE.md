@@ -40,7 +40,7 @@ The library is organized into focused modules in the `src/` directory:
 
 - **custom.ts** - Custom function builders (`zCustomQuery`, `zCustomMutation`, `zCustomAction`) for more advanced use cases.
 
-- **tables.ts** - Table helpers including `zodTable` for defining Convex tables from Zod schemas and `zCrud` for generating CRUD operations.
+- **tables.ts** - Table helpers including `zodTable` for defining Convex tables from Zod schemas.
 
 - **types.ts** - TypeScript type definitions and utility types used throughout the library.
 

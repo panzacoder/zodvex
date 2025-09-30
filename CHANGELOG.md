@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- `zCrud` function removed - Following Convex's guidance to prefer explicit functions over generic CRUD patterns. Users should write their own query/mutation functions for better control and security.
+
 ## [0.1.0] - 2025-01-16
 
 ### Added
@@ -16,7 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Function wrappers for type-safe Convex functions (query, mutation, action)
 - Codec system for encoding/decoding between Zod and Convex formats
 - Table helper for defining Convex tables with Zod schemas
-- CRUD helper for generating standard database operations
 - Support for Date encoding/decoding
 - Support for complex nested structures (arrays, objects, records)
 - Integration with convex-helpers for ID handling
@@ -27,7 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `zQuery/zMutation/zAction` - Wrapped Convex functions with Zod validation
 - `convexCodec()` - Create codecs for data transformation
 - `zodTable()` - Define Convex tables using Zod schemas
-- `zCrud()` - Generate CRUD operations from table definitions
 
 [unreleased]: https://github.com/yourusername/zodvex/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/yourusername/zodvex/releases/tag/v0.1.0

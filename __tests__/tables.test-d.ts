@@ -4,7 +4,7 @@ import { v } from 'convex/values'
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { zid } from '../src/ids'
-import { zCrud, zodDoc, zodTable } from '../src/tables'
+import { zodDoc, zodTable } from '../src/tables'
 import { mutation, query } from './_generated/server'
 
 describe('zodTable type inference', () => {
@@ -87,8 +87,8 @@ describe('zodTable type inference', () => {
   })
 })
 
-describe('zCrud type inference', () => {
-  it('maintains type safety in CRUD operations', () => {
+describe('zodTable type inference - additional', () => {
+  it('maintains proper shape property', () => {
     const testShape = {
       name: z.string(),
       count: z.number().optional(),
@@ -97,26 +97,17 @@ describe('zCrud type inference', () => {
 
     const TestTable = zodTable('test', testShape)
 
-    // Type-only test - check that zCrud would accept the table
-    type CrudType = typeof zCrud<
-      'test',
-      typeof testShape,
-      typeof TestTable,
-      typeof query,
-      typeof mutation
-    >
+    // Type-only test - check that shape is properly attached
+    expectTypeOf(TestTable.shape).toEqualTypeOf(testShape)
 
-    // The type should be a function that returns CRUD operations
-    expectTypeOf<CrudType>().toBeFunction()
-
-    // Check the return type structure
-    type CrudReturn = ReturnType<CrudType>
-    expectTypeOf<CrudReturn>().toMatchTypeOf<{
-      create: any
-      read: any
-      update: any
-      destroy: any
-      paginate: any
+    // Check that zDoc is properly typed
+    type DocType = z.infer<typeof TestTable.zDoc>
+    expectTypeOf<DocType>().toMatchTypeOf<{
+      name: string
+      count?: number
+      tags?: string[]
+      _id: Id<'test'>
+      _creationTime: number
     }>()
   })
 

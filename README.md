@@ -332,28 +332,6 @@ export default defineSchema({
 });
 ```
 
-### CRUD Operations
-
-Generate complete CRUD operations from a table:
-
-```ts
-import { zCrud, zid } from "zodvex";
-import { query, mutation } from "./_generated/server";
-import { Posts } from "./schemas/posts";
-
-// Generate CRUD operations
-export const postsCrud = zCrud(Posts, query, mutation);
-
-// Now you have:
-// postsCrud.create   - Create a new post
-// postsCrud.read     - Read a post by ID
-// postsCrud.paginate - Paginate through posts
-// postsCrud.update   - Update a post by ID
-// postsCrud.destroy  - Delete a post by ID
-
-// Each operation is fully typed based on your schema!
-```
-
 ## 🔧 Advanced Usage
 
 ### Custom Validators with Zod

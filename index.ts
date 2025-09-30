@@ -2,7 +2,7 @@ export { zodToConvex, zodToConvexFields, getObjectShape, makeUnion, type ConvexV
 export { convexCodec, type ConvexCodec, toConvexJS, fromConvexJS } from './src/codec'
 export { zQuery, zInternalQuery, zMutation, zInternalMutation, zAction, zInternalAction } from './src/wrappers'
 export { zCustomQuery, zCustomMutation, zCustomAction } from './src/custom'
-export { zodTable, zodTableWithDocs, zCrud, zodDoc, zodDocOrNull } from './src/tables'
+export { zodTable, zodTableWithDocs, zodDoc, zodDocOrNull } from './src/tables'
 export type { InferArgs, InferReturns, InferHandlerReturns, ExtractCtx, PreserveReturnType, ZodToConvexArgs } from './src/types'
 export { zid, type Zid } from './src/ids'
 export { returnsAs } from './src/utils'
