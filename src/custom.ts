@@ -172,7 +172,7 @@ export type CustomBuilder<
 }
 
 function customFnBuilder<
-  Ctx,
+  Ctx extends Record<string, any>,
   Builder extends (fn: any) => any,
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
@@ -371,8 +371,11 @@ export function zStrictQuery<
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   query: Builder,
+  // Note: Customization from convex-helpers requires Ctx extends Record<string, any>.
+  // We accept `any` here to avoid overly constraining Convex Ctx types while
+  // still threading the precise ctx type to the resulting builder.
   customization: Customization<
-    ExtractCtx<Builder>,
+    any,
     CustomArgsValidator,
     CustomCtx,
     CustomMadeArgs,
@@ -388,7 +391,7 @@ export function zStrictQuery<
   ExtraArgs
 > {
   return customFnBuilder<
-    ExtractCtx<Builder>,
+    any,
     Builder,
     CustomArgsValidator,
     CustomCtx,
@@ -407,7 +410,7 @@ export function zStrictMutation<
 >(
   mutation: Builder,
   customization: Customization<
-    ExtractCtx<Builder>,
+    any,
     CustomArgsValidator,
     CustomCtx,
     CustomMadeArgs,
@@ -423,7 +426,7 @@ export function zStrictMutation<
   ExtraArgs
 > {
   return customFnBuilder<
-    ExtractCtx<Builder>,
+    any,
     Builder,
     CustomArgsValidator,
     CustomCtx,
@@ -442,7 +445,7 @@ export function zStrictAction<
 >(
   action: Builder,
   customization: Customization<
-    ExtractCtx<Builder>,
+    any,
     CustomArgsValidator,
     CustomCtx,
     CustomMadeArgs,
@@ -458,7 +461,7 @@ export function zStrictAction<
   ExtraArgs
 > {
   return customFnBuilder<
-    ExtractCtx<Builder>,
+    any,
     Builder,
     CustomArgsValidator,
     CustomCtx,
@@ -493,7 +496,7 @@ export function zCustomMutation<
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
   return customFnBuilder<
-    ExtractCtx<Builder>,
+    any,
     Builder,
     CustomArgsValidator,
     CustomCtx,
@@ -528,7 +531,7 @@ export function zCustomAction<
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
   return customFnBuilder<
-    ExtractCtx<Builder>,
+    any,
     Builder,
     CustomArgsValidator,
     CustomCtx,

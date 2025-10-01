@@ -49,39 +49,34 @@ type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> =
       >
     : never
 
-// Type for the return value of zodTable
-type ZodTableReturn<
-  TableName extends string,
-  Shape extends Record<string, z.ZodTypeAny>
-> = ReturnType<
-  typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>
-> & {
-  shape: Shape
-  zDoc: z.ZodObject<
-    Shape & {
-      _id: ReturnType<typeof zid<TableName>>
-      _creationTime: z.ZodNumber
-    }
-  >
-}
-
 // Table definition - only accepts raw shapes for better type inference
 // Returns both the Table and the shape for use with zCrud
 export function zodTable<
   TableName extends string,
   Shape extends Record<string, z.ZodTypeAny>
->(name: TableName, shape: Shape): ZodTableReturn<TableName, Shape> {
+>(name: TableName, shape: Shape) {
   // Convert fields with proper types
-  const convexFields = zodToConvexFields(shape)
+  const convexFields = zodToConvexFields(shape) as ConvexValidatorFromZodFieldsAuto<Shape>
 
   // Create the Table from convex-helpers with explicit type
-  const table = Table(name, convexFields)
+  const table = Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>(
+    name,
+    convexFields
+  )
 
   // Attach the shape for zCrud usage
   return Object.assign(table, {
     shape,
     zDoc: zodDoc(name, z.object(shape))
-  }) as ZodTableReturn<TableName, Shape>
+  }) as typeof table & {
+    shape: Shape
+    zDoc: z.ZodObject<
+      Shape & {
+        _id: ReturnType<typeof zid<TableName>>
+        _creationTime: z.ZodNumber
+      }
+    >
+  }
 }
 
 // Keep the old implementation available for backward compatibility
@@ -128,4 +123,3 @@ export function zodTableWithDocs<
   // Return with docSchema and docArray for backward compatibility
   return { ...base, schema, docSchema, docArray }
 }
-
