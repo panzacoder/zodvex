@@ -4,16 +4,22 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["esnext"],
-    "composite": false,
-    "declaration": false,
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
     "skipLibCheck": true,
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": false
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts"
+  ],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "examples/**/*"]
 }
