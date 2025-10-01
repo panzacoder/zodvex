@@ -16,7 +16,7 @@ import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
 import { zodToConvex, zodToConvexFields, type ZodValidator } from './mapping'
 import { formatZodIssues, pick } from './utils'
-import type { ExtractCtx } from './types'
+import type { ExtractCtx, ExtractVisibility } from './types'
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
@@ -367,7 +367,7 @@ export function zStrictQuery<
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
-  Visibility extends FunctionVisibility = 'public',
+  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   query: Builder,
@@ -405,7 +405,7 @@ export function zStrictMutation<
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
-  Visibility extends FunctionVisibility = 'public',
+  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   mutation: Builder,
@@ -440,7 +440,7 @@ export function zStrictAction<
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
-  Visibility extends FunctionVisibility = 'public',
+  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   action: Builder,
