@@ -33,3 +33,12 @@ export function formatZodIssues(
     flatten: JSON.parse(JSON.stringify(error.flatten?.() ?? {}))
   }
 }
+
+// Helper: standard Convex paginate() result schema
+export function zPaginated<T extends z.ZodTypeAny>(item: T) {
+  return z.object({
+    page: z.array(item),
+    isDone: z.boolean(),
+    continueCursor: z.string().nullable().optional()
+  })
+}
