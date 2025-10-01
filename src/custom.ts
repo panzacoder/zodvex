@@ -194,7 +194,7 @@ function customFnBuilder<
 
     if (args && !fn.skipConvexValidation) {
       let argsValidator = args
-      let argsSchema: z.ZodTypeAny
+      let argsSchema: z.ZodObject<any>
 
       if (argsValidator instanceof z.ZodType) {
         if (argsValidator instanceof z.ZodObject) {
@@ -226,7 +226,7 @@ function customFnBuilder<
             throw new ConvexError(formatZodIssues(parsed.error, 'args'))
           }
           const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
-          const finalArgs = { ...parsed.data, ...(added?.args ?? {}) }
+          const finalArgs = { ...(parsed.data as Record<string, unknown>), ...((added?.args as Record<string, unknown>) ?? {}) }
           const ret = await handler(finalCtx, finalArgs)
           if (returns && !fn.skipConvexValidation) {
             let validated: any
@@ -260,7 +260,7 @@ function customFnBuilder<
           extra
         )
         const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
-        const finalArgs = { ...allArgs, ...(added?.args ?? {}) }
+        const finalArgs = { ...(allArgs as Record<string, unknown>), ...((added?.args as Record<string, unknown>) ?? {}) }
         const ret = await handler(finalCtx, finalArgs)
         if (returns && !fn.skipConvexValidation) {
           let validated: any
@@ -286,12 +286,67 @@ function customFnBuilder<
   }
 }
 
+// Overload 1: No constraint + decoupled ctx - preserves concrete DataModel for pre-binding
 export function zCustomQuery<
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel,
+  DataModel,  // NO constraint - allows concrete DataModel inference
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  query: QueryBuilder<DataModel, Visibility>,
+  customization: Customization<
+    any, // decouple ctx to allow NoOp
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >
+): CustomBuilder<
+  'query',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  any, // Use any to avoid constraint issues with unconstrained DataModel
+  Visibility,
+  ExtraArgs
+>
+
+// Overload 2: With constraint - fallback for generic usage
+export function zCustomQuery<
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility,
+  DataModel extends GenericDataModel,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  query: QueryBuilder<DataModel, Visibility>,
+  customization: Customization<
+    GenericQueryCtx<DataModel>,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >
+): CustomBuilder<
+  'query',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  GenericQueryCtx<DataModel>,
+  Visibility,
+  ExtraArgs
+>
+
+// Implementation
+export function zCustomQuery<
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility,
+  DataModel extends GenericDataModel,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   query: QueryBuilder<DataModel, Visibility>,
@@ -321,12 +376,67 @@ export function zCustomQuery<
   >
 }
 
+// Overload 1: No constraint + decoupled ctx - preserves concrete DataModel for pre-binding
 export function zCustomMutation<
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel,
+  DataModel,  // NO constraint - allows concrete DataModel inference
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  mutation: MutationBuilder<DataModel, Visibility>,
+  customization: Customization<
+    any, // decouple ctx to allow NoOp
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >
+): CustomBuilder<
+  'mutation',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  any, // Use any to avoid constraint issues with unconstrained DataModel
+  Visibility,
+  ExtraArgs
+>
+
+// Overload 2: With constraint - fallback for generic usage
+export function zCustomMutation<
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility,
+  DataModel extends GenericDataModel,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  mutation: MutationBuilder<DataModel, Visibility>,
+  customization: Customization<
+    GenericMutationCtx<DataModel>,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >
+): CustomBuilder<
+  'mutation',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  GenericMutationCtx<DataModel>,
+  Visibility,
+  ExtraArgs
+>
+
+// Implementation
+export function zCustomMutation<
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility,
+  DataModel extends GenericDataModel,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   mutation: MutationBuilder<DataModel, Visibility>,
@@ -356,12 +466,67 @@ export function zCustomMutation<
   >
 }
 
+// Overload 1: No constraint + decoupled ctx - preserves concrete DataModel for pre-binding
 export function zCustomAction<
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Visibility extends FunctionVisibility,
-  DataModel,
+  DataModel,  // NO constraint - allows concrete DataModel inference
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  action: ActionBuilder<DataModel, Visibility>,
+  customization: Customization<
+    any, // decouple ctx to allow NoOp
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >
+): CustomBuilder<
+  'action',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  any, // Use any to avoid constraint issues with unconstrained DataModel
+  Visibility,
+  ExtraArgs
+>
+
+// Overload 2: With constraint - fallback for generic usage
+export function zCustomAction<
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility,
+  DataModel extends GenericDataModel,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  action: ActionBuilder<DataModel, Visibility>,
+  customization: Customization<
+    GenericActionCtx<DataModel>,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >
+): CustomBuilder<
+  'action',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  GenericActionCtx<DataModel>,
+  Visibility,
+  ExtraArgs
+>
+
+// Implementation
+export function zCustomAction<
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility,
+  DataModel extends GenericDataModel,
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   action: ActionBuilder<DataModel, Visibility>,

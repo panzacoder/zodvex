@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: ['index.ts'],
   format: ['cjs', 'esm'],
-  dts: true,
+  dts: false, // Disabled - types are consumed directly from .ts files
   splitting: false,
   sourcemap: true,
   clean: true,

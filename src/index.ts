@@ -1,6 +1,5 @@
 export * from './codec'
 export * from './custom'
-export * from './customTypes'
 export * from './ids'
 export * from './mapping'
 export * from './pick'
