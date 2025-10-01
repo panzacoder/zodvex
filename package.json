@@ -31,7 +31,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "bun run tsup",
+    "build": "tsup",
     "dev": "bun run tsup --watch",
     "type-check": "bun run tsc --noEmit",
     "test": "bun test",
