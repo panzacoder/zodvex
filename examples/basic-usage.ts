@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { v } from 'convex/values'
 import { query, mutation } from '../_generated/server'
-import { zodTable, zQuery, zMutation, convexCodec, zCrud } from 'zodvex'
+import { zodTable, zQuery, zMutation, convexCodec } from 'zodvex'
 
 // 1. Define a schema using Zod
 const userSchema = z.object({
@@ -64,16 +64,7 @@ const encoded = UserCodec.encode(userData)
 const decoded = UserCodec.decode(encoded)
 // Timestamps are converted back to Date objects
 
-// 5. Generate CRUD operations automatically
-export const usersCrud = zCrud(Users, query, mutation)
-// This gives you:
-// - usersCrud.create
-// - usersCrud.read
-// - usersCrud.paginate
-// - usersCrud.update
-// - usersCrud.destroy
-
-// 6. Advanced: Handle optional vs nullable correctly
+// 5. Advanced: Handle optional vs nullable correctly
 const profileSchema = z.object({
   userId: z.string(),
   nickname: z.string().optional(), // Can be omitted

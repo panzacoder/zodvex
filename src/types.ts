@@ -1,13 +1,10 @@
 import {
-  type ActionBuilder,
   type DefaultFunctionArgs,
-  type MutationBuilder,
-  type QueryBuilder,
   type RegisteredAction,
   type RegisteredMutation,
   type RegisteredQuery
 } from 'convex/server'
-import type { CustomBuilder } from 'convex-helpers/server/customFunctions'
+import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 
 export type InferArgs<A> = A extends z.ZodObject<infer S>
@@ -18,61 +15,85 @@ export type InferArgs<A> = A extends z.ZodObject<infer S>
       ? z.infer<A>
       : Record<string, never>
 
-export type InferReturns<R> = R extends z.ZodTypeAny ? z.output<R> : R extends undefined ? any : R
+// Return type inference with immediate bailout for unions/custom to avoid depth
+export type InferReturns<R> = R extends z.ZodUnion<any>
+  ? any
+  : // Bail immediately for unions
+    R extends z.ZodCustom<any>
+    ? any
+    : // Bail immediately for custom
+      R extends z.ZodType<any, any, any>
+      ? z.output<R>
+      : // Use z.output for other schemas
+        R extends undefined
+        ? any
+        : R
 
+// For handler authoring: what the handler returns before wrapper validation/encoding
+export type InferHandlerReturns<R> = R extends z.ZodUnion<any>
+  ? any
+  : // Bail immediately for unions
+    R extends z.ZodCustom<any>
+    ? any
+    : // Bail immediately for custom
+      R extends z.ZodType<any, any, any>
+      ? z.input<R>
+      : // Use z.input for other schemas
+        any
+
+/**
+ * Extract the visibility type from a Convex builder function
+ */
+export type ExtractVisibility<Builder extends (...args: any) => any> =
+  ReturnType<Builder> extends RegisteredQuery<infer V, any, any>
+    ? V
+    : ReturnType<Builder> extends RegisteredMutation<infer V, any, any>
+      ? V
+      : ReturnType<Builder> extends RegisteredAction<infer V, any, any>
+        ? V
+        : 'public'
+
+/**
+ * @deprecated Use GenericQueryCtx, GenericMutationCtx, or GenericActionCtx directly instead
+ */
 export type ExtractCtx<Builder> = Builder extends {
   (fn: { handler: (ctx: infer Ctx, ...args: any[]) => any }): any
 }
   ? Ctx
   : never
 
-export type PreserveReturnType<Builder, ArgsType, ReturnsType> = Builder extends QueryBuilder<
-  any,
-  infer Visibility
->
+/**
+ * @deprecated Return types are now specified explicitly using RegisteredQuery, RegisteredMutation, or RegisteredAction
+ */
+export type PreserveReturnType<
+  Builder extends (...args: any) => any,
+  ArgsType,
+  ReturnsType
+> = ReturnType<Builder> extends RegisteredQuery<infer V, any, any>
   ? RegisteredQuery<
-      Visibility,
+      V,
       ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
       Promise<ReturnsType>
     >
-  : Builder extends MutationBuilder<any, infer Visibility>
+  : ReturnType<Builder> extends RegisteredMutation<infer V, any, any>
     ? RegisteredMutation<
-        Visibility,
+        V,
         ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
         Promise<ReturnsType>
       >
-    : Builder extends ActionBuilder<any, infer Visibility>
+    : ReturnType<Builder> extends RegisteredAction<infer V, any, any>
       ? RegisteredAction<
-          Visibility,
+          V,
           ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
           Promise<ReturnsType>
         >
-      : Builder extends CustomBuilder<'query', any, any, any, any, infer V, any>
-        ? RegisteredQuery<
-            V,
-            ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-            Promise<ReturnsType>
-          >
-        : Builder extends CustomBuilder<'mutation', any, any, any, any, infer V, any>
-          ? RegisteredMutation<
-              V,
-              ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-              Promise<ReturnsType>
-            >
-          : Builder extends CustomBuilder<'action', any, any, any, any, infer V, any>
-            ? RegisteredAction<
-                V,
-                ArgsType extends DefaultFunctionArgs ? ArgsType : DefaultFunctionArgs,
-                Promise<ReturnsType>
-              >
-            : Builder extends (...args: any[]) => any
-              ? ReturnType<Builder>
-              : never
+      : ReturnType<Builder>
 
-export type ZodToConvexArgs<A> = A extends z.ZodObject<infer Shape>
-  ? { [K in keyof Shape]: any }
+// Preserve keys and Id types for proper Convex type generation
+export type ZodToConvexArgs<A> = A extends z.ZodObject<any>
+  ? z.infer<A>
   : A extends Record<string, z.ZodTypeAny>
-    ? { [K in keyof A]: any }
+    ? { [K in keyof A]: z.infer<A[K]> }
     : A extends z.ZodTypeAny
-      ? { value: any }
+      ? { value: z.infer<A> }
       : Record<string, never>

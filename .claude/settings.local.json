@@ -4,7 +4,15 @@
       "WebSearch",
       "Bash(bun install:*)",
       "Bash(bun run:*)",
-      "Bash(bun test:*)"
+      "Bash(bun test:*)",
+      "Bash(cat:*)",
+      "WebFetch(domain:zod.dev)",
+      "Bash(bun:*)",
+      "Read(//Users/jshebert/Development/plfx/motiion/**)",
+      "Bash(timeout 30 npm run type-check)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:stack.convex.dev)"
     ],
     "deny": [],
     "ask": []

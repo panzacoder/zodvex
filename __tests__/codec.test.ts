@@ -11,7 +11,7 @@ describe('convexCodec', () => {
 
     const codec = convexCodec(schema)
 
-    expect(codec).toHaveProperty('toConvexSchema')
+    expect(codec).toHaveProperty('validator')
     expect(codec).toHaveProperty('encode')
     expect(codec).toHaveProperty('decode')
     expect(codec).toHaveProperty('pick')
