@@ -193,7 +193,9 @@ function customFnBuilder<
           argsSchema = argsValidator
           argsValidator = argsValidator.shape // Get the raw shape for zodToConvexFields
         } else {
-          throw new Error('Unsupported non-object Zod schema for args; use z.object({...})')
+          throw new Error(
+            'Unsupported non-object Zod schema for args; please provide an args schema using z.object({...}), e.g. z.object({ foo: z.string() })'
+          )
         }
       } else {
         // It's a raw shape object with Zod validators as values

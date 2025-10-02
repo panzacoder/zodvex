@@ -225,8 +225,15 @@ export function getObjectShape(obj: any): Record<string, any> {
 
 // Internal conversion function using ZodType with def.type detection
 function zodToConvexInternal<Z extends z.ZodTypeAny>(
-  zodValidator: Z
+  zodValidator: Z,
+  visited: Set<z.ZodTypeAny> = new Set()
 ): ConvexValidatorFromZod<Z, 'required'> {
+  // Detect circular references to prevent infinite recursion
+  if (visited.has(zodValidator)) {
+    return v.any() as ConvexValidatorFromZod<Z, 'required'>
+  }
+  visited.add(zodValidator)
+
   // Check for default and optional wrappers
   let actualValidator = zodValidator
   let isOptional = false
@@ -293,7 +300,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         if (actualValidator instanceof z.ZodArray) {
           const element = (actualValidator as any).element
           if (element && element instanceof z.ZodType) {
-            convexValidator = v.array(zodToConvexInternal(element))
+            convexValidator = v.array(zodToConvexInternal(element, visited))
           } else {
             convexValidator = v.array(v.any())
           }
@@ -309,7 +316,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
           const convexShape: PropertyValidators = {}
           for (const [key, value] of Object.entries(shape)) {
             if (value && value instanceof z.ZodType) {
-              convexShape[key] = zodToConvexInternal(value)
+              convexShape[key] = zodToConvexInternal(value, visited)
             }
           }
           convexValidator = v.object(convexShape)
@@ -324,11 +331,11 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
           const options = (actualValidator as any).options
           if (options && Array.isArray(options) && options.length > 0) {
             if (options.length === 1) {
-              convexValidator = zodToConvexInternal(options[0])
+              convexValidator = zodToConvexInternal(options[0], visited)
             } else {
               // Convert each option recursively
               const convexOptions = options.map((opt: any) =>
-                zodToConvexInternal(opt)
+                zodToConvexInternal(opt, visited)
               ) as Validator<any, 'required', any>[]
               if (convexOptions.length >= 2) {
                 const [first, second, ...rest] = convexOptions
@@ -356,11 +363,9 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         if (options) {
           const opts = Array.isArray(options) ? options : Array.from(options)
           if (opts.length >= 2) {
-            const convexOptions = opts.map((opt: any) => zodToConvexInternal(opt)) as Validator<
-              any,
-              'required',
-              any
-            >[]
+            const convexOptions = opts.map((opt: any) =>
+              zodToConvexInternal(opt, visited)
+            ) as Validator<any, 'required', any>[]
             const [first, second, ...rest] = convexOptions
             convexValidator = v.union(
               first as Validator<any, 'required', any>,
@@ -467,7 +472,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
               }
 
               // Convert the inner type to Convex and wrap in union with null
-              const innerConvex = zodToConvexInternal(innerType)
+              const innerConvex = zodToConvexInternal(innerType, visited)
               const unionValidator = v.union(innerConvex, v.null())
 
               // Add default metadata if present
@@ -478,7 +483,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
               convexValidator = v.record(v.string(), unionValidator)
             } else {
               // Non-optional values can be converted normally
-              convexValidator = v.record(v.string(), zodToConvexInternal(valueType))
+              convexValidator = v.record(v.string(), zodToConvexInternal(valueType, visited))
             }
           } else {
             convexValidator = v.record(v.string(), v.any())
@@ -499,7 +504,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
           const metadata = registryHelpers.getMetadata(actualValidator)
           if (metadata?.brand && metadata?.originalSchema) {
             // For branded types created by our zBrand function, use the original schema
-            convexValidator = zodToConvexInternal(metadata.originalSchema)
+            convexValidator = zodToConvexInternal(metadata.originalSchema, visited)
           } else {
             // For non-registered transforms, return v.any()
             convexValidator = v.any()
@@ -516,11 +521,14 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
             if (innerSchema instanceof z.ZodOptional) {
               // For nullable(optional(T)), we want optional(union(T, null))
               const innerInnerSchema = innerSchema.unwrap()
-              const innerInnerValidator = zodToConvexInternal(innerInnerSchema as z.ZodType)
+              const innerInnerValidator = zodToConvexInternal(
+                innerInnerSchema as z.ZodType,
+                visited
+              )
               convexValidator = v.union(innerInnerValidator, v.null())
               isOptional = true // Mark as optional so it gets wrapped later
             } else {
-              const innerValidator = zodToConvexInternal(innerSchema)
+              const innerValidator = zodToConvexInternal(innerSchema, visited)
               convexValidator = v.union(innerValidator, v.null())
             }
           } else {
@@ -538,7 +546,7 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
           if (items && items.length > 0) {
             const convexShape: PropertyValidators = {}
             items.forEach((item, index) => {
-              convexShape[`_${index}`] = zodToConvexInternal(item)
+              convexShape[`_${index}`] = zodToConvexInternal(item, visited)
             })
             convexValidator = v.object(convexShape)
           } else {
@@ -551,13 +559,14 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
       }
       case 'lazy': {
         // Handle lazy schemas by resolving them
+        // Circular references are protected by the visited set check at function start
         if (actualValidator instanceof z.ZodLazy) {
           try {
             const getter = (actualValidator as any).def?.getter
             if (getter) {
               const resolvedSchema = getter()
               if (resolvedSchema && resolvedSchema instanceof z.ZodType) {
-                convexValidator = zodToConvexInternal(resolvedSchema)
+                convexValidator = zodToConvexInternal(resolvedSchema, visited)
               } else {
                 convexValidator = v.any()
               }

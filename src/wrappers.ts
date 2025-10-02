@@ -20,22 +20,34 @@ import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 import type { InferHandlerReturns, InferReturns, ZodToConvexArgs } from './types'
 import { formatZodIssues } from './utils'
 
+// Cache to avoid re-checking the same schema
+const customCheckCache = new WeakMap<z.ZodTypeAny, boolean>()
+
 // Check if a schema contains z.custom types (runtime check)
 function containsCustom(schema: z.ZodTypeAny): boolean {
-  if (schema instanceof z.ZodCustom) return true
-  if (schema instanceof z.ZodUnion) {
-    return (schema.options as z.ZodTypeAny[]).some(containsCustom)
+  // Check cache first
+  const cached = customCheckCache.get(schema)
+  if (cached !== undefined) {
+    return cached
   }
-  if (schema instanceof z.ZodOptional) {
-    return containsCustom(schema.unwrap() as z.ZodTypeAny)
+
+  let result = false
+
+  // Use _def.typeName instead of instanceof since ZodCustom is not exported in Zod v4
+  if ((schema as any)._def?.typeName === 'ZodCustom') {
+    result = true
+  } else if (schema instanceof z.ZodUnion) {
+    result = (schema.options as z.ZodTypeAny[]).some(containsCustom)
+  } else if (schema instanceof z.ZodOptional) {
+    result = containsCustom(schema.unwrap() as z.ZodTypeAny)
+  } else if (schema instanceof z.ZodNullable) {
+    result = containsCustom(schema.unwrap() as z.ZodTypeAny)
+  } else if (schema instanceof z.ZodDefault) {
+    result = containsCustom(schema.removeDefault() as z.ZodTypeAny)
   }
-  if (schema instanceof z.ZodNullable) {
-    return containsCustom(schema.unwrap() as z.ZodTypeAny)
-  }
-  if (schema instanceof z.ZodDefault) {
-    return containsCustom(schema.removeDefault() as z.ZodTypeAny)
-  }
-  return false
+
+  customCheckCache.set(schema, result)
+  return result
 }
 
 export function zQuery<
