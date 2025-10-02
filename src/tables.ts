@@ -2,11 +2,7 @@ import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
 import { zid } from './ids'
-import {
-  type ConvexValidatorFromZodFieldsAuto,
-  getObjectShape,
-  zodToConvexFields
-} from './mapping'
+import { type ConvexValidatorFromZodFieldsAuto, getObjectShape, zodToConvexFields } from './mapping'
 
 // Helper to create a Zod schema for a Convex document
 export function zodDoc<
@@ -38,31 +34,17 @@ export function zodDocOrNull<
   return z.union([zodDoc(tableName, schema), z.null()])
 }
 
-// Type for the extended document schema
-type DocSchema<TableName extends string, Schema extends z.ZodObject<any>> =
-  ReturnType<Schema['extend']> extends z.ZodObject<infer Shape>
-    ? z.ZodObject<
-        Shape & {
-          _id: ReturnType<typeof zid<TableName>>
-          _creationTime: z.ZodNumber
-        }
-      >
-    : never
-
 // Table definition - only accepts raw shapes for better type inference
 // Returns both the Table and the shape for use with zCrud
-export function zodTable<
-  TableName extends string,
-  Shape extends Record<string, z.ZodTypeAny>
->(name: TableName, shape: Shape) {
+export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
+  name: TableName,
+  shape: Shape
+) {
   // Convert fields with proper types
   const convexFields = zodToConvexFields(shape) as ConvexValidatorFromZodFieldsAuto<Shape>
 
   // Create the Table from convex-helpers with explicit type
-  const table = Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>(
-    name,
-    convexFields
-  )
+  const table = Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>(name, convexFields)
 
   // Attach the shape for zCrud usage
   return Object.assign(table, {
@@ -80,10 +62,10 @@ export function zodTable<
 }
 
 // Keep the old implementation available for backward compatibility
-export function zodTableWithDocs<
-  T extends z.ZodObject<any>,
-  TableName extends string
->(name: TableName, schema: T) {
+export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends string>(
+  name: TableName,
+  schema: T
+) {
   // Use zodToConvexFields with proper types - pass the shape for type preservation
   const convexFields = zodToConvexFields(schema.shape)
 

@@ -20,11 +20,11 @@ import {
   v
 } from 'convex/values'
 import { z } from 'zod'
-import { registryHelpers } from './ids'
+import { registryHelpers, type Zid } from './ids'
 import { findBaseCodec } from './registry'
 
 // Check if a type has the _tableName property added by zid()
-type IsZid<T> = T extends { _tableName: infer TableName extends string } ? true : false
+type IsZid<T> = T extends { _tableName: infer _TableName extends string } ? true : false
 
 // Extract table name from zid type (via _tableName property)
 type ExtractTableName<T> = T extends { _tableName: infer TableName } ? TableName : never
@@ -32,7 +32,7 @@ type ExtractTableName<T> = T extends { _tableName: infer TableName } ? TableName
 export type ZodValidator = Record<string, z.ZodTypeAny>
 
 // Helper to check if a schema is a Zid
-function isZid<T extends string>(schema: z.ZodType): boolean {
+function isZid<T extends string>(schema: z.ZodType): schema is Zid<T> {
   // Check our metadata registry for ConvexId marker
   const metadata = registryHelpers.getMetadata(schema)
   return (
@@ -78,7 +78,7 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                       : Z extends z.ZodLiteral<infer T>
                         ? VLiteral<T, 'required'>
                         : Z extends z.ZodEnum<infer T>
-                          ? T extends Readonly<Record<string, infer V>>
+                          ? T extends Readonly<Record<string, infer _V>>
                             ? T[keyof T] extends infer Values
                               ? VUnion<Values, any[], 'required'>
                               : never
@@ -164,7 +164,7 @@ export type ConvexValidatorFromZod<
                               : Z extends z.ZodLiteral<infer T>
                                 ? VLiteral<T, Constraint>
                                 : Z extends z.ZodEnum<infer T>
-                                  ? T extends Readonly<Record<string, infer V>>
+                                  ? T extends Readonly<Record<string, infer _V>>
                                     ? T[keyof T] extends infer Values
                                       ? VUnion<Values, any[], Constraint>
                                       : never
@@ -331,10 +331,11 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
                 zodToConvexInternal(opt)
               ) as Validator<any, 'required', any>[]
               if (convexOptions.length >= 2) {
+                const [first, second, ...rest] = convexOptions
                 convexValidator = v.union(
-                  convexOptions[0]!,
-                  convexOptions[1]!,
-                  ...convexOptions.slice(2)
+                  first as Validator<any, 'required', any>,
+                  second as Validator<any, 'required', any>,
+                  ...rest
                 )
               } else {
                 convexValidator = v.any()
@@ -360,10 +361,11 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
               'required',
               any
             >[]
+            const [first, second, ...rest] = convexOptions
             convexValidator = v.union(
-              convexOptions[0]!,
-              convexOptions[1]!,
-              ...convexOptions.slice(2)
+              first as Validator<any, 'required', any>,
+              second as Validator<any, 'required', any>,
+              ...rest
             )
           } else {
             convexValidator = v.any()
@@ -398,12 +400,14 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
               .map((opt: any) => v.literal(opt))
 
             if (validLiterals.length === 1) {
-              convexValidator = validLiterals[0]!
+              const [first] = validLiterals
+              convexValidator = first as Validator<any, 'required', any>
             } else if (validLiterals.length >= 2) {
+              const [first, second, ...rest] = validLiterals
               convexValidator = v.union(
-                validLiterals[0]!,
-                validLiterals[1]!,
-                ...validLiterals.slice(2)
+                first as Validator<any, 'required', any>,
+                second as Validator<any, 'required', any>,
+                ...rest
               )
             } else {
               convexValidator = v.any()

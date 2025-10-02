@@ -1,22 +1,22 @@
 import {
   type ActionBuilder,
+  type ArgsArrayToObject,
+  type DefaultFunctionArgs,
   type FunctionVisibility,
   type GenericActionCtx,
   type GenericDataModel,
   type GenericMutationCtx,
   type GenericQueryCtx,
   type MutationBuilder,
-  type QueryBuilder,
-  type DefaultFunctionArgs,
-  type ArgsArrayToObject
+  type QueryBuilder
 } from 'convex/server'
 import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
-import { zodToConvex, zodToConvexFields, type ZodValidator } from './mapping'
-import { formatZodIssues, pick } from './utils'
+import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility } from './types'
+import { formatZodIssues, pick } from './utils'
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
@@ -26,22 +26,22 @@ type NullToUndefinedOrNull<T> = T extends null ? T | undefined | void : T
 type Returns<T> = Promise<NullToUndefinedOrNull<T>> | NullToUndefinedOrNull<T>
 
 // The return value before it's been validated: returned by the handler
-type ReturnValueInput<
-  ReturnsValidator extends z.ZodTypeAny | ZodValidator | void
-> = [ReturnsValidator] extends [z.ZodTypeAny]
+type ReturnValueInput<ReturnsValidator extends z.ZodTypeAny | ZodValidator | void> = [
+  ReturnsValidator
+] extends [z.ZodTypeAny]
   ? Returns<z.input<ReturnsValidator>>
   : [ReturnsValidator] extends [ZodValidator]
-  ? Returns<z.input<z.ZodObject<ReturnsValidator>>>
-  : any
+    ? Returns<z.input<z.ZodObject<ReturnsValidator>>>
+    : any
 
 // The return value after it's been validated: returned to the client
-type ReturnValueOutput<
-  ReturnsValidator extends z.ZodTypeAny | ZodValidator | void
-> = [ReturnsValidator] extends [z.ZodTypeAny]
+type ReturnValueOutput<ReturnsValidator extends z.ZodTypeAny | ZodValidator | void> = [
+  ReturnsValidator
+] extends [z.ZodTypeAny]
   ? Returns<z.output<ReturnsValidator>>
   : [ReturnsValidator] extends [ZodValidator]
-  ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
-  : any
+    ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
+    : any
 
 // The args before they've been validated: passed from the client
 type ArgsInput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
@@ -49,36 +49,35 @@ type ArgsInput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
 ] extends [z.ZodObject<any>]
   ? [z.input<ArgsValidator>]
   : [ArgsValidator] extends [ZodValidator]
-  ? [z.input<z.ZodObject<ArgsValidator>>]
-  : OneArgArray
+    ? [z.input<z.ZodObject<ArgsValidator>>]
+    : OneArgArray
 
 // The args after they've been validated: passed to the handler
-type ArgsOutput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> =
-  [ArgsValidator] extends [z.ZodObject<any>]
+type ArgsOutput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
+  ArgsValidator
+] extends [z.ZodObject<any>]
   ? [z.output<ArgsValidator>]
   : [ArgsValidator] extends [ZodValidator]
-  ? [z.output<z.ZodObject<ArgsValidator>>]
-  : OneArgArray
+    ? [z.output<z.ZodObject<ArgsValidator>>]
+    : OneArgArray
 
 type Overwrite<T, U> = Omit<T, keyof U> & U
 
 // Hack to simplify how TypeScript renders object types
-type Expand<ObjectType extends Record<any, any>> =
-  ObjectType extends Record<any, any>
+type Expand<ObjectType extends Record<any, any>> = ObjectType extends Record<any, any>
   ? {
-    [Key in keyof ObjectType]: ObjectType[Key]
-  }
+      [Key in keyof ObjectType]: ObjectType[Key]
+    }
   : never
 
 type ArgsForHandlerType<
   OneOrZeroArgs extends [] | [Record<string, any>],
   CustomMadeArgs extends Record<string, any>
-> =
-  CustomMadeArgs extends Record<string, never>
+> = CustomMadeArgs extends Record<string, never>
   ? OneOrZeroArgs
   : OneOrZeroArgs extends [infer A]
-  ? [Expand<A & CustomMadeArgs>]
-  : [CustomMadeArgs]
+    ? [Expand<A & CustomMadeArgs>]
+    : [CustomMadeArgs]
 
 // Helper type for function registration (from zodV3)
 type Registration<
@@ -89,8 +88,8 @@ type Registration<
 > = FuncType extends 'query'
   ? import('convex/server').RegisteredQuery<Visibility, Args, Output>
   : FuncType extends 'mutation'
-  ? import('convex/server').RegisteredMutation<Visibility, Args, Output>
-  : import('convex/server').RegisteredAction<Visibility, Args, Output>
+    ? import('convex/server').RegisteredMutation<Visibility, Args, Output>
+    : import('convex/server').RegisteredAction<Visibility, Args, Output>
 
 /**
  * A builder that customizes a Convex function, whether or not it validates
@@ -121,10 +120,7 @@ export type CustomBuilder<
           args?: ArgsValidator
           handler: (
             ctx: Overwrite<InputCtx, CustomCtx>,
-            ...args: ArgsForHandlerType<
-              ArgsOutput<ArgsValidator>,
-              CustomMadeArgs
-            >
+            ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
           ) => ReturnValue
           /**
            * Validates the value returned by the function.
@@ -149,10 +145,7 @@ export type CustomBuilder<
       | {
           (
             ctx: Overwrite<InputCtx, CustomCtx>,
-            ...args: ArgsForHandlerType<
-              ArgsOutput<ArgsValidator>,
-              CustomMadeArgs
-            >
+            ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
           ): ReturnValue
         }
   ): Registration<
@@ -165,9 +158,7 @@ export type CustomBuilder<
           ? [Expand<A & import('convex/values').ObjectType<CustomArgsValidator>>]
           : [import('convex/values').ObjectType<CustomArgsValidator>]
     >,
-    ReturnsZodValidator extends void
-      ? ReturnValue
-      : ReturnValueOutput<ReturnsZodValidator>
+    ReturnsZodValidator extends void ? ReturnValue : ReturnValueOutput<ReturnsZodValidator>
   >
 }
 
@@ -200,7 +191,7 @@ function customFnBuilder<
       if (argsValidator instanceof z.ZodType) {
         if (argsValidator instanceof z.ZodObject) {
           argsSchema = argsValidator
-          argsValidator = argsValidator.shape  // Get the raw shape for zodToConvexFields
+          argsValidator = argsValidator.shape // Get the raw shape for zodToConvexFields
         } else {
           throw new Error('Unsupported non-object Zod schema for args; use z.object({...})')
         }
@@ -227,7 +218,10 @@ function customFnBuilder<
             throw new ConvexError(formatZodIssues(parsed.error, 'args'))
           }
           const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
-          const finalArgs = { ...(parsed.data as Record<string, unknown>), ...((added?.args as Record<string, unknown>) ?? {}) }
+          const finalArgs = {
+            ...(parsed.data as Record<string, unknown>),
+            ...((added?.args as Record<string, unknown>) ?? {})
+          }
           const ret = await handler(finalCtx, finalArgs)
           if (returns && !fn.skipConvexValidation) {
             let validated: any
@@ -261,7 +255,10 @@ function customFnBuilder<
           extra
         )
         const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
-        const finalArgs = { ...(allArgs as Record<string, unknown>), ...((added?.args as Record<string, unknown>) ?? {}) }
+        const finalArgs = {
+          ...(allArgs as Record<string, unknown>),
+          ...((added?.args as Record<string, unknown>) ?? {})
+        }
         const ret = await handler(finalCtx, finalArgs)
         if (returns && !fn.skipConvexValidation) {
           let validated: any
@@ -297,13 +294,7 @@ export function zCustomQuery<
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   query: QueryBuilder<DataModel, Visibility>,
-  customization: Customization<
-    any,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ): CustomBuilder<
   'query',
   CustomArgsValidator,
@@ -323,14 +314,16 @@ export function zCustomQuery<
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   query: QueryBuilder<any, Visibility>,
-  customization: Customization<
-    any,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >
-): CustomBuilder<'query', CustomArgsValidator, CustomCtx, CustomMadeArgs, any, Visibility, ExtraArgs>
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
+): CustomBuilder<
+  'query',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  any,
+  Visibility,
+  ExtraArgs
+>
 
 // Implementation
 export function zCustomQuery<
@@ -341,13 +334,7 @@ export function zCustomQuery<
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   query: QueryBuilder<any, Visibility>,
-  customization: Customization<
-    any,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
   // Implementation deliberately uses 'any' ctx to preserve overload behavior
   // while avoiding a GenericDataModel constraint at the implementation level.
@@ -374,13 +361,7 @@ export function zStrictQuery<
   // Note: Customization from convex-helpers requires Ctx extends Record<string, any>.
   // We accept `any` here to avoid overly constraining Convex Ctx types while
   // still threading the precise ctx type to the resulting builder.
-  customization: Customization<
-    any,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ): CustomBuilder<
   'query',
   CustomArgsValidator,
@@ -390,14 +371,10 @@ export function zStrictQuery<
   Visibility,
   ExtraArgs
 > {
-  return customFnBuilder<
-    any,
-    Builder,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >(query as any, customization as any) as any
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    query as any,
+    customization as any
+  ) as any
 }
 
 export function zStrictMutation<
@@ -409,13 +386,7 @@ export function zStrictMutation<
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   mutation: Builder,
-  customization: Customization<
-    any,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ): CustomBuilder<
   'mutation',
   CustomArgsValidator,
@@ -425,14 +396,10 @@ export function zStrictMutation<
   Visibility,
   ExtraArgs
 > {
-  return customFnBuilder<
-    any,
-    Builder,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >(mutation as any, customization as any) as any
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    mutation as any,
+    customization as any
+  ) as any
 }
 
 export function zStrictAction<
@@ -444,13 +411,7 @@ export function zStrictAction<
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   action: Builder,
-  customization: Customization<
-    any,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ): CustomBuilder<
   'action',
   CustomArgsValidator,
@@ -460,14 +421,10 @@ export function zStrictAction<
   Visibility,
   ExtraArgs
 > {
-  return customFnBuilder<
-    any,
-    Builder,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >(action as any, customization as any) as any
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    action as any,
+    customization as any
+  ) as any
 }
 
 // Overload 1: With constraint - preferred to preserve DataModel types
@@ -481,7 +438,15 @@ export function zCustomMutation<
 >(
   mutation: Builder,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
-): CustomBuilder<'mutation', CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtractCtx<Builder>, Visibility, ExtraArgs>
+): CustomBuilder<
+  'mutation',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  ExtractCtx<Builder>,
+  Visibility,
+  ExtraArgs
+>
 
 // Implementation
 export function zCustomMutation<
@@ -489,20 +454,16 @@ export function zCustomMutation<
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Builder extends (fn: any) => any,
-  Visibility extends FunctionVisibility = 'public',
+  _Visibility extends FunctionVisibility = 'public',
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   mutation: Builder,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
-  return customFnBuilder<
-    any,
-    Builder,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >(mutation as any, customization as any) as any
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    mutation as any,
+    customization as any
+  ) as any
 }
 
 // Overload 1: With constraint - preferred to preserve DataModel types
@@ -516,7 +477,15 @@ export function zCustomAction<
 >(
   action: Builder,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
-): CustomBuilder<'action', CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtractCtx<Builder>, Visibility, ExtraArgs>
+): CustomBuilder<
+  'action',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  ExtractCtx<Builder>,
+  Visibility,
+  ExtraArgs
+>
 
 // Implementation
 export function zCustomAction<
@@ -524,18 +493,14 @@ export function zCustomAction<
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   Builder extends (fn: any) => any,
-  Visibility extends FunctionVisibility = 'public',
+  _Visibility extends FunctionVisibility = 'public',
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   action: Builder,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
-  return customFnBuilder<
-    any,
-    Builder,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >(action as any, customization as any) as any
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    action as any,
+    customization as any
+  ) as any
 }
