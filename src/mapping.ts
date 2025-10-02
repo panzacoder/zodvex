@@ -223,6 +223,195 @@ export function getObjectShape(obj: any): Record<string, any> {
   return {}
 }
 
+// Helper: Convert Zod nullable types to Convex validators
+function convertNullableType(
+  actualValidator: z.ZodNullable<any>,
+  visited: Set<z.ZodTypeAny>,
+  zodToConvexInternal: (schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>) => any
+): { validator: GenericValidator; isOptional: boolean } {
+  const innerSchema = actualValidator.unwrap()
+  if (innerSchema && innerSchema instanceof z.ZodType) {
+    // Check if the inner schema is optional
+    if (innerSchema instanceof z.ZodOptional) {
+      // For nullable(optional(T)), we want optional(union(T, null))
+      const innerInnerSchema = innerSchema.unwrap()
+      const innerInnerValidator = zodToConvexInternal(innerInnerSchema as z.ZodType, visited)
+      return {
+        validator: v.union(innerInnerValidator, v.null()),
+        isOptional: true // Mark as optional so it gets wrapped later
+      }
+    } else {
+      const innerValidator = zodToConvexInternal(innerSchema, visited)
+      return {
+        validator: v.union(innerValidator, v.null()),
+        isOptional: false
+      }
+    }
+  } else {
+    return {
+      validator: v.any(),
+      isOptional: false
+    }
+  }
+}
+
+// Helper: Convert Zod enum types to Convex validators
+function convertEnumType(actualValidator: z.ZodEnum<any>): GenericValidator {
+  const options = (actualValidator as any).options
+  if (options && Array.isArray(options) && options.length > 0) {
+    // Filter out undefined/null and convert to Convex validators
+    const validLiterals = options
+      .filter((opt: any) => opt !== undefined && opt !== null)
+      .map((opt: any) => v.literal(opt))
+
+    if (validLiterals.length === 1) {
+      const [first] = validLiterals
+      return first as Validator<any, 'required', any>
+    } else if (validLiterals.length >= 2) {
+      const [first, second, ...rest] = validLiterals
+      return v.union(
+        first as Validator<any, 'required', any>,
+        second as Validator<any, 'required', any>,
+        ...rest
+      )
+    } else {
+      return v.any()
+    }
+  } else {
+    return v.any()
+  }
+}
+
+// Helper: Convert Zod discriminated union types to Convex validators
+function convertDiscriminatedUnionType(
+  actualValidator: z.ZodDiscriminatedUnion<any, any>,
+  visited: Set<z.ZodTypeAny>,
+  zodToConvexInternal: (schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>) => any
+): GenericValidator {
+  const options =
+    (actualValidator as any).def?.options || (actualValidator as any).def?.optionsMap?.values()
+  if (options) {
+    const opts = Array.isArray(options) ? options : Array.from(options)
+    if (opts.length >= 2) {
+      const convexOptions = opts.map((opt: any) => zodToConvexInternal(opt, visited)) as Validator<
+        any,
+        'required',
+        any
+      >[]
+      const [first, second, ...rest] = convexOptions
+      return v.union(
+        first as Validator<any, 'required', any>,
+        second as Validator<any, 'required', any>,
+        ...rest
+      )
+    } else {
+      return v.any()
+    }
+  } else {
+    return v.any()
+  }
+}
+
+// Helper: Convert Zod union types to Convex validators
+function convertUnionType(
+  actualValidator: z.ZodUnion<any>,
+  visited: Set<z.ZodTypeAny>,
+  zodToConvexInternal: (schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>) => any
+): GenericValidator {
+  const options = (actualValidator as any).options
+  if (options && Array.isArray(options) && options.length > 0) {
+    if (options.length === 1) {
+      return zodToConvexInternal(options[0], visited)
+    } else {
+      // Convert each option recursively
+      const convexOptions = options.map((opt: any) =>
+        zodToConvexInternal(opt, visited)
+      ) as Validator<any, 'required', any>[]
+      if (convexOptions.length >= 2) {
+        const [first, second, ...rest] = convexOptions
+        return v.union(
+          first as Validator<any, 'required', any>,
+          second as Validator<any, 'required', any>,
+          ...rest
+        )
+      } else {
+        return v.any()
+      }
+    }
+  } else {
+    return v.any()
+  }
+}
+
+// Helper: Convert Zod record types to Convex validators
+function convertRecordType(
+  actualValidator: z.ZodRecord<any, any>,
+  visited: Set<z.ZodTypeAny>,
+  zodToConvexInternal: (schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>) => any
+): GenericValidator {
+  // In Zod v4, when z.record(z.string()) is used with one argument,
+  // the argument becomes the value type and key defaults to string.
+  // The valueType is stored in _def.valueType (or undefined if single arg)
+  let valueType = (actualValidator as any)._def?.valueType
+
+  // If valueType is undefined, it means single argument form was used
+  // where the argument is actually the value type (stored in keyType)
+  if (!valueType) {
+    // Workaround: Zod v4 stores the value type in _def.keyType for single-argument z.record().
+    // This accesses a private property as there is no public API for this in Zod v4.
+    valueType = (actualValidator as any)._def?.keyType
+  }
+
+  if (valueType && valueType instanceof z.ZodType) {
+    // First check if the Zod value type is optional before conversion
+    const isZodOptional =
+      valueType instanceof z.ZodOptional ||
+      valueType instanceof z.ZodDefault ||
+      (valueType instanceof z.ZodDefault && valueType.def.innerType instanceof z.ZodOptional)
+
+    if (isZodOptional) {
+      // For optional record values, we need to handle this specially
+      let innerType: z.ZodTypeAny
+      let recordDefaultValue: any = undefined
+      let recordHasDefault = false
+
+      if (valueType instanceof z.ZodDefault) {
+        // Handle ZodDefault wrapper
+        recordHasDefault = true
+        recordDefaultValue = valueType.def.defaultValue
+        const innerFromDefault = valueType.def.innerType
+        if (innerFromDefault instanceof z.ZodOptional) {
+          innerType = innerFromDefault.unwrap() as z.ZodTypeAny
+        } else {
+          innerType = innerFromDefault as z.ZodTypeAny
+        }
+      } else if (valueType instanceof z.ZodOptional) {
+        // Direct ZodOptional
+        innerType = valueType.unwrap() as z.ZodTypeAny
+      } else {
+        // Shouldn't happen based on isZodOptional check
+        innerType = valueType as z.ZodTypeAny
+      }
+
+      // Convert the inner type to Convex and wrap in union with null
+      const innerConvex = zodToConvexInternal(innerType, visited)
+      const unionValidator = v.union(innerConvex, v.null())
+
+      // Add default metadata if present
+      if (recordHasDefault) {
+        ;(unionValidator as any)._zodDefault = recordDefaultValue
+      }
+
+      return v.record(v.string(), unionValidator)
+    } else {
+      // Non-optional values can be converted normally
+      return v.record(v.string(), zodToConvexInternal(valueType, visited))
+    }
+  } else {
+    return v.record(v.string(), v.any())
+  }
+}
+
 // Internal conversion function using ZodType with def.type detection
 function zodToConvexInternal<Z extends z.ZodTypeAny>(
   zodValidator: Z,
@@ -326,58 +515,19 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         break
       }
       case 'union': {
-        // Use classic API: ZodUnion has .options property
         if (actualValidator instanceof z.ZodUnion) {
-          const options = (actualValidator as any).options
-          if (options && Array.isArray(options) && options.length > 0) {
-            if (options.length === 1) {
-              convexValidator = zodToConvexInternal(options[0], visited)
-            } else {
-              // Convert each option recursively
-              const convexOptions = options.map((opt: any) =>
-                zodToConvexInternal(opt, visited)
-              ) as Validator<any, 'required', any>[]
-              if (convexOptions.length >= 2) {
-                const [first, second, ...rest] = convexOptions
-                convexValidator = v.union(
-                  first as Validator<any, 'required', any>,
-                  second as Validator<any, 'required', any>,
-                  ...rest
-                )
-              } else {
-                convexValidator = v.any()
-              }
-            }
-          } else {
-            convexValidator = v.any()
-          }
+          convexValidator = convertUnionType(actualValidator, visited, zodToConvexInternal)
         } else {
           convexValidator = v.any()
         }
         break
       }
       case 'discriminatedUnion': {
-        const options =
-          (actualValidator as any).def?.options ||
-          (actualValidator as any).def?.optionsMap?.values()
-        if (options) {
-          const opts = Array.isArray(options) ? options : Array.from(options)
-          if (opts.length >= 2) {
-            const convexOptions = opts.map((opt: any) =>
-              zodToConvexInternal(opt, visited)
-            ) as Validator<any, 'required', any>[]
-            const [first, second, ...rest] = convexOptions
-            convexValidator = v.union(
-              first as Validator<any, 'required', any>,
-              second as Validator<any, 'required', any>,
-              ...rest
-            )
-          } else {
-            convexValidator = v.any()
-          }
-        } else {
-          convexValidator = v.any()
-        }
+        convexValidator = convertDiscriminatedUnionType(
+          actualValidator as any,
+          visited,
+          zodToConvexInternal
+        )
         break
       }
       case 'literal': {
@@ -395,101 +545,16 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         break
       }
       case 'enum': {
-        // Use classic API: ZodEnum has .options property
         if (actualValidator instanceof z.ZodEnum) {
-          const options = (actualValidator as any).options
-          if (options && Array.isArray(options) && options.length > 0) {
-            // Filter out undefined/null and convert to Convex validators
-            const validLiterals = options
-              .filter((opt: any) => opt !== undefined && opt !== null)
-              .map((opt: any) => v.literal(opt))
-
-            if (validLiterals.length === 1) {
-              const [first] = validLiterals
-              convexValidator = first as Validator<any, 'required', any>
-            } else if (validLiterals.length >= 2) {
-              const [first, second, ...rest] = validLiterals
-              convexValidator = v.union(
-                first as Validator<any, 'required', any>,
-                second as Validator<any, 'required', any>,
-                ...rest
-              )
-            } else {
-              convexValidator = v.any()
-            }
-          } else {
-            convexValidator = v.any()
-          }
+          convexValidator = convertEnumType(actualValidator)
         } else {
           convexValidator = v.any()
         }
         break
       }
       case 'record': {
-        // Use classic API: ZodRecord has .valueType property
         if (actualValidator instanceof z.ZodRecord) {
-          // In Zod v4, when z.record(z.string()) is used with one argument,
-          // the argument becomes the value type and key defaults to string.
-          // The valueType is stored in _def.valueType (or undefined if single arg)
-          let valueType = (actualValidator as any)._def?.valueType
-
-          // If valueType is undefined, it means single argument form was used
-          // where the argument is actually the value type (stored in keyType)
-          if (!valueType) {
-            // Workaround: Zod v4 stores the value type in _def.keyType for single-argument z.record().
-            // This accesses a private property as there is no public API for this in Zod v4.
-            valueType = (actualValidator as any)._def?.keyType
-          }
-
-          if (valueType && valueType instanceof z.ZodType) {
-            // First check if the Zod value type is optional before conversion
-            const isZodOptional =
-              valueType instanceof z.ZodOptional ||
-              valueType instanceof z.ZodDefault ||
-              (valueType instanceof z.ZodDefault &&
-                valueType.def.innerType instanceof z.ZodOptional)
-
-            if (isZodOptional) {
-              // For optional record values, we need to handle this specially
-              let innerType: z.ZodTypeAny
-              let recordDefaultValue: any = undefined
-              let recordHasDefault = false
-
-              if (valueType instanceof z.ZodDefault) {
-                // Handle ZodDefault wrapper
-                recordHasDefault = true
-                recordDefaultValue = valueType.def.defaultValue
-                const innerFromDefault = valueType.def.innerType
-                if (innerFromDefault instanceof z.ZodOptional) {
-                  innerType = innerFromDefault.unwrap() as z.ZodTypeAny
-                } else {
-                  innerType = innerFromDefault as z.ZodTypeAny
-                }
-              } else if (valueType instanceof z.ZodOptional) {
-                // Direct ZodOptional
-                innerType = valueType.unwrap() as z.ZodTypeAny
-              } else {
-                // Shouldn't happen based on isZodOptional check
-                innerType = valueType as z.ZodTypeAny
-              }
-
-              // Convert the inner type to Convex and wrap in union with null
-              const innerConvex = zodToConvexInternal(innerType, visited)
-              const unionValidator = v.union(innerConvex, v.null())
-
-              // Add default metadata if present
-              if (recordHasDefault) {
-                ;(unionValidator as any)._zodDefault = recordDefaultValue
-              }
-
-              convexValidator = v.record(v.string(), unionValidator)
-            } else {
-              // Non-optional values can be converted normally
-              convexValidator = v.record(v.string(), zodToConvexInternal(valueType, visited))
-            }
-          } else {
-            convexValidator = v.record(v.string(), v.any())
-          }
+          convexValidator = convertRecordType(actualValidator, visited, zodToConvexInternal)
         } else {
           convexValidator = v.record(v.string(), v.any())
         }
@@ -515,26 +580,11 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         break
       }
       case 'nullable': {
-        // Handle nullable schemas by creating a union with null
         if (actualValidator instanceof z.ZodNullable) {
-          const innerSchema = actualValidator.unwrap()
-          if (innerSchema && innerSchema instanceof z.ZodType) {
-            // Check if the inner schema is optional
-            if (innerSchema instanceof z.ZodOptional) {
-              // For nullable(optional(T)), we want optional(union(T, null))
-              const innerInnerSchema = innerSchema.unwrap()
-              const innerInnerValidator = zodToConvexInternal(
-                innerInnerSchema as z.ZodType,
-                visited
-              )
-              convexValidator = v.union(innerInnerValidator, v.null())
-              isOptional = true // Mark as optional so it gets wrapped later
-            } else {
-              const innerValidator = zodToConvexInternal(innerSchema, visited)
-              convexValidator = v.union(innerValidator, v.null())
-            }
-          } else {
-            convexValidator = v.any()
+          const result = convertNullableType(actualValidator, visited, zodToConvexInternal)
+          convexValidator = result.validator
+          if (result.isOptional) {
+            isOptional = true
           }
         } else {
           convexValidator = v.any()
