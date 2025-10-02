@@ -1,14 +1,7 @@
 import { z } from 'zod'
 import type { VOptional, VUnion } from 'convex/values'
 import { zodToConvexFields } from '../src/mapping'
-
-// Minimal type testing helpers
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B
-  ? 1
-  : 2
-  ? true
-  : false
-type Expect<T extends true> = T
+import type { Equal, Expect } from './test-helpers'
 
 // Shape with optional enums
 const shape = {

@@ -1,4 +1,7 @@
 // Mock Convex query and mutation builders for testing
+// Note: These are simplified mocks for testing zodvex wrappers.
+// They use `any` types extensively to avoid importing the full Convex runtime.
+// These are not production-ready implementations.
 import type { RegisteredQuery, RegisteredMutation } from 'convex/server'
 
 export const query = ((fn: any) => ({
