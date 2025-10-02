@@ -45,7 +45,9 @@ function containsCustom(schema: z.ZodTypeAny, maxDepth = 50, currentDepth = 0): 
   if ((schema as any)._def?.typeName === 'ZodCustom') {
     result = true
   } else if (schema instanceof z.ZodUnion) {
-    result = (schema.options as z.ZodTypeAny[]).some(opt => containsCustom(opt, maxDepth, currentDepth + 1))
+    result = (schema.options as z.ZodTypeAny[]).some(opt =>
+      containsCustom(opt, maxDepth, currentDepth + 1)
+    )
   } else if (schema instanceof z.ZodOptional) {
     result = containsCustom(schema.unwrap() as z.ZodTypeAny, maxDepth, currentDepth + 1)
   } else if (schema instanceof z.ZodNullable) {
