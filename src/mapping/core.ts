@@ -72,6 +72,10 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
     // 3. Future-proof: Zod's internal structure is stable; instanceof checks can miss custom types
     // 4. Precision: def.type distinguishes between semantically different types (date vs number)
     // This private API access is intentional and necessary for comprehensive type coverage.
+    //
+    // Compatibility: This code relies on the internal `.def.type` property of ZodType.
+    // This structure has been stable across Zod v3.x and v4.x. If upgrading Zod major versions,
+    // verify that `.def.type` is still present and unchanged.
     const defType = (actualValidator as any).def?.type
 
     switch (defType) {
@@ -268,6 +272,13 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
       default:
         // For any unrecognized def.type, return v.any()
         // No instanceof fallbacks - keep it simple and performant
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(
+            `[zodvex] Unrecognized Zod type "${defType}" encountered. Falling back to v.any().`,
+            'Schema:',
+            actualValidator
+          )
+        }
         convexValidator = v.any()
         break
     }

@@ -12,7 +12,9 @@
       "Bash(timeout 30 npm run type-check)",
       "Bash(npm run type-check:*)",
       "Bash(npx tsc:*)",
-      "WebFetch(domain:stack.convex.dev)"
+      "WebFetch(domain:stack.convex.dev)",
+      "Bash(find:*)",
+      "Bash(gh pr view:*)"
     ],
     "deny": [],
     "ask": []
