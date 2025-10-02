@@ -1,23 +1,9 @@
-import type {
-  ActionBuilder,
-  DefaultFunctionArgs,
-  FunctionVisibility,
-  GenericActionCtx,
-  GenericDataModel,
-  GenericMutationCtx,
-  GenericQueryCtx,
-  MutationBuilder,
-  QueryBuilder,
-  RegisteredAction,
-  RegisteredMutation,
-  RegisteredQuery
-} from 'convex/server'
 import { ConvexError } from 'convex/values'
 import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 // Typing helpers to keep handler args/returns precise without deep remapping
-import type { InferHandlerReturns, InferReturns, ZodToConvexArgs } from './types'
+import type { ExtractCtx, InferHandlerReturns, InferReturns, ZodToConvexArgs } from './types'
 import { handleZodValidationError } from './utils'
 
 // Cache to avoid re-checking the same schema
@@ -61,19 +47,18 @@ function containsCustom(schema: z.ZodTypeAny, maxDepth = 50, currentDepth = 0): 
 }
 
 export function zQuery<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility,
+  Builder extends (fn: any) => any,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
-  query: QueryBuilder<DataModel, Visibility>,
+  query: Builder,
   input: A,
   handler: (
-    ctx: GenericQueryCtx<DataModel>,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
-): RegisteredQuery<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
+): ReturnType<Builder> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -95,7 +80,7 @@ export function zQuery<
   return query({
     args,
     returns,
-    handler: async (ctx: GenericQueryCtx<DataModel>, argsObject: unknown) => {
+    handler: async (ctx: any, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
       let parsed: any
       try {
@@ -115,40 +100,38 @@ export function zQuery<
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
       return toConvexJS(raw) as any
     }
-  }) as RegisteredQuery<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>>
+  }) as any
 }
 
 export function zInternalQuery<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility,
+  Builder extends (fn: any) => any,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
-  internalQuery: QueryBuilder<DataModel, Visibility>,
+  internalQuery: Builder,
   input: A,
   handler: (
-    ctx: GenericQueryCtx<DataModel>,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
-): RegisteredQuery<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
+): ReturnType<Builder> {
   return zQuery(internalQuery, input, handler, options)
 }
 
 export function zMutation<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility,
+  Builder extends (fn: any) => any,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
-  mutation: MutationBuilder<DataModel, Visibility>,
+  mutation: Builder,
   input: A,
   handler: (
-    ctx: GenericMutationCtx<DataModel>,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
-): RegisteredMutation<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
+): ReturnType<Builder> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -169,7 +152,7 @@ export function zMutation<
   return mutation({
     args,
     returns,
-    handler: async (ctx: GenericMutationCtx<DataModel>, argsObject: unknown) => {
+    handler: async (ctx: any, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
       let parsed: any
       try {
@@ -189,40 +172,38 @@ export function zMutation<
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
       return toConvexJS(raw) as any
     }
-  }) as RegisteredMutation<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>>
+  }) as any
 }
 
 export function zInternalMutation<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility,
+  Builder extends (fn: any) => any,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
-  internalMutation: MutationBuilder<DataModel, Visibility>,
+  internalMutation: Builder,
   input: A,
   handler: (
-    ctx: GenericMutationCtx<DataModel>,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
-): RegisteredMutation<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
+): ReturnType<Builder> {
   return zMutation(internalMutation, input, handler, options)
 }
 
 export function zAction<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility,
+  Builder extends (fn: any) => any,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
-  action: ActionBuilder<DataModel, Visibility>,
+  action: Builder,
   input: A,
   handler: (
-    ctx: GenericActionCtx<DataModel>,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
-): RegisteredAction<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
+): ReturnType<Builder> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
@@ -243,7 +224,7 @@ export function zAction<
   return action({
     args,
     returns,
-    handler: async (ctx: GenericActionCtx<DataModel>, argsObject: unknown) => {
+    handler: async (ctx: any, argsObject: unknown) => {
       const decoded = fromConvexJS(argsObject, zodSchema)
       let parsed: any
       try {
@@ -263,22 +244,21 @@ export function zAction<
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
       return toConvexJS(raw) as any
     }
-  }) as RegisteredAction<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>>
+  }) as any
 }
 
 export function zInternalAction<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility,
+  Builder extends (fn: any) => any,
   A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
   R extends z.ZodTypeAny | undefined = undefined
 >(
-  internalAction: ActionBuilder<DataModel, Visibility>,
+  internalAction: Builder,
   input: A,
   handler: (
-    ctx: GenericActionCtx<DataModel>,
+    ctx: ExtractCtx<Builder>,
     args: ZodToConvexArgs<A>
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
-): RegisteredAction<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
+): ReturnType<Builder> {
   return zAction(internalAction, input, handler, options)
 }
