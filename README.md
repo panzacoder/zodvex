@@ -71,15 +71,15 @@ import { defineSchema } from "convex/server";
 import { z } from "zod";
 import { zodTable } from "zodvex";
 
-// Define a table from a Zod schema
-const UsersSchema = z.object({
+// Define a table from a plain object shape
+const usersShape = {
   name: z.string(),
   email: z.string().email(),
   age: z.number().optional(), // → v.optional(v.float64())
   deletedAt: z.date().nullable(), // → v.union(v.float64(), v.null())
-});
+};
 
-export const Users = zodTable("users", UsersSchema);
+export const Users = zodTable("users", usersShape);
 
 // Use in your Convex schema
 export default defineSchema({
@@ -146,7 +146,10 @@ const fields = zodToConvexFields({
 });
 // → { name: v.string(), age: v.union(v.float64(), v.null()) }
 
-// Safe picking from large schemas without Zod's .pick()
+// Safe picking from large schemas
+// IMPORTANT: Avoid Zod's .pick() on large schemas (30+ fields) as it can cause
+// TypeScript instantiation depth errors. Use pickShape/safePick instead.
+
 const User = z.object({
   id: z.string(),
   email: z.string().email(),
@@ -155,14 +158,17 @@ const User = z.object({
   createdAt: z.date().nullable(),
 });
 
-// 1) Get a raw shape for wrappers or validators
-const clerkShape = pickShape(User, ["email", "firstName", "lastName"]);
-// Use in a wrapper
-// zQuery(query, clerkShape, async (ctx, args) => { /* ... */ })
+// ❌ DON'T use Zod's .pick() on large schemas (type instantiation issues)
+// const Clerk = User.pick({ email: true, firstName: true, lastName: true });
 
-// 2) Or build a new Zod object directly
-const Clerk = safePick(User, { email: true, firstName: true, lastName: true });
-// zMutation(mutation, Clerk, async (ctx, args) => { /* ... */ })
+// ✅ DO use pickShape to extract a plain object shape
+const clerkShape = pickShape(User, ["email", "firstName", "lastName"]);
+// Use directly in wrappers or build a new z.object()
+const Clerk = z.object(clerkShape);
+
+// Alternative: safePick builds the z.object() for you
+const ClerkAlt = safePick(User, { email: true, firstName: true, lastName: true });
+// Both Clerk and ClerkAlt are equivalent - use whichever is more readable
 ```
 
 ### Function Wrappers
@@ -220,12 +226,12 @@ Handlers should return domain values shaped by your `returns` schema. zodvex val
 
 ```ts
 import { z } from "zod";
-import { zQuery, zodTable, returnsAs } from "zodvex";
+import { zQuery, zodTableWithDocs, returnsAs } from "zodvex";
 import { query } from "./_generated/server";
 
-// Table + doc helpers
+// Table with doc helpers (use zodTableWithDocs for .docArray)
 const UserSchema = z.object({ name: z.string(), createdAt: z.date() });
-export const Users = zodTable("users", UserSchema);
+export const Users = zodTableWithDocs("users", UserSchema);
 
 // 1) Return full docs, strongly typed
 export const listUsers = zQuery(
@@ -300,29 +306,29 @@ const nameCodec = codec.pick({ name: true });
 
 ### Table Helpers
 
-Define Convex tables from Zod schemas:
+Define Convex tables from Zod schemas. `zodTable` accepts a **plain object shape** for best type inference:
 
 ```ts
 import { z } from "zod";
-import { zodTable } from "zodvex";
+import { zodTable, zid } from "zodvex";
 import { defineSchema } from "convex/server";
 
-// Define your schema
-const PostSchema = z.object({
+// Define your schema as a plain object
+const postShape = {
   title: z.string(),
   content: z.string(),
   authorId: zid("users"), // Convex ID reference
   published: z.boolean().default(false),
   tags: z.array(z.string()).optional(),
-});
+};
 
-// Create table helper
-export const Posts = zodTable("posts", PostSchema);
+// Create table helper - pass the plain object shape
+export const Posts = zodTable("posts", postShape);
 
 // Access properties
 Posts.table; // → Table definition for defineSchema
-Posts.schema; // → Original Zod schema
-Posts.codec; // → ConvexCodec instance
+Posts.shape; // → Original plain object shape
+Posts.zDoc;  // → ZodObject with _id and _creationTime system fields
 
 // Use in schema.ts
 export default defineSchema({
@@ -330,6 +336,58 @@ export default defineSchema({
     .index("by_author", ["authorId"])
     .index("by_published", ["published"]),
 });
+```
+
+#### Working with Large Schemas
+
+For large schemas (30+ fields), the plain object pattern is recommended:
+
+```ts
+// Define as plain object for better maintainability
+export const users = {
+  // Meta
+  tokenId: z.string(),
+  type: z.literal("member"),
+  isAdmin: z.boolean(),
+
+  // User info
+  email: z.string(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  phone: z.string().optional(),
+
+  // References
+  favoriteUsers: z.array(zid("users")).optional(),
+  activeDancerId: zid("dancers").optional(),
+  // ... 40+ more fields
+};
+
+// Create table
+export const Users = zodTable("users", users);
+
+// Extract subsets without Zod's .pick() to avoid type complexity
+const zClerkFields = z.object(pickShape(users, ["email", "firstName", "lastName", "tokenId"]));
+// Use zClerkFields in function wrappers or validators
+```
+
+#### Alternative: zodTableWithDocs
+
+If you prefer working with `z.object()` directly, use `zodTableWithDocs`:
+
+```ts
+const PostSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  authorId: zid("users"),
+});
+
+export const Posts = zodTableWithDocs("posts", PostSchema);
+
+// Different properties available:
+Posts.table;      // → Table definition
+Posts.schema;     // → Original z.object() schema
+Posts.docSchema;  // → Schema with _id and _creationTime (Dates → numbers)
+Posts.docArray;   // → z.array(docSchema) for return types
 ```
 
 ## 🔧 Advanced Usage
@@ -361,19 +419,19 @@ export const authenticatedQuery = zCustomQuery(
 ### Working with Dates
 
 ```ts
-// Dates are automatically converted
-const EventSchema = z.object({
+// Dates are automatically converted to timestamps
+const eventShape = {
   title: z.string(),
   startDate: z.date(),
   endDate: z.date().nullable(),
-});
+};
 
-const Event = zodTable("events", EventSchema);
+const Events = zodTable("events", eventShape);
 
 // In mutations - Date objects work seamlessly
 export const createEvent = zMutation(
   mutation,
-  EventSchema,
+  z.object(eventShape),
   async (ctx, event) => {
     // event.startDate is a Date object
     // It's automatically converted to timestamp for storage
