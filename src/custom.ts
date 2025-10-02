@@ -220,10 +220,9 @@ function customFnBuilder<
             handleZodValidationError(parsed.error, 'args')
           }
           const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
-          const finalArgs = {
-            ...(parsed.data as Record<string, unknown>),
-            ...((added?.args as Record<string, unknown>) ?? {})
-          }
+          const baseArgs = parsed.data as Record<string, unknown>
+          const addedArgs = (added?.args as Record<string, unknown>) ?? {}
+          const finalArgs = { ...baseArgs, ...addedArgs }
           const ret = await handler(finalCtx, finalArgs)
           if (returns && !fn.skipConvexValidation) {
             let validated: any

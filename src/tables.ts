@@ -44,7 +44,20 @@ export function zodDocOrNull<
  * This architectural decision is important for projects that rely heavily on type safety and
  * developer experience, as it avoids the type erasure that can occur when using ZodObject directly.
  *
- * Returns both the Table and the shape for use with zCrud.
+ * Returns both the Table and the shape for use with zCrud and other utilities.
+ *
+ * @param name - The table name
+ * @param shape - A raw object mapping field names to Zod validators
+ * @returns A Table with attached shape and zDoc schema
+ *
+ * @example
+ * ```ts
+ * const Users = zodTable('users', {
+ *   name: z.string(),
+ *   email: z.string().email(),
+ *   age: z.number().optional()
+ * })
+ * ```
  */
 export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
   name: TableName,

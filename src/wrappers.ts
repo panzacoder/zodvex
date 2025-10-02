@@ -23,12 +23,20 @@ import { handleZodValidationError } from './utils'
 // Cache to avoid re-checking the same schema
 const customCheckCache = new WeakMap<z.ZodTypeAny, boolean>()
 
-// Check if a schema contains z.custom types (runtime check)
-function containsCustom(schema: z.ZodTypeAny): boolean {
+/**
+ * Check if a schema contains z.custom types (runtime check).
+ * Includes depth limit to prevent stack overflow on deeply nested schemas.
+ */
+function containsCustom(schema: z.ZodTypeAny, maxDepth = 50, currentDepth = 0): boolean {
   // Check cache first
   const cached = customCheckCache.get(schema)
   if (cached !== undefined) {
     return cached
+  }
+
+  // Prevent stack overflow on deeply nested schemas
+  if (currentDepth > maxDepth) {
+    return false
   }
 
   let result = false
@@ -37,13 +45,13 @@ function containsCustom(schema: z.ZodTypeAny): boolean {
   if ((schema as any)._def?.typeName === 'ZodCustom') {
     result = true
   } else if (schema instanceof z.ZodUnion) {
-    result = (schema.options as z.ZodTypeAny[]).some(containsCustom)
+    result = (schema.options as z.ZodTypeAny[]).some(opt => containsCustom(opt, maxDepth, currentDepth + 1))
   } else if (schema instanceof z.ZodOptional) {
-    result = containsCustom(schema.unwrap() as z.ZodTypeAny)
+    result = containsCustom(schema.unwrap() as z.ZodTypeAny, maxDepth, currentDepth + 1)
   } else if (schema instanceof z.ZodNullable) {
-    result = containsCustom(schema.unwrap() as z.ZodTypeAny)
+    result = containsCustom(schema.unwrap() as z.ZodTypeAny, maxDepth, currentDepth + 1)
   } else if (schema instanceof z.ZodDefault) {
-    result = containsCustom(schema.removeDefault() as z.ZodTypeAny)
+    result = containsCustom(schema.removeDefault() as z.ZodTypeAny, maxDepth, currentDepth + 1)
   }
 
   customCheckCache.set(schema, result)
