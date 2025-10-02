@@ -42,3 +42,36 @@ export function zPaginated<T extends z.ZodTypeAny>(item: T) {
     continueCursor: z.string().nullable().optional()
   })
 }
+
+/**
+ * Maps Date fields to number fields for docSchema generation.
+ * Handles Date, Date.optional(), Date.nullable(), and Date.default() cases.
+ * Returns the original field for non-Date types.
+ */
+export function mapDateFieldToNumber(field: z.ZodTypeAny): z.ZodTypeAny {
+  // Direct Date field
+  if (field instanceof z.ZodDate) {
+    return z.number()
+  }
+
+  // Optional Date field
+  if (field instanceof z.ZodOptional && field.unwrap() instanceof z.ZodDate) {
+    return z.number().optional()
+  }
+
+  // Nullable Date field
+  if (field instanceof z.ZodNullable && field.unwrap() instanceof z.ZodDate) {
+    return z.number().nullable()
+  }
+
+  // Date with default value
+  if (field instanceof z.ZodDefault) {
+    const inner = field.removeDefault()
+    if (inner instanceof z.ZodDate) {
+      return z.number().optional()
+    }
+  }
+
+  // Non-Date field - return as-is
+  return field
+}

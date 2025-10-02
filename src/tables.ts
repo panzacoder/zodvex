@@ -3,6 +3,7 @@ import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
 import { zid } from './ids'
 import { type ConvexValidatorFromZodFieldsAuto, getObjectShape, zodToConvexFields } from './mapping'
+import { mapDateFieldToNumber } from './utils'
 
 // Helper to create a Zod schema for a Convex document
 export function zodDoc<
@@ -74,25 +75,7 @@ export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends s
   const mapped: Record<string, any> = {}
 
   for (const [k, field] of Object.entries(shape)) {
-    const f = field as z.ZodTypeAny
-    // Only handle simple Date fields at top level
-    if (f instanceof z.ZodDate) {
-      mapped[k] = z.number()
-    } else if (f instanceof z.ZodOptional && f.unwrap() instanceof z.ZodDate) {
-      mapped[k] = z.number().optional()
-    } else if (f instanceof z.ZodNullable && f.unwrap() instanceof z.ZodDate) {
-      mapped[k] = z.number().nullable()
-    } else if (f instanceof z.ZodDefault) {
-      const inner = f.removeDefault()
-      if (inner instanceof z.ZodDate) {
-        mapped[k] = z.number().optional()
-      } else {
-        mapped[k] = f // Keep original for non-date defaults
-      }
-    } else {
-      // For all other types, use the original schema
-      mapped[k] = f
-    }
+    mapped[k] = mapDateFieldToNumber(field as z.ZodTypeAny)
   }
   const docSchema = z.object({
     ...mapped,
