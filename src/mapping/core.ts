@@ -35,9 +35,11 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
   let hasDefault = false
 
   // Handle ZodDefault (which wraps ZodOptional when using .optional().default())
+  // Note: We access _def properties directly because Zod v4 doesn't expose public APIs
+  // for unwrapping defaults. The removeDefault() method exists but returns a new schema
+  // without preserving references, which breaks our visited Set tracking.
   if (zodValidator instanceof z.ZodDefault) {
     hasDefault = true
-    // defaultValue is a property in def, not a function
     defaultValue = (zodValidator as any).def?.defaultValue
     actualValidator = (zodValidator as any).def?.innerType as Z
   }
@@ -63,7 +65,13 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
     const tableName = metadata?.tableName || 'unknown'
     convexValidator = v.id(tableName)
   } else {
-    // Use the def.type property for robust type detection
+    // Use def.type for robust, performant type detection instead of instanceof checks.
+    // Rationale:
+    // 1. Performance: Single switch statement vs. cascading instanceof checks
+    // 2. Completeness: def.type covers ALL Zod variants including formats (email, url, uuid, etc.)
+    // 3. Future-proof: Zod's internal structure is stable; instanceof checks can miss custom types
+    // 4. Precision: def.type distinguishes between semantically different types (date vs number)
+    // This private API access is intentional and necessary for comprehensive type coverage.
     const defType = (actualValidator as any).def?.type
 
     switch (defType) {

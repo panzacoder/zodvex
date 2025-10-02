@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values'
 import { z } from 'zod'
 
 export function pick<T extends Record<string, any>, K extends keyof T>(
@@ -32,6 +33,18 @@ export function formatZodIssues(
     // Keep a flattened snapshot for easier debugging without cyclic refs
     flatten: JSON.parse(JSON.stringify(error.flatten?.() ?? {}))
   }
+}
+
+// Handle Zod validation errors consistently across all wrappers
+// Throws a ConvexError with formatted issues if the error is a ZodError, otherwise re-throws
+export function handleZodValidationError(
+  e: unknown,
+  context: 'args' | 'returns' | 'input' | 'output' | 'codec'
+): never {
+  if (e instanceof z.ZodError) {
+    throw new ConvexError(formatZodIssues(e, context))
+  }
+  throw e
 }
 
 // Helper: standard Convex paginate() result schema

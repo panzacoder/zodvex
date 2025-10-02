@@ -16,7 +16,7 @@ import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility } from './types'
-import { formatZodIssues, pick } from './utils'
+import { handleZodValidationError, pick } from './utils'
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
@@ -217,7 +217,7 @@ function customFnBuilder<
           const decoded = fromConvexJS(rawArgs, argsSchema)
           const parsed = argsSchema.safeParse(decoded)
           if (!parsed.success) {
-            throw new ConvexError(formatZodIssues(parsed.error, 'args'))
+            handleZodValidationError(parsed.error, 'args')
           }
           const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
           const finalArgs = {
@@ -230,10 +230,7 @@ function customFnBuilder<
             try {
               validated = (returns as z.ZodTypeAny).parse(ret)
             } catch (e) {
-              if (e instanceof z.ZodError) {
-                throw new ConvexError(formatZodIssues(e, 'returns'))
-              }
-              throw e
+              handleZodValidationError(e, 'returns')
             }
             if (added?.onSuccess) {
               await added.onSuccess({ ctx, args: parsed.data, result: validated })
@@ -266,10 +263,7 @@ function customFnBuilder<
           try {
             validated = (returns as z.ZodTypeAny).parse(ret)
           } catch (e) {
-            if (e instanceof z.ZodError) {
-              throw new ConvexError(formatZodIssues(e, 'returns'))
-            }
-            throw e
+            handleZodValidationError(e, 'returns')
           }
           if (added?.onSuccess) {
             await added.onSuccess({ ctx, args: allArgs, result: validated })

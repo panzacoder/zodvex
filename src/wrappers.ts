@@ -18,7 +18,7 @@ import { fromConvexJS, toConvexJS } from './codec'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 // Typing helpers to keep handler args/returns precise without deep remapping
 import type { InferHandlerReturns, InferReturns, ZodToConvexArgs } from './types'
-import { formatZodIssues } from './utils'
+import { handleZodValidationError } from './utils'
 
 // Cache to avoid re-checking the same schema
 const customCheckCache = new WeakMap<z.ZodTypeAny, boolean>()
@@ -91,10 +91,7 @@ export function zQuery<
       try {
         parsed = zodSchema.parse(decoded) as any
       } catch (e) {
-        if (e instanceof z.ZodError) {
-          throw new ConvexError(formatZodIssues(e, 'args'))
-        }
-        throw e
+        handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
@@ -102,10 +99,7 @@ export function zQuery<
           const validated = (options.returns as z.ZodTypeAny).parse(raw)
           return toConvexJS(options.returns as z.ZodTypeAny, validated)
         } catch (e) {
-          if (e instanceof z.ZodError) {
-            throw new ConvexError(formatZodIssues(e, 'returns'))
-          }
-          throw e
+          handleZodValidationError(e, 'returns')
         }
       }
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
@@ -171,10 +165,7 @@ export function zMutation<
       try {
         parsed = zodSchema.parse(decoded) as any
       } catch (e) {
-        if (e instanceof z.ZodError) {
-          throw new ConvexError(formatZodIssues(e, 'args'))
-        }
-        throw e
+        handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
@@ -182,10 +173,7 @@ export function zMutation<
           const validated = (options.returns as z.ZodTypeAny).parse(raw)
           return toConvexJS(options.returns as z.ZodTypeAny, validated)
         } catch (e) {
-          if (e instanceof z.ZodError) {
-            throw new ConvexError(formatZodIssues(e, 'returns'))
-          }
-          throw e
+          handleZodValidationError(e, 'returns')
         }
       }
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
@@ -251,10 +239,7 @@ export function zAction<
       try {
         parsed = zodSchema.parse(decoded) as any
       } catch (e) {
-        if (e instanceof z.ZodError) {
-          throw new ConvexError(formatZodIssues(e, 'args'))
-        }
-        throw e
+        handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
@@ -262,10 +247,7 @@ export function zAction<
           const validated = (options.returns as z.ZodTypeAny).parse(raw)
           return toConvexJS(options.returns as z.ZodTypeAny, validated)
         } catch (e) {
-          if (e instanceof z.ZodError) {
-            throw new ConvexError(formatZodIssues(e, 'returns'))
-          }
-          throw e
+          handleZodValidationError(e, 'returns')
         }
       }
       // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
