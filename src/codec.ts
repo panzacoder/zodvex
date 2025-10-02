@@ -215,7 +215,8 @@ export function fromConvexJS(value: any, schema: any): any {
   }
 
   // Handle effects and transforms
-  if (schema instanceof z.ZodTransform || schema instanceof z.ZodPipe) {
+  // Note: ZodPipe doesn't exist in Zod v4, only ZodTransform
+  if (schema instanceof z.ZodTransform) {
     // Cannot access inner schema without _def, return value as-is
     return value
   }

@@ -436,6 +436,8 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
           // If valueType is undefined, it means single argument form was used
           // where the argument is actually the value type (stored in keyType)
           if (!valueType) {
+            // Workaround: Zod v4 stores the value type in _def.keyType for single-argument z.record().
+            // This accesses a private property as there is no public API for this in Zod v4.
             valueType = (actualValidator as any)._def?.keyType
           }
 
