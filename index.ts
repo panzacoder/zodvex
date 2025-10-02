@@ -5,6 +5,5 @@ export { zCustomQuery, zCustomMutation, zCustomAction, zStrictQuery, zStrictMuta
 export { zodTable, zodTableWithDocs, zodDoc, zodDocOrNull } from './src/tables'
 export type { InferArgs, InferReturns, InferHandlerReturns, ExtractCtx, PreserveReturnType, ZodToConvexArgs } from './src/types'
 export { zid, type Zid } from './src/ids'
-export { returnsAs, zPaginated } from './src/utils'
-export { pickShape, safePick, safeOmit } from './src/pick'
+export { returnsAs, zPaginated, pickShape, safePick, safeOmit, mapDateFieldToNumber } from './src/utils'
 // Note: Table, Customization, CustomBuilder, NoOp should be imported from convex-helpers, not zodvex
