@@ -67,8 +67,9 @@ export function zQuery<
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
-    zodSchema = input as any
-    args = zodToConvexFields(getObjectShape(input))
+    const zodObj = input as z.ZodObject<any>
+    zodSchema = zodObj
+    args = zodToConvexFields(getObjectShape(zodObj))
   } else if (input instanceof z.ZodType) {
     // Single schema → normalize to { value }
     zodSchema = z.object({ value: input as any })
@@ -147,8 +148,9 @@ export function zMutation<
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
-    zodSchema = input as any
-    args = zodToConvexFields(getObjectShape(input))
+    const zodObj = input as z.ZodObject<any>
+    zodSchema = zodObj
+    args = zodToConvexFields(getObjectShape(zodObj))
   } else if (input instanceof z.ZodType) {
     zodSchema = z.object({ value: input as any })
     args = { value: zodToConvex(input as any) }
@@ -226,8 +228,9 @@ export function zAction<
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
   if (input instanceof z.ZodObject) {
-    zodSchema = input as any
-    args = zodToConvexFields(getObjectShape(input))
+    const zodObj = input as z.ZodObject<any>
+    zodSchema = zodObj
+    args = zodToConvexFields(getObjectShape(zodObj))
   } else if (input instanceof z.ZodType) {
     zodSchema = z.object({ value: input as any })
     args = { value: zodToConvex(input as any) }
