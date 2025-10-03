@@ -390,11 +390,11 @@ Builders use Convex's native `{ args, handler, returns }` object syntax:
 
 ```ts
 import { query, mutation } from "./_generated/server";
-import { createQueryBuilder, createMutationBuilder } from "zodvex";
+import { zQueryBuilder, zMutationBuilder } from "zodvex";
 
 // Create reusable builders
-export const zq = createQueryBuilder(query);
-export const zm = createMutationBuilder(mutation);
+export const zq = zQueryBuilder(query);
+export const zm = zMutationBuilder(mutation);
 
 // Use them with Convex-style object syntax
 export const getUser = zq({
@@ -414,29 +414,30 @@ export const updateUser = zm({
 
 ### Custom Context with Middleware
 
-Combine with convex-helpers' customQuery/customMutation/customAction for middleware:
+Use custom builders to inject auth, permissions, or other context into your functions.
+zodvex provides `customCtx` (re-exported from convex-helpers) for convenience:
 
 ```ts
-import { customQuery, customMutation } from "convex-helpers/server/customFunctions";
-import { createQueryBuilder, createMutationBuilder } from "zodvex";
 import { query, mutation } from "./_generated/server";
+import { zCustomQueryBuilder, zCustomMutationBuilder, customCtx } from "zodvex";
 
-// Create authenticated builders
-const _authQuery = customQuery(query, {
-  input: async (ctx) => {
+// Create authenticated query builder
+export const authQuery = zCustomQueryBuilder(
+  query,
+  customCtx(async (ctx) => {
     const user = await getUserOrThrow(ctx);
     return { user };
-  }
-});
-export const authQuery = createQueryBuilder(_authQuery);
+  })
+);
 
-const _authMutation = customMutation(mutation, {
-  input: async (ctx) => {
+// Create authenticated mutation builder
+export const authMutation = zCustomMutationBuilder(
+  mutation,
+  customCtx(async (ctx) => {
     const user = await getUserOrThrow(ctx);
     return { user };
-  }
-});
-export const authMutation = createMutationBuilder(_authMutation);
+  })
+);
 
 // Use them with automatic type-safe context
 export const getProfile = authQuery({
@@ -446,7 +447,20 @@ export const getProfile = authQuery({
     return ctx.db.query("users").filter(q => q.eq(q.field("_id"), ctx.user._id)).first();
   }
 });
+
+export const updateProfile = authMutation({
+  args: { name: z.string() },
+  handler: async (ctx, { name }) => {
+    // ctx.user is automatically available and typed!
+    return ctx.db.patch(ctx.user._id, { name });
+  }
+});
 ```
+
+**Available custom builders:**
+- `zCustomQueryBuilder` - for queries with custom context
+- `zCustomMutationBuilder` - for mutations with custom context
+- `zCustomActionBuilder` - for actions with custom context
 
 ### Working with Dates
 
