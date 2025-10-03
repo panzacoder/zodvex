@@ -342,8 +342,8 @@ export function zCustomQuery<
   >(query as any, customization as any) as any
 }
 
-// Strict variants: infer ctx directly from builder for precise db typing
-export function zStrictQuery<
+// Custom builder variants: infer ctx directly from builder for precise db typing
+export function zCustomQueryBuilder<
   Builder extends (fn: any) => any,
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
@@ -371,7 +371,7 @@ export function zStrictQuery<
   ) as any
 }
 
-export function zStrictMutation<
+export function zCustomMutationBuilder<
   Builder extends (fn: any) => any,
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
@@ -396,7 +396,7 @@ export function zStrictMutation<
   ) as any
 }
 
-export function zStrictAction<
+export function zCustomActionBuilder<
   Builder extends (fn: any) => any,
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,

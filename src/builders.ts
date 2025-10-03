@@ -21,10 +21,10 @@ import type {
  * @example
  * ```ts
  * import { query } from './_generated/server'
- * import { createQueryBuilder } from 'zodvex'
+ * import { zQueryBuilder } from 'zodvex'
  *
  * // Create a reusable builder
- * export const zq = createQueryBuilder(query)
+ * export const zq = zQueryBuilder(query)
  *
  * // Use it with Convex-style object syntax
  * export const getUser = zq({
@@ -35,7 +35,7 @@ import type {
  * })
  * ```
  */
-export function createQueryBuilder<Builder extends (fn: any) => any>(builder: Builder) {
+export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder) {
   return <
     A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
     R extends z.ZodTypeAny | undefined = undefined,
@@ -59,10 +59,10 @@ export function createQueryBuilder<Builder extends (fn: any) => any>(builder: Bu
  * @example
  * ```ts
  * import { mutation } from './_generated/server'
- * import { createMutationBuilder } from 'zodvex'
+ * import { zMutationBuilder } from 'zodvex'
  *
  * // Create a reusable builder
- * export const zm = createMutationBuilder(mutation)
+ * export const zm = zMutationBuilder(mutation)
  *
  * // Use it with Convex-style object syntax
  * export const updateUser = zm({
@@ -73,7 +73,7 @@ export function createQueryBuilder<Builder extends (fn: any) => any>(builder: Bu
  * })
  * ```
  */
-export function createMutationBuilder<Builder extends (fn: any) => any>(builder: Builder) {
+export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Builder) {
   return <
     A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
     R extends z.ZodTypeAny | undefined = undefined,
@@ -97,10 +97,10 @@ export function createMutationBuilder<Builder extends (fn: any) => any>(builder:
  * @example
  * ```ts
  * import { action } from './_generated/server'
- * import { createActionBuilder } from 'zodvex'
+ * import { zActionBuilder } from 'zodvex'
  *
  * // Create a reusable builder
- * export const za = createActionBuilder(action)
+ * export const za = zActionBuilder(action)
  *
  * // Use it with Convex-style object syntax
  * export const sendEmail = za({
@@ -111,7 +111,7 @@ export function createMutationBuilder<Builder extends (fn: any) => any>(builder:
  * })
  * ```
  */
-export function createActionBuilder<Builder extends (fn: any) => any>(builder: Builder) {
+export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builder) {
   return <
     A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
     R extends z.ZodTypeAny | undefined = undefined,
