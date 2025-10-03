@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zid } from '../src/ids'
-import { zodTableWithDocs } from '../src/tables'
+import { zodTable } from '../src/tables'
 import { zAction, zMutation, zQuery } from '../src/wrappers'
 
 // Minimal builder stub that mimics Convex builder shape
@@ -72,13 +72,24 @@ describe('wrappers arg decoding', () => {
   })
 })
 
-describe('zodTableWithDocs docSchema/docArray', () => {
-  it('exposes docSchema with system fields', () => {
-    const userSchema = z.object({ name: z.string() })
-    const Users = zodTableWithDocs('users', userSchema as any)
+describe('zodTable zDoc/docArray', () => {
+  it('exposes zDoc with system fields', () => {
+    const Users = zodTable('users', { name: z.string() })
     const doc = { _id: '123', _creationTime: 0, name: 'A' }
     // Runtime parse should succeed
-    const parsed = Users.docSchema.parse(doc)
+    const parsed = Users.zDoc.parse(doc)
     expect(parsed.name).toBe('A')
+  })
+
+  it('exposes docArray helper', () => {
+    const Users = zodTable('users', { name: z.string() })
+    const docs = [
+      { _id: '1', _creationTime: 0, name: 'A' },
+      { _id: '2', _creationTime: 1, name: 'B' }
+    ]
+    // Runtime parse should succeed
+    const parsed = Users.docArray.parse(docs)
+    expect(parsed).toHaveLength(2)
+    expect(parsed[0].name).toBe('A')
   })
 })

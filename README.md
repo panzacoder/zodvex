@@ -226,12 +226,14 @@ Handlers should return domain values shaped by your `returns` schema. zodvex val
 
 ```ts
 import { z } from "zod";
-import { zQuery, zodTableWithDocs, returnsAs } from "zodvex";
+import { zQuery, zodTable, returnsAs } from "zodvex";
 import { query } from "./_generated/server";
 
-// Table with doc helpers (use zodTableWithDocs for .docArray)
-const UserSchema = z.object({ name: z.string(), createdAt: z.date() });
-export const Users = zodTableWithDocs("users", UserSchema);
+// Table with doc helpers
+export const Users = zodTable("users", {
+  name: z.string(),
+  createdAt: z.date()
+});
 
 // 1) Return full docs, strongly typed
 export const listUsers = zQuery(
@@ -326,9 +328,10 @@ const postShape = {
 export const Posts = zodTable("posts", postShape);
 
 // Access properties
-Posts.table; // → Table definition for defineSchema
-Posts.shape; // → Original plain object shape
-Posts.zDoc;  // → ZodObject with _id and _creationTime system fields
+Posts.table;    // → Table definition for defineSchema
+Posts.shape;    // → Original plain object shape
+Posts.zDoc;     // → ZodObject with _id and _creationTime system fields
+Posts.docArray; // → z.array(zDoc) for return type validation
 
 // Use in schema.ts
 export default defineSchema({
@@ -336,6 +339,14 @@ export default defineSchema({
     .index("by_author", ["authorId"])
     .index("by_published", ["published"]),
 });
+
+// Use docArray for return types
+export const listPosts = zQuery(
+  query,
+  {},
+  async (ctx) => ctx.db.query("posts").collect(),
+  { returns: Posts.docArray }
+);
 ```
 
 #### Working with Large Schemas
@@ -370,50 +381,71 @@ const zClerkFields = z.object(pickShape(users, ["email", "firstName", "lastName"
 // Use zClerkFields in function wrappers or validators
 ```
 
-#### Alternative: zodTableWithDocs
-
-If you prefer working with `z.object()` directly, use `zodTableWithDocs`:
-
-```ts
-const PostSchema = z.object({
-  title: z.string(),
-  content: z.string(),
-  authorId: zid("users"),
-});
-
-export const Posts = zodTableWithDocs("posts", PostSchema);
-
-// Different properties available:
-Posts.table;      // → Table definition
-Posts.schema;     // → Original z.object() schema
-Posts.docSchema;  // → Schema with _id and _creationTime (Dates → numbers)
-Posts.docArray;   // → z.array(docSchema) for return types
-```
-
 ## 🔧 Advanced Usage
 
-### Custom Validators with Zod
+### Builder Pattern for Reusable Function Creators
+
+For projects with many functions, create reusable builders instead of repeating the base builder.
+Builders use Convex's native `{ args, handler, returns }` object syntax:
 
 ```ts
-import { z } from "zod";
-import { zCustomQuery } from "zodvex";
-import { customQuery } from "convex-helpers/server/customFunctions";
+import { query, mutation } from "./_generated/server";
+import { createQueryBuilder, createMutationBuilder } from "zodvex";
 
-// Use with custom function builders
-export const authenticatedQuery = zCustomQuery(
-  customQuery(query, {
-    args: { sessionId: v.string() },
-    input: async (ctx, { sessionId }) => {
-      const user = await getUser(ctx, sessionId);
-      return { user };
-    },
-  }),
-  { postId: z.string() },
-  async (ctx, { postId }) => {
-    // ctx.user is available from custom input
-    return ctx.db.get(postId);
-  },
-);
+// Create reusable builders
+export const zq = createQueryBuilder(query);
+export const zm = createMutationBuilder(mutation);
+
+// Use them with Convex-style object syntax
+export const getUser = zq({
+  args: { id: z.string() },
+  handler: async (ctx, { id }) => {
+    return ctx.db.get(id);
+  }
+});
+
+export const updateUser = zm({
+  args: { id: z.string(), name: z.string() },
+  handler: async (ctx, { id, name }) => {
+    return ctx.db.patch(id, { name });
+  }
+});
+```
+
+### Custom Context with Middleware
+
+Combine with convex-helpers' customQuery/customMutation/customAction for middleware:
+
+```ts
+import { customQuery, customMutation } from "convex-helpers/server/customFunctions";
+import { createQueryBuilder, createMutationBuilder } from "zodvex";
+import { query, mutation } from "./_generated/server";
+
+// Create authenticated builders
+const _authQuery = customQuery(query, {
+  input: async (ctx) => {
+    const user = await getUserOrThrow(ctx);
+    return { user };
+  }
+});
+export const authQuery = createQueryBuilder(_authQuery);
+
+const _authMutation = customMutation(mutation, {
+  input: async (ctx) => {
+    const user = await getUserOrThrow(ctx);
+    return { user };
+  }
+});
+export const authMutation = createMutationBuilder(_authMutation);
+
+// Use them with automatic type-safe context
+export const getProfile = authQuery({
+  args: {},
+  handler: async (ctx) => {
+    // ctx.user is automatically available and typed!
+    return ctx.db.query("users").filter(q => q.eq(q.field("_id"), ctx.user._id)).first();
+  }
+});
 ```
 
 ### Working with Dates

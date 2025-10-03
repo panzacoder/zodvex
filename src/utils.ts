@@ -1,5 +1,6 @@
 import { ConvexError } from 'convex/values'
 import { z } from 'zod'
+import { getObjectShape } from './mapping'
 
 export function pick<T extends Record<string, any>, K extends keyof T>(
   obj: T,
@@ -97,15 +98,15 @@ function toKeys(mask: Mask): string[] {
   return Object.keys(mask).filter(k => !!(mask as any)[k])
 }
 
-// Returns a plain shape object containing only the selected fields.
-// Accepts either a ZodObject or a raw shape object.
+/**
+ * Returns a plain shape object containing only the selected fields.
+ * Accepts either a ZodObject or a raw shape object.
+ */
 export function pickShape(
   schemaOrShape: z.ZodObject<any> | Record<string, any>,
   mask: Mask
 ): Record<string, any> {
   const keys = toKeys(mask)
-  // Import getObjectShape lazily to avoid circular dependency
-  const { getObjectShape } = require('./mapping')
   const shape =
     schemaOrShape instanceof z.ZodObject ? getObjectShape(schemaOrShape) : schemaOrShape || {}
 
@@ -121,9 +122,11 @@ export function safePick(schema: z.ZodObject<any>, mask: Mask): z.ZodObject<any>
   return z.object(pickShape(schema, mask))
 }
 
-// Convenience: omit a set of keys by building the complement
+/**
+ * Convenience: omit a set of keys by building the complement.
+ * Avoids using Zod's .omit() which can cause type depth issues.
+ */
 export function safeOmit(schema: z.ZodObject<any>, mask: Mask): z.ZodObject<any> {
-  const { getObjectShape } = require('./mapping')
   const shape = getObjectShape(schema)
   const omit = new Set(toKeys(mask))
   const keep = Object.keys(shape).filter(k => !omit.has(k))

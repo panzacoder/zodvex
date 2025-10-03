@@ -2,8 +2,7 @@ import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
 import { zid } from './ids'
-import { type ConvexValidatorFromZodFieldsAuto, getObjectShape, zodToConvexFields } from './mapping'
-import { mapDateFieldToNumber } from './utils'
+import { type ConvexValidatorFromZodFieldsAuto, zodToConvexFields } from './mapping'
 
 // Helper to create a Zod schema for a Convex document
 export function zodDoc<
@@ -44,7 +43,29 @@ export function zodDocOrNull<
  * This architectural decision is important for projects that rely heavily on type safety and
  * developer experience, as it avoids the type erasure that can occur when using ZodObject directly.
  *
- * Returns both the Table and the shape for use with zCrud.
+ * Returns the Table definition along with Zod schemas for documents and arrays.
+ *
+ * @param name - The table name
+ * @param shape - A raw object mapping field names to Zod validators
+ * @returns A Table with attached shape, zDoc schema, and docArray helper
+ *
+ * @example
+ * ```ts
+ * const Users = zodTable('users', {
+ *   name: z.string(),
+ *   email: z.string().email(),
+ *   age: z.number().optional()
+ * })
+ *
+ * // Use in schema
+ * export default defineSchema({ users: Users.table })
+ *
+ * // Use for return types
+ * export const getUsers = zQuery(query, {},
+ *   async (ctx) => ctx.db.query('users').collect(),
+ *   { returns: Users.docArray }
+ * )
+ * ```
  */
 export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
   name: TableName,
@@ -56,10 +77,17 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   // Create the Table from convex-helpers with explicit type
   const table = Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>(name, convexFields)
 
-  // Attach the shape for zCrud usage
+  // Create zDoc schema with system fields
+  const zDoc = zodDoc(name, z.object(shape))
+
+  // Create docArray helper for return types
+  const docArray = z.array(zDoc)
+
+  // Attach everything for comprehensive usage
   return Object.assign(table, {
     shape,
-    zDoc: zodDoc(name, z.object(shape))
+    zDoc,
+    docArray
   }) as typeof table & {
     shape: Shape
     zDoc: z.ZodObject<
@@ -68,32 +96,6 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
         _creationTime: z.ZodNumber
       }
     >
+    docArray: z.ZodArray<typeof zDoc>
   }
-}
-
-// Keep the old implementation available for backward compatibility
-export function zodTableWithDocs<T extends z.ZodObject<any>, TableName extends string>(
-  name: TableName,
-  schema: T
-) {
-  // Use zodToConvexFields with proper types - pass the shape for type preservation
-  const convexFields = zodToConvexFields(schema.shape)
-
-  // Simplified: only convert dates at top level to avoid deep recursion
-  const shape = getObjectShape(schema)
-  const mapped: Record<string, any> = {}
-
-  for (const [k, field] of Object.entries(shape)) {
-    mapped[k] = mapDateFieldToNumber(field as z.ZodTypeAny)
-  }
-  const docSchema = z.object({
-    ...mapped,
-    _id: zid(name),
-    _creationTime: z.number()
-  })
-  const docArray = z.array(docSchema)
-
-  const base = Table(name, convexFields)
-  // Return with docSchema and docArray for backward compatibility
-  return { ...base, schema, docSchema, docArray }
 }
