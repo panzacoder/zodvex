@@ -22,6 +22,11 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
   zodValidator: Z,
   visited: Set<z.ZodTypeAny> = new Set()
 ): ConvexValidatorFromZod<Z, 'required'> {
+  // Guard against undefined/null validators (can happen with { field: undefined } in args)
+  if (!zodValidator) {
+    return v.any() as ConvexValidatorFromZod<Z, 'required'>
+  }
+
   // Detect circular references to prevent infinite recursion
   if (visited.has(zodValidator)) {
     return v.any() as ConvexValidatorFromZod<Z, 'required'>
