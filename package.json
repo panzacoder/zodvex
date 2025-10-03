@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Zod v4 → Convex validator mapping with correct optional/nullable semantics",
   "keywords": [
     "zod",
@@ -45,9 +45,9 @@
     "prepublishOnly": "bun run build && bun test && bun run type-check"
   },
   "peerDependencies": {
-    "convex": "1.27.0",
-    "convex-helpers": "0.1.101-alpha.1",
-    "zod": "4.1.8"
+    "convex": ">=1.27.0",
+    "convex-helpers": ">=0.1.104",
+    "zod": "^4.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
