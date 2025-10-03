@@ -9,7 +9,13 @@ import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 // Typing helpers to keep handler args/returns precise without deep remapping
-import type { ExtractCtx, ExtractVisibility, InferHandlerReturns, InferReturns, ZodToConvexArgs } from './types'
+import type {
+  ExtractCtx,
+  ExtractVisibility,
+  InferHandlerReturns,
+  InferReturns,
+  ZodToConvexArgs
+} from './types'
 import { handleZodValidationError } from './utils'
 
 // Cache to avoid re-checking the same schema

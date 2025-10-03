@@ -1,3 +1,5 @@
+// Re-export customCtx from convex-helpers for convenience
+export { customCtx } from 'convex-helpers/server/customFunctions'
 export * from './builders'
 export * from './codec'
 export * from './custom'
@@ -8,6 +10,3 @@ export * from './tables'
 export * from './types'
 export * from './utils'
 export * from './wrappers'
-
-// Re-export customCtx from convex-helpers for convenience
-export { customCtx } from 'convex-helpers/server/customFunctions'

@@ -1,4 +1,13 @@
+import type {
+  FunctionVisibility,
+  RegisteredAction,
+  RegisteredMutation,
+  RegisteredQuery
+} from 'convex/server'
+import type { PropertyValidators } from 'convex/values'
+import type { Customization } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
+import { type CustomBuilder, customFnBuilder } from './custom'
 import type {
   ExtractCtx,
   ExtractVisibility,
@@ -7,12 +16,6 @@ import type {
   ZodToConvexArgs
 } from './types'
 import { zAction, zMutation, zQuery } from './wrappers'
-import type {
-  FunctionVisibility,
-  RegisteredAction,
-  RegisteredMutation,
-  RegisteredQuery
-} from 'convex/server'
 
 /**
  * Creates a reusable query builder from a Convex query builder.
@@ -47,8 +50,14 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
       args: ZodToConvexArgs<A extends undefined ? Record<string, never> : A>
     ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>
     returns?: R
-  }): RegisteredQuery<Visibility, ZodToConvexArgs<A extends undefined ? Record<string, never> : A>, Promise<InferReturns<R>>> => {
-    return zQuery(builder, config.args ?? ({} as any), config.handler, { returns: config.returns }) as any
+  }): RegisteredQuery<
+    Visibility,
+    ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
+    Promise<InferReturns<R>>
+  > => {
+    return zQuery(builder, config.args ?? ({} as any), config.handler, {
+      returns: config.returns
+    }) as any
   }
 }
 
@@ -85,8 +94,14 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
       args: ZodToConvexArgs<A extends undefined ? Record<string, never> : A>
     ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>
     returns?: R
-  }): RegisteredMutation<Visibility, ZodToConvexArgs<A extends undefined ? Record<string, never> : A>, Promise<InferReturns<R>>> => {
-    return zMutation(builder, config.args ?? ({} as any), config.handler, { returns: config.returns }) as any
+  }): RegisteredMutation<
+    Visibility,
+    ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
+    Promise<InferReturns<R>>
+  > => {
+    return zMutation(builder, config.args ?? ({} as any), config.handler, {
+      returns: config.returns
+    }) as any
   }
 }
 
@@ -123,7 +138,173 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
       args: ZodToConvexArgs<A extends undefined ? Record<string, never> : A>
     ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>
     returns?: R
-  }): RegisteredAction<Visibility, ZodToConvexArgs<A extends undefined ? Record<string, never> : A>, Promise<InferReturns<R>>> => {
-    return zAction(builder, config.args ?? ({} as any), config.handler, { returns: config.returns }) as any
+  }): RegisteredAction<
+    Visibility,
+    ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
+    Promise<InferReturns<R>>
+  > => {
+    return zAction(builder, config.args ?? ({} as any), config.handler, {
+      returns: config.returns
+    }) as any
   }
+}
+
+/**
+ * Creates a custom query builder with context injection from a Convex query builder.
+ * Allows you to add custom context (like auth, permissions, etc.) to your queries.
+ *
+ * @example
+ * ```ts
+ * import { query } from './_generated/server'
+ * import { zCustomQueryBuilder, customCtx } from 'zodvex'
+ *
+ * // Create a builder with auth context
+ * export const authQuery = zCustomQueryBuilder(
+ *   query,
+ *   customCtx(async (ctx) => {
+ *     const user = await getUserOrThrow(ctx)
+ *     return { user }
+ *   })
+ * )
+ *
+ * // Use it with automatic user injection
+ * export const getMyProfile = authQuery({
+ *   args: {},
+ *   handler: async (ctx) => {
+ *     // ctx.user is automatically available
+ *     return ctx.db.get(ctx.user._id)
+ *   }
+ * })
+ * ```
+ */
+export function zCustomQueryBuilder<
+  Builder extends (fn: any) => any,
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  query: Builder,
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
+): CustomBuilder<
+  'query',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  ExtractCtx<Builder>,
+  Visibility,
+  ExtraArgs
+> {
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    query as any,
+    customization as any
+  ) as any
+}
+
+/**
+ * Creates a custom mutation builder with context injection from a Convex mutation builder.
+ * Allows you to add custom context (like auth, permissions, etc.) to your mutations.
+ *
+ * @example
+ * ```ts
+ * import { mutation } from './_generated/server'
+ * import { zCustomMutationBuilder, customCtx } from 'zodvex'
+ *
+ * // Create a builder with auth context
+ * export const authMutation = zCustomMutationBuilder(
+ *   mutation,
+ *   customCtx(async (ctx) => {
+ *     const user = await getUserOrThrow(ctx)
+ *     return { user }
+ *   })
+ * )
+ *
+ * // Use it with automatic user injection
+ * export const updateProfile = authMutation({
+ *   args: { name: z.string() },
+ *   handler: async (ctx, { name }) => {
+ *     // ctx.user is automatically available
+ *     await ctx.db.patch(ctx.user._id, { name })
+ *   }
+ * })
+ * ```
+ */
+export function zCustomMutationBuilder<
+  Builder extends (fn: any) => any,
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  mutation: Builder,
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
+): CustomBuilder<
+  'mutation',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  ExtractCtx<Builder>,
+  Visibility,
+  ExtraArgs
+> {
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    mutation as any,
+    customization as any
+  ) as any
+}
+
+/**
+ * Creates a custom action builder with context injection from a Convex action builder.
+ * Allows you to add custom context (like auth, permissions, etc.) to your actions.
+ *
+ * @example
+ * ```ts
+ * import { action } from './_generated/server'
+ * import { zCustomActionBuilder, customCtx } from 'zodvex'
+ *
+ * // Create a builder with auth context
+ * export const authAction = zCustomActionBuilder(
+ *   action,
+ *   customCtx(async (ctx) => {
+ *     const identity = await ctx.auth.getUserIdentity()
+ *     if (!identity) throw new Error('Unauthorized')
+ *     return { userId: identity.subject }
+ *   })
+ * )
+ *
+ * // Use it with automatic auth injection
+ * export const sendEmail = authAction({
+ *   args: { to: z.string().email() },
+ *   handler: async (ctx, { to }) => {
+ *     // ctx.userId is automatically available
+ *     await sendEmailService(to, ctx.userId)
+ *   }
+ * })
+ * ```
+ */
+export function zCustomActionBuilder<
+  Builder extends (fn: any) => any,
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  action: Builder,
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
+): CustomBuilder<
+  'action',
+  CustomArgsValidator,
+  CustomCtx,
+  CustomMadeArgs,
+  ExtractCtx<Builder>,
+  Visibility,
+  ExtraArgs
+> {
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    action as any,
+    customization as any
+  ) as any
 }

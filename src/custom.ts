@@ -162,7 +162,7 @@ export type CustomBuilder<
   >
 }
 
-function customFnBuilder<
+export function customFnBuilder<
   Ctx extends Record<string, any>,
   Builder extends (fn: any) => any,
   CustomArgsValidator extends PropertyValidators,
@@ -340,85 +340,6 @@ export function zCustomQuery<
     CustomMadeArgs,
     ExtraArgs
   >(query as any, customization as any) as any
-}
-
-// Custom builder variants: infer ctx directly from builder for precise db typing
-export function zCustomQueryBuilder<
-  Builder extends (fn: any) => any,
-  CustomArgsValidator extends PropertyValidators,
-  CustomCtx extends Record<string, any>,
-  CustomMadeArgs extends Record<string, any>,
-  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
-  ExtraArgs extends Record<string, any> = Record<string, any>
->(
-  query: Builder,
-  // Note: Customization from convex-helpers requires Ctx extends Record<string, any>.
-  // We accept `any` here to avoid overly constraining Convex Ctx types while
-  // still threading the precise ctx type to the resulting builder.
-  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
-): CustomBuilder<
-  'query',
-  CustomArgsValidator,
-  CustomCtx,
-  CustomMadeArgs,
-  ExtractCtx<Builder>,
-  Visibility,
-  ExtraArgs
-> {
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
-    query as any,
-    customization as any
-  ) as any
-}
-
-export function zCustomMutationBuilder<
-  Builder extends (fn: any) => any,
-  CustomArgsValidator extends PropertyValidators,
-  CustomCtx extends Record<string, any>,
-  CustomMadeArgs extends Record<string, any>,
-  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
-  ExtraArgs extends Record<string, any> = Record<string, any>
->(
-  mutation: Builder,
-  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
-): CustomBuilder<
-  'mutation',
-  CustomArgsValidator,
-  CustomCtx,
-  CustomMadeArgs,
-  ExtractCtx<Builder>,
-  Visibility,
-  ExtraArgs
-> {
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
-    mutation as any,
-    customization as any
-  ) as any
-}
-
-export function zCustomActionBuilder<
-  Builder extends (fn: any) => any,
-  CustomArgsValidator extends PropertyValidators,
-  CustomCtx extends Record<string, any>,
-  CustomMadeArgs extends Record<string, any>,
-  Visibility extends FunctionVisibility = ExtractVisibility<Builder>,
-  ExtraArgs extends Record<string, any> = Record<string, any>
->(
-  action: Builder,
-  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
-): CustomBuilder<
-  'action',
-  CustomArgsValidator,
-  CustomCtx,
-  CustomMadeArgs,
-  ExtractCtx<Builder>,
-  Visibility,
-  ExtraArgs
-> {
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
-    action as any,
-    customization as any
-  ) as any
 }
 
 // Overload 1: With constraint - preferred to preserve DataModel types
