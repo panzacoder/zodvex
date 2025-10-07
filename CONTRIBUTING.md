@@ -83,12 +83,14 @@ zodvex/
 ## Public vs Internal APIs
 
 **Public APIs** (exported from `src/index.ts`):
+
 - `zQueryBuilder`, `zMutationBuilder`, `zActionBuilder` - Function builders
 - `zCustomQueryBuilder`, `zCustomMutationBuilder`, `zCustomActionBuilder` - Custom context builders
 - `zodTable`, `zid`, `zodToConvex`, `zodToConvexFields` - Schema utilities
 - `convexCodec`, `pickShape`, `safePick` - Helper functions
 
 **Internal APIs** (not exported):
+
 - `zQuery`, `zMutation`, `zAction` - Wrapper implementations used by builders
 - These are tested directly in `__tests__/wrappers.test.ts` but not part of the public API
 
@@ -97,17 +99,20 @@ zodvex/
 We use both **Bun's test runner** and **Vitest** for testing:
 
 ### Runtime Tests
+
 ```bash
 bun test              # Run all tests with Bun
 bun test mapping      # Run specific test file
 ```
 
 ### Type-level Tests
+
 ```bash
 bun run test:types    # Run type-level tests with Vitest typecheck
 ```
 
 ### Coverage
+
 ```bash
 bun run test:coverage # Generate coverage report
 ```
@@ -150,6 +155,7 @@ Use conventional commit format:
 - Reference issues liberally after the first line
 
 **Examples:**
+
 - `fix: handle nullable fields in nested objects`
 - `feat: add support for Zod discriminated unions`
 - `docs: update README with builder examples`
@@ -159,21 +165,25 @@ Use conventional commit format:
 ## Architecture Principles
 
 ### Type Safety First
+
 - Preserve Convex's optional/nullable semantics
 - No `any` types in public APIs (internal use is acceptable if typed correctly)
 - Comprehensive type tests for complex transformations
 
 ### Builder Pattern
+
 - Builders are the primary public API
 - They provide superior type inference over direct wrapper functions
 - Follow Convex's native `{ args, handler, returns }` syntax
 
 ### Codec Design
+
 - Encode: Zod-shaped data → Convex JSON (Date → timestamp, omit undefined)
 - Decode: Convex JSON → Zod-shaped data (timestamp → Date)
 - Always preserve schema structure
 
 ### Performance
+
 - Minimize type recursion depth (avoid exponential type complexity)
 - Cache validator conversions where possible
 - Keep bundle size small - tree-shakeable exports
@@ -220,6 +230,7 @@ Releases are handled by maintainers:
 ## Questions?
 
 Feel free to:
+
 - Open an issue with your question
 - Start a discussion in GitHub Discussions
 - Reach out to maintainers

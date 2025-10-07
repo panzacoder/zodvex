@@ -232,7 +232,11 @@ export function customFnBuilder<
               handleZodValidationError(e, 'returns')
             }
             if (added?.onSuccess) {
-              await added.onSuccess({ ctx, args: parsed.data, result: validated })
+              await added.onSuccess({
+                ctx,
+                args: parsed.data,
+                result: validated
+              })
             }
             return toConvexJS(returns as z.ZodTypeAny, validated)
           }

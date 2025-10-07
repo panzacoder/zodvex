@@ -27,7 +27,7 @@ export const getUser = zQuery(
     // TypeScript knows email is a string
     const user = await ctx.db
       .query('users')
-      .withIndex('by_email', q => q.eq('email', email))
+      .withIndex('by_email', (q) => q.eq('email', email))
       .unique()
     return user
   }

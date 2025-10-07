@@ -8,11 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Removed
+
 - `zCrud` function removed - Following Convex's guidance to prefer explicit functions over generic CRUD patterns. Users should write their own query/mutation functions for better control and security.
 
 ## [0.1.0] - 2025-01-16
 
 ### Added
+
 - Initial release of zodvex
 - Core mapping functionality between Zod v4 and Convex validators
 - Proper handling of optional vs nullable semantics
@@ -24,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integration with convex-helpers for ID handling
 
 ### Features
+
 - `zodToConvex()` - Convert Zod schemas to Convex validators
 - `zodToConvexFields()` - Convert Zod object shapes to Convex field validators
 - `zQuery/zMutation/zAction` - Wrapped Convex functions with Zod validation

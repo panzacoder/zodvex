@@ -26,6 +26,7 @@ npm install zodvex zod@^4.1.0 convex convex-helpers
 ```
 
 **Peer dependencies:**
+
 - `zod` (^4.1.0 or later)
 - `convex` (>= 1.27.0)
 - `convex-helpers` (>= 0.1.104)
@@ -106,16 +107,16 @@ import { zodTable, zid } from 'zodvex'
 export const Users = zodTable('users', {
   name: z.string(),
   email: z.string().email(),
-  age: z.number().optional(),        // → v.optional(v.float64())
-  deletedAt: z.date().nullable(),    // → v.union(v.float64(), v.null())
+  age: z.number().optional(), // → v.optional(v.float64())
+  deletedAt: z.date().nullable(), // → v.union(v.float64(), v.null())
   teamId: zid('teams').optional()
 })
 
 // Access the underlying table
-Users.table      // Convex table definition
-Users.shape      // Original Zod shape
-Users.zDoc       // Zod schema with _id and _creationTime
-Users.docArray   // z.array(zDoc) for return types
+Users.table // Convex table definition
+Users.shape // Original Zod shape
+Users.zDoc // Zod schema with _id and _creationTime
+Users.docArray // z.array(zDoc) for return types
 ```
 
 ## Building Your Schema
@@ -134,8 +135,7 @@ export default defineSchema({
     .index('by_team', ['teamId'])
     .searchIndex('search_name', { searchField: 'name' }),
 
-  teams: Teams.table
-    .index('by_created', ['_creationTime'])
+  teams: Teams.table.index('by_created', ['_creationTime'])
 })
 ```
 
@@ -236,7 +236,11 @@ type CreateUserForm = z.infer<typeof CreateUserForm>
 function UserForm() {
   const createUser = useMutation(api.users.createUser)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<CreateUserForm>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<CreateUserForm>({
     resolver: zodResolver(CreateUserForm)
   })
 
@@ -263,13 +267,15 @@ function UserForm() {
 ### Builders
 
 **Basic builders** - Create type-safe functions without auth:
+
 ```ts
-zQueryBuilder(query)      // Creates query builder
+zQueryBuilder(query) // Creates query builder
 zMutationBuilder(mutation) // Creates mutation builder
-zActionBuilder(action)     // Creates action builder
+zActionBuilder(action) // Creates action builder
 ```
 
 **Custom builders** - Add auth or custom context:
+
 ```ts
 import { customCtx } from 'zodvex'
 
@@ -355,10 +361,11 @@ const decoded = codec.decode(encoded)
 | `z.nullable(T)`   | `v.union(T, v.null())`    |
 
 **Convex IDs:**
+
 ```ts
 import { zid } from 'zodvex'
 
-zid('tableName')           // → v.id('tableName')
+zid('tableName') // → v.id('tableName')
 zid('tableName').optional() // → v.optional(v.id('tableName'))
 ```
 
@@ -461,7 +468,11 @@ const userShape = pickShape(User, ['email', 'firstName', 'lastName'])
 const UserUpdate = z.object(userShape)
 
 // Or use safePick (convenience wrapper that does the same thing)
-const UserUpdate = safePick(User, { email: true, firstName: true, lastName: true })
+const UserUpdate = safePick(User, {
+  email: true,
+  firstName: true,
+  lastName: true
+})
 ```
 
 ## Why zodvex?

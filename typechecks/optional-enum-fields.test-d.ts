@@ -11,12 +11,15 @@ const shape = {
 
 const fields = zodToConvexFields(shape)
 
-type Active = typeof fields['activeProfileType']
-type Profile = typeof fields['profileType']
+type Active = (typeof fields)['activeProfileType']
+type Profile = (typeof fields)['profileType']
 
 // Expect optional union-of-literals validators
 type _A = Expect<
-  Equal<Active, VOptional<VUnion<'dancer' | 'choreographer', any[], 'required'>>>
+  Equal<
+    Active,
+    VOptional<VUnion<'dancer' | 'choreographer', any[], 'required'>>
+  >
 >
 type _P = Expect<
   Equal<
@@ -24,4 +27,3 @@ type _P = Expect<
     VOptional<VUnion<'dancer' | 'choreographer' | 'guest', any[], 'required'>>
   >
 >
-

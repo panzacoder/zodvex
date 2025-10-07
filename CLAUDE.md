@@ -9,21 +9,25 @@ zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping
 ## Key Commands
 
 ### Development
+
 - `bun run dev` - Run tsup in watch mode for continuous builds
 - `bun run build` - Build the library with tsup
 - `bun run type-check` - Type check with TypeScript (no emit)
 
 ### Testing
+
 - `bun test` - Run tests with Bun's built-in test runner
 - `bun run test:vitest` - Run tests with Vitest
 - `bun run test:coverage` - Run tests with code coverage
 
 ### Code Quality
+
 - `bun run lint` - Check code with Biome (linting and formatting)
 - `bun run lint:fix` - Fix code issues with Biome
 - `bun run format` - Format code with Biome
 
 ### Publishing
+
 - `bun run prepublishOnly` - Runs build, test, and type-check before publishing
 
 ## Architecture
@@ -60,6 +64,7 @@ The library is organized into focused modules in the `src/` directory:
 ## Testing Approach
 
 Tests are located in `__tests__/` directory and use Vitest. Run a specific test file:
+
 ```bash
 pnpm vitest run __tests__/mapping.test.ts
 pnpm vitest run __tests__/codec.test.ts
@@ -68,11 +73,13 @@ pnpm vitest run __tests__/codec.test.ts
 ## Dependencies
 
 This is a library package with peer dependencies on:
+
 - `zod` (v4.x)
 - `convex` (>= 1.27)
 - `convex-helpers` (>= 0.1.101-alpha.1)
 
 The library is built with tsup and can run on:
+
 - Node.js 20+
 - Bun 1.0+
 
