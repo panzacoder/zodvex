@@ -14,7 +14,10 @@
       "Bash(npx tsc:*)",
       "WebFetch(domain:stack.convex.dev)",
       "Bash(find:*)",
-      "Bash(gh pr view:*)"
+      "Bash(gh pr view:*)",
+      "WebFetch(domain:convex-helpers.vercel.app)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -sL \"https://github.com/panzacoder/zodvex\")"
     ],
     "deny": [],
     "ask": []
