@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
+import type { VLiteral, VUnion } from 'convex/values'
 import { z } from 'zod'
 import { zodToConvex } from '../src/mapping'
-import type { VUnion, VLiteral } from 'convex/values'
 
 describe('Enum type inference', () => {
   it('should infer specific literal types for z.enum', () => {

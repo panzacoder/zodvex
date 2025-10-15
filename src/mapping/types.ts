@@ -85,10 +85,20 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                             ? T['length'] extends 1
                               ? VLiteral<T[0], 'required'>
                               : T['length'] extends 2
-                                ? VUnion<T[number], [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>], 'required', never>
+                                ? VUnion<
+                                    T[number],
+                                    [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>],
+                                    'required',
+                                    never
+                                  >
                                 : VUnion<T[number], EnumToLiteralsTuple<T>, 'required', never>
                             : T extends Record<string, string | number>
-                              ? VUnion<T[keyof T], Array<VLiteral<T[keyof T], 'required'>>, 'required', never>
+                              ? VUnion<
+                                  T[keyof T],
+                                  Array<VLiteral<T[keyof T], 'required'>>,
+                                  'required',
+                                  never
+                                >
                               : VUnion<string, any[], 'required', any>
                           : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                             ? VRecord<
@@ -175,10 +185,28 @@ export type ConvexValidatorFromZod<
                                     ? T['length'] extends 1
                                       ? VLiteral<T[0], Constraint>
                                       : T['length'] extends 2
-                                        ? VUnion<T[number], [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>], Constraint, never>
-                                        : VUnion<T[number], EnumToLiteralsTuple<T>, Constraint, never>
+                                        ? VUnion<
+                                            T[number],
+                                            [
+                                              VLiteral<T[0], 'required'>,
+                                              VLiteral<T[1], 'required'>
+                                            ],
+                                            Constraint,
+                                            never
+                                          >
+                                        : VUnion<
+                                            T[number],
+                                            EnumToLiteralsTuple<T>,
+                                            Constraint,
+                                            never
+                                          >
                                     : T extends Record<string, string | number>
-                                      ? VUnion<T[keyof T], Array<VLiteral<T[keyof T], 'required'>>, Constraint, never>
+                                      ? VUnion<
+                                          T[keyof T],
+                                          Array<VLiteral<T[keyof T], 'required'>>,
+                                          Constraint,
+                                          never
+                                        >
                                       : VUnion<string, any[], Constraint, any>
                                   : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                                     ? VRecord<
