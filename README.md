@@ -277,11 +277,12 @@ zActionBuilder(action) // Creates action builder
 **Custom builders** - Add auth or custom context:
 
 ```ts
+import { type QueryCtx } from './_generated/server'
 import { customCtx } from 'zodvex'
 
 const authQuery = zCustomQueryBuilder(
   query,
-  customCtx(async (ctx) => {
+  customCtx(async (ctx: QueryCtx) => {
     const user = await getUserOrThrow(ctx)
     return { user }
   })
@@ -398,14 +399,16 @@ zid('tableName').optional() // → v.optional(v.id('tableName'))
 
 Create builders with injected auth, permissions, or other context:
 
+> **Best Practice:** Always add explicit type annotations to the `ctx` parameter in your `customCtx` functions. This improves TypeScript performance and prevents `ctx` from falling back to `any` in complex type scenarios. Import context types from `./_generated/server` (e.g., `QueryCtx`, `MutationCtx`, `ActionCtx`).
+
 ```ts
 import { zCustomQueryBuilder, zCustomMutationBuilder, customCtx } from 'zodvex'
-import { query, mutation } from './_generated/server'
+import { type QueryCtx, type MutationCtx, query, mutation } from './_generated/server'
 
 // Add user to all queries
 export const authQuery = zCustomQueryBuilder(
   query,
-  customCtx(async (ctx) => {
+  customCtx(async (ctx: QueryCtx) => {
     const user = await getUserOrThrow(ctx)
     return { user }
   })
@@ -414,7 +417,7 @@ export const authQuery = zCustomQueryBuilder(
 // Add user + permissions to mutations
 export const authMutation = zCustomMutationBuilder(
   mutation,
-  customCtx(async (ctx) => {
+  customCtx(async (ctx: MutationCtx) => {
     const user = await getUserOrThrow(ctx)
     const permissions = await getPermissions(ctx, user)
     return { user, permissions }
