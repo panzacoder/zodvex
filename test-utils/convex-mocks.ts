@@ -9,33 +9,41 @@ export const query = ((fn: any) => ({
   isQuery: true,
   isPublic: true,
   ...fn
-})) as <Args, Returns>(
-  fn: { args: Args; returns?: any; handler: (ctx: any, args: any) => Returns }
-) => RegisteredQuery<'public', Args, Returns>
+})) as <Args, Returns>(fn: {
+  args: Args
+  returns?: any
+  handler: (ctx: any, args: any) => Returns
+}) => RegisteredQuery<'public', Args, Returns>
 
 export const mutation = ((fn: any) => ({
   isConvexFunction: true,
   isMutation: true,
   isPublic: true,
   ...fn
-})) as <Args, Returns>(
-  fn: { args: Args; returns?: any; handler: (ctx: any, args: any) => Returns }
-) => RegisteredMutation<'public', Args, Returns>
+})) as <Args, Returns>(fn: {
+  args: Args
+  returns?: any
+  handler: (ctx: any, args: any) => Returns
+}) => RegisteredMutation<'public', Args, Returns>
 
 export const internalQuery = ((fn: any) => ({
   isConvexFunction: true,
   isQuery: true,
   isInternal: true,
   ...fn
-})) as <Args, Returns>(
-  fn: { args: Args; returns?: any; handler: (ctx: any, args: any) => Returns }
-) => RegisteredQuery<'internal', Args, Returns>
+})) as <Args, Returns>(fn: {
+  args: Args
+  returns?: any
+  handler: (ctx: any, args: any) => Returns
+}) => RegisteredQuery<'internal', Args, Returns>
 
 export const internalMutation = ((fn: any) => ({
   isConvexFunction: true,
   isMutation: true,
   isInternal: true,
   ...fn
-})) as <Args, Returns>(
-  fn: { args: Args; returns?: any; handler: (ctx: any, args: any) => Returns }
-) => RegisteredMutation<'internal', Args, Returns>
+})) as <Args, Returns>(fn: {
+  args: Args
+  returns?: any
+  handler: (ctx: any, args: any) => Returns
+}) => RegisteredMutation<'internal', Args, Returns>

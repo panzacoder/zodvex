@@ -17,9 +17,12 @@
     "isolatedModules": true,
     "noEmit": false
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts"
-  ],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "examples/**/*"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "examples/**/*"
+  ]
 }

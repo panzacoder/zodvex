@@ -21,8 +21,16 @@ describe('pick helpers', () => {
   })
 
   it('safePick builds a new ZodObject without using .pick()', () => {
-    const Clerk = safePick(User, { email: true, firstName: true, lastName: true })
-    const parsed = Clerk.parse({ email: 'a@b.com', firstName: undefined, lastName: 'L' })
+    const Clerk = safePick(User, {
+      email: true,
+      firstName: true,
+      lastName: true
+    })
+    const parsed = Clerk.parse({
+      email: 'a@b.com',
+      firstName: undefined,
+      lastName: 'L'
+    })
     expect(parsed.lastName).toBe('L')
   })
 

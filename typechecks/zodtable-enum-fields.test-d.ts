@@ -10,10 +10,12 @@ const shape = {
 
 const Users = zodTable('users', shape)
 
-type Active = typeof Users.doc.fields['activeProfileType']
+type Active = (typeof Users.doc.fields)['activeProfileType']
 
 // Expect optional union-of-literals validator preserved through zodTable
 type _A = Expect<
-  Equal<Active, VOptional<VUnion<'dancer' | 'choreographer', any[], 'required'>>>
+  Equal<
+    Active,
+    VOptional<VUnion<'dancer' | 'choreographer', any[], 'required'>>
+  >
 >
-

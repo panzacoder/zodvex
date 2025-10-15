@@ -26,6 +26,7 @@ npm install zodvex zod@^4.1.0 convex convex-helpers
 ```
 
 **Peer dependencies:**
+
 - `zod` (^4.1.0 or later)
 - `convex` (>= 1.27.0)
 - `convex-helpers` (>= 0.1.104)
@@ -106,16 +107,16 @@ import { zodTable, zid } from 'zodvex'
 export const Users = zodTable('users', {
   name: z.string(),
   email: z.string().email(),
-  age: z.number().optional(),        // → v.optional(v.float64())
-  deletedAt: z.date().nullable(),    // → v.union(v.float64(), v.null())
+  age: z.number().optional(), // → v.optional(v.float64())
+  deletedAt: z.date().nullable(), // → v.union(v.float64(), v.null())
   teamId: zid('teams').optional()
 })
 
 // Access the underlying table
-Users.table      // Convex table definition
-Users.shape      // Original Zod shape
-Users.zDoc       // Zod schema with _id and _creationTime
-Users.docArray   // z.array(zDoc) for return types
+Users.table // Convex table definition
+Users.shape // Original Zod shape
+Users.zDoc // Zod schema with _id and _creationTime
+Users.docArray // z.array(zDoc) for return types
 ```
 
 ## Building Your Schema
@@ -134,8 +135,7 @@ export default defineSchema({
     .index('by_team', ['teamId'])
     .searchIndex('search_name', { searchField: 'name' }),
 
-  teams: Teams.table
-    .index('by_created', ['_creationTime'])
+  teams: Teams.table.index('by_created', ['_creationTime'])
 })
 ```
 
@@ -236,7 +236,11 @@ type CreateUserForm = z.infer<typeof CreateUserForm>
 function UserForm() {
   const createUser = useMutation(api.users.createUser)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<CreateUserForm>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<CreateUserForm>({
     resolver: zodResolver(CreateUserForm)
   })
 
@@ -263,13 +267,15 @@ function UserForm() {
 ### Builders
 
 **Basic builders** - Create type-safe functions without auth:
+
 ```ts
-zQueryBuilder(query)      // Creates query builder
+zQueryBuilder(query) // Creates query builder
 zMutationBuilder(mutation) // Creates mutation builder
-zActionBuilder(action)     // Creates action builder
+zActionBuilder(action) // Creates action builder
 ```
 
 **Custom builders** - Add auth or custom context:
+
 ```ts
 import { customCtx } from 'zodvex'
 
@@ -337,28 +343,52 @@ const decoded = codec.decode(encoded)
 
 ### Supported Types
 
-| Zod Type          | Convex Validator          |
-| ----------------- | ------------------------- |
-| `z.string()`      | `v.string()`              |
-| `z.number()`      | `v.float64()`             |
-| `z.bigint()`      | `v.int64()`               |
-| `z.boolean()`     | `v.boolean()`             |
-| `z.date()`        | `v.float64()` (timestamp) |
-| `z.null()`        | `v.null()`                |
-| `z.array(T)`      | `v.array(T)`              |
-| `z.object({...})` | `v.object({...})`         |
-| `z.record(T)`     | `v.record(v.string(), T)` |
-| `z.union([...])`  | `v.union(...)`            |
-| `z.literal(x)`    | `v.literal(x)`            |
-| `z.enum([...])`   | `v.union(literals...)`    |
-| `z.optional(T)`   | `v.optional(T)`           |
-| `z.nullable(T)`   | `v.union(T, v.null())`    |
+| Zod Type             | Convex Validator                            |
+| -------------------- | ------------------------------------------- |
+| `z.string()`         | `v.string()`                                |
+| `z.number()`         | `v.float64()`                               |
+| `z.bigint()`         | `v.int64()`                                 |
+| `z.boolean()`        | `v.boolean()`                               |
+| `z.date()`           | `v.float64()` (timestamp)                   |
+| `z.null()`           | `v.null()`                                  |
+| `z.array(T)`         | `v.array(T)`                                |
+| `z.object({...})`    | `v.object({...})`                           |
+| `z.record(T)`        | `v.record(v.string(), T)`                   |
+| `z.union([...])`     | `v.union(...)`                              |
+| `z.literal(x)`       | `v.literal(x)`                              |
+| `z.enum(['a', 'b'])` | `v.union(v.literal('a'), v.literal('b'))` ¹ |
+| `z.optional(T)`      | `v.optional(T)`                             |
+| `z.nullable(T)`      | `v.union(T, v.null())`                      |
+
+**Zod v4 Enum Type Note:**
+
+¹ Enum types in Zod v4 produce a slightly different TypeScript signature than manually created unions:
+
+```typescript
+// Manual union (precise tuple type)
+const manual = v.union(v.literal('a'), v.literal('b'))
+// Type: VUnion<"a" | "b", [VLiteral<"a", "required">, VLiteral<"b", "required">], "required", never>
+
+// From Zod enum (array type)
+const fromZod = zodToConvex(z.enum(['a', 'b']))
+// Type: VUnion<"a" | "b", Array<VLiteral<"a" | "b", "required">>, "required", never>
+```
+
+**This difference is purely cosmetic with no functional impact:**
+
+- ✅ Value types are identical (`"a" | "b"`)
+- ✅ Runtime validation is identical
+- ✅ Type safety for function arguments/returns is preserved
+- ✅ Convex uses `T[number]` which works identically for both array and tuple types
+
+This limitation exists because Zod v4 changed enum types from tuple-based to Record-based ([`ToEnum<T>`](https://github.com/colinhacks/zod/blob/v4/src/v4/core/util.ts#L83-L85)). TypeScript cannot convert a Record type to a specific tuple without knowing the keys at compile time. See [Zod v4 changelog](https://zod.dev/v4/changelog) and [enum evolution discussion](https://github.com/colinhacks/zod/discussions/2125) for more details.
 
 **Convex IDs:**
+
 ```ts
 import { zid } from 'zodvex'
 
-zid('tableName')           // → v.id('tableName')
+zid('tableName') // → v.id('tableName')
 zid('tableName').optional() // → v.optional(v.id('tableName'))
 ```
 
@@ -461,7 +491,11 @@ const userShape = pickShape(User, ['email', 'firstName', 'lastName'])
 const UserUpdate = z.object(userShape)
 
 // Or use safePick (convenience wrapper that does the same thing)
-const UserUpdate = safePick(User, { email: true, firstName: true, lastName: true })
+const UserUpdate = safePick(User, {
+  email: true,
+  firstName: true,
+  lastName: true
+})
 ```
 
 ## Why zodvex?
