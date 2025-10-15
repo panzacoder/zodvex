@@ -13,9 +13,9 @@ type TestDataModel = GenericDataModel & {
       email: string
     }
     fieldPaths: '_id' | '_creationTime' | 'name' | 'email'
-    indexes: {}
-    searchIndexes: {}
-    vectorIndexes: {}
+    indexes: Record<string, never>
+    searchIndexes: Record<string, never>
+    vectorIndexes: Record<string, never>
   }
 }
 
@@ -72,10 +72,7 @@ describe('zGetAll', () => {
     const documents = new Map<string, TestDoc | null>([['id1', doc1]])
 
     const db = createMockDb(documents)
-    const ids = [
-      'id1' as GenericId<'users'>,
-      'id_missing' as GenericId<'users'>
-    ]
+    const ids = ['id1' as GenericId<'users'>, 'id_missing' as GenericId<'users'>]
     const result = await zGetAll(db, ids)
 
     expect(result).toHaveLength(2)
@@ -176,10 +173,7 @@ describe('zGetAllNonNull', () => {
   it('returns empty array when all documents are missing', async () => {
     const documents = new Map<string, TestDoc | null>()
     const db = createMockDb(documents)
-    const ids = [
-      'id_missing1' as GenericId<'users'>,
-      'id_missing2' as GenericId<'users'>
-    ]
+    const ids = ['id_missing1' as GenericId<'users'>, 'id_missing2' as GenericId<'users'>]
     const result = await zGetAllNonNull(db, ids)
 
     expect(result).toHaveLength(0)

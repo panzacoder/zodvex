@@ -1,7 +1,7 @@
 import type {
   DocumentByName,
-  GenericDataModel,
   GenericDatabaseReader,
+  GenericDataModel,
   TableNamesInDataModel
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
