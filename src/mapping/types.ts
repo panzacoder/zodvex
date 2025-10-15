@@ -22,6 +22,25 @@ type IsZid<T> = T extends { _tableName: infer _TableName extends string } ? true
 // Extract table name from zid type (via _tableName property)
 type ExtractTableName<T> = T extends { _tableName: infer TableName } ? TableName : never
 
+// Helper to map enum tuple to VLiteral validators tuple
+// Based on convex-helpers approach which handles different lengths explicitly
+// This avoids TypeScript recursion issues and provides better type inference
+type EnumToLiteralsTuple<T extends readonly [string, ...string[]]> = T['length'] extends 1
+  ? [VLiteral<T[0], 'required'>]
+  : T['length'] extends 2
+    ? [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>]
+    : [
+        VLiteral<T[0], 'required'>,
+        VLiteral<T[1], 'required'>,
+        ...{
+          [K in keyof T]: K extends '0' | '1'
+            ? never
+            : K extends keyof T
+              ? VLiteral<T[K], 'required'>
+              : never
+        }[keyof T & number][]
+      ]
+
 export type ZodValidator = Record<string, z.ZodTypeAny>
 
 // Helper type to convert optional types to union with null for container elements
@@ -62,11 +81,15 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                       : Z extends z.ZodLiteral<infer T>
                         ? VLiteral<T, 'required'>
                         : Z extends z.ZodEnum<infer T>
-                          ? T extends Readonly<Record<string, infer _V>>
-                            ? T[keyof T] extends infer Values
-                              ? VUnion<Values, any[], 'required'>
-                              : never
-                            : never
+                          ? T extends readonly [string, ...string[]]
+                            ? T['length'] extends 1
+                              ? VLiteral<T[0], 'required'>
+                              : T['length'] extends 2
+                                ? VUnion<T[number], [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>], 'required', never>
+                                : VUnion<T[number], EnumToLiteralsTuple<T>, 'required', never>
+                            : T extends Record<string, string | number>
+                              ? VUnion<T[keyof T], Array<VLiteral<T[keyof T], 'required'>>, 'required', never>
+                              : VUnion<string, any[], 'required', any>
                           : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                             ? VRecord<
                                 Record<string, z.infer<V>>,
@@ -148,11 +171,15 @@ export type ConvexValidatorFromZod<
                               : Z extends z.ZodLiteral<infer T>
                                 ? VLiteral<T, Constraint>
                                 : Z extends z.ZodEnum<infer T>
-                                  ? T extends Readonly<Record<string, infer _V>>
-                                    ? T[keyof T] extends infer Values
-                                      ? VUnion<Values, any[], Constraint>
-                                      : never
-                                    : never
+                                  ? T extends readonly [string, ...string[]]
+                                    ? T['length'] extends 1
+                                      ? VLiteral<T[0], Constraint>
+                                      : T['length'] extends 2
+                                        ? VUnion<T[number], [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>], Constraint, never>
+                                        : VUnion<T[number], EnumToLiteralsTuple<T>, Constraint, never>
+                                    : T extends Record<string, string | number>
+                                      ? VUnion<T[keyof T], Array<VLiteral<T[keyof T], 'required'>>, Constraint, never>
+                                      : VUnion<string, any[], Constraint, any>
                                   : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                                     ? VRecord<
                                         Record<string, z.infer<V>>,
