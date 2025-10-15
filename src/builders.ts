@@ -155,13 +155,13 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
  *
  * @example
  * ```ts
- * import { query } from './_generated/server'
+ * import { type QueryCtx, query } from './_generated/server'
  * import { zCustomQueryBuilder, customCtx } from 'zodvex'
  *
  * // Create a builder with auth context
  * export const authQuery = zCustomQueryBuilder(
  *   query,
- *   customCtx(async (ctx) => {
+ *   customCtx(async (ctx: QueryCtx) => {
  *     const user = await getUserOrThrow(ctx)
  *     return { user }
  *   })
@@ -208,13 +208,13 @@ export function zCustomQueryBuilder<
  *
  * @example
  * ```ts
- * import { mutation } from './_generated/server'
+ * import { type MutationCtx, mutation } from './_generated/server'
  * import { zCustomMutationBuilder, customCtx } from 'zodvex'
  *
  * // Create a builder with auth context
  * export const authMutation = zCustomMutationBuilder(
  *   mutation,
- *   customCtx(async (ctx) => {
+ *   customCtx(async (ctx: MutationCtx) => {
  *     const user = await getUserOrThrow(ctx)
  *     return { user }
  *   })
@@ -261,13 +261,13 @@ export function zCustomMutationBuilder<
  *
  * @example
  * ```ts
- * import { action } from './_generated/server'
+ * import { type ActionCtx, action } from './_generated/server'
  * import { zCustomActionBuilder, customCtx } from 'zodvex'
  *
  * // Create a builder with auth context
  * export const authAction = zCustomActionBuilder(
  *   action,
- *   customCtx(async (ctx) => {
+ *   customCtx(async (ctx: ActionCtx) => {
  *     const identity = await ctx.auth.getUserIdentity()
  *     if (!identity) throw new Error('Unauthorized')
  *     return { userId: identity.subject }
