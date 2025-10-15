@@ -343,22 +343,22 @@ const decoded = codec.decode(encoded)
 
 ### Supported Types
 
-| Zod Type          | Convex Validator          |
-| ----------------- | ------------------------- |
-| `z.string()`      | `v.string()`              |
-| `z.number()`      | `v.float64()`             |
-| `z.bigint()`      | `v.int64()`               |
-| `z.boolean()`     | `v.boolean()`             |
-| `z.date()`        | `v.float64()` (timestamp) |
-| `z.null()`        | `v.null()`                |
-| `z.array(T)`      | `v.array(T)`              |
-| `z.object({...})` | `v.object({...})`         |
-| `z.record(T)`     | `v.record(v.string(), T)` |
-| `z.union([...])`  | `v.union(...)`            |
-| `z.literal(x)`    | `v.literal(x)`            |
+| Zod Type             | Convex Validator                            |
+| -------------------- | ------------------------------------------- |
+| `z.string()`         | `v.string()`                                |
+| `z.number()`         | `v.float64()`                               |
+| `z.bigint()`         | `v.int64()`                                 |
+| `z.boolean()`        | `v.boolean()`                               |
+| `z.date()`           | `v.float64()` (timestamp)                   |
+| `z.null()`           | `v.null()`                                  |
+| `z.array(T)`         | `v.array(T)`                                |
+| `z.object({...})`    | `v.object({...})`                           |
+| `z.record(T)`        | `v.record(v.string(), T)`                   |
+| `z.union([...])`     | `v.union(...)`                              |
+| `z.literal(x)`       | `v.literal(x)`                              |
 | `z.enum(['a', 'b'])` | `v.union(v.literal('a'), v.literal('b'))` ¹ |
-| `z.optional(T)`   | `v.optional(T)`           |
-| `z.nullable(T)`   | `v.union(T, v.null())`    |
+| `z.optional(T)`      | `v.optional(T)`                             |
+| `z.nullable(T)`      | `v.union(T, v.null())`                      |
 
 **Zod v4 Enum Type Note:**
 
@@ -375,6 +375,7 @@ const fromZod = zodToConvex(z.enum(['a', 'b']))
 ```
 
 **This difference is purely cosmetic with no functional impact:**
+
 - ✅ Value types are identical (`"a" | "b"`)
 - ✅ Runtime validation is identical
 - ✅ Type safety for function arguments/returns is preserved
