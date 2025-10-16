@@ -1,7 +1,7 @@
 {
   "name": "zodvex",
-  "version": "0.2.2",
-  "description": "Zod v4 → Convex validator mapping with correct optional/nullable semantics",
+  "version": "0.2.3",
+  "description": "Zod <=> Convex integration, supporting Zod 4",
   "keywords": [
     "zod",
     "convex",
