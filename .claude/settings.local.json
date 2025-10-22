@@ -14,7 +14,8 @@
       "Bash(npx tsc:*)",
       "WebFetch(domain:stack.convex.dev)",
       "Bash(find:*)",
-      "Bash(gh pr view:*)"
+      "Bash(gh pr view:*)",
+      "Bash(gh issue view:*)"
     ],
     "deny": [],
     "ask": []
