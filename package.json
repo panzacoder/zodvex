@@ -42,7 +42,7 @@
     "lint": "bun x biome check src __tests__",
     "lint:fix": "bun x biome check --write src __tests__",
     "format": "bun x biome format --write src __tests__",
-    "prepare": "bun run build",
+    "prepare": "tsup",
     "prepublishOnly": "bun test && bun run type-check"
   },
   "peerDependencies": {
