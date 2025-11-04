@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Zod <=> Convex integration, supporting Zod 4",
   "keywords": [
     "zod",
