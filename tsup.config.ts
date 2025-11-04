@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: ['src/index.ts'],
-  format: ['cjs', 'esm'],
+  format: ['esm'],
   dts: {
     resolve: true,
     compilerOptions: {
@@ -17,10 +17,5 @@ export default defineConfig({
   minify: false,
   external: ['zod', 'convex', 'convex-helpers'],
   outDir: 'dist',
-  target: 'node18',
-  esbuildOptions(options) {
-    options.banner = {
-      js: '"use strict";'
-    }
-  }
+  target: 'node18'
 })

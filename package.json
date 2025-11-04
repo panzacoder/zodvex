@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Zod <=> Convex integration, supporting Zod 4",
   "keywords": [
     "zod",
@@ -21,9 +21,16 @@
   },
   "license": "MIT",
   "author": "Jake Hebert",
+  "type": "module",
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
     "dist",
     "src",
@@ -35,10 +42,6 @@
     "dev": "bun run tsup --watch",
     "type-check": "bun run tsc --noEmit",
     "test": "bun test",
-    "test:vitest": "bun run vitest",
-    "test:types": "bun run vitest --typecheck.only",
-    "test:all": "bun test && bun run test:types",
-    "test:coverage": "bun run vitest run --coverage",
     "lint": "bun x biome check src __tests__",
     "lint:fix": "bun x biome check --write src __tests__",
     "format": "bun x biome format --write src __tests__",
@@ -54,10 +57,8 @@
     "@biomejs/biome": "^2.2.6",
     "@types/bun": "^1.3.0",
     "@types/node": "^24.8.0",
-    "@vitest/coverage-v8": "^3.2.4",
     "tsup": "^8.5.0",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=20",
