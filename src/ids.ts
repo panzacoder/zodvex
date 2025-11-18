@@ -16,23 +16,21 @@ export const registryHelpers = {
 /**
  * Create a Zod validator for a Convex Id
  *
- * Uses the string → transform → brand pattern for proper type narrowing with ctx.db.get()
- * This aligns with Zod v4 best practices and matches convex-helpers implementation
+ * Compatible with AI SDK and other tools that don't support transforms.
+ * Uses type-level branding instead of runtime transforms for GenericId<T> compatibility.
+ *
+ * @param tableName - The Convex table name for this ID
+ * @returns A Zod string validator typed as GenericId<TableName>
  */
 export function zid<TableName extends string>(
   tableName: TableName
 ): z.ZodType<GenericId<TableName>> & { _tableName: TableName } {
-  // Use the string → transform → brand pattern (aligned with Zod v4 best practices)
+  // Create base string validator with refinement (no transform or brand)
   const baseSchema = z
     .string()
     .refine(val => typeof val === 'string' && val.length > 0, {
       message: `Invalid ID for table "${tableName}"`
     })
-    .transform(val => {
-      // Cast to GenericId while keeping the string value
-      return val as string & GenericId<TableName>
-    })
-    .brand(`ConvexId_${tableName}`) // Use native Zod v4 .brand() method
     // Add a human-readable marker for client-side introspection utilities
     // used in apps/native (e.g., to detect relationship fields in dynamic forms).
     .describe(`convexId:${tableName}`)
@@ -47,6 +45,8 @@ export function zid<TableName extends string>(
   const branded = baseSchema as any
   branded._tableName = tableName
 
+  // Type assertion provides GenericId<TableName> typing without runtime transform
+  // This maintains type safety while being compatible with AI SDK and similar tools
   return branded as z.ZodType<GenericId<TableName>> & { _tableName: TableName }
 }
 

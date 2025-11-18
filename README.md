@@ -568,6 +568,76 @@ const UserUpdate = safePick(User, {
 })
 ```
 
+### AI SDK Compatibility
+
+zodvex schemas are fully compatible with [Vercel's AI SDK](https://sdk.vercel.ai/docs), including `zid` for Convex IDs.
+
+#### Using with AI SDK
+
+```ts
+import { generateObject } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { z } from 'zod'
+import { zid } from 'zodvex'
+
+const userSchema = z.object({
+  id: zid('users'),        // ✅ Works with AI SDK
+  name: z.string(),
+  email: z.string().email(),
+  age: z.number().int(),
+  teamId: zid('teams').optional()
+})
+
+const result = await generateObject({
+  model: openai('gpt-4'),
+  schema: userSchema,
+  prompt: 'Generate a sample user profile'
+})
+
+// result.object is fully typed and validated
+console.log(result.object.id) // Type: GenericId<'users'>
+```
+
+#### Why It Works
+
+AI SDK requires schemas to be serializable (no `.transform()` or `.brand()`). zodvex's `zid` uses type-level branding instead of runtime transforms, making it compatible:
+
+```ts
+// zodvex approach (compatible)
+zid('users') // String validator with type assertion → GenericId<'users'>
+
+// Not compatible (using transforms)
+z.string().transform(s => s as GenericId<'users'>) // ❌ AI SDK rejects
+```
+
+#### Schemas with Custom Transforms
+
+If you have schemas with custom `.transform()` or `.pipe()`, AI SDK may reject them. For complex transformations, consider:
+
+**Option 1: Separate schemas**
+```ts
+// For AI SDK (no transforms)
+const aiUserSchema = z.object({
+  createdAt: z.string() // ISO string
+})
+
+// For internal use (with transforms)
+const internalUserSchema = z.object({
+  createdAt: z.string().transform(s => new Date(s))
+})
+```
+
+**Option 2: Use Zod 4 codecs** (Future enhancement)
+```ts
+// Research needed: Zod 4.1+ codec API
+const dateCodec = z.codec(z.string(), z.date(), {
+  encode: (date) => date.toISOString(),
+  decode: (str) => new Date(str)
+})
+```
+
+> **Note:** We're researching Zod 4's codec API and JSON schema annotations to provide better AI SDK integration for complex schemas. See [Issue #22](https://github.com/panzacoder/zodvex/issues/22) for updates.
+
 ## zodvex vs convex-helpers/zod4
 
 Convex officially supports Zod 4 via `convex-helpers/server/zod4`. zodvex builds on those primitives to provide a batteries-included, opinionated solution.
