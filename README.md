@@ -576,11 +576,10 @@ const UserUpdate = safePick(User, {
 
 ### Polymorphic Tables with Unions
 
-For tables with discriminated union schemas (polymorphic data), use `Table` and `zodToConvex` directly:
+zodvex fully supports polymorphic tables using discriminated unions! Use `zodTable()` directly with union schemas:
 
 ```ts
-import { Table } from 'convex-helpers/server'
-import { zodToConvex, zid } from 'zodvex'
+import { zodTable, zid } from 'zodvex'
 import { z } from 'zod'
 
 // Define your discriminated union schema
@@ -604,64 +603,92 @@ const shapeSchema = z.union([
   })
 ])
 
-// Define the table
-export const Shapes = Table('shapes', zodToConvex(shapeSchema))
+// Define the table - zodTable() accepts unions!
+export const Shapes = zodTable('shapes', shapeSchema)
 
-// For return types, manually add system fields to each variant
-const shapeDocSchema = z.union([
-  z.object({
-    _id: zid('shapes'),
-    _creationTime: z.number(),
-    kind: z.literal('circle'),
-    cx: z.number(),
-    cy: z.number(),
-    r: z.number()
-  }),
-  z.object({
-    _id: zid('shapes'),
-    _creationTime: z.number(),
-    kind: z.literal('rectangle'),
-    x: z.number(),
-    y: z.number(),
-    width: z.number(),
-    height: z.number()
-  }),
-  z.object({
-    _id: zid('shapes'),
-    _creationTime: z.number(),
-    kind: z.literal('path'),
-    path: z.string()
-  })
-])
+// Use in schema
+export default defineSchema({
+  shapes: Shapes.table
+})
 
-// Use in your functions
+// docArray automatically includes system fields for each variant
 export const getShapes = zq({
   args: {},
-  returns: z.array(shapeDocSchema),
+  returns: Shapes.docArray,  // ✅ Each variant has _id and _creationTime
   handler: async (ctx) => ctx.db.query('shapes').collect()
 })
 
-export const createCircle = zm({
-  args: {
-    cx: z.number(),
-    cy: z.number(),
-    r: z.number()
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.insert('shapes', {
-      kind: 'circle',
-      ...args
-    })
+// Create with type-safe discriminated unions
+export const createShape = zm({
+  args: shapeSchema,
+  handler: async (ctx, shape) => {
+    // shape is discriminated - TypeScript knows the fields based on `kind`
+    return await ctx.db.insert('shapes', shape)
   }
 })
 ```
 
-**Note:** Union tables don't have a fixed `.shape`, so `zodTable()` doesn't currently support them directly. See [Issue #20](https://github.com/panzacoder/zodvex/issues/20) for planned improvements.
+#### Union Table Helpers
+
+Union tables provide different helpers than object tables:
+
+```ts
+const Shapes = zodTable('shapes', shapeSchema)
+
+// Available properties:
+Shapes.table          // TableDefinition for schema
+Shapes.tableName      // 'shapes'
+Shapes.schema         // Original union schema
+Shapes.validator      // Convex validator (union)
+Shapes.docArray       // Array schema with system fields added to each variant
+Shapes.withSystemFields()  // Returns union with _id and _creationTime on each variant
+
+// NOT available (specific to object tables):
+// Shapes.shape       - unions don't have a fixed shape
+// Shapes.zDoc        - use withSystemFields() instead
+```
+
+#### Advanced Union Patterns
+
+**Shared base schema:**
+
+```ts
+const baseShape = z.object({
+  color: z.string(),
+  strokeWidth: z.number()
+})
+
+const shapeSchema = z.union([
+  baseShape.extend({
+    kind: z.literal('circle'),
+    radius: z.number()
+  }),
+  baseShape.extend({
+    kind: z.literal('rectangle'),
+    width: z.number(),
+    height: z.number()
+  })
+])
+
+export const Shapes = zodTable('shapes', shapeSchema)
+```
+
+**Using z.discriminatedUnion:**
+
+```ts
+const shapeSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('circle'), r: z.number() }),
+  z.object({ kind: z.literal('rectangle'), w: z.number(), h: z.number() })
+])
+
+export const Shapes = zodTable('shapes', shapeSchema)
+```
 
 **When to use discriminated unions:**
 - Polymorphic data (e.g., different shape types, notification variants)
 - Tables with multiple distinct subtypes sharing common fields
 - Event sourcing patterns with different event types
+- When you need type-safe variant handling in TypeScript
 
 **Learn more:**
 - [Convex Polymorphic Data](https://docs.convex.dev/database/types#polymorphic-types)

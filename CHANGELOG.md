@@ -13,10 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Union table support** - `zodTable()` now accepts union schemas for polymorphic tables with discriminated unions (resolves #20)
+  - New `addSystemFields()` helper function for adding `_id` and `_creationTime` to union variants
+  - New `withSystemFields()` method on union tables for generating document schemas
+  - Comprehensive test suite with 21 tests covering union tables, depth checks, and edge cases
 - AI SDK compatibility - `zid` and all zodvex schemas now work with Vercel's AI SDK `generateObject()` and similar functions
 - New test suite for `zid` functionality and AI SDK compatibility
 - Comprehensive AI SDK documentation in README
-- Documentation for polymorphic tables with discriminated unions (workaround for #20)
+- Documentation for polymorphic tables with discriminated unions
 
 ### Fixed
 
