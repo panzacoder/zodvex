@@ -18,6 +18,12 @@ Type-safe Convex functions with Zod schemas. Preserve Convex's optional/nullable
 - [Form Validation](#form-validation)
 - [API Reference](#api-reference)
 - [Advanced Usage](#advanced-usage)
+  - [Custom Context Builders](#custom-context-builders)
+  - [Date Handling](#date-handling)
+  - [Return Type Helpers](#return-type-helpers)
+  - [Working with Large Schemas](#working-with-large-schemas)
+  - [Polymorphic Tables with Unions](#polymorphic-tables-with-unions)
+  - [AI SDK Compatibility](#ai-sdk-compatibility)
 
 ## Installation
 
@@ -567,6 +573,99 @@ const UserUpdate = safePick(User, {
   lastName: true
 })
 ```
+
+### Polymorphic Tables with Unions
+
+For tables with discriminated union schemas (polymorphic data), use `Table` and `zodToConvex` directly:
+
+```ts
+import { Table } from 'convex-helpers/server'
+import { zodToConvex, zid } from 'zodvex'
+import { z } from 'zod'
+
+// Define your discriminated union schema
+const shapeSchema = z.union([
+  z.object({
+    kind: z.literal('circle'),
+    cx: z.number(),
+    cy: z.number(),
+    r: z.number()
+  }),
+  z.object({
+    kind: z.literal('rectangle'),
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number()
+  }),
+  z.object({
+    kind: z.literal('path'),
+    path: z.string()
+  })
+])
+
+// Define the table
+export const Shapes = Table('shapes', zodToConvex(shapeSchema))
+
+// For return types, manually add system fields to each variant
+const shapeDocSchema = z.union([
+  z.object({
+    _id: zid('shapes'),
+    _creationTime: z.number(),
+    kind: z.literal('circle'),
+    cx: z.number(),
+    cy: z.number(),
+    r: z.number()
+  }),
+  z.object({
+    _id: zid('shapes'),
+    _creationTime: z.number(),
+    kind: z.literal('rectangle'),
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number()
+  }),
+  z.object({
+    _id: zid('shapes'),
+    _creationTime: z.number(),
+    kind: z.literal('path'),
+    path: z.string()
+  })
+])
+
+// Use in your functions
+export const getShapes = zq({
+  args: {},
+  returns: z.array(shapeDocSchema),
+  handler: async (ctx) => ctx.db.query('shapes').collect()
+})
+
+export const createCircle = zm({
+  args: {
+    cx: z.number(),
+    cy: z.number(),
+    r: z.number()
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert('shapes', {
+      kind: 'circle',
+      ...args
+    })
+  }
+})
+```
+
+**Note:** Union tables don't have a fixed `.shape`, so `zodTable()` doesn't currently support them directly. See [Issue #20](https://github.com/panzacoder/zodvex/issues/20) for planned improvements.
+
+**When to use discriminated unions:**
+- Polymorphic data (e.g., different shape types, notification variants)
+- Tables with multiple distinct subtypes sharing common fields
+- Event sourcing patterns with different event types
+
+**Learn more:**
+- [Convex Polymorphic Data](https://docs.convex.dev/database/types#polymorphic-types)
+- [Zod Discriminated Unions](https://zod.dev/discriminated-unions)
 
 ### AI SDK Compatibility
 
