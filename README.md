@@ -441,26 +441,93 @@ export const updateProfile = authMutation({
 
 ### Date Handling
 
-Dates are automatically converted to timestamps:
+zodvex automatically converts dates between JavaScript `Date` objects and Convex timestamps when using `z.date()` in your schemas.
+
+#### Automatic Conversion (Recommended)
+
+Use `z.date()` for automatic handling - no manual conversion needed:
 
 ```ts
 const eventShape = {
   title: z.string(),
   startDate: z.date(),
-  endDate: z.date().nullable()
+  endDate: z.date().nullable(),
+  createdAt: z.date().optional()
 }
 
 export const Events = zodTable('events', eventShape)
 
+// In your function - dates work seamlessly
 export const createEvent = zm({
   args: eventShape,
-  handler: async (ctx, event) => {
-    // event.startDate is a Date object
-    // Automatically converted to timestamp for storage
-    return await ctx.db.insert('events', event)
+  handler: async (ctx, { startDate, endDate, title }) => {
+    // startDate and endDate are already Date objects!
+    console.log(startDate.toISOString()) // ✅ Works
+
+    // Automatically converted to timestamps for storage
+    return await ctx.db.insert('events', { title, startDate, endDate })
   }
 })
+
+// On the frontend - just pass Date objects
+const createEvent = useMutation(api.events.createEvent)
+await createEvent({
+  title: 'My Event',
+  startDate: new Date('2024-01-01'),
+  endDate: new Date('2024-01-02')
+})
+// ✅ No manual conversion needed!
 ```
+
+**How it works:**
+- **Args**: Timestamps from client → automatically decoded to `Date` objects
+- **Returns**: `Date` objects from handler → automatically encoded to timestamps
+- **Storage**: Dates are stored as `v.float64()` (Convex doesn't have a native Date type)
+
+#### Manual String Dates (Alternative)
+
+If you prefer working with ISO strings instead of Date objects, use `z.string()`:
+
+```ts
+// ❌ Using z.string() means NO automatic conversion
+const schema = {
+  birthday: z.string() // Stored as ISO string
+}
+
+export const updateUser = zm({
+  args: schema,
+  handler: async (ctx, { birthday }) => {
+    // birthday is a string, you must manually parse
+    const date = new Date(birthday) // Manual conversion
+    await ctx.db.insert('users', { birthday })
+  }
+})
+
+// On frontend - manual conversion
+await updateUser({
+  birthday: new Date().toISOString() // Must manually convert
+})
+```
+
+**When to use which:**
+- ✅ **`z.date()`** - When you want automatic conversion and type-safe Date objects (recommended)
+- ⚠️ **`z.string()`** - When you need ISO strings for display/formatting (requires manual parsing)
+
+#### Edge Case: Date/Number Unions
+
+If you need a field that accepts both dates and numbers (rare), use explicit transforms:
+
+```ts
+// Edge case: field that can be a date OR a timestamp
+const flexibleDate = z.union([
+  z.date(),
+  z.number().transform(ts => new Date(ts))
+])
+
+// Most apps don't need this - fields are either dates OR numbers, not both
+```
+
+**Note:** In real-world schemas, mixing dates and numbers in unions is uncommon. Design your data model so fields have a single type.
 
 ### Return Type Helpers
 
@@ -501,6 +568,35 @@ const UserUpdate = safePick(User, {
 })
 ```
 
+## zodvex vs convex-helpers/zod4
+
+Convex officially supports Zod 4 via `convex-helpers/server/zod4`. zodvex builds on those primitives to provide a batteries-included, opinionated solution.
+
+**Use convex-helpers if you want:**
+- Low-level control over encoding/decoding
+- Explicit Zod codecs for all conversions
+- Minimal abstractions
+- Both Zod 3 and 4 support in one package
+
+**Use zodvex if you want:**
+- Automatic date handling (no manual codecs needed)
+- Table helpers with `.table`, `.zDoc`, `.docArray`, `.shape`
+- Builder pattern API for consistent function definitions
+- Codec abstraction with `.pick()` for subsets
+- Turnkey developer experience
+
+**Key differences:**
+
+| Feature | zodvex | convex-helpers/zod4 |
+|---------|--------|---------------------|
+| Date conversion | Automatic with `z.date()` | Manual `z.codec()` required |
+| Table helpers | `zodTable()` with helpers | Not provided |
+| Builder pattern | `zQueryBuilder()`, etc. | Not provided |
+| Codec abstraction | `convexCodec()` with `.pick()` | Not provided |
+| Philosophy | Batteries-included | Minimal primitives |
+
+Both are valid choices - zodvex trades some explicitness for significantly better ergonomics.
+
 ## Why zodvex?
 
 - **Correct optional/nullable semantics** - Preserves Convex's distinction
@@ -508,7 +604,8 @@ const UserUpdate = safePick(User, {
   - `.nullable()` → `v.union(T, v.null())` (required but can be null)
   - Both → `v.optional(v.union(T, v.null()))`
 - **Superior type safety** - Builders provide better type inference than wrapper functions
-- **Date handling** - Automatic `Date` ↔ timestamp conversion
+- **Automatic date handling** - `Date` ↔ timestamp conversion happens transparently
+- **Table helpers** - `zodTable()` provides `.zDoc`, `.docArray`, and `.shape` for DRY schemas
 - **End-to-end validation** - Same schema from database to frontend forms
 
 ## Compatibility
