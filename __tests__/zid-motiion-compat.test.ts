@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { zid, registryHelpers } from '../src/ids'
+import { registryHelpers, zid } from '../src/ids'
 
 /**
  * Compatibility tests for motiion project's usage of zid
@@ -127,10 +127,12 @@ describe('zid - motiion compatibility', () => {
 
     it('handles nested objects with zid fields', () => {
       const representationSchema = z.object({
-        representation: z.object({
-          agencyId: zid('agencies').optional(),
-          displayRep: z.boolean().optional()
-        }).optional()
+        representation: z
+          .object({
+            agencyId: zid('agencies').optional(),
+            displayRep: z.boolean().optional()
+          })
+          .optional()
       })
 
       const defaults = getDefaults(representationSchema)
@@ -174,10 +176,7 @@ describe('zid - motiion compatibility', () => {
 
   describe('real-world usage patterns from motiion', () => {
     it('works in union types (profileId pattern)', () => {
-      const profileIdUnion = z.union([
-        zid('dancers'),
-        zid('choreographers')
-      ])
+      const profileIdUnion = z.union([zid('dancers'), zid('choreographers')])
 
       const dancerVariant = profileIdUnion.options[0]
       const choreoVariant = profileIdUnion.options[1]
@@ -213,10 +212,7 @@ describe('zid - motiion compatibility', () => {
     })
 
     it('works in storage union pattern (media field)', () => {
-      const mediaSchema = z.union([
-        zid('_storage'),
-        z.string()
-      ])
+      const mediaSchema = z.union([zid('_storage'), z.string()])
 
       const storageVariant = mediaSchema.options[0]
       expect((storageVariant as any)._tableName).toBe('_storage')
