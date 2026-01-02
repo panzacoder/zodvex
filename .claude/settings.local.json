@@ -19,6 +19,7 @@
       "Bash(gh pr diff:*)",
       "Bash(gh issue list:*)",
       "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.convex.dev)",
       "Bash(grep:*)"
     ],
     "deny": [],

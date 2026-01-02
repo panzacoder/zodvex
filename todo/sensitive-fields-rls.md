@@ -421,3 +421,463 @@ Package exports:
   }
 }
 ```
+
+---
+
+## Brainstorming: Zod v4 Native Codecs Approach
+
+> **Date**: 2024-12-18
+> **Context**: Exploring how to leverage Zod v4's built-in codec API rather than building parallel abstractions
+
+### Zod v4 Codec Primer
+
+From [Zod codecs documentation](https://zod.dev/codecs) and [Colin's introduction](https://colinhacks.com/essays/introducing-zod-codecs):
+
+```typescript
+const stringToDate = z.codec(
+  z.iso.datetime(),  // input schema (what you receive)
+  z.date(),          // output schema (what you get after decode)
+  {
+    decode: isoString => new Date(isoString),
+    encode: date => date.toISOString(),
+  }
+)
+
+// Usage
+z.decode(stringToDate, "2024-01-01T00:00:00Z")  // → Date
+z.encode(stringToDate, new Date())              // → "2024-01-01T00:00:00Z"
+```
+
+Key properties:
+- **Bidirectional** - encode and decode are inverses
+- **Recursive** - nested codecs in objects are automatically applied
+- **Type-safe** - `z.decode()` expects typed input, not `unknown`
+
+### The Three Representations Problem
+
+Sensitive fields have three representations, not two:
+
+```
+DB (raw)  ←→  Handler (SensitiveField<T>)  ←→  Wire (SensitiveFieldRaw)
+```
+
+- **DB**: Raw value stored in Convex (e.g., `"alice@example.com"`)
+- **Handler**: `SensitiveField<string>` instance with authorization state
+- **Wire**: `SensitiveFieldRaw` envelope (`{ __sensitiveField, status, value, reason }`)
+
+### Option A: Two Codecs
+
+```typescript
+// Codec for DB ↔ Handler
+const dbSensitiveString = z.codec(
+  z.string(),                         // DB: raw string
+  sensitiveFieldSchema(z.string()),   // Handler: SensitiveField<string>
+  {
+    decode: (raw) => SensitiveField.unevaluated(raw),
+    encode: (field) => field.unwrap(),  // Extract raw value for storage
+  }
+)
+
+// Codec for Wire ↔ Handler
+const wireSensitiveString = z.codec(
+  sensitiveFieldRawSchema(z.string()),  // Wire: { __sensitiveField, status, value, ... }
+  sensitiveFieldSchema(z.string()),     // Handler: SensitiveField<string>
+  {
+    decode: (raw) => SensitiveField.deserialize(raw),
+    encode: (field) => field.serialize(),
+  }
+)
+```
+
+### Option B: One Codec + Strip Function
+
+```typescript
+const zSensitive = <T extends z.ZodTypeAny>(inner: T) => {
+  // Returns a codec that transforms between SensitiveFieldRaw ↔ SensitiveField<T>
+  return z.codec(
+    sensitiveFieldRawSchema(inner),
+    sensitiveFieldInstanceSchema(inner),
+    {
+      decode: (raw) => SensitiveField.deserialize(raw),
+      encode: (field) => field.serialize(),
+    }
+  )
+}
+
+// Schema uses wire codec (what functions see)
+const patientSchema = z.object({
+  email: zSensitive(z.string()).optional(),
+})
+
+// Table definition strips to raw values
+const tableSchema = stripToRaw(patientSchema)  // z.object({ email: z.string().optional() })
+```
+
+### Authorization as Separate Layer
+
+Codecs are pure transformations. Authorization (`.limit(clearance)`) is a policy decision that needs runtime context.
+
+Proposed separation:
+
+```typescript
+// In query wrapper
+const result = await handler(ctx, args)
+
+// 1. Apply authorization (policy layer - needs ctx)
+const authorized = applyClearance(result, schema, ctx.session.clearance)
+
+// 2. Encode for wire (pure transformation - no ctx needed)
+return z.encode(schema, authorized)
+```
+
+This keeps:
+- **Codec**: Pure, testable, bidirectional transformation
+- **Authorization**: Separate concern with access to session/clearance context
+
+### Current Client Schema Example
+
+For reference, here's how they currently define a table with sensitive fields:
+
+```typescript
+import { defineTable } from 'convex/server'
+import { v } from 'convex/values'
+import { stripSensitive, vs } from '@/convex/hotpot/validators'
+
+export const schema = v.object({
+    clinicId: v.string(),
+    email: vs.optional(vs.sensitive(v.string())),
+    firstName: vs.optional(vs.sensitive(v.string())),
+    lastName: vs.optional(vs.sensitive(v.string())),
+    phoneNumber: vs.optional(vs.sensitive(v.string())),
+    timezone: v.optional(v.string()),
+    isIdentified: v.optional(v.boolean()),
+})
+
+// Strip sensitive wrappers for actual table definition
+export const table = defineTable(stripSensitive(schema))
+    .index('clinicId', ['clinicId', 'isIdentified'])
+    .index('email', ['email'])
+    .index('phoneNumber', ['phoneNumber'])
+
+export const rules = {
+    read: async ({ scope }: SessionQueryCtx, patient: SecDoc<'patients'>) => {
+        if (scope.role === 'patient') {
+            return scope.patientId === patient._id
+        }
+        if (scope.role === 'provider') {
+            return scope.clinicId === patient.clinicId
+        }
+        return false
+    },
+}
+```
+
+With Zod codecs, equivalent might look like:
+
+```typescript
+import { z } from 'zod'
+import { zSensitive, stripToRaw } from 'zodvex/sensitive'
+
+export const patientSchema = z.object({
+    clinicId: z.string(),
+    email: zSensitive(z.string()).optional(),
+    firstName: zSensitive(z.string()).optional(),
+    lastName: zSensitive(z.string()).optional(),
+    phoneNumber: zSensitive(z.string()).optional(),
+    timezone: z.string().optional(),
+    isIdentified: z.boolean().optional(),
+})
+
+// For table definition - strips codecs to raw validators
+export const table = defineTable(zodToConvex(stripToRaw(patientSchema)))
+    .index('clinicId', ['clinicId', 'isIdentified'])
+    .index('email', ['email'])
+    .index('phoneNumber', ['phoneNumber'])
+
+// RLS rules remain the same pattern
+export const rules = {
+    read: async (ctx, patient) => {
+        // ... same logic
+    },
+}
+```
+
+### Open Questions
+
+1. **Codec composition with optional** - Does `zSensitive(z.string()).optional()` compose correctly with Zod's codec recursion?
+
+2. **Union handling** - Zod docs note that unions don't automatically propagate encode/decode. How does this affect schemas with sensitive fields inside unions?
+
+3. **DB codec necessity** - Do we need a separate DB codec, or can we just strip the wire codec for table definitions?
+
+4. **Branding idea revisited** - The client mentioned storing branded structures (`{ __sensitiveValue: T }`). Could this simplify the codec by making DB and Wire formats more similar?
+
+---
+
+## Refined Architecture: Two Representations + Branded Storage
+
+> **Date**: 2024-12-31
+> **Context**: Further discussion clarified the client's goals and constraints
+
+### Two Representations, Not Three
+
+The branding approach collapses representations:
+
+```
+Previous thinking (3 representations):
+  DB: "alice@example.com"                          (raw)
+  Handler: SensitiveField.authorized("...")        (instance)
+  Wire: { __sensitiveValue, status, ... }          (envelope)
+
+Refined model (2 representations):
+  DB + Wire: { __sensitiveValue, status, ... }     (envelope)
+  Handler: SensitiveField.authorized("...")        (instance)
+```
+
+**Benefits:**
+- Single codec handles all serialization barriers
+- No "strip for DB" complexity
+- DB schema matches wire schema
+- Type inference is straightforward
+
+**Tradeoff:**
+- Indexes must use `field.__sensitiveValue` instead of `field`
+- Client confirmed this is acceptable
+
+### The Sensitive Codec (Client Prototype)
+
+```typescript
+export const sensitive = <V extends Value, T extends z.ZodType<V>>(validator: T) => {
+    return z.codec(
+        ZSensitiveFieldRaw.extend({
+            __sensitiveValue: z.optional(validator),
+        }),
+        z.custom<SensitiveField<V>>((val) => val instanceof SensitiveField),
+        {
+            decode: (raw) => SensitiveField.deserialize(raw),
+            encode: (field) => field.serialize(),
+        },
+    )
+}
+```
+
+### The 6 Serialization Barriers
+
+All barriers use the same codec, just encode or decode:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           CLIENT                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  App Code (SensitiveField)                                          │
+│       │                              ▲                              │
+│       ▼ encode                       │ decode                       │
+│  ─────────────────── Wire (Envelope) ───────────────────            │
+└─────────────────────────────────────────────────────────────────────┘
+                        │              ▲
+                        ▼              │
+┌─────────────────────────────────────────────────────────────────────┐
+│                           SERVER                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  ─────────────────── Wire (Envelope) ───────────────────            │
+│       │ decode                       ▲ encode (after clearance)     │
+│       ▼                              │                              │
+│  Handler Code (SensitiveField)  ──────┘                             │
+│       │ encode                       ▲ decode                       │
+│       ▼                              │                              │
+│  ─────────────────── DB (Envelope) ─────────────────────            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Serialize (SensitiveField → Envelope):**
+- Server: Before DB insert/update
+- Server: Before returning function response (after clearance applied)
+- Client: Before function call
+
+**Deserialize (Envelope → SensitiveField):**
+- Server: After DB query
+- Server: Before calling handler (from wire args)
+- Client: After function response
+
+### Naming Discussion
+
+| Term | Meaning |
+|------|---------|
+| **RLS (Row-Level Security)** | "Can this user see this row at all?" |
+| **FLS (Field-Level Security)** | "Can this user see this field's value?" |
+| **Sensitive** | Data classification - this field contains PII/protected data |
+| **Clearance** | Authorization level - what the user is allowed to see |
+
+This system is really **Field-Level Security** with sensitive data classification. The row is returned, but certain fields may be obscured.
+
+**Naming options for wrappers:**
+- `zSecureQuery` / `zSecureMutation` - emphasizes security enforcement
+- `zProtectedQuery` / `zProtectedMutation` - emphasizes data protection
+- `zRLSQuery` / `zRLSMutation` - uses familiar term (even if technically FLS)
+
+The `sensitive()` codec name is good - it describes the data classification.
+
+### Enforcement Model
+
+```typescript
+// Schema with sensitive fields
+const patientSchema = z.object({
+  id: zid('patients'),
+  clinicId: z.string(),
+  email: sensitive(z.string()),
+  ssn: sensitive(z.string()),
+})
+
+// Using standard wrapper → safe defaults (fail secure)
+zQuery(query, patientSchema, handler)
+// → Sensitive fields AUTO-OBSCURED (redacted)
+
+zMutation(mutation, patientSchema, handler)
+// → DENIED - must use zSecureMutation
+
+// Using secure wrapper → clearance evaluated
+zSecureQuery(query, patientSchema, handler, { clearance: ... })
+// → Evaluates clearance per field
+
+zSecureMutation(mutation, patientSchema, handler, { clearance: ... })
+// → Evaluates clearance, allows write
+```
+
+**Rationale:**
+- Can't accidentally expose sensitive data by using wrong wrapper
+- `zQuery` returns data (useful for non-sensitive fields) but obscures sensitive ones
+- `zMutation` denies entirely because writes need explicit authorization
+
+### Clearance Function Signature
+
+**Option A: Simple function**
+
+```typescript
+type FieldClearance = 'authorized' | 'redacted' | 'masked'
+
+type ClearanceContext<Ctx> = {
+  ctx: Ctx                      // Query/mutation context (has session, auth, etc.)
+  path: string                  // e.g., "email" or "addresses[0].street"
+  fieldSchema: z.ZodTypeAny     // The inner schema of the sensitive field
+}
+
+type ClearanceResolver<Ctx> = (
+  context: ClearanceContext<Ctx>
+) => FieldClearance | Promise<FieldClearance>
+
+// Usage
+const getPatient = zSecureQuery(query, patientSchema, handler, {
+  clearance: ({ ctx, path }) => {
+    if (ctx.session.role === 'admin') return 'authorized'
+    if (path === 'ssn' && !ctx.session.canViewSSN) return 'redacted'
+    if (path === 'email') return 'masked'
+    return 'authorized'
+  }
+})
+```
+
+**Option B: Declarative config**
+
+```typescript
+const getPatient = zSecureQuery(query, patientSchema, handler, {
+  clearance: {
+    default: 'redacted',
+    fields: {
+      email: ({ ctx }) => ctx.session.role === 'provider' ? 'authorized' : 'masked',
+      ssn: ({ ctx }) => ctx.session.canViewSSN ? 'authorized' : 'redacted',
+    }
+  }
+})
+```
+
+**Option C: Schema-level clearance requirements**
+
+```typescript
+// Clearance requirements embedded in schema
+const patientSchema = z.object({
+  email: sensitive(z.string(), { requiredClearance: 'provider' }),
+  ssn: sensitive(z.string(), { requiredClearance: 'admin' }),
+})
+
+// Wrapper just provides current clearance level
+const getPatient = zSecureQuery(query, patientSchema, handler, {
+  clearance: (ctx) => ctx.session.clearanceLevel  // e.g., 'basic' | 'provider' | 'admin'
+})
+```
+
+### Client-Side Rendering
+
+Server decides clearance and returns envelope with appropriate status:
+
+```typescript
+// Server returns (after clearance evaluation):
+{
+  email: { __sensitiveValue: "a***@example.com", status: "masked" },
+  ssn: { __sensitiveValue: null, status: "redacted", reason: "requires elevated access" },
+  firstName: { __sensitiveValue: "Alice", status: "authorized" }
+}
+```
+
+Client decodes to `SensitiveField` instances and renders based on status:
+
+```tsx
+function PatientCard({ patient }) {
+  return (
+    <div>
+      {patient.firstName.render(
+        (name) => <h1>{name}</h1>,
+        () => <h1>[Name Hidden]</h1>
+      )}
+
+      {patient.email.isAuthorized && (
+        <a href={`mailto:${patient.email.value}`}>{patient.email.value}</a>
+      )}
+      {patient.email.isMasked && (
+        <span className="masked">{patient.email.value}</span>
+      )}
+      {patient.email.isRedacted && (
+        <span className="redacted">Email hidden: {patient.email.reason}</span>
+      )}
+    </div>
+  )
+}
+```
+
+**Key decision:** Server masks the value before sending. The `__sensitiveValue` field contains:
+- Real value (if `authorized`)
+- Masked value (if `masked`) - server applies mask
+- `null` (if `redacted`)
+
+Client never receives real value if user shouldn't see it.
+
+### What zodvex Needs to Provide
+
+| Component | Purpose |
+|-----------|---------|
+| `sensitive(schema)` | Zod codec factory for sensitive fields |
+| `zodToConvex` integration | Recognize sensitive codecs, emit branded validators |
+| `zSecureQuery` | Query wrapper with clearance evaluation |
+| `zSecureMutation` | Mutation wrapper with clearance evaluation |
+| `zQuery/zMutation` override | Auto-obscure or deny when sensitive fields present |
+| `applyClearance(data, schema, resolver)` | Walk schema, evaluate clearance, transform fields |
+| Client `decode` utilities | Transform envelope → SensitiveField after API call |
+| Client React hooks | `useSensitiveQuery`, field rendering helpers |
+
+### Open Questions (Updated)
+
+1. **Codec composition with optional** - Does `sensitive(z.string()).optional()` compose correctly?
+
+2. **Union handling** - Unions don't auto-propagate encode/decode. Impact on sensitive fields in unions?
+
+3. **Write path** - What does client send for mutations?
+   - Full envelope with `status: "authorized"`?
+   - Just raw value, server wraps?
+   - Different input schema for writes?
+
+4. **Masking implementation** - Who defines the mask function for `masked` status?
+   - Schema-level: `sensitive(z.string(), { mask: emailMask })`
+   - Clearance-level: resolver returns `{ status: 'masked', mask: emailMask }`
+
+5. **Naming finalization** - `zSecureQuery` vs `zRLSQuery` vs `zProtectedQuery`?
+
+6. **Clearance signature** - Option A (function) vs B (declarative) vs C (schema-embedded)?
