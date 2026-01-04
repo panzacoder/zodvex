@@ -20,7 +20,8 @@
       "Bash(gh issue list:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:docs.convex.dev)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(glab issue view:*)"
     ],
     "deny": [],
     "ask": []
