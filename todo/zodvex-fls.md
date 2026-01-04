@@ -19,9 +19,10 @@ Primary goals:
 Before implementing, validate these mechanics with small spikes/tests:
 
 - [ ] `sensitive(z.*)` maps to DB shape `v.object({ __sensitiveValue: ... })` (incl. `.optional()`, arrays, nesting, and unions)
+- [ ] Convex indexing/querying works with branded paths (e.g. `email.__sensitiveValue`) for `defineTable().index()` + `.withIndex()`
 - [ ] End-to-end: DB raw → server `SensitiveField` → apply policy once (default deny) → wire envelope → client decode
 - [ ] Unions/discriminated unions cannot bypass sensitive traversal/transforms (fail closed)
-- [ ] “Policy before handler” semantics work for typical handlers, or define an explicit privileged-read escape hatch
+- [ ] “Policy before handler” works without a privileged-unwrapping escape hatch (elevation happens via entitlements/step-up on a new request)
 
 ## Key Decisions (Locked)
 
@@ -34,7 +35,8 @@ Before implementing, validate these mechanics with small spikes/tests:
 | Policy timing           | Default: apply policy **immediately after DB reads**; handler receives already-limited `SensitiveField` values |
 | Fail-secure             | Non-secure wrappers auto-limit reads; non-secure mutations/actions reject when sensitive fields are present    |
 | Masking                 | Server-side only; mask functions should be pure/deterministic                                                  |
-| Leak resistance         | `SensitiveField` stores raw in a `WeakMap` + blocks implicit string/primitive coercion (Hotpot pattern)        |
+| Leak resistance         | `SensitiveField` stores its value in a `WeakMap` + blocks implicit string/primitive coercion (Hotpot pattern)  |
+| Privileged access       | **No generic privileged unwrap**: if a field is hidden/restricted, the raw value is dropped; elevation requires a new request/session with required entitlements |
 
 ## Client Decisions Needed (Ask)
 
@@ -249,7 +251,8 @@ export async function applyPolicy<T, TCtx, TStatus extends string>(
 **File:** `src/security/sensitive-field.ts`
 
 - Mirror Hotpot ergonomics: `WeakMap` value storage + anti-coercion.
-- `unwrap()` should throw unless `status` is the configured “full/whole” status.
+- `unwrap()` should return the stored value for “value-carrying” statuses (e.g. full/whole/masked/redacted) and throw for “no-value” statuses (e.g. hidden/restricted/forbidden).
+- Hidden/restricted fields must not retain the raw value after policy is applied.
 
 ```ts
 class SensitiveField<T, TStatus extends string> {
