@@ -84,15 +84,18 @@ describe('zodvexJSONSchemaOverride', () => {
     expect(jsonSchema).toEqual({ type: 'string' })
   })
 
-  it('should clear existing properties when overriding', () => {
+  it('should preserve existing properties when overriding', () => {
     const userIdSchema = zid('users')
-    // Simulate the {} placeholder that z.toJSONSchema creates for unrepresentable types
-    const jsonSchema: Record<string, any> = { someOldProp: true }
+    // User overrides might set properties before zodvex runs
+    const jsonSchema: Record<string, any> = { customProp: 'preserved' }
 
     zodvexJSONSchemaOverride({ zodSchema: userIdSchema, jsonSchema })
 
-    expect(jsonSchema.someOldProp).toBeUndefined()
+    // Our properties are added
     expect(jsonSchema.type).toBe('string')
+    expect(jsonSchema.format).toBe('convex-id:users')
+    // Existing properties are preserved
+    expect(jsonSchema.customProp).toBe('preserved')
   })
 })
 
@@ -211,17 +214,15 @@ describe('toJSONSchema', () => {
     expect(() => toJSONSchema(schema)).not.toThrow()
   })
 
-  it('should throw when unrepresentable is set to throw', () => {
-    // When set to 'throw', transforms throw before our override runs
-    // This is expected - users should use the default 'any' for zodvex schemas
+  it('should work with unrepresentable set to throw since zid uses refinement not transform', () => {
+    // zid uses refinement (not transform), so it's representable in JSON Schema
     const schema = z.object({
       userId: zid('users')
     })
 
-    // With unrepresentable: 'throw', Zod throws before our override can help
-    expect(() => toJSONSchema(schema, { unrepresentable: 'throw' })).toThrow(
-      'Transforms cannot be represented in JSON Schema'
-    )
+    // Should not throw - zid is now compatible with strict mode
+    const jsonSchema = toJSONSchema(schema, { unrepresentable: 'throw' })
+    expect(jsonSchema.properties.userId.type).toBe('string')
   })
 })
 
@@ -255,7 +256,7 @@ describe('composeOverrides', () => {
     expect(calls).toEqual(['first'])
   })
 
-  it('should allow user override to run before zodvex', () => {
+  it('should allow user override to run before zodvex and preserve properties', () => {
     const userIdSchema = zid('users')
     let userOverrideRan = false
 
@@ -263,7 +264,7 @@ describe('composeOverrides', () => {
     const userOverride = (ctx: any) => {
       if (isZidSchema(ctx.zodSchema)) {
         userOverrideRan = true
-        // User could set their own format before zodvex runs
+        // User sets a custom property before zodvex runs
         ctx.jsonSchema.customProp = 'user-set'
       }
     }
@@ -275,8 +276,9 @@ describe('composeOverrides', () => {
     expect(userOverrideRan).toBe(true)
     // zodvex override ran after and set type/format
     expect(jsonSchema.type).toBe('string')
-    // But user's custom prop was cleared because zodvex clears the object
-    // This shows why order matters - zodvex clears first
+    expect(jsonSchema.format).toBe('convex-id:users')
+    // User's custom prop is preserved - zodvex doesn't clear existing properties
+    expect(jsonSchema.customProp).toBe('user-set')
   })
 
   it('should allow user override to run after zodvex and extend', () => {

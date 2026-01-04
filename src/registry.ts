@@ -124,12 +124,9 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
   // Handle zid schemas (transforms with convexId description)
   if (isZidSchema(zodSchema)) {
     const tableName = getZidTableName(zodSchema)
-    // Clear any existing properties from the {} placeholder
-    for (const key of Object.keys(jsonSchema)) {
-      delete jsonSchema[key]
-    }
+    // Set our properties - don't clear existing ones set by user overrides
+    // When unrepresentable: 'any', Zod already gives us {} so no clearing needed
     jsonSchema.type = 'string'
-    // Add a custom format hint for tools that support it
     if (tableName) {
       jsonSchema.format = `convex-id:${tableName}`
     }
@@ -144,9 +141,6 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
   // Note: Check the internal def type since z.date() creates a ZodDate instance
   const def = (zodSchema as any)._zod?.def
   if (def?.type === 'date') {
-    for (const key of Object.keys(jsonSchema)) {
-      delete jsonSchema[key]
-    }
     jsonSchema.type = 'string'
     jsonSchema.format = 'date-time'
     return
