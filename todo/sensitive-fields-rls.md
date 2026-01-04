@@ -410,41 +410,217 @@ For `masked` status, does the server send:
 
 ---
 
+## Alternative: Metadata-Based Approach
+
+Rather than wrapping values in envelopes, use metadata to carry sensitivity information.
+
+### Zod Metadata
+
+Zod v4 supports attaching metadata to schemas via `.meta()`:
+
+```typescript
+const emailSchema = z.string().meta({
+  sensitive: true,
+  clearance: 'provider',
+  mask: (v: string) => v.replace(/(.{2}).*@/, '$1***@')
+})
+
+// Access metadata
+emailSchema.meta()  // { sensitive: true, clearance: 'provider', mask: fn }
+```
+
+This keeps sensitivity as schema-level information, not data-level.
+
+### Wire Format: Separate Metadata Channel
+
+Instead of wrapping each field:
+
+```typescript
+// Wrapped approach
+{
+  email: { __sensitiveValue: "alice@example.com", status: "authorized" },
+  ssn: { __sensitiveValue: null, status: "redacted", reason: "..." },
+  firstName: { __sensitiveValue: "Alice", status: "authorized" }
+}
+
+// Metadata approach
+{
+  email: "alice@example.com",
+  ssn: null,
+  firstName: "Alice",
+  _sensitive: {
+    email: { status: "authorized" },
+    ssn: { status: "redacted", reason: "requires elevated access" },
+    firstName: { status: "authorized" }
+  }
+}
+```
+
+**Trade-offs:**
+
+| Aspect | Wrapped | Metadata |
+|--------|---------|----------|
+| Data shape | Nested objects | Flat values + separate meta |
+| Type inference | `SensitiveField<string>` everywhere | `string` with optional meta lookup |
+| Null ambiguity | Clear (status tells you) | Need to check meta to know if null = redacted |
+| Client complexity | Unwrap to access value | Correlate value with meta if needed |
+| Backward compat | Breaking change | Additive (meta is optional) |
+
+### When Metadata Makes Sense
+
+- Client often doesn't need to know status (just render value or nothing)
+- Want flat data structure for easier manipulation
+- Gradual adoption - add metadata without changing field types
+- Masked values less common
+
+### When Wrapping Makes Sense
+
+- Client UI heavily depends on status (lock icons, request access flows)
+- Masked values are common
+- Want foolproof null vs redacted distinction
+- Prefer explicit typing over correlating data with metadata
+
+---
+
+## Library Philosophy: Storage Agnosticism
+
+As a library, zodvex shouldn't dictate how users store data. Different applications have different needs:
+
+### Storage Options
+
+**Option 1: Raw values in DB**
+```typescript
+// DB stores
+{ email: "alice@example.com", ssn: "123-45-6789" }
+
+// Schema defines what's sensitive
+const schema = z.object({
+  email: z.string().meta({ sensitive: true }),
+  ssn: z.string().meta({ sensitive: true }),
+})
+```
+- Simple, efficient storage
+- Easy indexing
+- Schema is source of truth for sensitivity
+
+**Option 2: Branded/wrapped values in DB**
+```typescript
+// DB stores
+{
+  email: { __sensitiveValue: "alice@example.com" },
+  ssn: { __sensitiveValue: "123-45-6789" }
+}
+```
+- Self-describing data
+- Consistent with wire format
+- More storage overhead
+
+**Option 3: Encrypted at rest**
+```typescript
+// DB stores
+{ email: "encrypted:abc123...", ssn: "encrypted:def456..." }
+
+// Decrypted at read time before sensitivity handling
+```
+- Additional security layer
+- Orthogonal to sensitivity marking
+
+### What zodvex Should Provide
+
+Rather than prescribing storage format, provide composable primitives:
+
+```typescript
+// 1. Schema marking (works with any storage)
+const schema = z.object({
+  email: sensitive(z.string()),  // or z.string().meta({ sensitive: true })
+})
+
+// 2. Detection
+isSensitiveField(schema.shape.email)  // true
+getSensitiveFields(schema)  // ['email']
+
+// 3. Transform utilities (user chooses when to apply)
+applyClearance(data, schema, resolver)  // SensitiveField instances → limited
+serializeForWire(data, schema, options)  // Choose wrapped vs metadata format
+
+// 4. Convex integration (respects user's storage choice)
+zodToConvex(schema)  // Raw validators by default
+zodToConvex(schema, { branded: true })  // Branded structure if requested
+```
+
+### User Controls Storage, Library Provides Tools
+
+```typescript
+// User's table definition - THEIR choice
+export const table = defineTable({
+  email: v.string(),  // They chose raw storage
+})
+
+// User's query - uses zodvex for transforms
+export const getPatient = zSecureQuery(query, patientSchema, handler, {
+  clearance: resolver,
+  wireFormat: 'metadata',  // or 'wrapped' - their choice
+})
+```
+
+The library provides the transform machinery. The user decides:
+- How to store data
+- What wire format to use
+- How strict the enforcement should be
+
+---
+
 ## Open Questions
 
 ### Architecture
 
-1. **Representation model** - Two representations (branded) vs three (raw DB)?
-   - Current leaning: Two representations (branded storage)
+1. **Storage model** - Should zodvex have an opinion on DB storage?
+   - Leaning: No - provide tools, let users choose
+   - Schema metadata marks sensitivity, storage format is user's choice
 
-2. **Codec composition** - How do `sensitive()` codecs compose with `.optional()`, unions, arrays?
+2. **Wire format** - Wrapped envelopes vs metadata sidecar?
+   - Wrapped: `{ email: { __sensitiveValue, status, ... } }`
+   - Metadata: `{ email: "...", _sensitive: { email: { status } } }`
+   - Could support both via options
+
+3. **Codec composition** - How do `sensitive()` codecs compose with `.optional()`, unions, arrays?
 
 ### API Design
 
-3. **Write path** - What does client send for mutations?
-   - Full envelope?
-   - Just raw value (server wraps)?
-   - Different input schema for writes?
+4. **Sensitivity marking** - How to mark fields?
+   - `sensitive(z.string())` - wrapper function
+   - `z.string().meta({ sensitive: true })` - native Zod metadata
+   - Both? (wrapper could set metadata internally)
 
-4. **Masking** - Who defines mask functions?
-   - Schema-level: `sensitive(z.string(), { mask: emailMask })`
+5. **Write path** - What does client send for mutations?
+   - Raw values (server knows what's sensitive from schema)?
+   - Wrapped values (client explicitly marks)?
+
+6. **Masking** - Who defines mask functions?
+   - Schema-level: `z.string().meta({ sensitive: true, mask: emailMask })`
    - Resolver-level: return `{ status: 'masked', mask: fn }`
 
-5. **Naming** - What to call the secure wrappers?
+7. **Naming** - What to call the secure wrappers?
    - `zSecureQuery` / `zSecureMutation`
    - `zProtectedQuery` / `zProtectedMutation`
-   - `zRLSQuery` / `zRLSMutation`
+   - `zFLSQuery` / `zFLSMutation` (Field-Level Security)
 
-6. **Clearance signature** - Which option (A/B/C) best fits their use cases?
+8. **Clearance signature** - Which option (A/B/C) best fits their use cases?
 
-### Integration
+### Library Scope
 
-7. **zodvex scope** - What should zodvex provide vs what stays in their codebase?
-   - Core: `sensitive()` codec, integration with `zodToConvex`
-   - Wrappers: `zSecureQuery` etc.
-   - Client: decode utilities, React hooks
+9. **What zodvex provides vs user code**
+   - Core primitives: sensitivity detection, clearance application, serialization
+   - Optional wrappers: `zSecureQuery` etc.
+   - User implements: clearance resolver, storage mapping, audit logging
 
-8. **Audit logging** - How to integrate field access logging?
+10. **Convex coupling** - How tightly coupled to Convex should this be?
+    - Tight: `zSecureQuery` wraps Convex query directly
+    - Loose: Provide transform utilities, user wires into their setup
+
+11. **Client library** - Separate package or part of zodvex?
+    - Frontend has different needs (React hooks, no Convex server deps)
+    - Could be `zodvex/client` export or separate `zodvex-client` package
 
 ---
 
@@ -542,3 +718,90 @@ export const rules = {
     },
 }
 ```
+
+---
+
+## Commentary: Agent Review Feedback
+
+Two perspectives reviewed this document: **API Design/Developer Experience** and **Security/Data Protection**.
+
+### Areas of Strong Consensus
+
+Both perspectives agreed on these recommendations:
+
+| Question | Recommendation | Shared Rationale |
+|----------|---------------|------------------|
+| **Storage model** | No opinion - provide tools | Different apps have different needs; schema is source of truth, not storage format |
+| **Wire format** | Default to wrapped, support both | Wrapped eliminates null ambiguity and enforces handling via type system |
+| **Sensitivity marking** | `sensitive()` wrapper (sets meta internally) | Discoverable, encapsulated, searchable; single canonical way reduces mistakes |
+| **Write path** | Raw values from client | Server determines sensitivity from schema; client shouldn't control authorization |
+| **Masking** | Schema-level with resolver override | Consistency across endpoints, easier to audit, escape hatch for edge cases |
+| **Fail-secure defaults** | **Critical** - auto-redact queries, deny mutations | "Pit of success" - using wrong wrapper results in safe behavior, not exposure |
+| **Client library** | `zodvex/client` subpath export | Same package ensures version alignment; tree-shakes correctly |
+
+### Areas of Divergence
+
+**Clearance Signature:**
+
+| Perspective | Recommendation | Reasoning |
+|-------------|---------------|-----------|
+| **API/DX** | Option A (function) primary, **Option B (declarative) as sugar** | Declarative config is convenient for common cases; Option C couples auth to schema but authorization often depends on runtime context |
+| **Security** | Option A (function) primary, **Option C (schema-embedded) as sugar** | Schema-embedded makes schemas self-documenting for simple RBAC; Option B risks becoming leaky abstraction |
+
+**Convex Coupling:**
+
+| Perspective | Recommendation | Reasoning |
+|-------------|---------------|-----------|
+| **API/DX** | Provide **both tight and loose** coupling | Most users want happy path; power users need composable primitives |
+| **Security** | **Tight coupling** for secure wrappers | Loose coupling increases integration error risk; security-critical paths should be short and well-tested |
+
+### Additional Insights by Perspective
+
+**API/DX Perspective:**
+
+- "Asymmetry is okay" - reads return wrapped format, writes accept raw values. This matches patterns like GraphQL where mutations accept scalars but queries return complex types.
+
+- Option C (schema-embedded clearance) is limiting because real authorization is often "Can user X see field Y on resource Z?" - which requires runtime context, not just a clearance level string.
+
+- Consider providing React utilities in client export:
+  ```typescript
+  export function useSensitiveValue<T>(field: SensitiveField<T>): {
+    value: T | null
+    status: 'authorized' | 'masked' | 'redacted'
+    isAuthorized: boolean
+    // ...
+  }
+  ```
+
+**Security Perspective:**
+
+- Include the `row`/`document` in clearance context - field-level clearance often depends on document-level attributes (e.g., "user can see SSN for patients in their clinic").
+
+- Mask functions should be **pure and deterministic**. A mask depending on runtime state could leak information through timing or conditional behavior.
+
+- When mutations are denied due to missing `zSecureMutation`, error messages should clearly explain why and guide developers toward the right path. Security should guide, not just block.
+
+- The wrapped format creates a "pit of success" - with metadata format, a developer might write `<span>{patient.ssn}</span>` and silently render `null`. With wrapped format, they'd get `[object Object]`, which fails visibly.
+
+### Shared Emphasis
+
+Both perspectives strongly emphasized:
+
+1. **"Pit of success" design** - The wrapped wire format forces developers to explicitly handle `SensitiveField` types, making accidental exposure structurally harder.
+
+2. **Runtime leak detection** - The existing Hotpot pattern of detecting untagged `SensitiveField` instances in output is valuable. Throw errors for leaks rather than silently allowing them.
+
+3. **Server masks, not client** - For `masked` status, server should apply the mask before sending. Client should never receive the real value if user shouldn't see it.
+
+### Summary: Recommended Priorities
+
+| Priority | Recommendation |
+|----------|---------------|
+| **Critical** | Fail-secure defaults - auto-redact in standard wrappers, deny mutations without explicit secure wrapper |
+| **Critical** | Server determines sensitivity from schema; client sends raw values only |
+| **High** | Wrapped envelope wire format as default (explicit status, no null ambiguity) |
+| **High** | Runtime leak detection - throw on untagged `SensitiveField` in output |
+| **High** | Server applies masks - never send real values when masked |
+| **Medium** | Schema-level mask definitions for consistency |
+| **Medium** | Include document context in clearance resolver for row-aware field decisions |
+| **Low** | Naming choices, specific codec composition details |
