@@ -10,6 +10,7 @@ import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { zid } from '../src/ids'
 import {
+  composeOverrides,
   getZidTableName,
   isZidSchema,
   toJSONSchema,
@@ -224,7 +225,100 @@ describe('toJSONSchema', () => {
   })
 })
 
+describe('composeOverrides', () => {
+  it('should compose multiple overrides in order', () => {
+    const calls: string[] = []
+
+    const override1 = () => {
+      calls.push('first')
+    }
+    const override2 = () => {
+      calls.push('second')
+    }
+
+    const composed = composeOverrides(override1, override2)
+    composed({ zodSchema: z.string(), jsonSchema: {} })
+
+    expect(calls).toEqual(['first', 'second'])
+  })
+
+  it('should handle undefined overrides gracefully', () => {
+    const calls: string[] = []
+
+    const override1 = () => {
+      calls.push('first')
+    }
+
+    const composed = composeOverrides(override1, undefined, zodvexJSONSchemaOverride)
+    // Should not throw
+    expect(() => composed({ zodSchema: z.string(), jsonSchema: {} })).not.toThrow()
+    expect(calls).toEqual(['first'])
+  })
+
+  it('should allow user override to run before zodvex', () => {
+    const userIdSchema = zid('users')
+    let userOverrideRan = false
+
+    // User's override runs first and modifies the schema
+    const userOverride = (ctx: any) => {
+      if (isZidSchema(ctx.zodSchema)) {
+        userOverrideRan = true
+        // User could set their own format before zodvex runs
+        ctx.jsonSchema.customProp = 'user-set'
+      }
+    }
+
+    const composed = composeOverrides(userOverride, zodvexJSONSchemaOverride)
+    const jsonSchema: Record<string, any> = {}
+    composed({ zodSchema: userIdSchema, jsonSchema })
+
+    expect(userOverrideRan).toBe(true)
+    // zodvex override ran after and set type/format
+    expect(jsonSchema.type).toBe('string')
+    // But user's custom prop was cleared because zodvex clears the object
+    // This shows why order matters - zodvex clears first
+  })
+
+  it('should allow user override to run after zodvex and extend', () => {
+    const userIdSchema = zid('users')
+
+    // User's override runs after zodvex and adds to the schema
+    const userOverride = (ctx: any) => {
+      if (ctx.jsonSchema.format?.startsWith('convex-id:')) {
+        ctx.jsonSchema.description = 'A Convex document ID'
+      }
+    }
+
+    const composed = composeOverrides(zodvexJSONSchemaOverride, userOverride)
+    const jsonSchema: Record<string, any> = {}
+    composed({ zodSchema: userIdSchema, jsonSchema })
+
+    expect(jsonSchema.type).toBe('string')
+    expect(jsonSchema.format).toBe('convex-id:users')
+    expect(jsonSchema.description).toBe('A Convex document ID')
+  })
+})
+
 describe('AI SDK compatibility', () => {
+  it('should show what format/description the LLM receives', () => {
+    // This test documents what the LLM actually sees
+    const schema = z.object({
+      userId: zid('users')
+    })
+
+    const jsonSchema = toJSONSchema(schema)
+
+    // The LLM receives this structure:
+    // - type: "string" - must output a string
+    // - format: "convex-id:users" - hint about the format
+    // - description comes from the Zod .describe() which we set
+    expect(jsonSchema.properties.userId).toEqual({
+      type: 'string',
+      format: 'convex-id:users',
+      description: 'convexId:users' // From zid's .describe()
+    })
+  })
+
   it('should produce valid JSON Schema for AI SDK use case', () => {
     // This is the example from Issue #22
     const schema = z.object({

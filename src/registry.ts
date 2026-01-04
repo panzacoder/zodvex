@@ -133,6 +133,10 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
     if (tableName) {
       jsonSchema.format = `convex-id:${tableName}`
     }
+    // Preserve the description from .describe() - this is what the LLM sees
+    if (zodSchema.description) {
+      jsonSchema.description = zodSchema.description
+    }
     return
   }
 
@@ -146,6 +150,38 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
     jsonSchema.type = 'string'
     jsonSchema.format = 'date-time'
     return
+  }
+}
+
+/**
+ * Composes multiple JSON Schema override functions into one.
+ * Overrides run in order - first override runs first.
+ *
+ * @example
+ * ```ts
+ * import { composeOverrides, zodvexJSONSchemaOverride } from 'zodvex'
+ *
+ * const myOverride = (ctx) => {
+ *   if (ctx.zodSchema.description?.startsWith('myType:')) {
+ *     ctx.jsonSchema.type = 'string'
+ *     ctx.jsonSchema.format = 'my-format'
+ *   }
+ * }
+ *
+ * // User's override runs first, then zodvex's
+ * z.toJSONSchema(schema, {
+ *   unrepresentable: 'any',
+ *   override: composeOverrides(myOverride, zodvexJSONSchemaOverride)
+ * })
+ * ```
+ */
+export function composeOverrides(
+  ...overrides: Array<((ctx: JSONSchemaOverrideContext) => void) | undefined>
+): (ctx: JSONSchemaOverrideContext) => void {
+  return (ctx: JSONSchemaOverrideContext) => {
+    for (const override of overrides) {
+      override?.(ctx)
+    }
   }
 }
 
