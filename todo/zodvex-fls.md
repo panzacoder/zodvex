@@ -18,49 +18,144 @@ Primary goals:
 
 Before implementing, validate these mechanics with small spikes/tests:
 
-- [ ] `sensitive(z.*)` maps to DB shape `v.object({ __sensitiveValue: ... })` (incl. `.optional()`, arrays, nesting, and unions)
+- [x] `sensitive(z.*)` maps to DB shape `v.object({ __sensitiveValue: ... })` (incl. `.optional()`, arrays, nesting, and unions)
 - [ ] Convex indexing/querying works with branded paths (e.g. `email.__sensitiveValue`) for `defineTable().index()` + `.withIndex()`
-- [ ] End-to-end: DB raw → server `SensitiveField` → apply policy once (default deny) → wire envelope → client decode
-- [ ] Unions/discriminated unions cannot bypass sensitive traversal/transforms (fail closed)
-- [ ] “Policy before handler” works without a privileged-unwrapping escape hatch (elevation happens via entitlements/step-up on a new request)
+- [x] End-to-end: DB raw → server `SensitiveField` → apply policy once (default deny) → wire envelope → client decode
+- [x] Unions/discriminated unions cannot bypass sensitive traversal/transforms (fail closed)
+- [x] "Policy before handler" works without a privileged-unwrapping escape hatch (elevation happens via entitlements on a new request)
+- [ ] Field-level write policies enforced at mutation time
+
+## RLS vs FLS: Key Distinction
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      ROW-LEVEL SECURITY (RLS)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Question: "Can you access THIS RECORD at all?"                            │
+│  Answer: Binary YES or NO                                                   │
+│  Based on: Relationships, ownership, organizational membership             │
+│  If NO: Record is not returned (filtered out of results)                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     FIELD-LEVEL SECURITY (FLS)                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Question: "GIVEN you can access this record, what can you see/do          │
+│             with each FIELD?"                                               │
+│  Answer: Granular per-field                                                 │
+│    - Reads: full / masked / hidden (based on entitlements)                 │
+│    - Writes: allowed / denied (based on entitlements)                      │
+│  Based on: Entitlements, clearance level                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Flow: Query → Endpoint Auth → RLS (filter records) → FLS (limit fields) → Response
+```
 
 ## Key Decisions (Locked)
 
 | Decision                | Choice                                                                                                         |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
 | DB storage              | **Branded raw object** (issue #1 shape): `{"__sensitiveValue": T, ...integrity}`; status is **not** stored     |
-| Wire format             | **Server-produced envelope** with `status` + `value` + optional `reason`                                       |
+| Wire format             | **Server-produced envelope** with `status` + `value` + optional `reason` (**stable code**, server-authored)   |
 | Authorization primitive | **Discrete requirements/entitlements** evaluated by a user-supplied resolver (zodvex is agnostic)              |
-| Default policy          | **Default deny**: if access isn't explicitly allowed, treat the field as hidden/forbidden                      |
-| Policy timing           | Default: apply policy **immediately after DB reads**; handler receives already-limited `SensitiveField` values |
+| Default policy          | **Default deny**: if access isn't explicitly allowed, treat the field as hidden                                |
+| Policy timing           | Apply policy **immediately after DB reads**; handler receives already-limited `SensitiveField` values          |
 | Fail-secure             | Non-secure wrappers auto-limit reads; non-secure mutations/actions reject when sensitive fields are present    |
 | Masking                 | Server-side only; mask functions should be pure/deterministic                                                  |
-| Leak resistance         | `SensitiveField` stores its value in a `WeakMap` + blocks implicit string/primitive coercion (Hotpot pattern)  |
-| Privileged access       | **No generic privileged unwrap**: if a field is hidden/restricted, the raw value is dropped; elevation requires a new request/session with required entitlements |
+| Leak resistance         | `SensitiveField` uses `getValue()` (no `unwrap()`) + blocks implicit string/primitive coercion                 |
+| Value access            | **No `unwrap()` method** - always use `getValue()` which respects the current status. Hidden fields return `null`. |
+| Privileged access       | **No escape hatch**: elevation requires a new request with required entitlements (step-up auth is out of scope)|
+| Read/Write policies     | Schema defines **both** read and write policies per field; entitlements map to status levels                   |
 
-## Client Decisions Needed (Ask)
+## Schema-Defined Read AND Write Policies
 
-These are not “hard problems”, but they’re choices worth confirming with the client:
+The schema is the source of truth for both read and write access control:
 
-1. **Where do per-field requirements live?**
+```ts
+const patientSchema = z.object({
+  clinicId: z.string(),
 
-   - **Schema metadata** (recommended): requirements colocated with the field definition.
-   - **Path-keyed policy map** (supported): requirements live in a separate map keyed by `"patients.ssn"`, etc.
-   - Supporting _both_ is not over-engineering if we make one canonical (metadata) and the other a small helper.
+  email: sensitive(z.string(), {
+    read: [
+      { status: 'full', requirements: 'read:patient:pii:full' },
+      { status: 'masked', requirements: 'read:patient:pii:masked', mask: maskEmail },
+      // No match → 'hidden' (default deny)
+    ],
+    write: { requirements: 'write:patient:contact' }
+  }),
 
-2. **DB wrapper exact shape for integrity**
+  ssn: sensitive(z.string(), {
+    read: [
+      { status: 'full', requirements: 'read:patient:ssn:full' },
+      { status: 'masked', requirements: 'read:patient:ssn:masked', mask: (v) => `***-**-${v.slice(-4)}` },
+    ],
+    write: { requirements: 'admin:patient:ssn' }  // Very restricted
+  }),
 
-   - Minimal: `{ __sensitiveValue: T }`
-   - Integrity-ready (issues #14/#23): `{ __sensitiveValue: T, __checksum: string, __algo?: string }`
+  notes: sensitive(z.string(), {
+    read: [
+      { status: 'full', requirements: 'read:patient:notes' },
+      // No masked level - either full or hidden
+    ],
+    write: { requirements: 'write:patient:notes' }
+  })
+})
+```
 
-3. **Status vocabulary**
-   - Default: `full | masked | hidden` (library-friendly)
-   - Hotpot: `whole | redacted | restricted | forbidden` (existing behavior)
-   - This should be configurable (`createFLSConfig`).
+### Resolution Logic
+
+**For reads:** Check policies in order (full first, then masked). First match wins. No match → hidden.
+
+**For writes:** Check write requirement. If entitlement missing → reject mutation.
+
+### Reason Codes (Stable, Per-Request)
+
+`reason` is an optional **stable code** attached during policy application (not stored in DB).
+
+- Reasons may be **dynamic** (computed per request) and are not limited to static schema metadata.
+- Reasons are **server-authored**; clients must not be able to set or influence them via args.
+- Prefer stable codes (e.g. `step_up_required`, `missing_entitlement`, `not_assigned`) and map to UI copy client-side.
+
+Resolution precedence (when producing a final `ReadDecision`/`WriteDecision`):
+
+1. Resolver-provided reason (dynamic, request-specific)
+2. Policy-tier reason (static, typically attached when the tier matches)
+3. Config default reason (e.g. `defaultDenyReason`)
+
+```ts
+// Read resolution
+async function resolveReadStatus(context, policies, resolver, { defaultDenyReason } = {}) {
+  let lastDenyReason
+
+  for (const policy of policies) {
+    const check = await resolver({ ...context, operation: 'read' }, policy.requirements)
+    const ok = typeof check === 'boolean' ? check : check.ok
+
+    if (ok) {
+      return { status: policy.status, mask: policy.mask, reason: policy.reason }
+    }
+
+    if (typeof check !== 'boolean' && check.reason) {
+      lastDenyReason = check.reason
+    }
+  }
+
+  return { status: 'hidden', reason: lastDenyReason ?? defaultDenyReason } // Default deny
+}
+
+// Write resolution
+async function resolveWriteAccess(context, writePolicy, resolver) {
+  if (!writePolicy) return { allowed: true }  // No write policy = allow
+
+  const check = await resolver({ ...context, operation: 'write' }, writePolicy.requirements)
+  const allowed = typeof check === 'boolean' ? check : check.ok
+  return { allowed, reason: typeof check === 'boolean' ? undefined : check.reason }
+}
+```
 
 ## Representations & Serialization Barriers
 
-Even with “Model B” branded DB storage, the DB shape and wire shape usually differ because:
+Even with "Model B" branded DB storage, the DB shape and wire shape usually differ because:
 
 - DB must store raw value (+ integrity metadata), while
 - wire must carry viewer-specific `status/reason` and must not include integrity metadata.
@@ -79,25 +174,26 @@ Recommended representations:
 
 2. **Server runtime**: `SensitiveField<T>`
 
-   - Holds the raw value in a `WeakMap`.
+   - Stores value appropriate to status (full value, masked value, or null for hidden).
    - Carries `status` and `reason` after policy is applied.
+   - `getValue()` returns the status-appropriate value (never raw if hidden).
 
 3. **Wire**: `SensitiveWire<TStatus, TValue>` (discriminated by `status`)
 
-   - `value` is full value only when `status` is the “full” status.
-   - For “masked”, `value` is the masked/derived value.
-   - For “hidden/forbidden”, `value` is `null`.
+   - `value` is full value only when `status` is the "full" status.
+   - For "masked", `value` is the masked/derived value.
+   - For "hidden", `value` is `null`.
 
 4. **Client runtime**: `SensitiveField<T>` (decoded from wire)
 
-### Why this still looks like “two transforms”
+### Why this still looks like "two transforms"
 
 Even if you apply policy once (right after DB read), you still have:
 
 - **DB → runtime**: wrap/verify integrity (and optionally apply policy immediately)
 - **runtime → wire**: serialize the already-limited `SensitiveField` for transport
 
-The key optimization is: **don’t apply policy twice**. Apply it once (preferably at read time), then serialize.
+The key optimization is: **don't apply policy twice**. Apply it once (preferably at read time), then serialize.
 
 ---
 
@@ -157,20 +253,36 @@ export type SensitiveDb<T> = {
   __algo?: string;
 };
 
-export type SensitiveStatus = string;
+	export type SensitiveStatus = string;
 
-export type SensitiveWire<TStatus extends SensitiveStatus, TValue> = {
-  __sensitiveField?: string | null;
-  status: TStatus;
-  value: TValue | null;
-  reason?: string;
+	// Stable code attached when producing a decision (server-authored).
+	// Implementers can optionally validate this strictly (e.g. z.enum([...])).
+	export type ReasonCode = string;
+
+	export type SensitiveWire<TStatus extends SensitiveStatus, TValue> = {
+	  __sensitiveField?: string | null;
+	  status: TStatus;
+	  value: TValue | null;
+	  reason?: ReasonCode;
+	};
+
+	// Read policy: ordered array, first match wins, default deny (hidden)
+	export type ReadPolicy<TReq = unknown> = Array<{
+	  status: 'full' | 'masked';
+	  requirements: TReq;
+	  mask?: (value: unknown) => unknown;
+	  reason?: ReasonCode;
+	}>;
+
+// Write policy: binary allow/deny based on requirements
+export type WritePolicy<TReq = unknown> = {
+  requirements: TReq;
 };
 
 export type SensitiveMetadata<TReq = unknown> = {
   sensitive: true;
-  requirements?: TReq;
-  mask?: (value: unknown) => unknown;
-  // Optional: integrity config (hash algo selection, etc.)
+  read?: ReadPolicy<TReq>;
+  write?: WritePolicy<TReq>;
   integrity?: { enabled: boolean };
 };
 ```
@@ -183,7 +295,10 @@ export type SensitiveMetadata<TReq = unknown> = {
 ```ts
 function sensitive<T extends z.ZodTypeAny, TReq = unknown>(
   inner: T,
-  options?: { requirements?: TReq; mask?: (v: z.infer<T>) => z.infer<T> },
+  options?: {
+    read?: ReadPolicy<TReq>;
+    write?: WritePolicy<TReq>;
+  },
 ): z.ZodTypeAny;
 
 function isSensitiveSchema(schema: z.ZodTypeAny): boolean;
@@ -198,84 +313,115 @@ function findSensitiveFields(
 **File:** `src/security/policy.ts`
 
 ```ts
-export type PolicyContext<
-  TCtx,
-  TStatus extends string,
-  TReq = unknown,
-  TDoc = unknown,
-> = {
-  ctx: TCtx;
-  path: string;
-  meta: SensitiveMetadata<TReq>;
-  doc?: TDoc;
-  rawValue: unknown;
-};
+	export type PolicyContext<TCtx, TReq = unknown, TDoc = unknown> = {
+	  ctx: TCtx;
+	  path: string;
+	  meta: SensitiveMetadata<TReq>;
+	  doc?: TDoc;
+	  operation: 'read' | 'write';
+	};
 
-export type PolicyDecision<TStatus extends string> = {
-  status: TStatus;
-  reason?: string;
-  mask?: (value: unknown) => unknown;
-};
+	export type ReadDecision = {
+	  status: 'full' | 'masked' | 'hidden';
+	  reason?: ReasonCode;
+	  mask?: (value: unknown) => unknown;
+	};
 
-export type PolicyResolver<
-  TCtx,
-  TStatus extends string,
-  TReq = unknown,
-  TDoc = unknown,
-> = (
-  context: PolicyContext<TCtx, TStatus, TReq, TDoc>,
-) => PolicyDecision<TStatus> | Promise<PolicyDecision<TStatus>>;
+	export type WriteDecision = {
+	  allowed: boolean;
+	  reason?: ReasonCode;
+	};
 
-// Optional helper: build a resolver from a path-keyed map
-// NOTE: This helper should be fail-closed (default deny) for unknown paths.
-export function policyFromPathMap<TCtx, TStatus extends string>(
-  map: Record<string, any>,
-): PolicyResolver<TCtx, TStatus>;
-```
+	export type EntitlementCheckResult =
+	  | boolean
+	  | { ok: boolean; reason?: ReasonCode };
+
+	// Resolver checks if context has required entitlements.
+	// Returning `boolean` is shorthand for `{ ok: boolean }`.
+	export type EntitlementResolver<TCtx, TReq = unknown, TDoc = unknown> = (
+	  context: PolicyContext<TCtx, TReq, TDoc>,
+	  requirements: TReq,
+	) => EntitlementCheckResult | Promise<EntitlementCheckResult>;
+
+	// Apply read policies using resolver
+	export function resolveReadPolicy<TCtx, TReq, TDoc>(
+	  context: PolicyContext<TCtx, TReq, TDoc>,
+	  policies: ReadPolicy<TReq>,
+	  resolver: EntitlementResolver<TCtx, TReq, TDoc>,
+	  options?: { defaultDenyReason?: ReasonCode },
+	): Promise<ReadDecision>;
+
+	// Apply write policy using resolver
+	export function resolveWritePolicy<TCtx, TReq, TDoc>(
+	  context: PolicyContext<TCtx, TReq, TDoc>,
+	  policy: WritePolicy<TReq> | undefined,
+	  resolver: EntitlementResolver<TCtx, TReq, TDoc>,
+	  options?: { defaultDenyReason?: ReasonCode },
+	): Promise<WriteDecision>;
+	```
 
 **File:** `src/security/apply-policy.ts`
 
 ```ts
-// Recursively applies policy to a value based on schema + sensitive metadata
-export async function applyPolicy<T, TCtx, TStatus extends string>(
+// Recursively applies read policy to a value based on schema + sensitive metadata
+export async function applyReadPolicy<T, TCtx>(
   value: T,
   schema: z.ZodTypeAny,
   ctx: TCtx,
-  resolver: PolicyResolver<TCtx, TStatus>,
-  options?: { path?: string; doc?: unknown },
+  resolver: EntitlementResolver<TCtx>,
+  options?: { path?: string; doc?: unknown; defaultDenyReason?: ReasonCode },
 ): Promise<T>;
+
+// Validates write policy for mutation input (throws if denied)
+export async function validateWritePolicy<T, TCtx>(
+  value: T,
+  schema: z.ZodTypeAny,
+  ctx: TCtx,
+  resolver: EntitlementResolver<TCtx>,
+  options?: { path?: string; defaultDenyReason?: ReasonCode },
+): Promise<void>;
 ```
 
 ### 3. Runtime Class (Layer 2)
 
 **File:** `src/security/sensitive-field.ts`
 
-- Mirror Hotpot ergonomics: `WeakMap` value storage + anti-coercion.
-- `unwrap()` should return the stored value for “value-carrying” statuses (e.g. full/whole/masked/redacted) and throw for “no-value” statuses (e.g. hidden/restricted/forbidden).
-- Hidden/restricted fields must not retain the raw value after policy is applied.
+- Mirror Hotpot ergonomics: value storage + anti-coercion.
+- `getValue()` returns the status-appropriate value (full, masked, or null for hidden).
+- **No `unwrap()` method** - elevation requires new request with entitlements.
 
 ```ts
-class SensitiveField<T, TStatus extends string> {
-  static full<T>(value: T, field?: string): SensitiveField<T, any>;
+class SensitiveField<T, TStatus extends string = string> {
+  static full<T>(value: T, field?: string): SensitiveField<T>;
   static masked<T>(
     maskedValue: T,
     field?: string,
-    reason?: string,
-  ): SensitiveField<T, any>;
-  static hidden<T>(field?: string, reason?: string): SensitiveField<T, any>;
+    reason?: ReasonCode,
+  ): SensitiveField<T>;
+  static hidden<T>(field?: string, reason?: ReasonCode): SensitiveField<T>;
 
   get status(): TStatus;
   get field(): string | undefined;
-  get reason(): string | undefined;
-  unwrap(): T;
+  get reason(): ReasonCode | undefined;
+
+  // Returns the status-appropriate value:
+  // - 'full': returns full value
+  // - 'masked': returns masked value
+  // - 'hidden': returns null
+  getValue(): T | null;
 
   // Used at the wire boundary
   toWire(): {
     status: TStatus;
-    value: unknown;
-    reason?: string;
+    value: T | null;
+    reason?: ReasonCode;
     __sensitiveField?: string | null;
   };
+
+  // Anti-coercion guards
+  toString(): string;  // Returns placeholder, logs warning
+  valueOf(): string;
+  [Symbol.toPrimitive](): string;
 }
 ```
 
@@ -284,32 +430,48 @@ class SensitiveField<T, TStatus extends string> {
 **File:** `src/security/wrappers.ts`
 
 - Add endpoint-level authorization (`requiredEntitlements`/`authorize`) and make it throw a Convex-friendly error.
-- Default to “no plaintext without authorization”: handler sees already-limited `SensitiveField` values.
+- Default to "no plaintext without authorization": handler sees already-limited `SensitiveField` values.
+- For mutations: validate write policies before allowing field modifications.
 - Provide hooks for audit logging and for integrity verification.
 
 ```ts
 type Authorize<TCtx, TArgs> = (ctx: TCtx, args: TArgs) => void | Promise<void>
 
-type SecureOptions<TCtx, TArgs, TStatus extends string> = {
+type SecureQueryOptions<TCtx, TArgs, TStatus extends string> = {
   authorize?: Authorize<TCtx, TArgs>
-  policy: PolicyResolver<TCtx, TStatus>
+  entitlementResolver: EntitlementResolver<TCtx>
   audit?: (ctx: TCtx, accessed: Array<{ path: string; status: TStatus }>) => void | Promise<void>
   onDenied?: (info: { kind: 'endpoint' | 'field'; path?: string }) => Error
 }
 
-export function zSecureQuery(...)
-export function zSecureMutation(...)
+type SecureMutationOptions<TCtx, TArgs, TStatus extends string> = {
+  authorize?: Authorize<TCtx, TArgs>
+  entitlementResolver: EntitlementResolver<TCtx>
+  audit?: (ctx: TCtx, written: Array<{ path: string; allowed: boolean }>) => void | Promise<void>
+  onDenied?: (info: { kind: 'endpoint' | 'field'; path?: string }) => Error
+}
+
+export function zSecureQuery(...)    // Applies read policies
+export function zSecureMutation(...) // Checks write policies before allowing field modifications
 export function zSecureAction(...)
 ```
 
 **File:** `src/security/fail-secure.ts`
 
 ```ts
-// Auto-limit all sensitive fields (safe default for standard zQuery)
+// Auto-limit all sensitive fields to hidden (safe default for standard zQuery)
 export function autoLimit<T>(value: T, schema: z.ZodTypeAny): T;
 
 // Throw if schema contains sensitive fields (safe default for standard zMutation/zAction)
 export function assertNoSensitive(schema: z.ZodTypeAny): void;
+
+// Check write policies for mutation input (throws if any field denied)
+export function assertWriteAllowed<TCtx, TReq>(
+  value: unknown,
+  schema: z.ZodTypeAny,
+  ctx: TCtx,
+  resolver: EntitlementResolver<TCtx, TReq>,
+): Promise<void>;
 ```
 
 ### 5. Client Utilities
@@ -323,18 +485,19 @@ export function assertNoSensitive(schema: z.ZodTypeAny): void;
 
 1. **Unit tests** (`__tests__/security/`)
 
-   - `sensitive.test.ts` - metadata tagging + detection
-   - `apply-policy.test.ts` - nested objects/arrays + doc-aware resolver
+   - `sensitive.test.ts` - metadata tagging + detection with read/write policies
+   - `apply-policy.test.ts` - nested objects/arrays + read policy resolution + write policy validation
    - `wire.test.ts` - discriminated envelope invariants
-   - `sensitive-field.test.ts` - WeakMap storage, unwrap guards, coercion guards
+   - `sensitive-field.test.ts` - getValue() behavior, coercion guards, no unwrap
 
 2. **Integration tests**
 
-   - `wrappers.test.ts` - authorize() throwing + policy application timing
-   - `fail-secure.test.ts` - autoLimit + assertNoSensitive
+   - `wrappers.test.ts` - authorize() + read policy application + write policy enforcement
+   - `fail-secure.test.ts` - autoLimit + assertNoSensitive + assertWriteAllowed
 
 3. **Regression focus**
-   - Unions/optionals/arrays: ensure sensitive fields can’t escape transform coverage.
+   - Unions/optionals/arrays: ensure sensitive fields can't escape transform coverage.
+   - Write policy enforcement across nested structures.
 
 ---
 
@@ -344,3 +507,54 @@ export function assertNoSensitive(schema: z.ZodTypeAny): void;
 - DB branded storage matches issue #1 and supports integrity metadata (issues #14/#23).
 - `zSecureAction` is needed to match issue #20.
 - Audit hooks should make it hard to bypass audit logging requirements (issue #24).
+- Read/write policies per field extends current Hotpot model (which only has clearance-based reads).
+
+---
+
+## Future Extension: Integrity Hashing (Issues #14/#23)
+
+**Scope**: Deferred to a future phase after core FLS is stable.
+
+**Context**: Hotpot requires tamper detection for sensitive fields via checksums stored alongside values.
+
+### Requirements (from GitLab issues)
+
+**Issue #14 - Write-side**:
+- On every write to a sensitive field:
+  1. Get the hashing key (project-wide hardcoded for MVP)
+  2. Produce a hash of the value
+  3. Store the hash alongside the value in `SensitiveDb<T>`
+
+**Issue #23 - Read-side**:
+- On every read:
+  1. Read the hashing key
+  2. Read the `SensitiveDb<T>` value
+  3. Verify the hash matches
+  4. If mismatch → raise error (fail closed)
+
+### Design Considerations
+
+1. **DB shape extension**:
+   ```ts
+   type SensitiveDb<T> = {
+     __sensitiveValue: T
+     __checksum?: string   // HMAC or hash of value
+     __algo?: string       // Algorithm identifier (future-proofing)
+   }
+   ```
+
+2. **Integration points**:
+   - Write: Hook in `zSecureMutation` before DB insert/update
+   - Read: Hook in secure DB wrapper after read, before `SensitiveField` creation
+   - Both should be optional/configurable per deployment
+
+3. **Key management**: Out of scope for zodvex - consumer provides key retrieval function
+
+4. **Algorithm selection**: Start with HMAC-SHA256, make configurable
+
+### Exploration Tasks
+
+- [ ] Research Convex-compatible hashing (must work in Convex runtime)
+- [ ] Design `IntegrityConfig` type for zodvex
+- [ ] Determine if integrity verification should block or warn
+- [ ] Consider performance implications of hashing on every read/write
