@@ -108,12 +108,9 @@ describe('wrappers returns validator generation', () => {
   it('skips Convex returns validator for z.custom()', async () => {
     const { builder, getLastConfig } = makeCapturingBuilder()
 
-    const fn = zQuery(
-      builder as any,
-      { id: z.string() },
-      async () => 'ok',
-      { returns: z.custom() }
-    ) as unknown as (ctx: any, args: any) => Promise<any>
+    const fn = zQuery(builder as any, { id: z.string() }, async () => 'ok', {
+      returns: z.custom()
+    }) as unknown as (ctx: any, args: any) => Promise<any>
 
     expect(getLastConfig().returns).toBeUndefined()
 

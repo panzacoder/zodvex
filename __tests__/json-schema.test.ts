@@ -204,10 +204,7 @@ describe('toJSONSchema', () => {
 
     expect(createdAt.anyOf).toBeDefined()
     expect(createdAt.anyOf).toEqual(
-      expect.arrayContaining([
-        { type: 'string', format: 'date-time' },
-        { type: 'null' }
-      ])
+      expect.arrayContaining([{ type: 'string', format: 'date-time' }, { type: 'null' }])
     )
     // Ensure the "unrepresentable" `{}` placeholder got rewritten.
     expect(createdAt.anyOf.some((s: any) => s && Object.keys(s).length === 0)).toBe(false)

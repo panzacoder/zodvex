@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { generateObject, jsonSchema as aiJsonSchema } from 'ai'
+import { jsonSchema as aiJsonSchema, generateObject } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { z } from 'zod'
 import { zid } from '../src/ids'
@@ -81,4 +81,3 @@ describe('AI SDK integration (JSON Schema)', () => {
     expect(calledSchema.required).not.toContain('teamId')
   })
 })
-
