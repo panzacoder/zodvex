@@ -181,6 +181,52 @@ describe('toJSONSchema', () => {
     expect(jsonSchema.properties.createdAt.format).toBe('date-time')
   })
 
+  it('should handle optional z.date() fields', () => {
+    const schema = z.object({
+      createdAt: z.date().optional(),
+      name: z.string()
+    })
+
+    const jsonSchema = toJSONSchema(schema)
+
+    expect(jsonSchema.required).not.toContain('createdAt')
+    expect(jsonSchema.properties.createdAt.type).toBe('string')
+    expect(jsonSchema.properties.createdAt.format).toBe('date-time')
+  })
+
+  it('should handle nullable z.date() fields', () => {
+    const schema = z.object({
+      createdAt: z.date().nullable()
+    })
+
+    const jsonSchema = toJSONSchema(schema)
+    const createdAt = jsonSchema.properties.createdAt
+
+    expect(createdAt.anyOf).toBeDefined()
+    expect(createdAt.anyOf).toEqual(
+      expect.arrayContaining([
+        { type: 'string', format: 'date-time' },
+        { type: 'null' }
+      ])
+    )
+    // Ensure the "unrepresentable" `{}` placeholder got rewritten.
+    expect(createdAt.anyOf.some((s: any) => s && Object.keys(s).length === 0)).toBe(false)
+  })
+
+  it('should work when passed directly to z.toJSONSchema override', () => {
+    const schema = z.object({
+      createdAt: z.date()
+    })
+
+    const jsonSchema = z.toJSONSchema(schema, {
+      unrepresentable: 'any',
+      override: zodvexJSONSchemaOverride
+    })
+
+    expect(jsonSchema.properties.createdAt.type).toBe('string')
+    expect(jsonSchema.properties.createdAt.format).toBe('date-time')
+  })
+
   it('should allow custom override to be chained', () => {
     const schema = z.object({
       userId: zid('users'),

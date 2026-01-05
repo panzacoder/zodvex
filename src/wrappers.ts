@@ -39,8 +39,8 @@ function containsCustom(schema: z.ZodTypeAny, maxDepth = 50, currentDepth = 0): 
 
   let result = false
 
-  // Use _def.typeName instead of instanceof since ZodCustom is not exported in Zod v4
-  if ((schema as any)._def?.typeName === 'ZodCustom') {
+  // Zod v4 exports ZodCustom and instances expose `schema.type === "custom"`.
+  if (schema instanceof z.ZodCustom) {
     result = true
   } else if (schema instanceof z.ZodUnion) {
     result = (schema.options as z.ZodTypeAny[]).some(opt =>
