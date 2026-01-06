@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+import { v } from 'convex/values'
 import { z } from 'zod'
 import { zid } from '../src/ids'
 import { zodTable } from '../src/tables'
@@ -9,6 +10,15 @@ function makeBuilder() {
   return function builder(config: { handler: (ctx: any, args: any) => any }) {
     return async (ctx: any, args: any) => config.handler(ctx, args)
   }
+}
+
+function makeCapturingBuilder() {
+  let lastConfig: any
+  const builder = (config: any) => {
+    lastConfig = config
+    return async (ctx: any, args: any) => config.handler(ctx, args)
+  }
+  return { builder, getLastConfig: () => lastConfig }
 }
 
 describe('wrappers arg decoding', () => {
@@ -91,5 +101,28 @@ describe('zodTable zDoc/docArray', () => {
     const parsed = Users.docArray.parse(docs)
     expect(parsed).toHaveLength(2)
     expect(parsed[0].name).toBe('A')
+  })
+})
+
+describe('wrappers returns validator generation', () => {
+  it('skips Convex returns validator for z.custom()', async () => {
+    const { builder, getLastConfig } = makeCapturingBuilder()
+
+    const fn = zQuery(builder as any, { id: z.string() }, async () => 'ok', {
+      returns: z.custom()
+    }) as unknown as (ctx: any, args: any) => Promise<any>
+
+    expect(getLastConfig().returns).toBeUndefined()
+
+    const ret = await fn({}, { id: 'x' })
+    expect(ret).toBe('ok')
+  })
+
+  it('keeps Convex returns validator for non-custom returns', () => {
+    const { builder, getLastConfig } = makeCapturingBuilder()
+
+    zQuery(builder as any, { id: z.string() }, async () => 'ok', { returns: z.string() })
+
+    expect(getLastConfig().returns).toEqual(v.string())
   })
 })

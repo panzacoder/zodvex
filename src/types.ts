@@ -15,31 +15,19 @@ export type InferArgs<A> = A extends z.ZodObject<infer S>
       ? z.infer<A>
       : Record<string, never>
 
-// Return type inference with immediate bailout for unions/custom to avoid depth
-export type InferReturns<R> = R extends z.ZodUnion<any>
-  ? any
-  : // Bail immediately for unions
-    R extends z.ZodCustom<any>
+// Return type inference - uses z.output for Zod schemas
+// Previously had bailouts for unions/custom to avoid TypeScript depth errors,
+// but research (Issue #20) showed convex-helpers handles these without issues.
+// Removing bailouts fixes Issue #19 (Promise<any> return types).
+export type InferReturns<R> = R extends z.ZodType<any, any, any>
+  ? z.output<R>
+  : R extends undefined
     ? any
-    : // Bail immediately for custom
-      R extends z.ZodType<any, any, any>
-      ? z.output<R>
-      : // Use z.output for other schemas
-        R extends undefined
-        ? any
-        : R
+    : R
 
 // For handler authoring: what the handler returns before wrapper validation/encoding
-export type InferHandlerReturns<R> = R extends z.ZodUnion<any>
-  ? any
-  : // Bail immediately for unions
-    R extends z.ZodCustom<any>
-    ? any
-    : // Bail immediately for custom
-      R extends z.ZodType<any, any, any>
-      ? z.input<R>
-      : // Use z.input for other schemas
-        any
+// Uses z.input since this is what the handler produces before encoding
+export type InferHandlerReturns<R> = R extends z.ZodType<any, any, any> ? z.input<R> : any
 
 /**
  * Extract the visibility type from a Convex builder function

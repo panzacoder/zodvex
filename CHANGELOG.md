@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: `zid()` no longer uses `.transform()` or `.brand()` - Now uses type-level branding via type assertion instead of runtime transforms. This makes `zid` compatible with AI SDK and other tools that require serializable schemas. Functionally equivalent for 99.9% of users, but the schema structure has changed.
+- **BREAKING**: `skipConvexValidation` now only skips Convex validation, not Zod validation - When using `skipConvexValidation: true` in custom function builders, Zod validation is now always run on args and returns. This ensures schema enforcement and type safety even when Convex validation is skipped for performance.
+
+### Added
+
+- **Union table support** - `zodTable()` now accepts union schemas for polymorphic tables with discriminated unions (resolves #20)
+  - New `addSystemFields()` helper function for adding `_id` and `_creationTime` to union variants
+  - New `withSystemFields()` method on union tables for generating document schemas
+  - Comprehensive test suite with 21 tests covering union tables, depth checks, and edge cases
+- AI SDK compatibility - `zid` and all zodvex schemas now work with Vercel's AI SDK `generateObject()` and similar functions
+- New `toJSONSchema()` helper - Convenience wrapper around `z.toJSONSchema()` that automatically handles zodvex-managed types (zid, z.date)
+- New `zodvexJSONSchemaOverride` and `composeOverrides` exports for advanced JSON Schema customization
+- New test suite for `zid` functionality and AI SDK compatibility
+- Comprehensive AI SDK documentation in README
+- Documentation for polymorphic tables with discriminated unions
+- New MIGRATION.md guide for breaking changes and upgrade paths
+
+### Fixed
+
+- **Return type inference for unions** - Removed unnecessary type bailouts that caused union schemas to infer as `Promise<any>` instead of the proper type. Return types now correctly infer for all Zod schemas including unions, discriminated unions, and complex nested structures (fixes #19)
+- Removed double-branding issue where `zid` used both Convex's `GenericId<T>` branding and Zod's `.brand()` method (fixes #22)
+
 ### Removed
 
 - `zCrud` function removed - Following Convex's guidance to prefer explicit functions over generic CRUD patterns. Users should write their own query/mutation functions for better control and security.

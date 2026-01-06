@@ -178,13 +178,15 @@ export function customFnBuilder<
 
   return function customBuilder(fn: any): any {
     const { args, handler = fn, returns: maybeObject, ...extra } = fn
+    const skipConvexValidation = fn.skipConvexValidation ?? false
 
     const returns =
       maybeObject && !(maybeObject instanceof z.ZodType) ? z.object(maybeObject) : maybeObject
+    // Only generate Convex return validator when not skipping Convex validation
     const returnValidator =
-      returns && !fn.skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
+      returns && !skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
 
-    if (args && !fn.skipConvexValidation) {
+    if (args) {
       let argsValidator = args
       let argsSchema: z.ZodObject<any>
 
@@ -202,9 +204,13 @@ export function customFnBuilder<
         argsSchema = z.object(argsValidator)
       }
 
-      const convexValidator = zodToConvexFields(argsValidator)
+      // Only generate Convex args validator when not skipping Convex validation
+      const convexArgs = skipConvexValidation
+        ? inputArgs
+        : { ...zodToConvexFields(argsValidator), ...inputArgs }
+
       return builder({
-        args: { ...convexValidator, ...inputArgs },
+        args: convexArgs,
         ...returnValidator,
         handler: async (ctx: Ctx, allArgs: any) => {
           const added: any = await customInput(
@@ -215,6 +221,7 @@ export function customFnBuilder<
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
           const decoded = fromConvexJS(rawArgs, argsSchema)
+          // Always run Zod validation, regardless of skipConvexValidation
           const parsed = argsSchema.safeParse(decoded)
           if (!parsed.success) {
             handleZodValidationError(parsed.error, 'args')
@@ -224,7 +231,8 @@ export function customFnBuilder<
           const addedArgs = (added?.args as Record<string, unknown>) ?? {}
           const finalArgs = { ...baseArgs, ...addedArgs }
           const ret = await handler(finalCtx, finalArgs)
-          if (returns && !fn.skipConvexValidation) {
+          // Always run Zod return validation when returns schema is provided
+          if (returns) {
             let validated: any
             try {
               validated = (returns as z.ZodTypeAny).parse(ret)
@@ -261,7 +269,8 @@ export function customFnBuilder<
         const addedArgs = (added?.args as Record<string, unknown>) ?? {}
         const finalArgs = { ...baseArgs, ...addedArgs }
         const ret = await handler(finalCtx, finalArgs)
-        if (returns && !fn.skipConvexValidation) {
+        // Always run Zod return validation when returns schema is provided
+        if (returns) {
           let validated: any
           try {
             validated = (returns as z.ZodTypeAny).parse(ret)

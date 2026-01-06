@@ -15,7 +15,10 @@
       "WebFetch(domain:stack.convex.dev)",
       "Bash(find:*)",
       "Bash(gh pr view:*)",
-      "Bash(gh issue view:*)"
+      "Bash(gh issue view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh issue list:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
