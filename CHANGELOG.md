@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Return type inference for unions** - Removed unnecessary type bailouts that caused union schemas to infer as `Promise<any>` instead of the proper type. Return types now correctly infer for all Zod schemas including unions, discriminated unions, and complex nested structures (fixes #19)
 - Removed double-branding issue where `zid` used both Convex's `GenericId<T>` branding and Zod's `.brand()` method (fixes #22)
 
 ### Removed
