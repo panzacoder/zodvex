@@ -18,7 +18,8 @@
       "Bash(gh issue view:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh issue list:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

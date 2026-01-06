@@ -6,6 +6,24 @@ import { zid } from './ids'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 
 /**
+ * Helper type for Convex system fields added to documents
+ */
+type SystemFields<TableName extends string> = {
+  _id: ReturnType<typeof zid<TableName>>
+  _creationTime: z.ZodNumber
+}
+
+/**
+ * Maps over union options, extending each ZodObject variant with system fields.
+ * Non-object variants are preserved as-is.
+ */
+type MapSystemFields<TableName extends string, Options extends readonly z.ZodTypeAny[]> = {
+  [K in keyof Options]: Options[K] extends z.ZodObject<infer Shape extends z.ZodRawShape>
+    ? z.ZodObject<Shape & SystemFields<TableName>>
+    : Options[K]
+}
+
+/**
  * Adds Convex system fields (_id, _creationTime) to a Zod schema.
  *
  * For object schemas: extends with system fields
@@ -15,9 +33,39 @@ import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields }
  * @param schema - The Zod schema (object or union)
  * @returns Schema with system fields added
  */
-export function addSystemFields<T extends string, S extends z.ZodTypeAny>(
-  tableName: T,
+// Overload 1: ZodObject - extends with system fields
+export function addSystemFields<TableName extends string, Shape extends z.ZodRawShape>(
+  tableName: TableName,
+  schema: z.ZodObject<Shape>
+): z.ZodObject<Shape & SystemFields<TableName>>
+
+// Overload 2: ZodUnion - maps system fields to each variant
+export function addSystemFields<TableName extends string, Options extends readonly z.ZodTypeAny[]>(
+  tableName: TableName,
+  schema: z.ZodUnion<Options>
+): z.ZodUnion<MapSystemFields<TableName, Options>>
+
+// Overload 3: ZodDiscriminatedUnion - maps system fields preserving discriminator
+// Note: Zod v4 signature is ZodDiscriminatedUnion<Options, Discriminator>
+export function addSystemFields<
+  TableName extends string,
+  Options extends readonly z.ZodObject<z.ZodRawShape>[],
+  Discriminator extends string
+>(
+  tableName: TableName,
+  schema: z.ZodDiscriminatedUnion<Options, Discriminator>
+): z.ZodDiscriminatedUnion<MapSystemFields<TableName, Options>, Discriminator>
+
+// Overload 4: Fallback for other ZodTypes - returns as-is
+export function addSystemFields<TableName extends string, S extends z.ZodTypeAny>(
+  tableName: TableName,
   schema: S
+): S
+
+// Implementation
+export function addSystemFields<TableName extends string>(
+  tableName: TableName,
+  schema: z.ZodTypeAny
 ): z.ZodTypeAny {
   // Handle union schemas - add system fields to each variant
   if (schema instanceof z.ZodUnion || schema instanceof z.ZodDiscriminatedUnion) {
@@ -150,10 +198,26 @@ function isObjectShape(input: any): input is Record<string, z.ZodTypeAny> {
  * )
  * ```
  */
+// Helper type to compute the result of addSystemFields for use in zodTable return type
+type AddSystemFieldsResult<
+  TableName extends string,
+  Schema extends z.ZodTypeAny
+> = Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
+  ? z.ZodObject<Shape & SystemFields<TableName>>
+  : Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
+    ? z.ZodUnion<MapSystemFields<TableName, Options>>
+    : Schema extends z.ZodDiscriminatedUnion<
+          infer Options extends readonly z.ZodObject<z.ZodRawShape>[],
+          infer Disc extends string
+        >
+      ? z.ZodDiscriminatedUnion<MapSystemFields<TableName, Options>, Disc>
+      : Schema
+
+// Overload 1: Object shape (most common case)
 export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
   name: TableName,
   shape: Shape
-): ReturnType<typeof Table<any, TableName>> & {
+): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
   shape: Shape
   zDoc: z.ZodObject<
     Shape & {
@@ -171,6 +235,7 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   >
 }
 
+// Overload 2: Union/schema types
 export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
   name: TableName,
   schema: Schema
@@ -179,8 +244,8 @@ export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
   tableName: TableName
   validator: ReturnType<typeof zodToConvex<Schema>>
   schema: Schema
-  docArray: z.ZodArray<ReturnType<typeof addSystemFields<TableName, Schema>>>
-  withSystemFields: () => ReturnType<typeof addSystemFields<TableName, Schema>>
+  docArray: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
+  withSystemFields: () => AddSystemFieldsResult<TableName, Schema>
 }
 
 export function zodTable<
