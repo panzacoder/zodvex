@@ -153,7 +153,7 @@ function isObjectShape(input: any): input is Record<string, z.ZodTypeAny> {
 export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
   name: TableName,
   shape: Shape
-): ReturnType<typeof Table<any, TableName>> & {
+): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
   shape: Shape
   zDoc: z.ZodObject<
     Shape & {
