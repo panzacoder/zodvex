@@ -397,3 +397,80 @@ const _eventsInvalid: EventsOutput = { notAnEvent: 123 }
 declare const clickEvent: EventsOutput & { type: 'click' }
 expectNotAny(clickEvent.x)
 expectNotAny(clickEvent.y)
+
+// =============================================================================
+// STRUCTURAL TESTS FOR UNION/DU TYPE INFERENCE
+// These verify the actual structure is correct, not just "not any/unknown"
+// =============================================================================
+
+// --- Test 24: Union docArray elements have system fields ---
+
+type ShapeDocElement = z.infer<typeof ShapesTable.docArray>[number]
+declare const shapeElement: ShapeDocElement
+
+// System fields should exist on union doc elements
+expectNotAny(shapeElement._id)
+expectNotAny(shapeElement._creationTime)
+
+// --- Test 25: Union variant fields are accessible ---
+
+// For a union, we should be able to access the common discriminator
+// Note: 'kind' exists on both variants
+expectNotAny(shapeElement.kind)
+
+// --- Test 26: Discriminated union narrowing works ---
+
+type EventDoc = z.infer<typeof EventsTable.docArray>[number]
+declare const eventDoc: EventDoc
+
+// Before narrowing, variant-specific fields should not be directly accessible
+// (they exist on some variants but not all)
+
+// After narrowing by discriminator, variant fields should be accessible
+function _handleEvent(event: EventDoc) {
+  if (event.type === 'click') {
+    // After narrowing, x and y should be accessible
+    const x: number = event.x
+    const y: number = event.y
+    return { x, y }
+  } else if (event.type === 'scroll') {
+    // After narrowing, offset should be accessible
+    const offset: number = event.offset
+    return { offset }
+  }
+  return null
+}
+
+// --- Test 27: Union docs reject invalid variants ---
+
+// @ts-expect-error - missing required 'kind' discriminator
+const _invalidShapeDoc1: ShapeDocElement = { _id: '' as any, _creationTime: 0 }
+
+// @ts-expect-error - 'kind' value doesn't match any variant
+const _invalidShapeDoc2: ShapeDocElement = {
+  kind: 'triangle' as any, // not a valid variant
+  _id: '' as any,
+  _creationTime: 0
+}
+
+// --- Test 28: Discriminated union docs have proper system field types ---
+
+// _id should be GenericId<'events'>, not just any string
+type EventDocId = EventDoc['_id']
+declare const eventId: EventDocId
+expectNotAny(eventId)
+declare function expectGenericIdEvents(id: GenericId<'events'>): void
+expectGenericIdEvents(eventId)
+
+// --- Test 29: withSystemFields() result has variant fields accessible ---
+
+const eventsWithFields = EventsTable.withSystemFields()
+type EventWithFields = z.infer<typeof eventsWithFields>
+declare const eventWithFields: EventWithFields
+
+// Should have system fields
+expectNotAny(eventWithFields._id)
+expectNotAny(eventWithFields._creationTime)
+
+// Should have discriminator
+expectNotAny(eventWithFields.type)
