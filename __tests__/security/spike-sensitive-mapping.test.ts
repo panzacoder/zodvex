@@ -113,6 +113,15 @@ function zodToConvexWithSensitive(schema: z.ZodTypeAny): any {
     return v.union(...convexOptions)
   }
 
+  // Handle discriminated unions
+  // In Zod v4, discriminatedUnion uses 'options' (array) or 'optionsMap' (Map)
+  if (defType === 'discriminatedUnion') {
+    const def = (schema as any)._def
+    const options = def.options || (def.optionsMap ? Array.from(def.optionsMap.values()) : [])
+    const convexOptions = options.map((opt: z.ZodTypeAny) => zodToConvexWithSensitive(opt))
+    return v.union(...convexOptions)
+  }
+
   // For everything else, use the standard mapping
   return zodToConvex(schema)
 }
@@ -242,6 +251,150 @@ describe('Spike 1: sensitive(z.*) → Convex mapping', () => {
       expect(convex.members[0].fields.__sensitiveValue.kind).toBe('string')
       // Second member should be number
       expect(convex.members[1].kind).toBe('float64')
+    })
+
+    it('should handle sensitive fields inside union object variants', () => {
+      const schema = z.union([
+        z.object({ type: z.literal('user'), email: sensitive(z.string()) }),
+        z.object({ type: z.literal('anon'), sessionId: z.string() })
+      ])
+      const convex = zodToConvexWithSensitive(schema)
+
+      expect(convex.kind).toBe('union')
+      // First variant should have sensitive email
+      expect(convex.members[0].kind).toBe('object')
+      expect(convex.members[0].fields.type.kind).toBe('literal')
+      expect(convex.members[0].fields.email.kind).toBe('object')
+      expect(convex.members[0].fields.email.fields.__sensitiveValue.kind).toBe('string')
+      // Second variant should be plain
+      expect(convex.members[1].fields.type.kind).toBe('literal')
+      expect(convex.members[1].fields.sessionId.kind).toBe('string')
+    })
+  })
+
+  describe('discriminated unions with sensitive fields', () => {
+    it('should handle z.discriminatedUnion with sensitive fields in variants', () => {
+      const schema = z.discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('patient'),
+          name: z.string(),
+          ssn: sensitive(z.string())
+        }),
+        z.object({
+          kind: z.literal('provider'),
+          name: z.string(),
+          npi: sensitive(z.string())
+        })
+      ])
+      const convex = zodToConvexWithSensitive(schema)
+
+      expect(convex.kind).toBe('union')
+      expect(convex.members).toHaveLength(2)
+
+      // Patient variant
+      const patient = convex.members[0]
+      expect(patient.kind).toBe('object')
+      expect(patient.fields.kind.kind).toBe('literal')
+      expect(patient.fields.kind.value).toBe('patient')
+      expect(patient.fields.name.kind).toBe('string')
+      expect(patient.fields.ssn.kind).toBe('object')
+      expect(patient.fields.ssn.fields.__sensitiveValue.kind).toBe('string')
+
+      // Provider variant
+      const provider = convex.members[1]
+      expect(provider.kind).toBe('object')
+      expect(provider.fields.kind.kind).toBe('literal')
+      expect(provider.fields.kind.value).toBe('provider')
+      expect(provider.fields.name.kind).toBe('string')
+      expect(provider.fields.npi.kind).toBe('object')
+      expect(provider.fields.npi.fields.__sensitiveValue.kind).toBe('string')
+    })
+
+    it('should handle discriminated union with multiple sensitive fields per variant', () => {
+      const schema = z.discriminatedUnion('type', [
+        z.object({
+          type: z.literal('contact'),
+          email: sensitive(z.string()),
+          phone: sensitive(z.string()),
+          publicNotes: z.string()
+        }),
+        z.object({
+          type: z.literal('address'),
+          street: sensitive(z.string()),
+          city: z.string(),
+          zip: z.string()
+        })
+      ])
+      const convex = zodToConvexWithSensitive(schema)
+
+      expect(convex.kind).toBe('union')
+
+      // Contact variant - two sensitive fields
+      const contact = convex.members[0]
+      expect(contact.fields.email.kind).toBe('object')
+      expect(contact.fields.email.fields.__sensitiveValue.kind).toBe('string')
+      expect(contact.fields.phone.kind).toBe('object')
+      expect(contact.fields.phone.fields.__sensitiveValue.kind).toBe('string')
+      expect(contact.fields.publicNotes.kind).toBe('string')
+
+      // Address variant - one sensitive field
+      const address = convex.members[1]
+      expect(address.fields.street.kind).toBe('object')
+      expect(address.fields.street.fields.__sensitiveValue.kind).toBe('string')
+      expect(address.fields.city.kind).toBe('string')
+      expect(address.fields.zip.kind).toBe('string')
+    })
+
+    it('should handle nested discriminated unions with sensitive fields', () => {
+      const innerDU = z.discriminatedUnion('contactType', [
+        z.object({ contactType: z.literal('email'), value: sensitive(z.string()) }),
+        z.object({ contactType: z.literal('phone'), value: sensitive(z.string()) })
+      ])
+
+      const schema = z.discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('person'),
+          name: z.string(),
+          contact: innerDU
+        }),
+        z.object({
+          kind: z.literal('org'),
+          orgName: z.string()
+        })
+      ])
+      const convex = zodToConvexWithSensitive(schema)
+
+      expect(convex.kind).toBe('union')
+
+      // Person variant has nested DU
+      const person = convex.members[0]
+      expect(person.fields.contact.kind).toBe('union')
+      expect(person.fields.contact.members[0].fields.value.kind).toBe('object')
+      expect(person.fields.contact.members[0].fields.value.fields.__sensitiveValue.kind).toBe(
+        'string'
+      )
+    })
+
+    it('should handle optional sensitive fields in discriminated union variants', () => {
+      const schema = z.discriminatedUnion('role', [
+        z.object({
+          role: z.literal('admin'),
+          email: sensitive(z.string()),
+          backupEmail: sensitive(z.string()).optional()
+        }),
+        z.object({
+          role: z.literal('guest'),
+          tempId: z.string()
+        })
+      ])
+      const convex = zodToConvexWithSensitive(schema)
+
+      const admin = convex.members[0]
+      expect(admin.fields.email.kind).toBe('object')
+      expect(admin.fields.email.isOptional).toBe('required')
+      expect(admin.fields.backupEmail.kind).toBe('object')
+      expect(admin.fields.backupEmail.isOptional).toBe('optional')
+      expect(admin.fields.backupEmail.fields.__sensitiveValue.kind).toBe('string')
     })
   })
 

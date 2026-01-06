@@ -21,7 +21,7 @@ Before implementing, validate these mechanics with small spikes/tests:
 - [x] `sensitive(z.*)` maps to DB shape `v.object({ __sensitiveValue: ... })` (incl. `.optional()`, arrays, nesting, and unions)
 - [ ] Convex indexing/querying works with branded paths (e.g. `email.__sensitiveValue`) for `defineTable().index()` + `.withIndex()`
 - [x] End-to-end: DB raw → server `SensitiveField` → apply policy once (default deny) → wire envelope → client decode
-- [x] Unions/discriminated unions cannot bypass sensitive traversal/transforms (fail closed)
+- [x] `z.union()` and `z.discriminatedUnion()` traverse all variants for sensitive fields (tested: nested DUs, optional sensitive in variants, multiple sensitive per variant)
 - [x] "Policy before handler" works without a privileged-unwrapping escape hatch (elevation happens via entitlements on a new request)
 - [ ] Field-level write policies enforced at mutation time
 
