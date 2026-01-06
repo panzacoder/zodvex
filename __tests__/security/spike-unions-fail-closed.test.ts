@@ -108,27 +108,38 @@ function findSensitiveFields(
 /**
  * Transform all sensitive fields in a value based on schema.
  * Returns paths that were transformed.
+ *
+ * FAIL-CLOSED BEHAVIOR: If a union/DU value doesn't match any variant,
+ * the entire value is redacted as a safety default. This prevents sensitive
+ * data from leaking through edge cases where schema and data are mismatched.
  */
 type TransformFn = (value: unknown, path: string) => unknown
+
+interface TransformOptions {
+  /** Called when a union value doesn't match any variant (fail-closed safety redaction) */
+  onUnmatchedUnion?: (value: unknown, path: string, reason: string) => void
+}
 
 function transformSensitiveValues<T>(
   value: T,
   schema: z.ZodTypeAny,
   transform: TransformFn,
-  path: string = ''
-): { result: unknown; transformedPaths: string[] } {
+  path: string = '',
+  options: TransformOptions = {}
+): { result: unknown; transformedPaths: string[]; failClosedPaths: string[] } {
   const defType = (schema as any)._def?.type
   const transformedPaths: string[] = []
+  const failClosedPaths: string[] = []
 
   // Handle null/undefined
   if (value === null || value === undefined) {
-    return { result: value, transformedPaths }
+    return { result: value, transformedPaths, failClosedPaths }
   }
 
   // Check if this value is marked sensitive
   if (isSensitive(schema)) {
     transformedPaths.push(path)
-    return { result: transform(value, path), transformedPaths }
+    return { result: transform(value, path), transformedPaths, failClosedPaths }
   }
 
   // Handle optional/nullable wrappers
@@ -137,7 +148,7 @@ function transformSensitiveValues<T>(
       defType === 'optional'
         ? (schema as z.ZodOptional<any>).unwrap()
         : (schema as z.ZodNullable<any>).unwrap()
-    return transformSensitiveValues(value, inner, transform, path)
+    return transformSensitiveValues(value, inner, transform, path, options)
   }
 
   // Handle objects
@@ -152,14 +163,16 @@ function transformSensitiveValues<T>(
           result[key],
           fieldSchema as z.ZodTypeAny,
           transform,
-          fieldPath
+          fieldPath,
+          options
         )
         result[key] = transformed.result
         transformedPaths.push(...transformed.transformedPaths)
+        failClosedPaths.push(...transformed.failClosedPaths)
       }
     }
 
-    return { result, transformedPaths }
+    return { result, transformedPaths, failClosedPaths }
   }
 
   // Handle arrays
@@ -167,63 +180,87 @@ function transformSensitiveValues<T>(
     const element = (schema as z.ZodArray<any>).element
     const result = value.map((item, i) => {
       const itemPath = `${path}[${i}]`
-      const transformed = transformSensitiveValues(item, element, transform, itemPath)
+      const transformed = transformSensitiveValues(item, element, transform, itemPath, options)
       transformedPaths.push(...transformed.transformedPaths)
+      failClosedPaths.push(...transformed.failClosedPaths)
       return transformed.result
     })
-    return { result, transformedPaths }
+    return { result, transformedPaths, failClosedPaths }
   }
 
-  // Handle unions - determine which variant matches and transform that one
+  // Handle unions (both regular and discriminated)
+  // In Zod v4, discriminatedUnion has defType 'union' but includes a 'discriminator' key
   if (defType === 'union') {
-    const options = (schema as any)._def.options as z.ZodTypeAny[]
+    const def = (schema as any)._def
+    const unionOptions = def.options as z.ZodTypeAny[]
+    const discriminator = def.discriminator as string | undefined
 
-    // Try each variant until one parses successfully
-    for (let i = 0; i < options.length; i++) {
-      const variant = options[i]
-      const parseResult = variant.safeParse(value)
-      if (parseResult.success) {
-        return transformSensitiveValues(value, variant, transform, path)
-      }
-    }
+    // Check if this is a discriminated union (has discriminator key)
+    if (discriminator) {
+      if (typeof value === 'object' && value !== null && discriminator in value) {
+        const discriminatorValue = (value as Record<string, unknown>)[discriminator]
 
-    // No variant matched - this shouldn't happen with valid data
-    // Fail closed: return the value unchanged but log a warning
-    console.warn(`Union at path "${path}" did not match any variant`)
-    return { result: value, transformedPaths }
-  }
-
-  // Handle discriminated unions
-  if (defType === 'discriminatedUnion') {
-    const discriminator = (schema as any)._def.discriminator as string
-    const options = (schema as any)._def.options as z.ZodTypeAny[]
-
-    if (typeof value === 'object' && value !== null && discriminator in value) {
-      const discriminatorValue = (value as Record<string, unknown>)[discriminator]
-
-      // Find matching variant
-      for (let i = 0; i < options.length; i++) {
-        const variant = options[i]
-        if ((variant as any)._def?.type === 'object') {
-          const shape = (variant as z.ZodObject<any>).shape
-          const discField = shape[discriminator]
-          if (discField && (discField as any)._def?.type === 'literal') {
-            const literalValue = (discField as any)._def.value
-            if (literalValue === discriminatorValue) {
-              return transformSensitiveValues(value, variant, transform, path)
+        // Find matching variant by discriminator value
+        for (let i = 0; i < unionOptions.length; i++) {
+          const variant = unionOptions[i]
+          if ((variant as any)._def?.type === 'object') {
+            const shape = (variant as z.ZodObject<any>).shape
+            const discField = shape[discriminator]
+            if (discField && (discField as any)._def?.type === 'literal') {
+              // Zod v4 stores literal values in _def.values array
+              const literalValues = (discField as any)._def.values as unknown[]
+              if (literalValues?.includes(discriminatorValue)) {
+                return transformSensitiveValues(value, variant, transform, path, options)
+              }
             }
           }
         }
+
+        // Discriminator value doesn't match any variant
+        const reason = 'discriminated_union_unknown_discriminator'
+        options.onUnmatchedUnion?.(value, path, reason)
+        failClosedPaths.push(path)
+        return {
+          result: transform(value, path),
+          transformedPaths,
+          failClosedPaths
+        }
+      }
+
+      // Missing discriminator field entirely
+      const reason = 'discriminated_union_missing_discriminator'
+      options.onUnmatchedUnion?.(value, path, reason)
+      failClosedPaths.push(path)
+      return {
+        result: transform(value, path),
+        transformedPaths,
+        failClosedPaths
       }
     }
 
-    // No variant matched - fail closed
-    console.warn(`Discriminated union at path "${path}" did not match any variant`)
-    return { result: value, transformedPaths }
+    // Regular union - try each variant until one parses successfully
+    for (let i = 0; i < unionOptions.length; i++) {
+      const variant = unionOptions[i]
+      const parseResult = variant.safeParse(value)
+      if (parseResult.success) {
+        return transformSensitiveValues(value, variant, transform, path, options)
+      }
+    }
+
+    // FAIL-CLOSED: No variant matched - redact the entire value as a safety default
+    // This prevents sensitive data from leaking through schema/data mismatches
+    const reason = 'union_no_variant_matched'
+    options.onUnmatchedUnion?.(value, path, reason)
+    failClosedPaths.push(path)
+    return {
+      result: transform(value, path),
+      transformedPaths,
+      failClosedPaths
+    }
   }
 
   // For other types, return unchanged
-  return { result: value, transformedPaths }
+  return { result: value, transformedPaths, failClosedPaths }
 }
 
 // --- Tests ---
@@ -488,14 +525,198 @@ describe('Spike 3: Unions fail-closed check', () => {
         { sensitive: 'e' }
       ]
 
-      const { transformedPaths } = transformSensitiveValues(
-        value,
-        schema,
-        (v) => 'REDACTED'
-      )
+      const { transformedPaths } = transformSensitiveValues(value, schema, () => 'REDACTED')
 
       // Should find all 3 sensitive instances
       expect(transformedPaths).toEqual(['[0].sensitive', '[2].sensitive', '[4].sensitive'])
+    })
+  })
+
+  describe('Fail-closed: unmatched union values are redacted', () => {
+    const redactTransform: TransformFn = (value, path) => ({
+      __failClosedRedacted: true,
+      path,
+      originalType: typeof value
+    })
+
+    it('should redact entire value when union variant does not match', () => {
+      const schema = z.union([
+        z.object({ type: z.literal('a'), data: z.string() }),
+        z.object({ type: z.literal('b'), count: z.number() })
+      ])
+
+      // Value with type 'c' doesn't match any variant
+      const value = { type: 'c', secret: 'should-be-redacted' }
+
+      const unmatchedCalls: Array<{ value: unknown; path: string; reason: string }> = []
+      const { result, failClosedPaths } = transformSensitiveValues(
+        value,
+        schema,
+        redactTransform,
+        '',
+        {
+          onUnmatchedUnion: (v, p, r) => unmatchedCalls.push({ value: v, path: p, reason: r })
+        }
+      )
+
+      // Entire value should be redacted
+      expect(result).toEqual({
+        __failClosedRedacted: true,
+        path: '',
+        originalType: 'object'
+      })
+
+      // Should report the fail-closed path
+      expect(failClosedPaths).toEqual([''])
+
+      // Callback should have been called with reason
+      expect(unmatchedCalls).toHaveLength(1)
+      expect(unmatchedCalls[0].reason).toBe('union_no_variant_matched')
+    })
+
+    it('should redact when discriminated union has unknown discriminator value', () => {
+      const schema = z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('user'), email: z.string() }),
+        z.object({ kind: z.literal('admin'), permissions: z.array(z.string()) })
+      ])
+
+      // Value with kind 'hacker' doesn't match any variant
+      const value = { kind: 'hacker', maliciousData: 'payload' }
+
+      const unmatchedCalls: Array<{ reason: string }> = []
+      const { result, failClosedPaths } = transformSensitiveValues(
+        value,
+        schema,
+        redactTransform,
+        '',
+        {
+          onUnmatchedUnion: (_, __, r) => unmatchedCalls.push({ reason: r })
+        }
+      )
+
+      expect(result).toEqual({
+        __failClosedRedacted: true,
+        path: '',
+        originalType: 'object'
+      })
+      expect(failClosedPaths).toEqual([''])
+      expect(unmatchedCalls[0].reason).toBe('discriminated_union_unknown_discriminator')
+    })
+
+    it('should redact when discriminated union is missing discriminator field', () => {
+      const schema = z.discriminatedUnion('type', [
+        z.object({ type: z.literal('a'), value: z.string() }),
+        z.object({ type: z.literal('b'), value: z.number() })
+      ])
+
+      // Value missing 'type' discriminator entirely
+      const value = { value: 'no-type-field' }
+
+      const unmatchedCalls: Array<{ reason: string }> = []
+      const { result, failClosedPaths } = transformSensitiveValues(
+        value,
+        schema,
+        redactTransform,
+        '',
+        {
+          onUnmatchedUnion: (_, __, r) => unmatchedCalls.push({ reason: r })
+        }
+      )
+
+      expect(result).toEqual({
+        __failClosedRedacted: true,
+        path: '',
+        originalType: 'object'
+      })
+      expect(failClosedPaths).toEqual([''])
+      expect(unmatchedCalls[0].reason).toBe('discriminated_union_missing_discriminator')
+    })
+
+    it('should redact nested unmatched union while preserving matched siblings', () => {
+      const schema = z.object({
+        name: z.string(),
+        data: z.union([
+          z.object({ format: z.literal('json'), payload: z.string() }),
+          z.object({ format: z.literal('xml'), payload: z.string() })
+        ])
+      })
+
+      const value = {
+        name: 'test',
+        data: { format: 'yaml', payload: 'secret: value' } // 'yaml' not in union
+      }
+
+      const { result, failClosedPaths } = transformSensitiveValues(
+        value,
+        schema,
+        redactTransform
+      )
+
+      // Name should be preserved, data should be redacted
+      expect((result as any).name).toBe('test')
+      expect((result as any).data).toEqual({
+        __failClosedRedacted: true,
+        path: 'data',
+        originalType: 'object'
+      })
+      expect(failClosedPaths).toEqual(['data'])
+    })
+
+    it('should redact unmatched items in array of unions', () => {
+      const schema = z.array(
+        z.union([
+          z.object({ status: z.literal('active'), id: z.number() }),
+          z.object({ status: z.literal('inactive'), id: z.number() })
+        ])
+      )
+
+      const value = [
+        { status: 'active', id: 1 },
+        { status: 'unknown', id: 2, extra: 'data' }, // doesn't match
+        { status: 'inactive', id: 3 }
+      ]
+
+      const { result, failClosedPaths } = transformSensitiveValues(
+        value,
+        schema,
+        redactTransform
+      )
+
+      // First and third items should pass through, second should be redacted
+      expect((result as any)[0]).toEqual({ status: 'active', id: 1 })
+      expect((result as any)[1]).toEqual({
+        __failClosedRedacted: true,
+        path: '[1]',
+        originalType: 'object'
+      })
+      expect((result as any)[2]).toEqual({ status: 'inactive', id: 3 })
+      expect(failClosedPaths).toEqual(['[1]'])
+    })
+
+    it('should track both transformedPaths and failClosedPaths separately', () => {
+      const schema = z.object({
+        secret: sensitive(z.string()),
+        data: z.union([
+          z.object({ type: z.literal('a') }),
+          z.object({ type: z.literal('b') })
+        ])
+      })
+
+      const value = {
+        secret: 'hidden',
+        data: { type: 'c' } // doesn't match
+      }
+
+      const { transformedPaths, failClosedPaths } = transformSensitiveValues(
+        value,
+        schema,
+        redactTransform
+      )
+
+      // sensitive field should be in transformedPaths
+      expect(transformedPaths).toEqual(['secret'])
+      // unmatched union should be in failClosedPaths
+      expect(failClosedPaths).toEqual(['data'])
     })
   })
 })
