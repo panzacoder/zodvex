@@ -7,8 +7,8 @@
  */
 import type { GenericId } from 'convex/values'
 import { z } from 'zod'
-import { zodTable } from '../tables'
 import { zid } from '../ids'
+import { zodTable } from '../tables'
 
 // Test helper: causes TS error if assigned `any`
 declare function expectNotAny<T>(value: 0 extends 1 & T ? never : T): void
@@ -96,7 +96,7 @@ const _complexInvalid: ComplexDoc['required'] = 123
 
 // --- Test 6: Table with zid references (common Convex pattern) ---
 
-const UsersTable = zodTable('users', {
+const _UsersTable = zodTable('users', {
   name: z.string(),
   email: z.string().email()
 })
@@ -313,9 +313,6 @@ expectNotAny(shapeDocArray)
 // BUG: addSystemFields returns z.ZodTypeAny, causing type loss
 
 const shapeWithFields = ShapesTable.withSystemFields()
-
-// Check the actual return type of withSystemFields
-type WithSystemFieldsReturnType = typeof shapeWithFields
 
 // BUG DETECTION: withSystemFields returns ZodTypeAny instead of preserving the union type
 // z.infer<z.ZodTypeAny> = any, which breaks type safety
