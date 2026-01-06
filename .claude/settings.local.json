@@ -16,7 +16,8 @@
       "Bash(find:*)",
       "Bash(gh pr view:*)",
       "Bash(gh issue view:*)",
-      "Bash(gh pr diff:*)"
+      "Bash(gh pr diff:*)",
+      "Bash(gh issue list:*)"
     ],
     "deny": [],
     "ask": []

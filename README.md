@@ -24,6 +24,7 @@ Type-safe Convex functions with Zod schemas. Preserve Convex's optional/nullable
   - [Working with Large Schemas](#working-with-large-schemas)
   - [Polymorphic Tables with Unions](#polymorphic-tables-with-unions)
   - [AI SDK Compatibility](#ai-sdk-compatibility)
+- [Migration Guide](./MIGRATION.md)
 
 ## Installation
 
@@ -753,16 +754,34 @@ const internalUserSchema = z.object({
 })
 ```
 
-**Option 2: Use Zod 4 codecs** (Future enhancement)
+**Option 2: Use zodvex's JSON Schema helper**
 ```ts
-// Research needed: Zod 4.1+ codec API
-const dateCodec = z.codec(z.string(), z.date(), {
-  encode: (date) => date.toISOString(),
-  decode: (str) => new Date(str)
+import { toJSONSchema } from 'zodvex'
+
+const schema = z.object({
+  userId: zid('users'),
+  createdAt: z.date(),
+  name: z.string()
 })
+
+// Automatically handles zid and z.date() for JSON Schema generation
+const jsonSchema = toJSONSchema(schema)
+// Use with AI SDK or other JSON Schema consumers
 ```
 
-> **Note:** We're researching Zod 4's codec API and JSON schema annotations to provide better AI SDK integration for complex schemas. See [Issue #22](https://github.com/panzacoder/zodvex/issues/22) for updates.
+The `toJSONSchema` helper automatically handles zodvex-managed types:
+- `zid('tableName')` → `{ type: "string", format: "convex-id:tableName" }`
+- `z.date()` → `{ type: "string", format: "date-time" }`
+
+For custom overrides, use `zodvexJSONSchemaOverride` directly:
+```ts
+import { zodvexJSONSchemaOverride, composeOverrides } from 'zodvex'
+
+const jsonSchema = z.toJSONSchema(schema, {
+  unrepresentable: 'any',
+  override: composeOverrides(myCustomOverride, zodvexJSONSchemaOverride)
+})
+```
 
 ## zodvex vs convex-helpers/zod4
 
