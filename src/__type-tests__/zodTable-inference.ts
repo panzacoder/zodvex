@@ -285,3 +285,118 @@ type EmptyDoc = z.infer<typeof EmptyTable.zDoc>
 declare const emptyDoc: EmptyDoc
 expectNotAny(emptyDoc._id)
 expectNotAny(emptyDoc._creationTime)
+
+// =============================================================================
+// UNION TABLE TYPE TESTS
+// These tests check for type preservation in the union schema overload
+// =============================================================================
+
+// --- Test 20: Union table docArray should preserve variant types ---
+
+const ShapesTable = zodTable(
+  'shapes',
+  z.union([
+    z.object({ kind: z.literal('circle'), radius: z.number() }),
+    z.object({ kind: z.literal('rectangle'), width: z.number(), height: z.number() })
+  ])
+)
+
+// The docArray should infer proper document types with system fields
+type ShapeDocArray = z.infer<typeof ShapesTable.docArray>
+declare const shapeDocArray: ShapeDocArray
+
+// TODO: This test currently passes but the inferred type is very loose (ZodTypeAny)
+// Ideally, shapeDocArray[0] should have discriminated union fields
+expectNotAny(shapeDocArray)
+
+// --- Test 21: Union table withSystemFields() should preserve variant types ---
+// BUG: addSystemFields returns z.ZodTypeAny, causing type loss
+
+const shapeWithFields = ShapesTable.withSystemFields()
+
+// Check the actual return type of withSystemFields
+type WithSystemFieldsReturnType = typeof shapeWithFields
+
+// BUG DETECTION: withSystemFields returns ZodTypeAny instead of preserving the union type
+// z.infer<z.ZodTypeAny> = any, which breaks type safety
+type ShapeDocFromWithFields = z.infer<typeof shapeWithFields>
+
+// This should detect if the type is any
+expectNotAny({} as ShapeDocFromWithFields)
+
+// More specific test: the document should have the union variant fields + system fields
+// If withSystemFields worked correctly, we should be able to access kind, radius, etc.
+declare const shapeDoc: ShapeDocFromWithFields
+
+// BUG: These should error with "Property does not exist" if type is any
+// because any accepts all property accesses without error
+// @ts-expect-error - if this is unused, shapeDoc is any (the bug)
+const _testAnyAccess: typeof shapeDoc.thisPropertyShouldNotExist = 'test'
+
+// Direct test: what is z.infer<z.ZodTypeAny>?
+type DirectZodTypeAnyInfer = z.infer<z.ZodTypeAny>
+// If this is any, the next line will fail
+expectNotAny({} as DirectZodTypeAnyInfer)
+
+// Test: check if addSystemFields return type loses union info
+type AddSystemFieldsReturn = ReturnType<typeof ShapesTable.withSystemFields>
+// @ts-expect-error - if unused, the return type accepts all assignments (is any or unknown)
+const _addSystemFieldsTest: AddSystemFieldsReturn = 'this should not be assignable to a Zod schema'
+
+// Debug types show:
+// - DirectZodTypeAnyInfer = unknown (not any!)
+// - ShapeDocFromWithFields = unknown
+// - AddSystemFieldsReturn = ZodType<unknown, ...>
+// In Zod v4, z.infer<z.ZodTypeAny> = unknown, which still loses type info
+
+// Test helper to detect unknown type (different from any)
+declare function expectNotUnknown<T>(value: unknown extends T ? never : T): void
+
+// BUG DETECTION: These fail because types degrade to `unknown`
+// When fixed, these should pass (types should be the actual union)
+expectNotUnknown({} as ShapeDocFromWithFields)
+
+// Test: Does the docArray lose type info?
+type DocArrayElement = ShapeDocArray[number]
+// BUG: DocArrayElement is `unknown`, should be the union type with system fields
+expectNotUnknown({} as DocArrayElement)
+
+// --- Test 22: Union table schema property preserves original schema type ---
+// This should work - schema property is directly typed as Schema
+
+type ShapesSchema = typeof ShapesTable.schema
+expectNotAny({} as ShapesSchema)
+
+// The schema should be the original union, not any
+type ShapesSchemaOutput = z.infer<ShapesSchema>
+declare const shapesOutput: ShapesSchemaOutput
+
+// This SHOULD error because shapesOutput is a union type, not any
+// @ts-expect-error - should fail if schema output is any
+const _shapesOutputInvalid: ShapesSchemaOutput = { notAShape: true }
+
+// --- Test 23: Discriminated union table type preservation ---
+
+const EventsTable = zodTable(
+  'events',
+  z.discriminatedUnion('type', [
+    z.object({ type: z.literal('click'), x: z.number(), y: z.number() }),
+    z.object({ type: z.literal('scroll'), offset: z.number() })
+  ])
+)
+
+// The schema should preserve discriminated union type
+type EventsSchema = typeof EventsTable.schema
+expectNotAny({} as EventsSchema)
+
+type EventsOutput = z.infer<EventsSchema>
+declare const eventsOutput: EventsOutput
+
+// This SHOULD error because eventsOutput is a discriminated union, not any
+// @ts-expect-error - should fail if output is any
+const _eventsInvalid: EventsOutput = { notAnEvent: 123 }
+
+// The discriminator should work
+declare const clickEvent: EventsOutput & { type: 'click' }
+expectNotAny(clickEvent.x)
+expectNotAny(clickEvent.y)
