@@ -9,6 +9,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { z } from 'zod'
 import { transformBySchema, transformBySchemaAsync } from '../../src/transform/transform'
+import { getMetadata } from '../../src/transform/traverse'
 import type { TransformContext } from '../../src/transform/types'
 
 describe('transform/transform.ts', () => {
@@ -367,6 +368,195 @@ describe('transform/transform.ts', () => {
 
         expect(result).toBeNull()
       })
+    })
+  })
+
+  describe('shouldTransform predicate', () => {
+    it('should skip transform callback when predicate returns false', () => {
+      const schema = z.object({
+        name: z.string(),
+        secret: z.string().meta({ sensitive: true })
+      })
+      const value = { name: 'John', secret: 'password123' }
+      const callCount = { total: 0, sensitive: 0 }
+
+      const result = transformBySchema(
+        value,
+        schema,
+        null,
+        (val, ctx) => {
+          callCount.total++
+          if (ctx.meta?.sensitive === true) {
+            callCount.sensitive++
+            return '[REDACTED]'
+          }
+          return val
+        },
+        {
+          // Only call transform for schemas with sensitive metadata
+          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+        }
+      )
+
+      expect(result.name).toBe('John') // Unchanged (callback never called)
+      expect(result.secret).toBe('[REDACTED]') // Transformed
+      expect(callCount.sensitive).toBe(1) // Called once for secret
+      // Should only call transform for sensitive fields, not all fields
+      expect(callCount.total).toBe(1)
+    })
+
+    it('should still recurse into children when predicate returns false', () => {
+      const schema = z.object({
+        user: z.object({
+          profile: z.object({
+            email: z.string().meta({ sensitive: true })
+          })
+        })
+      })
+      const value = { user: { profile: { email: 'test@example.com' } } }
+
+      const result = transformBySchema(
+        value,
+        schema,
+        null,
+        (val, ctx) => {
+          if (ctx.meta?.sensitive === true) {
+            return '[HIDDEN]'
+          }
+          return val
+        },
+        {
+          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+        }
+      )
+
+      // Should still find and transform the deeply nested sensitive field
+      expect(result.user.profile.email).toBe('[HIDDEN]')
+    })
+
+    it('should work with arrays', () => {
+      const schema = z.object({
+        items: z.array(
+          z.object({
+            public: z.string(),
+            secret: z.string().meta({ sensitive: true })
+          })
+        )
+      })
+      const value = {
+        items: [
+          { public: 'a', secret: 'x' },
+          { public: 'b', secret: 'y' }
+        ]
+      }
+      let callCount = 0
+
+      const result = transformBySchema(
+        value,
+        schema,
+        null,
+        (val, ctx) => {
+          callCount++
+          if (ctx.meta?.sensitive === true) {
+            return '[HIDDEN]'
+          }
+          return val
+        },
+        {
+          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+        }
+      )
+
+      expect(result.items[0].public).toBe('a')
+      expect(result.items[0].secret).toBe('[HIDDEN]')
+      expect(result.items[1].public).toBe('b')
+      expect(result.items[1].secret).toBe('[HIDDEN]')
+      expect(callCount).toBe(2) // Only 2 calls for the 2 sensitive fields
+    })
+
+    it('should work with async transforms', async () => {
+      const schema = z.object({
+        name: z.string(),
+        secret: z.string().meta({ sensitive: true })
+      })
+      const value = { name: 'John', secret: 'password' }
+      let callCount = 0
+
+      const result = await transformBySchemaAsync(
+        value,
+        schema,
+        null,
+        async (val, ctx) => {
+          callCount++
+          if (ctx.meta?.sensitive === true) {
+            await new Promise(resolve => setTimeout(resolve, 1))
+            return '[ASYNC_HIDDEN]'
+          }
+          return val
+        },
+        {
+          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+        }
+      )
+
+      expect(result.name).toBe('John')
+      expect(result.secret).toBe('[ASYNC_HIDDEN]')
+      expect(callCount).toBe(1)
+    })
+
+    it('should process all fields when no predicate is provided', () => {
+      const schema = z.object({
+        a: z.string(),
+        b: z.string(),
+        c: z.string()
+      })
+      const value = { a: '1', b: '2', c: '3' }
+      let callCount = 0
+
+      transformBySchema(value, schema, null, val => {
+        callCount++
+        return val
+      })
+
+      // Called for root object + 3 fields = 4 calls
+      expect(callCount).toBeGreaterThanOrEqual(3)
+    })
+
+    it('should work with discriminated unions', () => {
+      const schema = z.discriminatedUnion('type', [
+        z.object({
+          type: z.literal('user'),
+          name: z.string(),
+          ssn: z.string().meta({ sensitive: true })
+        }),
+        z.object({
+          type: z.literal('company'),
+          name: z.string(),
+          taxId: z.string().meta({ sensitive: true })
+        })
+      ])
+      const userValue = { type: 'user' as const, name: 'John', ssn: '123-45-6789' }
+      let callCount = 0
+
+      const result = transformBySchema(
+        userValue,
+        schema,
+        null,
+        (val, ctx) => {
+          callCount++
+          if (ctx.meta?.sensitive === true) {
+            return '[REDACTED]'
+          }
+          return val
+        },
+        {
+          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+        }
+      )
+
+      expect(result.name).toBe('John')
+      expect(result.ssn).toBe('[REDACTED]')
+      expect(callCount).toBe(1) // Only called for ssn
     })
   })
 

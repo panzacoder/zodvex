@@ -87,4 +87,24 @@ export type TransformOptions<TCtx = unknown> = {
   unmatchedUnion?: 'passthrough' | 'error' | 'null'
   /** Callback when a union doesn't match */
   onUnmatchedUnion?: (path: string) => void
+  /**
+   * Fast predicate to check if a schema needs transformation.
+   *
+   * When provided, this predicate is called before the transform callback.
+   * If it returns false, the transform callback is skipped for this schema
+   * (but recursion into children continues).
+   *
+   * This optimization avoids callback overhead for schemas that don't need
+   * transformation, which is useful when only a small subset of fields
+   * require processing (e.g., only sensitive fields).
+   *
+   * @example
+   * ```ts
+   * // Only call transform for schemas with sensitive metadata
+   * transformBySchema(value, schema, ctx, transform, {
+   *   shouldTransform: (sch) => getSensitiveMetadata(sch) !== undefined
+   * })
+   * ```
+   */
+  shouldTransform?: (schema: z.ZodTypeAny) => boolean
 }

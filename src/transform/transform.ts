@@ -43,15 +43,21 @@ export function transformBySchema<T, TCtx>(
     }
 
     const defType = (sch as any)._def?.type
-    const meta = getMetadata(sch)
 
-    // Call transform for this value/schema pair
-    const context: TransformContext<TCtx> = { path: currentPath, schema: sch, meta, ctx }
-    const transformed = transform(val, context)
+    // Check shouldTransform predicate - if false, skip callback but continue recursion
+    const shouldCall = !options?.shouldTransform || options.shouldTransform(sch)
 
-    // If transform returned something different, use it (don't recurse)
-    if (transformed !== val) {
-      return transformed
+    if (shouldCall) {
+      const meta = getMetadata(sch)
+
+      // Call transform for this value/schema pair
+      const context: TransformContext<TCtx> = { path: currentPath, schema: sch, meta, ctx }
+      const transformed = transform(val, context)
+
+      // If transform returned something different, use it (don't recurse)
+      if (transformed !== val) {
+        return transformed
+      }
     }
 
     // Handle optional/nullable - unwrap and continue
@@ -129,15 +135,21 @@ export async function transformBySchemaAsync<T, TCtx>(
     }
 
     const defType = (sch as any)._def?.type
-    const meta = getMetadata(sch)
 
-    // Call transform for this value/schema pair
-    const context: TransformContext<TCtx> = { path: currentPath, schema: sch, meta, ctx }
-    const transformed = await transform(val, context)
+    // Check shouldTransform predicate - if false, skip callback but continue recursion
+    const shouldCall = !options?.shouldTransform || options.shouldTransform(sch)
 
-    // If transform returned something different, use it
-    if (transformed !== val) {
-      return transformed
+    if (shouldCall) {
+      const meta = getMetadata(sch)
+
+      // Call transform for this value/schema pair
+      const context: TransformContext<TCtx> = { path: currentPath, schema: sch, meta, ctx }
+      const transformed = await transform(val, context)
+
+      // If transform returned something different, use it
+      if (transformed !== val) {
+        return transformed
+      }
     }
 
     // Handle optional/nullable
