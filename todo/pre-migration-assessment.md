@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-08
 **Branch:** `plan/rls`
-**Status:** Phases 1-3 Complete, Ready for Phase 4 Review
+**Status:** Phases 1-3 Complete, H1 Fixed, Ready for Phase 4
 
 ---
 
@@ -53,24 +53,13 @@ import { transformBySchemaAsync } from 'zodvex/transform'
 
 ### HIGH Priority (Security-Critical)
 
-#### H1: Resolver Exceptions Not Caught (Fail-Open Risk)
-**Location:** `src/security/policy.ts:58`
+#### H1: Resolver Exceptions Not Caught (Fail-Open Risk) ✅ FIXED
+**Location:** `src/security/policy.ts`
 **Problem:** If the EntitlementResolver throws an exception, it propagates up unhandled. For security code, this should fail-closed.
-**Current:**
-```typescript
-const result = normalizeResult(await resolver(context, tier.requirements))
-```
-**Recommended:**
-```typescript
-try {
-  const result = normalizeResult(await resolver(context, tier.requirements))
-  // ... continue
-} catch (e) {
-  console.error('Entitlement resolver failed, failing closed:', e)
-  return { status: 'hidden', reason: 'resolver_error' }
-}
-```
-**Risk:** A misconfigured or failing resolver could expose sensitive data.
+**Resolution:** Both `resolveReadPolicy` and `resolveWritePolicy` now wrap resolver calls in try-catch:
+- Read policy: Returns `{ status: 'hidden', reason: 'resolver_error' }`
+- Write policy: Returns `{ allowed: false, reason: 'resolver_error' }`
+**Tests:** 6 new tests added in `__tests__/security/policy.test.ts` under "fail-closed on resolver error (SECURITY)"
 
 #### H2: z.lazy() Schemas Not Handled (Infinite Recursion)
 **Location:** `src/transform/traverse.ts`, `src/transform/transform.ts`
@@ -210,7 +199,7 @@ No documentation for Phase 4 (copying to hotpot).
 ## 7. Recommendations
 
 ### Before Phase 4 Migration
-1. **[REQUIRED]** Fix H1: Wrap resolver in try-catch (fail-closed)
+1. ~~**[REQUIRED]** Fix H1: Wrap resolver in try-catch (fail-closed)~~ ✅ DONE
 2. **[REQUIRED]** Fix H2: Handle z.lazy() schemas
 3. **[OPTIONAL]** Add M2: `onDenied` callback for observability
 

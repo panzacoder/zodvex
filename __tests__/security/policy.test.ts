@@ -286,6 +286,64 @@ describe('security/policy.ts', () => {
         expect(decision.status).toBe('full')
       })
     })
+
+    describe('fail-closed on resolver error (SECURITY)', () => {
+      it('should return hidden when resolver throws synchronously', async () => {
+        const throwingResolver: EntitlementResolver<TestCtx, string> = () => {
+          throw new Error('Resolver crashed!')
+        }
+
+        const policy: ReadPolicy<string> = [{ status: 'full', requirements: 'admin' }]
+        const meta: SensitiveMetadata<string> = { sensitive: true, read: policy }
+        const context = makeContext({ userId: 'u1', roles: ['admin'] }, meta)
+
+        const decision = await resolveReadPolicy(context, policy, throwingResolver)
+
+        expect(decision.status).toBe('hidden')
+        expect(decision.reason).toBe('resolver_error')
+      })
+
+      it('should return hidden when async resolver rejects', async () => {
+        const rejectingResolver: EntitlementResolver<TestCtx, string> = async () => {
+          await Promise.resolve()
+          throw new Error('Async resolver crashed!')
+        }
+
+        const policy: ReadPolicy<string> = [{ status: 'full', requirements: 'admin' }]
+        const meta: SensitiveMetadata<string> = { sensitive: true, read: policy }
+        const context = makeContext({ userId: 'u1', roles: ['admin'] }, meta)
+
+        const decision = await resolveReadPolicy(context, policy, rejectingResolver)
+
+        expect(decision.status).toBe('hidden')
+        expect(decision.reason).toBe('resolver_error')
+      })
+
+      it('should fail closed on first tier even if later tiers would pass', async () => {
+        let callCount = 0
+        const partiallyThrowingResolver: EntitlementResolver<TestCtx, string> = (_, req) => {
+          callCount++
+          if (req === 'admin') {
+            throw new Error('Admin check crashed!')
+          }
+          return true // Would pass for 'user'
+        }
+
+        const policy: ReadPolicy<string> = [
+          { status: 'full', requirements: 'admin' },
+          { status: 'masked', requirements: 'user' }
+        ]
+        const meta: SensitiveMetadata<string> = { sensitive: true, read: policy }
+        const context = makeContext({ userId: 'u1', roles: ['user'] }, meta)
+
+        const decision = await resolveReadPolicy(context, policy, partiallyThrowingResolver)
+
+        // Should fail closed on the first tier, not try the second
+        expect(decision.status).toBe('hidden')
+        expect(decision.reason).toBe('resolver_error')
+        expect(callCount).toBe(1) // Only called once before failing
+      })
+    })
   })
 
   describe('resolveWritePolicy()', () => {
@@ -427,6 +485,53 @@ describe('security/policy.ts', () => {
 
         expect(decision.allowed).toBe(false)
         expect(decision.reason).toBe('default_write_deny')
+      })
+    })
+
+    describe('fail-closed on resolver error (SECURITY)', () => {
+      it('should deny write when resolver throws synchronously', async () => {
+        const throwingResolver: EntitlementResolver<TestCtx, string> = () => {
+          throw new Error('Resolver crashed!')
+        }
+
+        const policy: WritePolicy<string> = { requirements: 'admin' }
+        const meta: SensitiveMetadata<string> = { sensitive: true, write: policy }
+        const context = makeContext({ userId: 'u1', roles: ['admin'] }, meta, 'write')
+
+        const decision = await resolveWritePolicy(context, policy, throwingResolver)
+
+        expect(decision.allowed).toBe(false)
+        expect(decision.reason).toBe('resolver_error')
+      })
+
+      it('should deny write when async resolver rejects', async () => {
+        const rejectingResolver: EntitlementResolver<TestCtx, string> = async () => {
+          await Promise.resolve()
+          throw new Error('Async resolver crashed!')
+        }
+
+        const policy: WritePolicy<string> = { requirements: 'admin' }
+        const meta: SensitiveMetadata<string> = { sensitive: true, write: policy }
+        const context = makeContext({ userId: 'u1', roles: ['admin'] }, meta, 'write')
+
+        const decision = await resolveWritePolicy(context, policy, rejectingResolver)
+
+        expect(decision.allowed).toBe(false)
+        expect(decision.reason).toBe('resolver_error')
+      })
+
+      it('should not affect undefined policy (still allows)', async () => {
+        // When there's no policy, resolver is never called, so no error can occur
+        const throwingResolver: EntitlementResolver<TestCtx, string> = () => {
+          throw new Error('Should never be called!')
+        }
+
+        const meta: SensitiveMetadata<string> = { sensitive: true }
+        const context = makeContext({ userId: 'u1', roles: [] }, meta, 'write')
+
+        const decision = await resolveWritePolicy(context, undefined, throwingResolver)
+
+        expect(decision.allowed).toBe(true)
       })
     })
   })
