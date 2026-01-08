@@ -1,0 +1,60 @@
+%% Option 2: Wrapper Type Approach
+%% Shows ZodSensitive class hierarchy and composition patterns
+
+graph TD
+    subgraph "Zod Type Hierarchy"
+        A["ZodType<br/>(Base Class)"]
+        A -->|extends| B["ZodString"]
+        A -->|extends| C["ZodObject"]
+        A -->|extends| D["ZodArray"]
+        A -->|extends| E["ZodOptional"]
+        A -->|extends| F["ZodTransform"]
+        A -->|extends| G["ZodSensitive<T><br/>(NEW)"]
+    end
+
+    subgraph "ZodSensitive Structure"
+        G --> G1["innerSchema: T"]
+        G --> G2["options: SensitiveOptions"]
+        G --> G3["_parse() → delegates to inner"]
+        G --> G4["static isSensitive()"]
+    end
+
+    subgraph "Composition Examples"
+        H1["sensitive(z.string())"]
+        H1 --> H2["ZodSensitive&lt;ZodString&gt;"]
+
+        H3["sensitive(z.string()).optional()"]
+        H3 --> H4["ZodOptional&lt;<br/>ZodSensitive&lt;ZodString&gt;&gt;"]
+
+        H5["sensitive(z.string()).transform(fn)"]
+        H5 --> H6["ZodTransform(<br/>in: ZodSensitive&lt;ZodString&gt;,<br/>out: string)"]
+
+        H7["z.array(sensitive(z.string()))"]
+        H7 --> H8["ZodArray&lt;<br/>ZodSensitive&lt;ZodString&gt;&gt;"]
+    end
+
+    subgraph "Detection Flow"
+        D1["Traverse schema"]
+        D1 --> D2{"instanceof<br/>ZodSensitive?"}
+        D2 -->|"Yes"| D3["✅ Process as sensitive"]
+        D2 -->|"No"| D4{"Is wrapper type?<br/>(optional/transform/etc)"}
+        D4 -->|"Yes"| D5["Unwrap & check inner"]
+        D5 --> D2
+        D4 -->|"No"| D6["Regular field"]
+    end
+
+    subgraph "Why It Survives Transforms"
+        S1["sensitive(z.string())"]
+        S1 --> S2["ZodSensitive"]
+        S2 -->|".transform(fn)"| S3["ZodTransform"]
+        S3 --> S4["S3._def.schema = S2<br/>(ZodSensitive still there!)"]
+        S4 --> S5["✅ instanceof check finds it"]
+    end
+
+    style G fill:#ffd700
+    style H2 fill:#90ee90
+    style H4 fill:#90ee90
+    style H6 fill:#90ee90
+    style H8 fill:#90ee90
+    style D3 fill:#90ee90
+    style S5 fill:#90ee90

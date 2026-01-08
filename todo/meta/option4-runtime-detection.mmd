@@ -1,0 +1,58 @@
+%% Option 4: Runtime Detection + Fail-Secure
+%% Shows detection flow and fail-secure behavior
+
+graph TD
+    subgraph "Detection Approaches"
+        A1["Proxy-Based<br/>Wrap sensitive() return"]
+        A1 --> A1a["Intercept .transform() calls"]
+        A1a --> A1b["⚠️ Console warning"]
+
+        A2["ESLint Rule<br/>Static analysis"]
+        A2 --> A2a["Detect AST pattern:<br/>sensitive(...).transform(...)"]
+        A2a --> A2b["❌ Lint error at build"]
+
+        A3["Runtime Validation<br/>In applyReadPolicy()"]
+        A3 --> A3a["Scan value for<br/>__sensitiveValue"]
+        A3a --> A3b["Compare to schema<br/>sensitive fields"]
+        A3b --> A3c{"Orphaned<br/>values?"}
+
+        A4["Symbol/Brand<br/>Non-metadata marker"]
+        A4 --> A4a["Store brand on schema"]
+        A4a --> A4b["Walk _def chain<br/>to find brand"]
+    end
+
+    subgraph "Fail-Secure Modes"
+        F1{"Orphaned sensitive<br/>fields detected"}
+        F1 -->|"mode: 'open'"| F2["Return raw value<br/>❌ Dangerous"]
+        F1 -->|"mode: 'closed'"| F3["Auto-redact<br/>✅ Safe"]
+        F1 -->|"mode: 'throw'"| F4["Throw error<br/>✅ Safe but disruptive"]
+        F1 -->|"mode: 'warn'"| F5["Log + return raw<br/>⚠️ Moderate"]
+    end
+
+    subgraph "Detection Flow: applyReadPolicy()"
+        D1["Value from DB"]
+        D1 --> D2["Find __sensitiveValue<br/>wrappers in data"]
+        D2 --> D3["Find sensitive fields<br/>in schema"]
+        D3 --> D4{"All __sensitiveValue<br/>have matching<br/>schema markers?"}
+        D4 -->|"Yes"| D5["✅ Process normally"]
+        D4 -->|"No"| D6["⚠️ Orphaned fields<br/>detected!"]
+        D6 --> F1
+    end
+
+    subgraph "Example: The Vulnerability"
+        E1["sensitive(z.string())<br/>.transform(fn)"]
+        E1 --> E2["Schema: ZodTransform<br/>(no sensitive marker visible)"]
+        E2 --> E3["DB value: { __sensitiveValue: 'secret' }"]
+        E3 --> E4["Detection compares:<br/>- Data has __sensitiveValue ✓<br/>- Schema has no marker ✗"]
+        E4 --> E5["🚨 ORPHAN DETECTED"]
+    end
+
+    A3c -->|"Yes"| F1
+    A3c -->|"No"| D5
+
+    style F2 fill:#ff6b6b
+    style F3 fill:#90ee90
+    style F4 fill:#ffd700
+    style F5 fill:#fff3e0
+    style E5 fill:#ff6b6b
+    style D5 fill:#90ee90
