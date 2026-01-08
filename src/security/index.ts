@@ -59,3 +59,13 @@ export {
   type AutoLimitOptions,
   type AssertNoSensitiveOptions
 } from './fail-secure'
+
+// Row-Level Security (RLS)
+export { checkRlsRead, checkRlsWrite, filterByRls } from './rls'
+export type { RlsRule, RlsRules, RlsCheckResult } from './types'
+
+// Secure DB wrappers
+export { createSecureReader, createSecureWriter, type SecureDbConfig } from './db'
+
+// Secure function wrappers
+export { zSecureQuery, zSecureMutation, zSecureAction, type SecureConfig } from './secure-wrappers'

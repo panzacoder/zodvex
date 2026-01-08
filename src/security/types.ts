@@ -185,3 +185,48 @@ export type EntitlementResolver<TCtx, TReq = unknown, TDoc = unknown> = (
   context: PolicyContext<TCtx, TReq, TDoc>,
   requirements: TReq
 ) => EntitlementCheckResult | Promise<EntitlementCheckResult>
+
+// ============================================================================
+// Row-Level Security (RLS) Types
+// ============================================================================
+
+/**
+ * Row-level security rule for a single table.
+ *
+ * Each operation can have its own predicate that determines access.
+ *
+ * @template TCtx - The security context type
+ * @template TDoc - The document type for this table
+ */
+export type RlsRule<TCtx, TDoc> = {
+  /** Can this user read this document? */
+  read?: (ctx: TCtx, doc: TDoc) => boolean | Promise<boolean>
+  /** Can this user insert this document? */
+  insert?: (ctx: TCtx, doc: TDoc) => boolean | Promise<boolean>
+  /** Can this user update this document? (receives both old and new versions) */
+  update?: (ctx: TCtx, oldDoc: TDoc, newDoc: TDoc) => boolean | Promise<boolean>
+  /** Can this user delete this document? */
+  delete?: (ctx: TCtx, doc: TDoc) => boolean | Promise<boolean>
+}
+
+/**
+ * RLS rules for multiple tables.
+ *
+ * Maps table names to their RLS rules.
+ *
+ * @template TCtx - The security context type
+ * @template TTables - Record mapping table names to document types
+ */
+export type RlsRules<TCtx, TTables extends Record<string, unknown>> = {
+  [K in keyof TTables]?: RlsRule<TCtx, TTables[K]>
+}
+
+/**
+ * Result of an RLS check.
+ */
+export type RlsCheckResult = {
+  /** Whether the operation is allowed */
+  allowed: boolean
+  /** Reason code if denied */
+  reason?: string
+}
