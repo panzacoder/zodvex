@@ -451,4 +451,85 @@ describe('transform/traverse.ts', () => {
       expect(results[0].path).toBe('optionalEmail')
     })
   })
+
+  describe('z.lazy() handling', () => {
+    it('should traverse z.lazy() schemas', () => {
+      // Simple lazy wrapper (non-recursive)
+      const lazySchema = z.lazy(() =>
+        z.object({
+          name: z.string().meta({ sensitive: true })
+        })
+      )
+      const visited: string[] = []
+
+      walkSchema(lazySchema, {
+        onField: info => {
+          visited.push(info.path)
+        }
+      })
+
+      expect(visited).toContain('name')
+    })
+
+    it('should handle recursive schemas without infinite loop', () => {
+      // Recursive schema - Person with friends array of Person
+      type Person = { name: string; friends: Person[] }
+      const personSchema: z.ZodType<Person> = z.lazy(() =>
+        z.object({
+          name: z.string(),
+          friends: z.array(personSchema)
+        })
+      )
+      const visited: string[] = []
+      let callCount = 0
+
+      walkSchema(personSchema, {
+        onField: info => {
+          callCount++
+          visited.push(info.path)
+          // Safety limit to ensure we don't infinite loop
+          if (callCount > 100) {
+            throw new Error('Infinite loop detected!')
+          }
+        }
+      })
+
+      // Should visit the fields without infinite loop
+      // Note: The recursive reference (personSchema in friends array) is the same
+      // schema instance, so the visited Set correctly prevents infinite recursion
+      expect(visited).toContain('name')
+      expect(visited).toContain('friends')
+      // The recursive reference stops at 'friends' because personSchema was already visited
+      expect(callCount).toBeLessThan(20)
+    })
+
+    it('should find metadata in lazy schemas', () => {
+      const lazySchema = z.lazy(() =>
+        z.object({
+          email: z.string().meta({ sensitive: true }),
+          name: z.string()
+        })
+      )
+
+      const results = findFieldsWithMeta(lazySchema, meta => meta?.sensitive === true)
+
+      expect(results.length).toBe(1)
+      expect(results[0].path).toBe('email')
+    })
+
+    it('should handle deeply nested lazy schemas', () => {
+      const innerLazy = z.lazy(() => z.object({ value: z.string().meta({ marked: true }) }))
+      const outerLazy = z.lazy(() => z.object({ inner: innerLazy }))
+      const visited: string[] = []
+
+      walkSchema(outerLazy, {
+        onField: info => {
+          visited.push(info.path)
+        }
+      })
+
+      expect(visited).toContain('inner')
+      expect(visited).toContain('inner.value')
+    })
+  })
 })

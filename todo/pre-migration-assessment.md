@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-08
 **Branch:** `plan/rls`
-**Status:** Phases 1-3 Complete, H1 Fixed, Ready for Phase 4
+**Status:** Phases 1-3 Complete, H1+H2 Fixed, Ready for Phase 4
 
 ---
 
@@ -61,20 +61,14 @@ import { transformBySchemaAsync } from 'zodvex/transform'
 - Write policy: Returns `{ allowed: false, reason: 'resolver_error' }`
 **Tests:** 6 new tests added in `__tests__/security/policy.test.ts` under "fail-closed on resolver error (SECURITY)"
 
-#### H2: z.lazy() Schemas Not Handled (Infinite Recursion)
+#### H2: z.lazy() Schemas Not Handled (Infinite Recursion) ✅ FIXED
 **Location:** `src/transform/traverse.ts`, `src/transform/transform.ts`
 **Problem:** Recursive schemas using `z.lazy()` will cause infinite recursion since the traversal doesn't detect them.
-**Example:**
-```typescript
-const personSchema: z.ZodType<Person> = z.lazy(() => z.object({
-  name: z.string(),
-  friends: z.array(personSchema)  // Recursive!
-}))
-```
-**Recommended:** Add `z.lazy()` detection in traversal, either:
-- Detect and skip (with warning)
-- Detect and unwrap with visited tracking
-**Risk:** Runtime crash on valid Zod schemas.
+**Resolution:** Added `z.lazy()` handling to all traversal functions:
+- `walkSchema`: Unwraps lazy schemas via `_def.getter()`, visited Set prevents infinite recursion
+- `transformBySchema`: Unwraps lazy schemas, recursion bounded by actual data structure
+- `transformBySchemaAsync`: Same as sync version
+**Tests:** 9 new tests added covering simple lazy, recursive schemas, deeply nested trees
 
 ---
 
@@ -200,7 +194,7 @@ No documentation for Phase 4 (copying to hotpot).
 
 ### Before Phase 4 Migration
 1. ~~**[REQUIRED]** Fix H1: Wrap resolver in try-catch (fail-closed)~~ ✅ DONE
-2. **[REQUIRED]** Fix H2: Handle z.lazy() schemas
+2. ~~**[REQUIRED]** Fix H2: Handle z.lazy() schemas~~ ✅ DONE
 3. **[OPTIONAL]** Add M2: `onDenied` callback for observability
 
 ### During/After Migration

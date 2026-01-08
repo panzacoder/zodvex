@@ -67,6 +67,15 @@ export function transformBySchema<T, TCtx>(
       return recurse(val, inner, currentPath)
     }
 
+    // Handle lazy - unwrap and continue (recursion bounded by actual data structure)
+    if (defType === 'lazy') {
+      const getter = (sch as any)._def?.getter
+      if (typeof getter === 'function') {
+        const inner = getter()
+        return recurse(val, inner, currentPath)
+      }
+    }
+
     // Handle objects
     if (defType === 'object' && typeof val === 'object' && val !== null) {
       const shape = (sch as any).shape
@@ -157,6 +166,15 @@ export async function transformBySchemaAsync<T, TCtx>(
       if (val === null) return null
       const inner = (sch as any).unwrap()
       return recurse(val, inner, currentPath)
+    }
+
+    // Handle lazy - unwrap and continue (recursion bounded by actual data structure)
+    if (defType === 'lazy') {
+      const getter = (sch as any)._def?.getter
+      if (typeof getter === 'function') {
+        const inner = getter()
+        return recurse(val, inner, currentPath)
+      }
     }
 
     // Handle objects

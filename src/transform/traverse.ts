@@ -93,6 +93,16 @@ export function walkSchema(
       return
     }
 
+    // Handle lazy - unwrap and continue (the visited Set prevents infinite recursion)
+    if (defType === 'lazy') {
+      const getter = (sch as any)._def?.getter
+      if (typeof getter === 'function') {
+        const inner = getter()
+        traverse(inner, currentPath, isOptional)
+      }
+      return
+    }
+
     // Handle objects
     if (defType === 'object') {
       visitor.onObject?.(info)

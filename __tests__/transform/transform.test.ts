@@ -632,4 +632,144 @@ describe('transform/transform.ts', () => {
       expect(result.nested.deep).toBe('[TRANSFORMED]')
     })
   })
+
+  describe('z.lazy() handling', () => {
+    it('should transform values with z.lazy() schemas', () => {
+      // Simple lazy wrapper (non-recursive)
+      const lazySchema = z.lazy(() =>
+        z.object({
+          secret: z.string().meta({ sensitive: true })
+        })
+      )
+      const value = { secret: 'password123' }
+
+      const result = transformBySchema(value, lazySchema, null, (val, ctx) => {
+        if (ctx.meta?.sensitive === true) {
+          return '[REDACTED]'
+        }
+        return val
+      })
+
+      expect(result.secret).toBe('[REDACTED]')
+    })
+
+    it('should transform recursive data with recursive schemas', () => {
+      // Recursive schema - Person with friends array of Person
+      type Person = { name: string; ssn: string; friends: Person[] }
+      const personSchema: z.ZodType<Person> = z.lazy(() =>
+        z.object({
+          name: z.string(),
+          ssn: z.string().meta({ sensitive: true }),
+          friends: z.array(personSchema)
+        })
+      )
+
+      const value: Person = {
+        name: 'Alice',
+        ssn: '123-45-6789',
+        friends: [
+          {
+            name: 'Bob',
+            ssn: '987-65-4321',
+            friends: []
+          }
+        ]
+      }
+
+      const result = transformBySchema(value, personSchema, null, (val, ctx) => {
+        if (ctx.meta?.sensitive === true) {
+          return '[REDACTED]'
+        }
+        return val
+      })
+
+      expect(result.name).toBe('Alice')
+      expect(result.ssn).toBe('[REDACTED]')
+      expect(result.friends[0].name).toBe('Bob')
+      expect(result.friends[0].ssn).toBe('[REDACTED]')
+    })
+
+    it('should handle deeply nested recursive structures', () => {
+      type TreeNode = { value: string; children: TreeNode[] }
+      const treeSchema: z.ZodType<TreeNode> = z.lazy(() =>
+        z.object({
+          value: z.string().meta({ transform: true }),
+          children: z.array(treeSchema)
+        })
+      )
+
+      const tree: TreeNode = {
+        value: 'root',
+        children: [
+          {
+            value: 'child1',
+            children: [{ value: 'grandchild', children: [] }]
+          },
+          { value: 'child2', children: [] }
+        ]
+      }
+
+      const result = transformBySchema(tree, treeSchema, null, (val, ctx) => {
+        if (ctx.meta?.transform === true && typeof val === 'string') {
+          return val.toUpperCase()
+        }
+        return val
+      })
+
+      expect(result.value).toBe('ROOT')
+      expect(result.children[0].value).toBe('CHILD1')
+      expect(result.children[0].children[0].value).toBe('GRANDCHILD')
+      expect(result.children[1].value).toBe('CHILD2')
+    })
+
+    it('should work with async transforms on lazy schemas', async () => {
+      type Person = { name: string; secret: string; friends: Person[] }
+      const personSchema: z.ZodType<Person> = z.lazy(() =>
+        z.object({
+          name: z.string(),
+          secret: z.string().meta({ sensitive: true }),
+          friends: z.array(personSchema)
+        })
+      )
+
+      const value: Person = {
+        name: 'Alice',
+        secret: 'password',
+        friends: [{ name: 'Bob', secret: 'secret123', friends: [] }]
+      }
+
+      const result = await transformBySchemaAsync(value, personSchema, null, async (val, ctx) => {
+        if (ctx.meta?.sensitive === true) {
+          await new Promise(resolve => setTimeout(resolve, 1))
+          return '[ASYNC_REDACTED]'
+        }
+        return val
+      })
+
+      expect(result.secret).toBe('[ASYNC_REDACTED]')
+      expect(result.friends[0].secret).toBe('[ASYNC_REDACTED]')
+    })
+
+    it('should handle empty recursive arrays', () => {
+      type Node = { id: string; children: Node[] }
+      const nodeSchema: z.ZodType<Node> = z.lazy(() =>
+        z.object({
+          id: z.string().meta({ mark: true }),
+          children: z.array(nodeSchema)
+        })
+      )
+
+      const value: Node = { id: 'root', children: [] }
+
+      const result = transformBySchema(value, nodeSchema, null, (val, ctx) => {
+        if (ctx.meta?.mark === true && typeof val === 'string') {
+          return `marked:${val}`
+        }
+        return val
+      })
+
+      expect(result.id).toBe('marked:root')
+      expect(result.children).toEqual([])
+    })
+  })
 })
