@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-08
 **Branch:** `plan/rls`
-**Status:** Phases 1-3 Complete, H1+H2 Fixed, Ready for Phase 4
+**Status:** All Issues Addressed, Ready for Phase 4 Migration
 
 ---
 
@@ -74,66 +74,55 @@ import { transformBySchemaAsync } from 'zodvex/transform'
 
 ### MEDIUM Priority (Usability/Observability)
 
-#### M1: Query API Too Restrictive
-**Location:** `src/security/db.ts:134-161`
-**Problem:** `createSecureReader.query()` only supports filter function, missing:
-- `.withIndex()` for indexed queries
-- `.paginate()` for cursor-based pagination
-- `.order()` for sorting
-**Current:**
+#### M1: Query API Too Restrictive ✅ FIXED
+**Location:** `src/security/db.ts`
+**Problem:** `createSecureReader.query()` only supports filter function.
+**Resolution:** Query now accepts optional query builder callback that supports full Convex API:
 ```typescript
-async query<TTable>(table: TTable, queryFn: (q: any) => any): Promise<TTables[TTable][]>
+async query<TTable>(table: TTable, buildQuery?: (q: QueryBuilder) => CollectibleQuery)
 ```
-**Recommended:** Either expose the full Convex query builder, or add method chaining.
-**Impact:** Users can't efficiently query large tables.
+Supports `.withIndex()`, `.filter()`, `.order()`, and chaining. If no builder provided, collects all.
+**Tests:** 4 new tests for query builder API.
 
-#### M2: Silent Null on RLS Denial
-**Location:** `src/security/db.ts:110-113`
+#### M2: Silent Null on RLS Denial ✅ FIXED
+**Location:** `src/security/db.ts`
 **Problem:** When RLS denies access, `get()` returns `null` - indistinguishable from "not found".
-**Current:**
+**Resolution:** Added `onDenied` callback to `SecureDbConfig`:
 ```typescript
-if (!rlsResult.allowed) return null  // Silent
+onDenied?: (info: DeniedInfo<TTables>) => void
 ```
-**Recommended:** Add optional `onDenied` callback to config:
-```typescript
-config.onDenied?.({ table, id, reason: rlsResult.reason })
-return null
-```
-**Impact:** Debugging access issues is difficult in production.
+Called for all RLS denials (get, insert, patch, delete) with table, id, reason, and operation.
+**Tests:** 6 new tests in `__tests__/security/db.test.ts` under "onDenied callback (M2)".
 
-#### M3: Sequential Array Processing
-**Location:** `src/transform/transform.ts:165-173`
+#### M3: Sequential Array Processing ✅ FIXED
+**Location:** `src/transform/transform.ts`
 **Problem:** Arrays with async transforms are processed sequentially, not in parallel.
-**Current:**
-```typescript
-for (let i = 0; i < val.length; i++) {
-  results.push(await recurse(val[i], element, itemPath))  // Sequential
-}
-```
-**Recommended:** Add `parallel: boolean` option (default false for backwards compat):
+**Resolution:** Added `parallel: boolean` option to `TransformOptions`:
 ```typescript
 if (options?.parallel) {
-  return Promise.all(val.map((item, i) => recurse(item, element, `${currentPath}[${i}]`)))
+  return Promise.all(val.map((item, i) => recurse(item, element, itemPath)))
 }
 ```
-**Impact:** Large arrays with entitlement checks are slow.
+**Tests:** 5 new tests in `__tests__/transform/transform.test.ts` under "parallel option (M3)".
 
 ---
 
 ### LOW Priority (Code Quality)
 
-#### L1: `any` Casts Reduce Type Safety
-**Locations:**
-- `db.ts:112, 145, 222, 249, 273` - `rule as any`
-- `db.ts:48-55` - DatabaseLike uses `any`
-- `apply-policy.ts:120, 142, 154` - `defaultDenyReason as any`
+#### L1: `any` Casts Reduce Type Safety ✅ PARTIALLY FIXED
+**Resolution:** Removed unnecessary `as any` casts for `defaultDenyReason` in:
+- `db.ts` - 2 casts removed
+- `secure-wrappers.ts` - 1 cast removed
 
-**Recommended:** Investigate mapped types to preserve generic relationships.
+**Remaining:** Some `rule as any` casts are necessary due to TypeScript's limitation with mapped types and index access. These are safe at runtime but can't be statically typed.
 
-#### L2: Unused `resolver` in zSecureAction Config
-**Location:** `src/security/secure-wrappers.ts:251-290`
-**Problem:** `zSecureAction` accepts `resolver` in config but never uses it (actions don't have direct DB access).
-**Recommended:** Create `SecureActionConfig` that omits unused fields.
+#### L2: Unused `resolver` in zSecureAction Config ✅ FIXED
+**Location:** `src/security/secure-wrappers.ts`
+**Resolution:** Created `SecureActionConfig<TCtx>` type that only includes:
+- `resolveContext` - needed
+- `authorize` - needed
+
+`zSecureAction` now uses `SecureActionConfig` instead of `SecureConfig`, making it clear that resolver/rules/schemas don't apply to actions.
 
 ---
 
@@ -143,9 +132,21 @@ if (options?.parallel) {
 |-----------|------------------|------|----------------|
 | Nested sensitive in sensitive | Outer hides all | Low (fail-closed) | Document behavior |
 | Sensitive discriminator | Union matching fails | Medium | Document as unsupported |
-| `z.lazy()` recursive | Infinite recursion | High | Detect and handle |
-| `z.transform()` / `z.refine()` | May miss fields | Medium | Test and document |
+| `z.lazy()` recursive | ✅ FIXED | Low | Handled with visited Set |
+| `z.transform()` / `z.refine()` | ✅ DOCUMENTED | Low | Apply `.meta()` AFTER transform/refine |
 | TOCTOU in update | Stale data check | Low (Convex OCC) | Document reliance on Convex |
+
+### z.transform() / z.refine() Behavior
+**Tests:** 6 new tests in `__tests__/transform/transform.test.ts` under "z.transform() and z.refine() handling"
+
+**Key Finding:** Metadata must be applied AFTER transform/refine to be visible:
+```typescript
+// ✅ Correct - meta after transform
+z.string().transform(s => s.toLowerCase()).meta({ sensitive: true })
+
+// ❌ Wrong - meta before transform (hidden in pipe wrapper)
+z.string().meta({ sensitive: true }).transform(s => s.toLowerCase())
+```
 
 ---
 
@@ -173,10 +174,19 @@ No documentation for Phase 4 (copying to hotpot).
 
 | Module | Test Files | Lines | Status |
 |--------|------------|-------|--------|
-| Transform | 3 | ~932 | ✅ Complete |
-| Security | 18+ | ~7194 | ✅ Complete |
+| Transform | 3 | ~1050 | ✅ Complete |
+| Security | 18+ | ~7400 | ✅ Complete |
 
-**Total:** 549 tests passing, 1119 assertions
+**Total:** 596 tests passing, 1274 assertions
+
+### New Tests Added
+- `shouldTransform` predicate tests (6)
+- `z.lazy()` handling tests (9)
+- Fail-closed resolver tests (6)
+- `onDenied` callback tests (6)
+- Parallel array processing tests (5)
+- Query builder API tests (4)
+- `z.transform()`/`z.refine()` edge case tests (6)
 
 ---
 
@@ -195,17 +205,21 @@ No documentation for Phase 4 (copying to hotpot).
 ### Before Phase 4 Migration
 1. ~~**[REQUIRED]** Fix H1: Wrap resolver in try-catch (fail-closed)~~ ✅ DONE
 2. ~~**[REQUIRED]** Fix H2: Handle z.lazy() schemas~~ ✅ DONE
-3. **[OPTIONAL]** Add M2: `onDenied` callback for observability
+3. ~~**[OPTIONAL]** Add M2: `onDenied` callback for observability~~ ✅ DONE
+4. ~~**[OPTIONAL]** Address M1: Query API flexibility~~ ✅ DONE
+5. ~~**[OPTIONAL]** Address M3: Parallel array option~~ ✅ DONE
+6. ~~**[OPTIONAL]** L1: Reduce unnecessary `any` casts~~ ✅ DONE
+7. ~~**[OPTIONAL]** L2: Create SecureActionConfig~~ ✅ DONE
+8. ~~**[OPTIONAL]** Test z.transform/z.refine edge cases~~ ✅ DONE
 
 ### During/After Migration
-4. Address M1: Query API flexibility (in hotpot)
-5. Address M3: Parallel array option (in zodvex transform)
-6. Update README or create hotpot-specific docs
-7. Create migration guide
+- Refactor if-chains to switch statements ✅ DONE
+- Update README or create hotpot-specific docs
+- Create migration guide
 
-### Defer
-- L1/L2: Type improvements (non-blocking)
-- Edge case tests (add over time)
+### Code Quality Improvements Made
+- Switch statements replace if-chains in transform layer for better readability
+- All transform/traverse functions now use consistent `switch (defType)` pattern
 
 ---
 

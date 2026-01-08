@@ -16,16 +16,23 @@ import type { RlsRule } from '../../src/security/types'
 type SecurityCtx = { userId: string; role: 'admin' | 'user' }
 type TestDoc = { _id: string; ownerId: string; title: string; email?: { __sensitiveValue: string } }
 
+// Mock query builder that supports chaining
+function createMockQueryBuilder(docs: TestDoc[]) {
+  const builder = {
+    filter: mock(() => builder),
+    withIndex: mock(() => builder),
+    order: mock(() => builder),
+    collect: mock(async () => docs)
+  }
+  return builder
+}
+
 // Mock Convex contexts
 function createMockQueryCtx(docs: Record<string, TestDoc>) {
   return {
     db: {
       get: mock(async (id: string) => docs[id] ?? null),
-      query: mock((table: string) => ({
-        filter: () => ({
-          collect: async () => Object.values(docs)
-        })
-      }))
+      query: mock((table: string) => createMockQueryBuilder(Object.values(docs)))
     }
   }
 }
@@ -34,11 +41,7 @@ function createMockMutationCtx(docs: Record<string, TestDoc>) {
   return {
     db: {
       get: mock(async (id: string) => docs[id] ?? null),
-      query: mock((table: string) => ({
-        filter: () => ({
-          collect: async () => Object.values(docs)
-        })
-      })),
+      query: mock((table: string) => createMockQueryBuilder(Object.values(docs))),
       insert: mock(async (table: string, doc: TestDoc) => {
         const id = `new_${Date.now()}`
         docs[id] = { ...doc, _id: id }
@@ -174,7 +177,7 @@ describe('security/secure-wrappers.ts', () => {
         args: z.object({}),
         returns: z.any(),
         handler: async ctx => {
-          return ctx.db.query('posts', () => true)
+          return ctx.db.query('posts')
         }
       })
 

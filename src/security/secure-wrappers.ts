@@ -31,7 +31,7 @@ import { createSecureReader, createSecureWriter } from './db'
 import { applyReadPolicy } from './apply-policy'
 
 /**
- * Configuration for secure function wrappers.
+ * Configuration for secure function wrappers (queries and mutations).
  *
  * @template TCtx - The security context type
  * @template TReq - The entitlement requirements type
@@ -56,6 +56,22 @@ export type SecureConfig<TCtx, TReq> = {
   onDenied?: (info: { operation: string; reason?: string }) => Error
   /** Default deny reason */
   defaultDenyReason?: string
+}
+
+/**
+ * Configuration for secure action wrappers.
+ *
+ * Unlike queries and mutations, actions don't have direct DB access,
+ * so RLS/FLS configuration is not applicable at the action level.
+ * Security for underlying queries/mutations should be handled there.
+ *
+ * @template TCtx - The security context type
+ */
+export type SecureActionConfig<TCtx> = {
+  /** Transform Convex context to your security context */
+  resolveContext: (ctx: ConvexContext) => TCtx | Promise<TCtx>
+  /** Optional authorization check before handler */
+  authorize?: (ctx: TCtx, args: unknown) => void | Promise<void>
 }
 
 // Minimal Convex context types (we're intentionally loose here)
@@ -139,7 +155,7 @@ export function zSecureQuery<TCtx, TReq = unknown>(config: SecureConfig<TCtx, TR
 
         // Apply FLS to return value
         return applyReadPolicy(result, definition.returns, securityCtx, config.resolver, {
-          defaultDenyReason: config.defaultDenyReason as any
+          defaultDenyReason: config.defaultDenyReason
         })
       }
     }
@@ -250,7 +266,7 @@ export function zSecureMutation<TCtx, TReq = unknown>(config: SecureConfig<TCtx,
  * })
  * ```
  */
-export function zSecureAction<TCtx, TReq = unknown>(config: SecureConfig<TCtx, TReq>) {
+export function zSecureAction<TCtx>(config: SecureActionConfig<TCtx>) {
   return function defineSecureAction<
     TArgs extends z.ZodTypeAny,
     TReturns extends z.ZodTypeAny

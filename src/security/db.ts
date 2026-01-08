@@ -24,6 +24,20 @@ import { checkRlsRead, checkRlsWrite, filterByRls } from './rls'
 import { applyReadPolicy } from './apply-policy'
 
 /**
+ * Information passed to the onDenied callback.
+ */
+export type DeniedInfo<TTables> = {
+  /** The table name */
+  table: keyof TTables
+  /** The document ID (for get) or undefined (for filtered query results) */
+  id?: string
+  /** The reason for denial */
+  reason?: string
+  /** The operation that was denied */
+  operation: 'read' | 'insert' | 'update' | 'delete'
+}
+
+/**
  * Configuration for secure database wrappers.
  *
  * @template TCtx - The security context type
@@ -39,6 +53,25 @@ export type SecureDbConfig<TCtx, TReq, TTables extends Record<string, unknown>> 
   schemas?: Partial<Record<keyof TTables, z.ZodTypeAny>>
   /** Default deny reason for FLS */
   defaultDenyReason?: string
+  /**
+   * Optional callback invoked when RLS denies access.
+   * Useful for debugging and observability in production.
+   *
+   * @example
+   * ```ts
+   * onDenied: (info) => {
+   *   logger.warn('RLS denial', { table: info.table, id: info.id, reason: info.reason })
+   * }
+   * ```
+   */
+  onDenied?: (info: DeniedInfo<TTables>) => void
+}
+
+/**
+ * A collectible query that can be finalized with .collect().
+ */
+type CollectibleQuery = {
+  collect: () => Promise<any[]>
 }
 
 /**
@@ -47,11 +80,17 @@ export type SecureDbConfig<TCtx, TReq, TTables extends Record<string, unknown>> 
  */
 type DatabaseLike = {
   get: (id: any) => Promise<any>
-  query: (table: any) => {
-    filter: (fn: any) => {
-      collect: () => Promise<any[]>
-    }
-  }
+  query: (table: any) => QueryBuilder
+}
+
+/**
+ * Query builder interface that supports Convex query methods.
+ * This is intentionally loose to allow full Convex query API access.
+ */
+type QueryBuilder = CollectibleQuery & {
+  filter: (fn: any) => QueryBuilder
+  withIndex?: (indexName: string, ...args: any[]) => QueryBuilder
+  order?: (order: 'asc' | 'desc') => QueryBuilder
 }
 
 /**
@@ -110,14 +149,17 @@ export function createSecureReader<TCtx, TReq, TTables extends Record<string, un
       // Check RLS
       const rule = config.rules?.[table]
       const rlsResult = await checkRlsRead(ctx, doc, rule as any)
-      if (!rlsResult.allowed) return null
+      if (!rlsResult.allowed) {
+        config.onDenied?.({ table, id, reason: rlsResult.reason, operation: 'read' })
+        return null
+      }
 
       // Apply FLS
       const schema = config.schemas?.[table]
       if (schema) {
         return applyReadPolicy(doc, schema, ctx, config.resolver, {
           doc,
-          defaultDenyReason: config.defaultDenyReason as any
+          defaultDenyReason: config.defaultDenyReason
         }) as Promise<TTables[TTable]>
       }
 
@@ -127,18 +169,38 @@ export function createSecureReader<TCtx, TReq, TTables extends Record<string, un
     /**
      * Query documents with RLS + FLS applied.
      *
+     * Supports the full Convex query builder API including:
+     * - `.withIndex()` for indexed queries
+     * - `.filter()` for filtering
+     * - `.order()` for sorting
+     *
      * @param table - The table name
-     * @param queryFn - Filter function for the query
+     * @param buildQuery - Optional function to build the query (receives query builder, returns collectible)
      * @returns Array of documents (with FLS applied) that pass RLS
+     *
+     * @example
+     * ```ts
+     * // Simple filter
+     * const posts = await reader.query('posts', q => q.filter(q => q.eq(q.field('status'), 'published')))
+     *
+     * // With index
+     * const userPosts = await reader.query('posts', q =>
+     *   q.withIndex('by_author', q => q.eq('authorId', userId))
+     * )
+     *
+     * // With ordering
+     * const recent = await reader.query('posts', q =>
+     *   q.withIndex('by_created').order('desc')
+     * )
+     * ```
      */
     async query<TTable extends keyof TTables>(
       table: TTable,
-      queryFn: (q: any) => any
+      buildQuery?: (q: QueryBuilder) => CollectibleQuery
     ): Promise<TTables[TTable][]> {
-      const docs = await db
-        .query(table as any)
-        .filter(queryFn)
-        .collect()
+      const baseQuery = db.query(table as any)
+      const finalQuery = buildQuery ? buildQuery(baseQuery) : baseQuery
+      const docs = await finalQuery.collect()
 
       // Filter by RLS
       const rule = config.rules?.[table]
@@ -151,7 +213,7 @@ export function createSecureReader<TCtx, TReq, TTables extends Record<string, un
           filtered.map(doc =>
             applyReadPolicy(doc, schema, ctx, config.resolver, {
               doc,
-              defaultDenyReason: config.defaultDenyReason as any
+              defaultDenyReason: config.defaultDenyReason
             })
           )
         ) as Promise<TTables[TTable][]>
@@ -221,6 +283,7 @@ export function createSecureWriter<TCtx, TReq, TTables extends Record<string, un
       const rule = config.rules?.[table]
       const rlsResult = await checkRlsWrite(ctx, doc, rule as any, 'insert')
       if (!rlsResult.allowed) {
+        config.onDenied?.({ table, reason: rlsResult.reason, operation: 'insert' })
         throw new Error(`RLS denied insert on ${String(table)}: ${rlsResult.reason}`)
       }
 
@@ -249,6 +312,7 @@ export function createSecureWriter<TCtx, TReq, TTables extends Record<string, un
       const rule = config.rules?.[table]
       const rlsResult = await checkRlsWrite(ctx, newDoc, rule as any, 'update', oldDoc)
       if (!rlsResult.allowed) {
+        config.onDenied?.({ table, id, reason: rlsResult.reason, operation: 'update' })
         throw new Error(`RLS denied update on ${String(table)}: ${rlsResult.reason}`)
       }
 
@@ -272,6 +336,7 @@ export function createSecureWriter<TCtx, TReq, TTables extends Record<string, un
       const rule = config.rules?.[table]
       const rlsResult = await checkRlsWrite(ctx, doc, rule as any, 'delete')
       if (!rlsResult.allowed) {
+        config.onDenied?.({ table, id, reason: rlsResult.reason, operation: 'delete' })
         throw new Error(`RLS denied delete on ${String(table)}: ${rlsResult.reason}`)
       }
 

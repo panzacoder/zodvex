@@ -107,4 +107,22 @@ export type TransformOptions<TCtx = unknown> = {
    * ```
    */
   shouldTransform?: (schema: z.ZodTypeAny) => boolean
+  /**
+   * Process array elements in parallel (async only).
+   *
+   * When true, array elements are processed with Promise.all() instead of
+   * sequentially. This can significantly improve performance for large arrays
+   * when transforms involve async operations like entitlement checks.
+   *
+   * Default: false (sequential processing for backwards compatibility)
+   *
+   * @example
+   * ```ts
+   * // Process user entitlements for all items in parallel
+   * const result = await transformBySchemaAsync(docs, schema, ctx, transform, {
+   *   parallel: true
+   * })
+   * ```
+   */
+  parallel?: boolean
 }

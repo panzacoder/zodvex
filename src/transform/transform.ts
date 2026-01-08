@@ -203,6 +203,16 @@ export async function transformBySchemaAsync<T, TCtx>(
       case 'array': {
         if (Array.isArray(val)) {
           const element = (sch as any).element
+          if (options?.parallel) {
+            // Parallel processing with Promise.all
+            return Promise.all(
+              val.map((item, i) => {
+                const itemPath = `${currentPath}[${i}]`
+                return recurse(item, element, itemPath)
+              })
+            )
+          }
+          // Sequential processing (default)
           const results: unknown[] = []
           for (let i = 0; i < val.length; i++) {
             const itemPath = `${currentPath}[${i}]`

@@ -772,4 +772,295 @@ describe('transform/transform.ts', () => {
       expect(result.children).toEqual([])
     })
   })
+
+  describe('z.transform() and z.refine() handling', () => {
+    it('should find metadata when applied AFTER transform', () => {
+      // Recommended pattern: apply .meta() after .transform()
+      const schema = z.object({
+        email: z
+          .string()
+          .transform(s => s.toLowerCase())
+          .meta({ sensitive: true })
+      })
+      const value = { email: 'TEST@EXAMPLE.COM' }
+
+      const result = transformBySchema(value, schema, null, (val, ctx) => {
+        if (ctx.meta?.sensitive === true) {
+          return '[REDACTED]'
+        }
+        return val
+      })
+
+      expect(result.email).toBe('[REDACTED]')
+    })
+
+    it('should find metadata when applied AFTER refine', () => {
+      // Recommended pattern: apply .meta() after .refine()
+      const schema = z.object({
+        password: z
+          .string()
+          .refine(s => s.length >= 8, 'Password too short')
+          .meta({ sensitive: true })
+      })
+      const value = { password: 'secret123' }
+
+      const result = transformBySchema(value, schema, null, (val, ctx) => {
+        if (ctx.meta?.sensitive === true) {
+          return '[REDACTED]'
+        }
+        return val
+      })
+
+      expect(result.password).toBe('[REDACTED]')
+    })
+
+    it('should NOT find metadata when applied BEFORE transform (documented limitation)', () => {
+      // Anti-pattern: metadata applied before transform is not visible
+      // The transform creates a 'pipe' wrapper that hides the inner metadata
+      const schema = z.object({
+        email: z
+          .string()
+          .meta({ sensitive: true }) // Applied BEFORE - will be hidden!
+          .transform(s => s.toLowerCase())
+      })
+      const value = { email: 'TEST@EXAMPLE.COM' }
+
+      const result = transformBySchema(value, schema, null, (val, ctx) => {
+        if (ctx.meta?.sensitive === true) {
+          return '[REDACTED]'
+        }
+        return val
+      })
+
+      // Metadata is NOT found because it's on the inner schema
+      // Note: transformBySchema doesn't run Zod transforms, it just traverses
+      expect(result.email).toBe('TEST@EXAMPLE.COM') // Not redacted, original value
+    })
+
+    it('should NOT find metadata when applied BEFORE refine (documented limitation)', () => {
+      // Anti-pattern: metadata applied before refine is lost entirely
+      const schema = z.object({
+        password: z
+          .string()
+          .meta({ sensitive: true }) // Applied BEFORE - will be lost!
+          .refine(s => s.length >= 8)
+      })
+      const value = { password: 'secret123' }
+
+      const result = transformBySchema(value, schema, null, (val, ctx) => {
+        if (ctx.meta?.sensitive === true) {
+          return '[REDACTED]'
+        }
+        return val
+      })
+
+      // Metadata is NOT found - refine doesn't preserve inner metadata
+      expect(result.password).toBe('secret123') // Not redacted
+    })
+
+    it('should work with chained transforms when meta is last', () => {
+      const schema = z.object({
+        value: z
+          .string()
+          .transform(s => s.trim())
+          .transform(s => s.toLowerCase())
+          .meta({ normalize: true })
+      })
+      const value = { value: '  HELLO  ' }
+
+      const result = transformBySchema(value, schema, null, (val, ctx) => {
+        if (ctx.meta?.normalize === true) {
+          return `[${val}]`
+        }
+        return val
+      })
+
+      expect(result.value).toBe('[  HELLO  ]') // Transform callback sees original value
+    })
+
+    it('should work with z.coerce patterns', () => {
+      // z.coerce.number() internally uses transform
+      const schema = z.object({
+        count: z.coerce.number().meta({ tracked: true })
+      })
+      const value = { count: '42' }
+
+      let foundMeta = false
+      transformBySchema(value, schema, null, (val, ctx) => {
+        if (ctx.meta?.tracked === true) {
+          foundMeta = true
+        }
+        return val
+      })
+
+      expect(foundMeta).toBe(true)
+    })
+  })
+
+  describe('parallel option (M3)', () => {
+    it('should process array elements in parallel when parallel: true', async () => {
+      const schema = z.object({
+        items: z.array(
+          z.object({
+            value: z.string().meta({ transform: true })
+          })
+        )
+      })
+      const value = {
+        items: [{ value: 'a' }, { value: 'b' }, { value: 'c' }]
+      }
+
+      const startTimes: number[] = []
+      const result = await transformBySchemaAsync(
+        value,
+        schema,
+        null,
+        async (val, ctx) => {
+          if (ctx.meta?.transform === true) {
+            startTimes.push(Date.now())
+            await new Promise(resolve => setTimeout(resolve, 10))
+            return `[${val}]`
+          }
+          return val
+        },
+        { parallel: true }
+      )
+
+      expect(result.items[0].value).toBe('[a]')
+      expect(result.items[1].value).toBe('[b]')
+      expect(result.items[2].value).toBe('[c]')
+
+      // All transforms should have started at approximately the same time
+      // (within 5ms of each other for parallel execution)
+      if (startTimes.length === 3) {
+        const maxDiff = Math.max(...startTimes) - Math.min(...startTimes)
+        expect(maxDiff).toBeLessThan(10) // Started within 10ms of each other
+      }
+    })
+
+    it('should process array elements sequentially by default', async () => {
+      const schema = z.object({
+        items: z.array(
+          z.object({
+            value: z.string().meta({ transform: true })
+          })
+        )
+      })
+      const value = {
+        items: [{ value: 'a' }, { value: 'b' }, { value: 'c' }]
+      }
+
+      const startTimes: number[] = []
+      const result = await transformBySchemaAsync(
+        value,
+        schema,
+        null,
+        async (val, ctx) => {
+          if (ctx.meta?.transform === true) {
+            startTimes.push(Date.now())
+            await new Promise(resolve => setTimeout(resolve, 10))
+            return `[${val}]`
+          }
+          return val
+        }
+        // parallel: false is default
+      )
+
+      expect(result.items[0].value).toBe('[a]')
+      expect(result.items[1].value).toBe('[b]')
+      expect(result.items[2].value).toBe('[c]')
+
+      // Transforms should have started sequentially (with ~10ms gaps)
+      if (startTimes.length === 3) {
+        const diff1 = startTimes[1] - startTimes[0]
+        const diff2 = startTimes[2] - startTimes[1]
+        expect(diff1).toBeGreaterThanOrEqual(8) // Each waited for the previous
+        expect(diff2).toBeGreaterThanOrEqual(8)
+      }
+    })
+
+    it('should handle nested arrays in parallel', async () => {
+      const schema = z.object({
+        outer: z.array(
+          z.object({
+            inner: z.array(
+              z.object({
+                value: z.string().meta({ transform: true })
+              })
+            )
+          })
+        )
+      })
+      const value = {
+        outer: [{ inner: [{ value: 'a' }, { value: 'b' }] }, { inner: [{ value: 'c' }] }]
+      }
+
+      const result = await transformBySchemaAsync(
+        value,
+        schema,
+        null,
+        async (val, ctx) => {
+          if (ctx.meta?.transform === true) {
+            await new Promise(resolve => setTimeout(resolve, 1))
+            return `[${val}]`
+          }
+          return val
+        },
+        { parallel: true }
+      )
+
+      expect(result.outer[0].inner[0].value).toBe('[a]')
+      expect(result.outer[0].inner[1].value).toBe('[b]')
+      expect(result.outer[1].inner[0].value).toBe('[c]')
+    })
+
+    it('should work with empty arrays in parallel mode', async () => {
+      const schema = z.object({
+        items: z.array(z.string().meta({ transform: true }))
+      })
+      const value = { items: [] as string[] }
+
+      const result = await transformBySchemaAsync(
+        value,
+        schema,
+        null,
+        async (val, ctx) => {
+          if (ctx.meta?.transform === true) {
+            return `[${val}]`
+          }
+          return val
+        },
+        { parallel: true }
+      )
+
+      expect(result.items).toEqual([])
+    })
+
+    it('should preserve order in parallel mode', async () => {
+      const schema = z.array(z.string().meta({ transform: true }))
+      const value = ['first', 'second', 'third', 'fourth', 'fifth']
+
+      // Simulate varying processing times
+      const delays = [50, 10, 30, 20, 5]
+      let index = 0
+
+      const result = await transformBySchemaAsync(
+        value,
+        schema,
+        null,
+        async (val, ctx) => {
+          if (ctx.meta?.transform === true) {
+            const delay = delays[index++]
+            await new Promise(resolve => setTimeout(resolve, delay))
+            return `[${val}]`
+          }
+          return val
+        },
+        { parallel: true }
+      )
+
+      // Despite different delays, order should be preserved
+      expect(result).toEqual(['[first]', '[second]', '[third]', '[fourth]', '[fifth]'])
+    })
+  })
 })

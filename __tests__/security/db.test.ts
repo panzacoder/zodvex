@@ -8,7 +8,7 @@
 
 import { describe, expect, it, mock } from 'bun:test'
 import { z } from 'zod'
-import { createSecureReader, createSecureWriter } from '../../src/security/db'
+import { createSecureReader, createSecureWriter, type DeniedInfo } from '../../src/security/db'
 import { sensitive } from '../../src/security/sensitive'
 import type { RlsRule } from '../../src/security/types'
 
@@ -16,15 +16,22 @@ import type { RlsRule } from '../../src/security/types'
 type TestCtx = { userId: string; role: 'admin' | 'user' }
 type TestDoc = { _id: string; ownerId: string; title: string; email?: { __sensitiveValue: string } }
 
+// Mock query builder that supports chaining
+function createMockQueryBuilder(docs: TestDoc[]) {
+  const builder = {
+    filter: mock(() => builder),
+    withIndex: mock(() => builder),
+    order: mock(() => builder),
+    collect: mock(async () => docs)
+  }
+  return builder
+}
+
 // Mock database implementation
 function createMockDb(docs: Record<string, TestDoc>) {
   return {
     get: mock(async (id: string) => docs[id] ?? null),
-    query: mock((table: string) => ({
-      filter: () => ({
-        collect: async () => Object.values(docs)
-      })
-    })),
+    query: mock((table: string) => createMockQueryBuilder(Object.values(docs))),
     insert: mock(async (table: string, doc: TestDoc) => {
       const id = `new_${Date.now()}`
       docs[id] = { ...doc, _id: id }
@@ -152,7 +159,7 @@ describe('security/db.ts', () => {
         }
 
         const reader = createSecureReader(mockDb as any, ctx, { rules, resolver: async () => true })
-        const result = await reader.query('posts', () => true)
+        const result = await reader.query('posts')
 
         expect(result).toHaveLength(2)
         expect(result.map(d => d._id)).toContain('doc1')
@@ -169,7 +176,7 @@ describe('security/db.ts', () => {
         const ctx: TestCtx = { userId: 'user1', role: 'user' }
 
         const reader = createSecureReader(mockDb as any, ctx, { resolver: async () => true })
-        const result = await reader.query('posts', () => true)
+        const result = await reader.query('posts')
 
         expect(result).toHaveLength(2)
       })
@@ -209,13 +216,68 @@ describe('security/db.ts', () => {
           resolver,
           schemas: { posts: schema }
         })
-        const result = await reader.query('posts', () => true)
+        const result = await reader.query('posts')
 
         // Admin should see full values
         expect(result).toHaveLength(2)
         for (const doc of result) {
           expect((doc.email as any)?.status).toBe('full')
         }
+      })
+
+      it('should work without query builder (collect all)', async () => {
+        const docs: Record<string, TestDoc> = {
+          doc1: { _id: 'doc1', ownerId: 'user1', title: 'Doc 1' },
+          doc2: { _id: 'doc2', ownerId: 'user1', title: 'Doc 2' }
+        }
+        const mockDb = createMockDb(docs)
+        const ctx: TestCtx = { userId: 'user1', role: 'user' }
+
+        const reader = createSecureReader(mockDb as any, ctx, { resolver: async () => true })
+        const result = await reader.query('posts')
+
+        expect(result).toHaveLength(2)
+      })
+
+      it('should support query builder with filter', async () => {
+        const docs: Record<string, TestDoc> = {
+          doc1: { _id: 'doc1', ownerId: 'user1', title: 'Test' }
+        }
+        const mockDb = createMockDb(docs)
+        const ctx: TestCtx = { userId: 'user1', role: 'user' }
+
+        const reader = createSecureReader(mockDb as any, ctx, { resolver: async () => true })
+        const result = await reader.query('posts', q => q.filter(() => true))
+
+        expect(result).toHaveLength(1)
+      })
+
+      it('should support query builder with withIndex', async () => {
+        const docs: Record<string, TestDoc> = {
+          doc1: { _id: 'doc1', ownerId: 'user1', title: 'Test' }
+        }
+        const mockDb = createMockDb(docs)
+        const ctx: TestCtx = { userId: 'user1', role: 'user' }
+
+        const reader = createSecureReader(mockDb as any, ctx, { resolver: async () => true })
+        const result = await reader.query('posts', q => q.withIndex!('by_owner'))
+
+        expect(result).toHaveLength(1)
+      })
+
+      it('should support chained query builder methods', async () => {
+        const docs: Record<string, TestDoc> = {
+          doc1: { _id: 'doc1', ownerId: 'user1', title: 'Test' }
+        }
+        const mockDb = createMockDb(docs)
+        const ctx: TestCtx = { userId: 'user1', role: 'user' }
+
+        const reader = createSecureReader(mockDb as any, ctx, { resolver: async () => true })
+        const result = await reader.query('posts', q =>
+          q.withIndex!('by_owner').filter(() => true).order!('desc')
+        )
+
+        expect(result).toHaveLength(1)
       })
     })
   })
@@ -380,10 +442,189 @@ describe('security/db.ts', () => {
         const ctx: TestCtx = { userId: 'user1', role: 'user' }
 
         const writer = createSecureWriter(mockDb as any, ctx, { resolver: async () => true })
-        const result = await writer.query('posts', () => true)
+        const result = await writer.query('posts')
 
         expect(result).toHaveLength(1)
       })
+    })
+  })
+
+  describe('onDenied callback (M2)', () => {
+    it('should call onDenied when get() is denied by RLS', async () => {
+      const docs: Record<string, TestDoc> = {
+        doc1: { _id: 'doc1', ownerId: 'user2', title: 'Protected' }
+      }
+      const mockDb = createMockDb(docs)
+      const ctx: TestCtx = { userId: 'user1', role: 'user' }
+      const rules: Record<string, RlsRule<TestCtx, TestDoc>> = {
+        posts: { read: (ctx, doc) => ctx.userId === doc.ownerId }
+      }
+
+      const deniedCalls: DeniedInfo<any>[] = []
+      const onDenied = (info: DeniedInfo<any>) => {
+        deniedCalls.push(info)
+      }
+
+      const reader = createSecureReader(mockDb as any, ctx, {
+        rules,
+        resolver: async () => true,
+        onDenied
+      })
+
+      const result = await reader.get('posts', 'doc1')
+
+      expect(result).toBeNull()
+      expect(deniedCalls).toHaveLength(1)
+      expect(deniedCalls[0].table).toBe('posts')
+      expect(deniedCalls[0].id).toBe('doc1')
+      expect(deniedCalls[0].operation).toBe('read')
+      expect(deniedCalls[0].reason).toBe('rls_read_denied')
+    })
+
+    it('should not call onDenied when document not found', async () => {
+      const mockDb = createMockDb({})
+      const ctx: TestCtx = { userId: 'user1', role: 'user' }
+
+      const deniedCalls: DeniedInfo<any>[] = []
+      const onDenied = (info: DeniedInfo<any>) => {
+        deniedCalls.push(info)
+      }
+
+      const reader = createSecureReader(mockDb as any, ctx, {
+        resolver: async () => true,
+        onDenied
+      })
+
+      const result = await reader.get('posts', 'nonexistent')
+
+      expect(result).toBeNull()
+      expect(deniedCalls).toHaveLength(0) // Not denied, just not found
+    })
+
+    it('should call onDenied when insert() is denied by RLS', async () => {
+      const docs: Record<string, TestDoc> = {}
+      const mockDb = createMockDb(docs)
+      const ctx: TestCtx = { userId: 'user1', role: 'user' }
+      const rules: Record<string, RlsRule<TestCtx, TestDoc>> = {
+        posts: { insert: (ctx, doc) => ctx.userId === doc.ownerId }
+      }
+
+      const deniedCalls: DeniedInfo<any>[] = []
+      const onDenied = (info: DeniedInfo<any>) => {
+        deniedCalls.push(info)
+      }
+
+      const writer = createSecureWriter(mockDb as any, ctx, {
+        rules,
+        resolver: async () => true,
+        onDenied
+      })
+
+      const newDoc: TestDoc = { _id: '', ownerId: 'user2', title: 'Not Mine' }
+
+      await expect(writer.insert('posts', newDoc)).rejects.toThrow('RLS denied insert')
+
+      expect(deniedCalls).toHaveLength(1)
+      expect(deniedCalls[0].table).toBe('posts')
+      expect(deniedCalls[0].operation).toBe('insert')
+      expect(deniedCalls[0].reason).toBe('rls_insert_denied')
+    })
+
+    it('should call onDenied when patch() is denied by RLS', async () => {
+      const docs: Record<string, TestDoc> = {
+        doc1: { _id: 'doc1', ownerId: 'user2', title: 'Not Mine' }
+      }
+      const mockDb = createMockDb(docs)
+      const ctx: TestCtx = { userId: 'user1', role: 'user' }
+      const rules: Record<string, RlsRule<TestCtx, TestDoc>> = {
+        posts: { update: (ctx, old) => ctx.userId === old.ownerId }
+      }
+
+      const deniedCalls: DeniedInfo<any>[] = []
+      const onDenied = (info: DeniedInfo<any>) => {
+        deniedCalls.push(info)
+      }
+
+      const writer = createSecureWriter(mockDb as any, ctx, {
+        rules,
+        resolver: async () => true,
+        onDenied
+      })
+
+      await expect(writer.patch('posts', 'doc1', { title: 'Updated' })).rejects.toThrow(
+        'RLS denied update'
+      )
+
+      expect(deniedCalls).toHaveLength(1)
+      expect(deniedCalls[0].table).toBe('posts')
+      expect(deniedCalls[0].id).toBe('doc1')
+      expect(deniedCalls[0].operation).toBe('update')
+      expect(deniedCalls[0].reason).toBe('rls_update_denied')
+    })
+
+    it('should call onDenied when delete() is denied by RLS', async () => {
+      const docs: Record<string, TestDoc> = {
+        doc1: { _id: 'doc1', ownerId: 'user1', title: 'Protected' }
+      }
+      const mockDb = createMockDb(docs)
+      const ctx: TestCtx = { userId: 'user1', role: 'user' }
+      const rules: Record<string, RlsRule<TestCtx, TestDoc>> = {
+        posts: { delete: ctx => ctx.role === 'admin' }
+      }
+
+      const deniedCalls: DeniedInfo<any>[] = []
+      const onDenied = (info: DeniedInfo<any>) => {
+        deniedCalls.push(info)
+      }
+
+      const writer = createSecureWriter(mockDb as any, ctx, {
+        rules,
+        resolver: async () => true,
+        onDenied
+      })
+
+      await expect(writer.delete('posts', 'doc1')).rejects.toThrow('RLS denied delete')
+
+      expect(deniedCalls).toHaveLength(1)
+      expect(deniedCalls[0].table).toBe('posts')
+      expect(deniedCalls[0].id).toBe('doc1')
+      expect(deniedCalls[0].operation).toBe('delete')
+      expect(deniedCalls[0].reason).toBe('rls_delete_denied')
+    })
+
+    it('should not call onDenied when operations succeed', async () => {
+      const docs: Record<string, TestDoc> = {
+        doc1: { _id: 'doc1', ownerId: 'user1', title: 'My Doc' }
+      }
+      const mockDb = createMockDb(docs)
+      const ctx: TestCtx = { userId: 'user1', role: 'admin' }
+      const rules: Record<string, RlsRule<TestCtx, TestDoc>> = {
+        posts: {
+          read: (ctx, doc) => ctx.userId === doc.ownerId,
+          insert: (ctx, doc) => ctx.userId === doc.ownerId,
+          update: (ctx, old) => ctx.userId === old.ownerId,
+          delete: ctx => ctx.role === 'admin'
+        }
+      }
+
+      const deniedCalls: DeniedInfo<any>[] = []
+      const onDenied = (info: DeniedInfo<any>) => {
+        deniedCalls.push(info)
+      }
+
+      const writer = createSecureWriter(mockDb as any, ctx, {
+        rules,
+        resolver: async () => true,
+        onDenied
+      })
+
+      // All should succeed
+      await writer.get('posts', 'doc1')
+      await writer.insert('posts', { _id: '', ownerId: 'user1', title: 'New' })
+      await writer.patch('posts', 'doc1', { title: 'Updated' })
+      await writer.delete('posts', 'doc1')
+
+      expect(deniedCalls).toHaveLength(0)
     })
   })
 })

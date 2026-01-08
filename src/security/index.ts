@@ -65,7 +65,13 @@ export { checkRlsRead, checkRlsWrite, filterByRls } from './rls'
 export type { RlsRule, RlsRules, RlsCheckResult } from './types'
 
 // Secure DB wrappers
-export { createSecureReader, createSecureWriter, type SecureDbConfig } from './db'
+export { createSecureReader, createSecureWriter, type SecureDbConfig, type DeniedInfo } from './db'
 
 // Secure function wrappers
-export { zSecureQuery, zSecureMutation, zSecureAction, type SecureConfig } from './secure-wrappers'
+export {
+  zSecureQuery,
+  zSecureMutation,
+  zSecureAction,
+  type SecureConfig,
+  type SecureActionConfig
+} from './secure-wrappers'
