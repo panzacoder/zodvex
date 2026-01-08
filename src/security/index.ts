@@ -45,3 +45,17 @@ export {
   type WriteValidationResult,
   type ValidateWritePolicyOptions
 } from './apply-policy'
+
+// SensitiveField runtime class
+export { SensitiveField, type FromDbValueOptions } from './sensitive-field'
+
+// Wire format helpers
+export { serializeToWire, deserializeFromWire, isSensitiveWire } from './wire'
+
+// Fail-secure defaults
+export {
+  autoLimit,
+  assertNoSensitive,
+  type AutoLimitOptions,
+  type AssertNoSensitiveOptions
+} from './fail-secure'
