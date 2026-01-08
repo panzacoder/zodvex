@@ -57,14 +57,10 @@ sensitive(z.string()).transform(s => s.toLowerCase())
 
 | File | Description |
 |------|-------------|
-| [`option1-traversal-unwrap.md`](option1-traversal-unwrap.md) | Full analysis of traversal fix |
-| [`option1-traversal-unwrap.mmd`](option1-traversal-unwrap.mmd) | Mermaid diagram |
-| [`option2-wrapper-type.md`](option2-wrapper-type.md) | Full analysis of wrapper approach |
-| [`option2-wrapper-type.mmd`](option2-wrapper-type.mmd) | Mermaid diagram |
-| [`option3-path-policies.md`](option3-path-policies.md) | Full analysis of path-based policies |
-| [`option3-path-policies.mmd`](option3-path-policies.mmd) | Mermaid diagram |
-| [`option4-runtime-detection.md`](option4-runtime-detection.md) | Full analysis of runtime detection |
-| [`option4-runtime-detection.mmd`](option4-runtime-detection.mmd) | Mermaid diagram |
+| [`option1-traversal-unwrap.md`](option1-traversal-unwrap.md) | Expand traversal to handle effect types (includes diagram) |
+| [`option2-wrapper-type.md`](option2-wrapper-type.md) | Custom ZodSensitive wrapper class (includes diagram) |
+| [`option3-path-policies.md`](option3-path-policies.md) | External policy configuration by path (includes diagram) |
+| [`option4-runtime-detection.md`](option4-runtime-detection.md) | Runtime detection + fail-secure (includes diagram) |
 
 ## Implementation Effort Estimates
 

@@ -173,3 +173,58 @@ case 'prefault': {
 **Implementation effort:** Medium (2-3 days)
 
 **Risk level:** Medium - depends on Zod's internal stability
+
+---
+
+## Appendix: Diagram
+
+```mermaid
+%% Option 1: Traversal Unwrap - Schema Tree Navigation
+%% Shows how traversal unwraps effect types to find metadata
+
+graph TD
+    subgraph "Schema Traversal Flow"
+        A["walkSchema()"] --> B["traverse()<br/>Visit each node"]
+
+        B --> C{"Check defType"}
+
+        C -->|"object"| D["Process fields"]
+        C -->|"array"| E["Process element"]
+        C -->|"union"| F["Process variants"]
+        C -->|"optional/nullable/lazy"| G["Unwrap & Recurse"]
+
+        C -->|"transform/pipe/<br/>catch/default/<br/>nonoptional/<br/>readonly/prefault"| H["EFFECT TYPE<br/>(NEW handling)"]
+
+        H --> I["getInnerSchema()"]
+        I --> J["Recurse into inner"]
+
+        J --> K{"Has metadata?"}
+        K -->|"Yes"| L["Report field<br/>with metadata"]
+        K -->|"No"| M["Continue traversal"]
+    end
+
+    subgraph "Unwrapping Chain Example"
+        T1["ZodTransform<br/>._def.type = 'transform'"]
+        T1 -->|"._def.schema"| T2["ZodPipe<br/>._def.type = 'pipe'"]
+        T2 -->|"._def.in"| T3["ZodMeta<br/>(with SENSITIVE_META_KEY)"]
+        T3 -->|".meta()"| T4["✅ Found!<br/>{ sensitive: true }"]
+    end
+
+    subgraph "Vulnerability: Current Traversal"
+        V1["sensitive(z.string())<br/>.transform(fn)"]
+        V1 --> V2["ZodTransform<br/>(outer - NO metadata)"]
+        V2 --> V3["❌ Traversal stops<br/>Metadata hidden inside"]
+    end
+
+    subgraph "Fix: Extended Traversal"
+        F1["sensitive(z.string())<br/>.transform(fn)"]
+        F1 --> F2["ZodTransform"]
+        F2 -->|"unwrap"| F3["ZodMeta"]
+        F3 --> F4["✅ Metadata found"]
+    end
+
+    style H fill:#ffd700
+    style T4 fill:#90ee90
+    style V3 fill:#ff6b6b
+    style F4 fill:#90ee90
+```

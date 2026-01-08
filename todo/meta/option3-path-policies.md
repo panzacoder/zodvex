@@ -316,3 +316,65 @@ function resolveFieldPolicy(schema: z.ZodTypeAny, path: string, externalPolicies
 **Risk level:** Medium - path synchronization is ongoing concern
 
 **Suggested mitigation:** Combine with build-time validation to catch stale paths.
+
+---
+
+## Appendix: Diagram
+
+```mermaid
+%% Option 3: Path-Based Policies
+%% Shows separation between schema and policy definition
+
+graph TD
+    subgraph "Schema Definition"
+        S1["userSchema = z.object({<br/>  email: z.string(),<br/>  ssn: z.string(),<br/>  address: z.object({<br/>    zip: z.string()<br/>  })<br/>})"]
+        S1 --> S2["Clean schema<br/>No metadata markers"]
+    end
+
+    subgraph "Policy Definition (Separate)"
+        P1["policies = {<br/>  'email': { read: [...] },<br/>  'ssn': { read: [...] },<br/>  'address.zip': { read: [...] }<br/>}"]
+        P1 --> P2["Policies indexed by path<br/>Can be loaded dynamically"]
+    end
+
+    subgraph "Runtime Resolution"
+        R1["applyReadPolicy(<br/>  value, schema,<br/>  ctx, resolver,<br/>  { policies })"]
+        R1 --> R2["Transform value"]
+        R2 --> R3{"For each field path"}
+        R3 --> R4["Look up policy[path]"]
+        R4 --> R5{"Policy exists?"}
+        R5 -->|"Yes"| R6["Apply read policy"]
+        R5 -->|"No"| R7["Return unchanged<br/>(or fail-closed)"]
+    end
+
+    subgraph "Path Syntax Examples"
+        PE1["'email'<br/>Simple field"]
+        PE2["'address.zip'<br/>Nested object"]
+        PE3["'contacts[].email'<br/>Array element field"]
+        PE4["'orders[].items[].price'<br/>Deeply nested"]
+    end
+
+    subgraph "Schema-Embedded vs Path-Based"
+        C1["Schema-Embedded<br/>(Current)"]
+        C1 --> C1a["sensitive(z.string())"]
+        C1a --> C1b["❌ Metadata lost<br/>in transforms"]
+
+        C2["Path-Based<br/>(Option 3)"]
+        C2 --> C2a["policies['email']"]
+        C2a --> C2b["✅ No metadata<br/>to lose"]
+    end
+
+    subgraph "Risk: Path Drift"
+        D1["schema.email → schema.emailAddress"]
+        D1 --> D2["policies['email'] still exists"]
+        D2 --> D3["❌ Stale policy!<br/>Field unprotected"]
+    end
+
+    S2 -.->|"referenced by"| R3
+    P2 -.->|"queried at"| R4
+
+    style S2 fill:#e1f5fe
+    style P2 fill:#fff3e0
+    style C1b fill:#ff6b6b
+    style C2b fill:#90ee90
+    style D3 fill:#ff6b6b
+```
