@@ -4,9 +4,12 @@
  * This module provides functions to:
  * - Transform sensitive fields for read access (applyReadPolicy)
  * - Validate write permissions for sensitive fields (validateWritePolicy, assertWriteAllowed)
+ *
+ * Uses the transform layer's transformBySchemaAsync for recursive value transformation.
  */
 
 import type { z } from 'zod'
+import { transformBySchemaAsync } from '../transform'
 import { resolveReadPolicy, resolveWritePolicy } from './policy'
 import { getSensitiveMetadata } from './sensitive'
 import type {
@@ -50,8 +53,8 @@ function isSensitiveDbValue(value: unknown): value is SensitiveDb<unknown> {
 /**
  * Apply read policy transforms to a value based on its schema.
  *
- * Recursively traverses the value and schema, transforming SensitiveDb values
- * to SensitiveWire format based on the user's entitlements.
+ * Uses the transform layer's transformBySchemaAsync for recursive traversal,
+ * applying security-specific transformation for sensitive fields.
  *
  * @param value - The value to transform (typically from DB)
  * @param schema - The Zod schema describing the value
@@ -67,22 +70,21 @@ export async function applyReadPolicy<T, TCtx, TReq, TDoc = unknown>(
   resolver: EntitlementResolver<TCtx, TReq, TDoc>,
   options?: ApplyReadPolicyOptions<TDoc>
 ): Promise<T> {
-  const basePath = options?.path ?? ''
+  return transformBySchemaAsync(
+    value,
+    schema,
+    ctx,
+    async (val, info) => {
+      // Check if this schema is sensitive and value is SensitiveDb
+      const meta = getSensitiveMetadata<TReq>(info.schema)
+      if (!meta || !isSensitiveDbValue(val)) {
+        return val // Not sensitive or not a SensitiveDb value, return unchanged
+      }
 
-  async function transform(val: unknown, sch: z.ZodTypeAny, currentPath: string): Promise<unknown> {
-    if (val === undefined || val === null) {
-      return val
-    }
-
-    const defType = (sch as any)._def?.type
-
-    // Check if this schema is sensitive and value is SensitiveDb
-    const meta = getSensitiveMetadata<TReq>(sch)
-    if (meta && isSensitiveDbValue(val)) {
       // Resolve the read policy
       const context: PolicyContext<TCtx, TReq, TDoc> = {
-        ctx,
-        path: currentPath,
+        ctx: info.ctx,
+        path: info.path,
         meta,
         doc: options?.doc,
         operation: 'read'
@@ -108,103 +110,13 @@ export async function applyReadPolicy<T, TCtx, TReq, TDoc = unknown>(
       // For 'hidden', value stays null
 
       return wire
+    },
+    {
+      path: options?.path,
+      unmatchedUnion: 'null', // Fail-closed for security
+      onUnmatchedUnion: path => options?.onFailClosed?.(path, 'union_no_variant_matched')
     }
-
-    // Handle optional - unwrap and recurse
-    if (defType === 'optional') {
-      const inner = (sch as any).unwrap()
-      return transform(val, inner, currentPath)
-    }
-
-    // Handle nullable - unwrap and recurse
-    if (defType === 'nullable') {
-      if (val === null) return null
-      const inner = (sch as any).unwrap()
-      return transform(val, inner, currentPath)
-    }
-
-    // Handle objects - recurse into shape
-    if (defType === 'object' && typeof val === 'object' && val !== null) {
-      const shape = (sch as any).shape
-      if (shape) {
-        const result: Record<string, unknown> = {}
-        for (const [key, fieldSchema] of Object.entries(shape)) {
-          const fieldPath = currentPath ? `${currentPath}.${key}` : key
-          const fieldValue = (val as Record<string, unknown>)[key]
-          result[key] = await transform(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
-        }
-        return result
-      }
-    }
-
-    // Handle arrays
-    if (defType === 'array' && Array.isArray(val)) {
-      const element = (sch as any).element
-      const results: unknown[] = []
-      for (let i = 0; i < val.length; i++) {
-        const itemPath = `${currentPath}[${i}]`
-        results.push(await transform(val[i], element, itemPath))
-      }
-      return results
-    }
-
-    // Handle unions - try to find matching variant
-    if (defType === 'union') {
-      const unionOptions = (sch as any)._def.options as z.ZodTypeAny[] | undefined
-      const discriminator = (sch as any)._def?.discriminator
-
-      if (discriminator && typeof val === 'object' && val !== null) {
-        // Discriminated union - find matching variant by discriminator
-        const discValue = (val as Record<string, unknown>)[discriminator]
-
-        if (unionOptions) {
-          for (const variant of unionOptions) {
-            const variantShape = (variant as any).shape
-            if (variantShape) {
-              const discField = variantShape[discriminator]
-              const discDefType = (discField as any)?._def?.type
-
-              if (discDefType === 'literal') {
-                // Zod v4 stores literal values in _def.values array
-                const literalValues = (discField as any)._def.values as unknown[]
-                if (literalValues?.includes(discValue)) {
-                  return transform(val, variant, currentPath)
-                }
-              }
-            }
-          }
-        }
-
-        // No variant matched - fail closed
-        options?.onFailClosed?.(currentPath, 'union_no_variant_matched')
-        return null
-      }
-
-      // Regular union - try each option until one works structurally
-      if (unionOptions) {
-        for (const variant of unionOptions) {
-          try {
-            // Try to transform with this variant
-            const result = await transform(val, variant, currentPath)
-            if (result !== null) {
-              return result
-            }
-          } catch {
-            // This variant didn't work, try next
-          }
-        }
-      }
-
-      // No variant matched for regular union - fail closed
-      options?.onFailClosed?.(currentPath, 'union_no_variant_matched')
-      return null
-    }
-
-    // For primitives and unhandled types, return as-is
-    return val
-  }
-
-  return transform(value, schema, basePath) as Promise<T>
+  )
 }
 
 // ============================================================================
@@ -383,7 +295,7 @@ export async function assertWriteAllowed<TCtx, TReq, TDoc = unknown>(
   const result = await validateWritePolicy(value, schema, ctx, resolver)
 
   if (!result.allowed) {
-    const fieldList = result.deniedFields.map((f) => f.path).join(', ')
+    const fieldList = result.deniedFields.map(f => f.path).join(', ')
     throw new Error(`Write denied for sensitive fields: ${fieldList}`)
   }
 }

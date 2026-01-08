@@ -98,7 +98,12 @@ function transformValue(
       for (const [key, fieldSchema] of Object.entries(shape)) {
         const fieldPath = path ? `${path}.${key}` : key
         const fieldValue = (value as Record<string, unknown>)[key]
-        result[key] = transformValue(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath, defaultReason)
+        result[key] = transformValue(
+          fieldValue,
+          fieldSchema as z.ZodTypeAny,
+          fieldPath,
+          defaultReason
+        )
       }
       return result
     }
@@ -173,7 +178,7 @@ export function assertNoSensitive(schema: z.ZodTypeAny, options?: AssertNoSensit
   const sensitiveFields = findSensitiveFields(schema)
 
   if (sensitiveFields.length > 0) {
-    const paths = sensitiveFields.map((f) => f.path).join(', ')
+    const paths = sensitiveFields.map(f => f.path).join(', ')
     const message =
       options?.message ?? `Schema contains sensitive fields that require FLS: ${paths}`
     throw new Error(message)

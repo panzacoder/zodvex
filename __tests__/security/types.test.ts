@@ -142,7 +142,7 @@ describe('security/types.ts', () => {
     it('should be an array of ReadPolicyTier', () => {
       const policy: ReadPolicy<string> = [
         { status: 'full', requirements: 'admin' },
-        { status: 'masked', requirements: 'user', mask: (v) => '***' },
+        { status: 'masked', requirements: 'user', mask: v => '***' },
         { status: 'masked', requirements: 'viewer' }
       ]
       expect(policy).toHaveLength(3)

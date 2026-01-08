@@ -105,7 +105,10 @@ describe('security/fail-secure.ts', () => {
         })
 
         const value = {
-          contacts: [{ email: sensitiveDb('a@example.com') }, { email: sensitiveDb('b@example.com') }]
+          contacts: [
+            { email: sensitiveDb('a@example.com') },
+            { email: sensitiveDb('b@example.com') }
+          ]
         }
 
         const result = autoLimit(value, schema)

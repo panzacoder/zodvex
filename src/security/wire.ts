@@ -48,7 +48,7 @@ function isSensitiveField(value: unknown): value is SensitiveField<unknown> {
  * ```
  */
 export function serializeToWire<T>(value: T): T {
-  return transform(value, (v) => {
+  return transform(value, v => {
     if (isSensitiveField(v)) {
       return v.toWire()
     }
@@ -71,7 +71,7 @@ export function serializeToWire<T>(value: T): T {
  * ```
  */
 export function deserializeFromWire<T>(value: T): T {
-  return transform(value, (v) => {
+  return transform(value, v => {
     if (isSensitiveWire(v)) {
       return SensitiveField.fromWire(v)
     }
@@ -96,7 +96,7 @@ function transform(value: unknown, fn: (v: unknown) => unknown): unknown {
 
   // Handle arrays
   if (Array.isArray(value)) {
-    return value.map((item) => transform(item, fn))
+    return value.map(item => transform(item, fn))
   }
 
   // Handle plain objects (not class instances like SensitiveField, Date, etc.)

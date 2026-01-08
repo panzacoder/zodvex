@@ -239,7 +239,7 @@ describe('security/sensitive.ts', () => {
         const fields = findSensitiveFields(schema)
 
         expect(fields).toHaveLength(2)
-        const paths = fields.map((f) => f.path)
+        const paths = fields.map(f => f.path)
         expect(paths).toContain('email')
         expect(paths).toContain('ssn')
       })
@@ -301,7 +301,7 @@ describe('security/sensitive.ts', () => {
         const fields = findSensitiveFields(schema)
 
         expect(fields).toHaveLength(3)
-        const paths = fields.map((f) => f.path)
+        const paths = fields.map(f => f.path)
         expect(paths).toContain('email')
         expect(paths).toContain('profile.ssn')
         expect(paths).toContain('profile.address.street')
@@ -399,7 +399,7 @@ describe('security/sensitive.ts', () => {
         const fields = findSensitiveFields(schema)
 
         expect(fields).toHaveLength(2)
-        const paths = fields.map((f) => f.path)
+        const paths = fields.map(f => f.path)
         expect(paths).toContain('ssn')
         expect(paths).toContain('npi')
       })
@@ -423,7 +423,7 @@ describe('security/sensitive.ts', () => {
         const fields = findSensitiveFields(schema)
 
         expect(fields).toHaveLength(2)
-        const paths = fields.map((f) => f.path)
+        const paths = fields.map(f => f.path)
         expect(paths).toContain('ssn')
         expect(paths).toContain('npi')
       })
@@ -445,7 +445,7 @@ describe('security/sensitive.ts', () => {
         // Same field in multiple variants - should only appear once
         // (or twice if we track per-variant - depends on implementation)
         expect(fields.length).toBeGreaterThanOrEqual(1)
-        expect(fields.some((f) => f.path === 'email')).toBe(true)
+        expect(fields.some(f => f.path === 'email')).toBe(true)
       })
     })
 

@@ -199,10 +199,7 @@ class SecureDb<TCtx> {
     private mockDb: Map<string, object>
   ) {}
 
-  async get<T extends object>(
-    id: string,
-    schema: z.ZodObject<any>
-  ): Promise<T | null> {
+  async get<T extends object>(id: string, schema: z.ZodObject<any>): Promise<T | null> {
     const doc = this.mockDb.get(id) as T | undefined
     if (!doc) return null
 
@@ -216,9 +213,7 @@ class SecureDb<TCtx> {
  * 1. Applies policy immediately after DB reads
  * 2. Handler receives already-limited SensitiveField values
  */
-function zSecureQuery<TCtx, TArgs, TResult>(
-  options: SecureQueryOptions<TCtx, TArgs, TResult>
-) {
+function zSecureQuery<TCtx, TArgs, TResult>(options: SecureQueryOptions<TCtx, TArgs, TResult>) {
   return async (ctx: TCtx, args: TArgs, mockDb: Map<string, object>): Promise<TResult> => {
     const db = new SecureDb(ctx, options.policy, mockDb)
     return options.handler(ctx, args, db)
@@ -236,10 +231,7 @@ type PrivilegedReadOptions = {
  * Escape hatch for privileged reads when handler needs raw values.
  * This should be explicit and audited.
  */
-function privilegedUnwrap<T>(
-  field: SensitiveField<T>,
-  options: PrivilegedReadOptions
-): T {
+function privilegedUnwrap<T>(field: SensitiveField<T>, options: PrivilegedReadOptions): T {
   // Always log privileged access attempts
   if (options.auditLog) {
     options.auditLog({
@@ -335,7 +327,7 @@ describe('Spike 4: Policy-before-handler semantics', () => {
         return {
           status: 'masked',
           reason: 'provider access',
-          mask: (v) => String(v).replace(/^(.{2}).*(@.*)$/, '$1***$2')
+          mask: v => String(v).replace(/^(.{2}).*(@.*)$/, '$1***$2')
         }
       }
       return { status: 'hidden', reason: 'ssn not available to providers' }
@@ -436,7 +428,7 @@ describe('Spike 4: Policy-before-handler semantics', () => {
           if (patient?.ssn) {
             const rawSsn = privilegedUnwrap(patient.ssn, {
               reason: 'Insurance verification',
-              auditLog: (info) => auditLog.push(info)
+              auditLog: info => auditLog.push(info)
             })
             // Use rawSsn for business logic...
             expect(rawSsn).toBe('123-45-6789')

@@ -196,7 +196,7 @@ async function assertWriteAllowed<TCtx, TReq>(
 ): Promise<void> {
   const result = await validateWritePolicies(value, schema, ctx, resolver)
   if (!result.allowed) {
-    const fieldList = result.deniedFields.map((f) => f.path).join(', ')
+    const fieldList = result.deniedFields.map(f => f.path).join(', ')
     throw new Error(`Write denied for fields: ${fieldList}`)
   }
 }
@@ -288,8 +288,8 @@ describe('Spike: Field-level write policies', () => {
 
       expect(result.allowed).toBe(false)
       expect(result.deniedFields).toHaveLength(2)
-      expect(result.deniedFields.map((f) => f.path)).toContain('ssn')
-      expect(result.deniedFields.map((f) => f.path)).toContain('email')
+      expect(result.deniedFields.map(f => f.path)).toContain('ssn')
+      expect(result.deniedFields.map(f => f.path)).toContain('email')
     })
 
     it('should allow partial object writes when only some fields are present', async () => {
@@ -373,8 +373,8 @@ describe('Spike: Field-level write policies', () => {
 
       expect(result.allowed).toBe(false)
       expect(result.deniedFields).toHaveLength(2)
-      expect(result.deniedFields.map((f) => f.path)).toContain('contacts[0].value')
-      expect(result.deniedFields.map((f) => f.path)).toContain('contacts[1].value')
+      expect(result.deniedFields.map(f => f.path)).toContain('contacts[0].value')
+      expect(result.deniedFields.map(f => f.path)).toContain('contacts[1].value')
     })
   })
 

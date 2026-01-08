@@ -40,10 +40,7 @@ interface FoundSensitiveField {
  * Find all sensitive fields in a schema, traversing all union variants.
  * This is the critical function that must not miss any sensitive fields.
  */
-function findSensitiveFields(
-  schema: z.ZodTypeAny,
-  path: string = ''
-): FoundSensitiveField[] {
+function findSensitiveFields(schema: z.ZodTypeAny, path: string = ''): FoundSensitiveField[] {
   const defType = (schema as any)._def?.type
   const results: FoundSensitiveField[] = []
 
@@ -301,9 +298,9 @@ describe('Spike 3: Unions fail-closed check', () => {
       const found = findSensitiveFields(schema)
 
       expect(found.length).toBe(3)
-      expect(found.map((f) => f.path)).toContain('[union:0].ssn')
-      expect(found.map((f) => f.path)).toContain('[union:1].email')
-      expect(found.map((f) => f.path)).toContain('[union:2].phone')
+      expect(found.map(f => f.path)).toContain('[union:0].ssn')
+      expect(found.map(f => f.path)).toContain('[union:1].email')
+      expect(found.map(f => f.path)).toContain('[union:2].phone')
     })
 
     it('should find sensitive fields in nested unions', () => {
@@ -344,9 +341,9 @@ describe('Spike 3: Unions fail-closed check', () => {
       const found = findSensitiveFields(schema)
 
       expect(found.length).toBe(2)
-      const paths = found.map((f) => f.path)
-      expect(paths.some((p) => p.includes('ssn'))).toBe(true)
-      expect(paths.some((p) => p.includes('ein'))).toBe(true)
+      const paths = found.map(f => f.path)
+      expect(paths.some(p => p.includes('ssn'))).toBe(true)
+      expect(paths.some(p => p.includes('ein'))).toBe(true)
     })
 
     it('should handle discriminated union with some variants having no sensitive fields', () => {
@@ -359,9 +356,9 @@ describe('Spike 3: Unions fail-closed check', () => {
       const found = findSensitiveFields(schema)
 
       expect(found.length).toBe(2)
-      const paths = found.map((f) => f.path)
-      expect(paths.some((p) => p.includes('secret'))).toBe(true)
-      expect(paths.some((p) => p.includes('private'))).toBe(true)
+      const paths = found.map(f => f.path)
+      expect(paths.some(p => p.includes('secret'))).toBe(true)
+      expect(paths.some(p => p.includes('private'))).toBe(true)
     })
   })
 
@@ -378,11 +375,7 @@ describe('Spike 3: Unions fail-closed check', () => {
       ])
 
       const value = { type: 'a' as const, ssn: '123-45-6789' }
-      const { result, transformedPaths } = transformSensitiveValues(
-        value,
-        schema,
-        redactTransform
-      )
+      const { result, transformedPaths } = transformSensitiveValues(value, schema, redactTransform)
 
       expect(transformedPaths).toContain('ssn')
       expect((result as any).ssn).toEqual({ __redacted: true, path: 'ssn' })
@@ -396,11 +389,7 @@ describe('Spike 3: Unions fail-closed check', () => {
       ])
 
       const value = { type: 'b' as const, name: 'John' }
-      const { result, transformedPaths } = transformSensitiveValues(
-        value,
-        schema,
-        redactTransform
-      )
+      const { result, transformedPaths } = transformSensitiveValues(value, schema, redactTransform)
 
       expect(transformedPaths).toEqual([])
       expect((result as any).name).toBe('John')
@@ -421,11 +410,7 @@ describe('Spike 3: Unions fail-closed check', () => {
         { type: 'sensitive' as const, data: 'secret2' }
       ]
 
-      const { result, transformedPaths } = transformSensitiveValues(
-        value,
-        schema,
-        redactTransform
-      )
+      const { result, transformedPaths } = transformSensitiveValues(value, schema, redactTransform)
 
       expect(transformedPaths).toEqual(['[0].data', '[2].data'])
       expect((result as any)[0].data).toEqual({ __redacted: true, path: '[0].data' })
@@ -496,10 +481,7 @@ describe('Spike 3: Unions fail-closed check', () => {
     it('should handle optional unions with sensitive fields', () => {
       const schema = z.object({
         maybeData: z
-          .union([
-            z.object({ secret: sensitive(z.string()) }),
-            z.object({ public: z.string() })
-          ])
+          .union([z.object({ secret: sensitive(z.string()) }), z.object({ public: z.string() })])
           .optional()
       })
 
@@ -646,11 +628,7 @@ describe('Spike 3: Unions fail-closed check', () => {
         data: { format: 'yaml', payload: 'secret: value' } // 'yaml' not in union
       }
 
-      const { result, failClosedPaths } = transformSensitiveValues(
-        value,
-        schema,
-        redactTransform
-      )
+      const { result, failClosedPaths } = transformSensitiveValues(value, schema, redactTransform)
 
       // Name should be preserved, data should be redacted
       expect((result as any).name).toBe('test')
@@ -676,11 +654,7 @@ describe('Spike 3: Unions fail-closed check', () => {
         { status: 'inactive', id: 3 }
       ]
 
-      const { result, failClosedPaths } = transformSensitiveValues(
-        value,
-        schema,
-        redactTransform
-      )
+      const { result, failClosedPaths } = transformSensitiveValues(value, schema, redactTransform)
 
       // First and third items should pass through, second should be redacted
       expect((result as any)[0]).toEqual({ status: 'active', id: 1 })
@@ -696,10 +670,7 @@ describe('Spike 3: Unions fail-closed check', () => {
     it('should track both transformedPaths and failClosedPaths separately', () => {
       const schema = z.object({
         secret: sensitive(z.string()),
-        data: z.union([
-          z.object({ type: z.literal('a') }),
-          z.object({ type: z.literal('b') })
-        ])
+        data: z.union([z.object({ type: z.literal('a') }), z.object({ type: z.literal('b') })])
       })
 
       const value = {

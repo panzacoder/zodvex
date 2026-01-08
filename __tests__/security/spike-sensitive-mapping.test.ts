@@ -109,7 +109,7 @@ function zodToConvexWithSensitive(schema: z.ZodTypeAny): any {
   // Handle unions
   if (defType === 'union') {
     const options = (schema as any)._def.options as z.ZodTypeAny[]
-    const convexOptions = options.map((opt) => zodToConvexWithSensitive(opt))
+    const convexOptions = options.map(opt => zodToConvexWithSensitive(opt))
     return v.union(...convexOptions)
   }
 

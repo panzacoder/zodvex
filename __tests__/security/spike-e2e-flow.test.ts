@@ -159,11 +159,7 @@ class SensitiveField<T> {
  * Check if a value is a DB-stored sensitive field
  */
 function isSensitiveDb(value: unknown): value is SensitiveDb<unknown> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    '__sensitiveValue' in value
-  )
+  return typeof value === 'object' && value !== null && '__sensitiveValue' in value
 }
 
 /**
@@ -254,7 +250,7 @@ describe('Spike 2: End-to-end flow validation', () => {
       const resolver: PolicyResolver = () => ({
         status: 'masked',
         reason: 'limited access',
-        mask: (v) => `***-**-${String(v).slice(-4)}`
+        mask: v => `***-**-${String(v).slice(-4)}`
       })
 
       const field = await applySinglePolicy(dbValue, {}, resolver, 'ssn')
@@ -412,17 +408,12 @@ describe('Spike 2: End-to-end flow validation', () => {
         if (ctx.role === 'admin') return { status: 'full' }
         return {
           status: 'masked',
-          mask: (v) => String(v).replace(/^(.{2}).*(@.*)$/, '$1***$2'),
+          mask: v => String(v).replace(/^(.{2}).*(@.*)$/, '$1***$2'),
           reason: 'email partially hidden'
         }
       }
 
-      const serverField = await applySinglePolicy(
-        dbValue,
-        { role: 'user' },
-        resolver,
-        'email'
-      )
+      const serverField = await applySinglePolicy(dbValue, { role: 'user' }, resolver, 'email')
 
       // 3. Serialize for wire transport
       const wire = serverField.toWire()

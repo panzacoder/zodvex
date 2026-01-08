@@ -8,11 +8,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import { SensitiveField } from '../../src/security/sensitive-field'
-import {
-  deserializeFromWire,
-  isSensitiveWire,
-  serializeToWire
-} from '../../src/security/wire'
+import { deserializeFromWire, isSensitiveWire, serializeToWire } from '../../src/security/wire'
 
 describe('security/wire.ts', () => {
   describe('isSensitiveWire()', () => {
@@ -116,10 +112,7 @@ describe('security/wire.ts', () => {
     describe('arrays', () => {
       it('should serialize arrays of SensitiveFields', () => {
         const obj = {
-          emails: [
-            SensitiveField.full('a@example.com'),
-            SensitiveField.full('b@example.com')
-          ]
+          emails: [SensitiveField.full('a@example.com'), SensitiveField.full('b@example.com')]
         }
 
         const wire = serializeToWire(obj)

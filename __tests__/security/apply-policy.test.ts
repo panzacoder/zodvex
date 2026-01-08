@@ -445,7 +445,7 @@ describe('security/apply-policy.ts', () => {
 
         expect(result.allowed).toBe(false)
         expect(result.deniedFields).toHaveLength(2)
-        const paths = result.deniedFields.map((f) => f.path)
+        const paths = result.deniedFields.map(f => f.path)
         expect(paths).toContain('email')
         expect(paths).toContain('ssn')
       })
