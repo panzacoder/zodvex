@@ -174,7 +174,7 @@ export async function validateWritePolicy<TCtx, TReq, TDoc = unknown>(
       return
     }
 
-    const defType = (sch as any)._def?.type
+    const defType = (sch as any)._def?.type as string | undefined
 
     // Check if this schema is sensitive and value is present
     const meta = getSensitiveMetadata<TReq>(sch)
@@ -197,72 +197,77 @@ export async function validateWritePolicy<TCtx, TReq, TDoc = unknown>(
       return
     }
 
-    // Handle optional - unwrap and recurse
-    if (defType === 'optional') {
-      const inner = (sch as any).unwrap()
-      return validate(val, inner, currentPath)
-    }
-
-    // Handle nullable
-    if (defType === 'nullable') {
-      if (val === null) return
-      const inner = (sch as any).unwrap()
-      return validate(val, inner, currentPath)
-    }
-
-    // Handle objects
-    if (defType === 'object' && typeof val === 'object' && val !== null) {
-      const shape = (sch as any).shape
-      if (shape) {
-        for (const [key, fieldSchema] of Object.entries(shape)) {
-          const fieldPath = currentPath ? `${currentPath}.${key}` : key
-          const fieldValue = (val as Record<string, unknown>)[key]
-          if (fieldValue !== undefined) {
-            await validate(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
-          }
-        }
+    // Dispatch based on schema type
+    switch (defType) {
+      case 'optional': {
+        const inner = (sch as any).unwrap()
+        return validate(val, inner, currentPath)
       }
-    }
 
-    // Handle arrays
-    if (defType === 'array' && Array.isArray(val)) {
-      const element = (sch as any).element
-      for (let i = 0; i < val.length; i++) {
-        const itemPath = `${currentPath}[${i}]`
-        await validate(val[i], element, itemPath)
+      case 'nullable': {
+        if (val === null) return
+        const inner = (sch as any).unwrap()
+        return validate(val, inner, currentPath)
       }
-    }
 
-    // Handle unions - validate all sensitive fields found in any variant
-    if (defType === 'union') {
-      const unionOptions = (sch as any)._def.options as z.ZodTypeAny[] | undefined
-      const discriminator = (sch as any)._def?.discriminator
-
-      if (discriminator && typeof val === 'object' && val !== null && unionOptions) {
-        const discValue = (val as Record<string, unknown>)[discriminator]
-
-        for (const variant of unionOptions) {
-          const variantShape = (variant as any).shape
-          if (variantShape) {
-            const discField = variantShape[discriminator]
-            const discDefType = (discField as any)?._def?.type
-
-            if (discDefType === 'literal') {
-              const literalValues = (discField as any)._def.values as unknown[]
-              if (literalValues?.includes(discValue)) {
-                await validate(val, variant, currentPath)
-                return
+      case 'object': {
+        if (typeof val === 'object' && val !== null) {
+          const shape = (sch as any).shape
+          if (shape) {
+            for (const [key, fieldSchema] of Object.entries(shape)) {
+              const fieldPath = currentPath ? `${currentPath}.${key}` : key
+              const fieldValue = (val as Record<string, unknown>)[key]
+              if (fieldValue !== undefined) {
+                await validate(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
               }
             }
           }
         }
+        break
       }
 
-      // For regular unions, validate against all matching variants
-      if (unionOptions) {
-        for (const variant of unionOptions) {
-          await validate(val, variant, currentPath)
+      case 'array': {
+        if (Array.isArray(val)) {
+          const element = (sch as any).element
+          for (let i = 0; i < val.length; i++) {
+            const itemPath = `${currentPath}[${i}]`
+            await validate(val[i], element, itemPath)
+          }
         }
+        break
+      }
+
+      case 'union': {
+        const unionOptions = (sch as any)._def.options as z.ZodTypeAny[] | undefined
+        const discriminator = (sch as any)._def?.discriminator
+
+        if (discriminator && typeof val === 'object' && val !== null && unionOptions) {
+          const discValue = (val as Record<string, unknown>)[discriminator]
+
+          for (const variant of unionOptions) {
+            const variantShape = (variant as any).shape
+            if (variantShape) {
+              const discField = variantShape[discriminator]
+              const discDefType = (discField as any)?._def?.type
+
+              if (discDefType === 'literal') {
+                const literalValues = (discField as any)._def.values as unknown[]
+                if (literalValues?.includes(discValue)) {
+                  await validate(val, variant, currentPath)
+                  return
+                }
+              }
+            }
+          }
+        }
+
+        // For regular unions, validate against all matching variants
+        if (unionOptions) {
+          for (const variant of unionOptions) {
+            await validate(val, variant, currentPath)
+          }
+        }
+        break
       }
     }
   }

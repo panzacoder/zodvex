@@ -42,7 +42,7 @@ export function transformBySchema<T, TCtx>(
       return val
     }
 
-    const defType = (sch as any)._def?.type
+    const defType = (sch as any)._def?.type as string | undefined
 
     // Check shouldTransform predicate - if false, skip callback but continue recursion
     const shouldCall = !options?.shouldTransform || options.shouldTransform(sch)
@@ -60,48 +60,53 @@ export function transformBySchema<T, TCtx>(
       }
     }
 
-    // Handle optional/nullable - unwrap and continue
-    if (defType === 'optional' || defType === 'nullable') {
-      if (val === null) return null
-      const inner = (sch as any).unwrap()
-      return recurse(val, inner, currentPath)
-    }
-
-    // Handle lazy - unwrap and continue (recursion bounded by actual data structure)
-    if (defType === 'lazy') {
-      const getter = (sch as any)._def?.getter
-      if (typeof getter === 'function') {
-        const inner = getter()
+    // Dispatch based on schema type
+    switch (defType) {
+      case 'optional':
+      case 'nullable': {
+        if (val === null) return null
+        const inner = (sch as any).unwrap()
         return recurse(val, inner, currentPath)
       }
-    }
 
-    // Handle objects
-    if (defType === 'object' && typeof val === 'object' && val !== null) {
-      const shape = (sch as any).shape
-      if (shape) {
-        const result: Record<string, unknown> = {}
-        for (const [key, fieldSchema] of Object.entries(shape)) {
-          const fieldPath = currentPath ? `${currentPath}.${key}` : key
-          const fieldValue = (val as Record<string, unknown>)[key]
-          result[key] = recurse(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
+      case 'lazy': {
+        const getter = (sch as any)._def?.getter
+        if (typeof getter === 'function') {
+          const inner = getter()
+          return recurse(val, inner, currentPath)
         }
-        return result
+        break
       }
-    }
 
-    // Handle arrays
-    if (defType === 'array' && Array.isArray(val)) {
-      const element = (sch as any).element
-      return val.map((item, i) => {
-        const itemPath = `${currentPath}[${i}]`
-        return recurse(item, element, itemPath)
-      })
-    }
+      case 'object': {
+        if (typeof val === 'object' && val !== null) {
+          const shape = (sch as any).shape
+          if (shape) {
+            const result: Record<string, unknown> = {}
+            for (const [key, fieldSchema] of Object.entries(shape)) {
+              const fieldPath = currentPath ? `${currentPath}.${key}` : key
+              const fieldValue = (val as Record<string, unknown>)[key]
+              result[key] = recurse(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
+            }
+            return result
+          }
+        }
+        break
+      }
 
-    // Handle unions
-    if (defType === 'union') {
-      return handleUnion(val, sch, currentPath, recurse, options)
+      case 'array': {
+        if (Array.isArray(val)) {
+          const element = (sch as any).element
+          return val.map((item, i) => {
+            const itemPath = `${currentPath}[${i}]`
+            return recurse(item, element, itemPath)
+          })
+        }
+        break
+      }
+
+      case 'union':
+        return handleUnion(val, sch, currentPath, recurse, options)
     }
 
     return val
@@ -143,7 +148,7 @@ export async function transformBySchemaAsync<T, TCtx>(
       return val
     }
 
-    const defType = (sch as any)._def?.type
+    const defType = (sch as any)._def?.type as string | undefined
 
     // Check shouldTransform predicate - if false, skip callback but continue recursion
     const shouldCall = !options?.shouldTransform || options.shouldTransform(sch)
@@ -161,50 +166,55 @@ export async function transformBySchemaAsync<T, TCtx>(
       }
     }
 
-    // Handle optional/nullable
-    if (defType === 'optional' || defType === 'nullable') {
-      if (val === null) return null
-      const inner = (sch as any).unwrap()
-      return recurse(val, inner, currentPath)
-    }
-
-    // Handle lazy - unwrap and continue (recursion bounded by actual data structure)
-    if (defType === 'lazy') {
-      const getter = (sch as any)._def?.getter
-      if (typeof getter === 'function') {
-        const inner = getter()
+    // Dispatch based on schema type
+    switch (defType) {
+      case 'optional':
+      case 'nullable': {
+        if (val === null) return null
+        const inner = (sch as any).unwrap()
         return recurse(val, inner, currentPath)
       }
-    }
 
-    // Handle objects
-    if (defType === 'object' && typeof val === 'object' && val !== null) {
-      const shape = (sch as any).shape
-      if (shape) {
-        const result: Record<string, unknown> = {}
-        for (const [key, fieldSchema] of Object.entries(shape)) {
-          const fieldPath = currentPath ? `${currentPath}.${key}` : key
-          const fieldValue = (val as Record<string, unknown>)[key]
-          result[key] = await recurse(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
+      case 'lazy': {
+        const getter = (sch as any)._def?.getter
+        if (typeof getter === 'function') {
+          const inner = getter()
+          return recurse(val, inner, currentPath)
         }
-        return result
+        break
       }
-    }
 
-    // Handle arrays
-    if (defType === 'array' && Array.isArray(val)) {
-      const element = (sch as any).element
-      const results: unknown[] = []
-      for (let i = 0; i < val.length; i++) {
-        const itemPath = `${currentPath}[${i}]`
-        results.push(await recurse(val[i], element, itemPath))
+      case 'object': {
+        if (typeof val === 'object' && val !== null) {
+          const shape = (sch as any).shape
+          if (shape) {
+            const result: Record<string, unknown> = {}
+            for (const [key, fieldSchema] of Object.entries(shape)) {
+              const fieldPath = currentPath ? `${currentPath}.${key}` : key
+              const fieldValue = (val as Record<string, unknown>)[key]
+              result[key] = await recurse(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
+            }
+            return result
+          }
+        }
+        break
       }
-      return results
-    }
 
-    // Handle unions
-    if (defType === 'union') {
-      return handleUnionAsync(val, sch, currentPath, recurse, options)
+      case 'array': {
+        if (Array.isArray(val)) {
+          const element = (sch as any).element
+          const results: unknown[] = []
+          for (let i = 0; i < val.length; i++) {
+            const itemPath = `${currentPath}[${i}]`
+            results.push(await recurse(val[i], element, itemPath))
+          }
+          return results
+        }
+        break
+      }
+
+      case 'union':
+        return handleUnionAsync(val, sch, currentPath, recurse, options)
     }
 
     return val

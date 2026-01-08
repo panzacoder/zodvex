@@ -69,7 +69,7 @@ export function walkSchema(
     if (visited.has(sch)) return
     visited.add(sch)
 
-    const defType = (sch as any)._def?.type
+    const defType = (sch as any)._def?.type as string | undefined
     const meta = getMetadata(sch)
     const info: FieldInfo = { path: currentPath, schema: sch, meta, isOptional }
 
@@ -79,69 +79,66 @@ export function walkSchema(
       if (result === 'skip') return
     }
 
-    // Handle optional - unwrap and continue
-    if (defType === 'optional') {
-      const inner = (sch as any).unwrap()
-      traverse(inner, currentPath, true)
-      return
-    }
+    // Dispatch based on schema type
+    switch (defType) {
+      case 'optional': {
+        const inner = (sch as any).unwrap()
+        traverse(inner, currentPath, true)
+        return
+      }
 
-    // Handle nullable - unwrap and continue
-    if (defType === 'nullable') {
-      const inner = (sch as any).unwrap()
-      traverse(inner, currentPath, isOptional)
-      return
-    }
-
-    // Handle lazy - unwrap and continue (the visited Set prevents infinite recursion)
-    if (defType === 'lazy') {
-      const getter = (sch as any)._def?.getter
-      if (typeof getter === 'function') {
-        const inner = getter()
+      case 'nullable': {
+        const inner = (sch as any).unwrap()
         traverse(inner, currentPath, isOptional)
+        return
       }
-      return
-    }
 
-    // Handle objects
-    if (defType === 'object') {
-      visitor.onObject?.(info)
-      const shape = (sch as any).shape
-      if (shape) {
-        for (const [key, fieldSchema] of Object.entries(shape)) {
-          const fieldPath = currentPath ? `${currentPath}.${key}` : key
-          traverse(fieldSchema as z.ZodTypeAny, fieldPath, false)
+      case 'lazy': {
+        const getter = (sch as any)._def?.getter
+        if (typeof getter === 'function') {
+          const inner = getter()
+          traverse(inner, currentPath, isOptional)
         }
+        return
       }
-      return
-    }
 
-    // Handle arrays
-    if (defType === 'array') {
-      visitor.onArray?.(info)
-      const element = (sch as any).element
-      if (element) {
-        const arrayPath = currentPath ? `${currentPath}[]` : '[]'
-        traverse(element, arrayPath, false)
+      case 'object': {
+        visitor.onObject?.(info)
+        const shape = (sch as any).shape
+        if (shape) {
+          for (const [key, fieldSchema] of Object.entries(shape)) {
+            const fieldPath = currentPath ? `${currentPath}.${key}` : key
+            traverse(fieldSchema as z.ZodTypeAny, fieldPath, false)
+          }
+        }
+        return
       }
-      return
-    }
 
-    // Handle unions (including discriminated unions)
-    if (defType === 'union') {
-      const unionOptions = (sch as any)._def.options as z.ZodTypeAny[] | undefined
-
-      // Get options from either _def.options or _def.optionsMap
-      const variantOptions =
-        unionOptions ||
-        ((sch as any)._def.optionsMap ? Array.from((sch as any)._def.optionsMap.values()) : [])
-
-      visitor.onUnion?.(info, variantOptions as z.ZodTypeAny[])
-
-      for (const variant of variantOptions as z.ZodTypeAny[]) {
-        traverse(variant, currentPath, isOptional)
+      case 'array': {
+        visitor.onArray?.(info)
+        const element = (sch as any).element
+        if (element) {
+          const arrayPath = currentPath ? `${currentPath}[]` : '[]'
+          traverse(element, arrayPath, false)
+        }
+        return
       }
-      return
+
+      case 'union': {
+        const unionOptions = (sch as any)._def.options as z.ZodTypeAny[] | undefined
+
+        // Get options from either _def.options or _def.optionsMap
+        const variantOptions =
+          unionOptions ||
+          ((sch as any)._def.optionsMap ? Array.from((sch as any)._def.optionsMap.values()) : [])
+
+        visitor.onUnion?.(info, variantOptions as z.ZodTypeAny[])
+
+        for (const variant of variantOptions as z.ZodTypeAny[]) {
+          traverse(variant, currentPath, isOptional)
+        }
+        return
+      }
     }
 
     // Primitives and other types are leaf nodes - nothing more to traverse
