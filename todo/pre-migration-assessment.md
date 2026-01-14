@@ -2,7 +2,10 @@
 
 **Date:** 2026-01-08
 **Branch:** `plan/rls`
-**Status:** All Issues Addressed, Ready for Phase 4 Migration
+**Status:** MIGRATION COMPLETE
+
+> **Note:** The security module has been migrated to hotpot. This document is kept for historical reference.
+> See `packages/hotpot/src/security/` in the hotpot repo and the `SECURITY_MIGRATION.md` guide there.
 
 ---
 

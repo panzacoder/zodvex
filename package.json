@@ -22,16 +22,6 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./security": {
-      "types": "./dist/security/index.d.ts",
-      "import": "./dist/security/index.js",
-      "default": "./dist/security/index.js"
-    },
-    "./security/client": {
-      "types": "./dist/security/client.d.ts",
-      "import": "./dist/security/client.js",
-      "default": "./dist/security/client.js"
-    },
     "./transform": {
       "types": "./dist/transform/index.d.ts",
       "import": "./dist/transform/index.js",

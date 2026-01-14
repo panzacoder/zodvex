@@ -1,6 +1,10 @@
 # Hotpot Migration Guide (Phase 4): zodvex Security → hotpot
 
-This guide operationalizes the Phase 4 checklist from `todo/pre-migration-assessment.md:1` and `todo/hotpot-zod-fls.md:563`.
+**Status:** MIGRATION COMPLETE
+
+> The security module has been copied to hotpot. See `packages/hotpot/src/security/` and `packages/hotpot/SECURITY_MIGRATION.md` in the hotpot repo for next steps.
+
+This guide operationalizes the Phase 4 checklist from `todo/pre-migration-assessment.md:1`.
 
 ## Goal
 
