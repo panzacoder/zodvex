@@ -167,7 +167,7 @@ All public APIs have JSDoc with examples.
 ### Migration Guide ❌ Not Created
 No documentation for Phase 4 (copying to hotpot).
 
-**Recommendation:** Create `todo/hotpot-migration-guide.md` with step-by-step instructions.
+**Recommendation:** Create `todo/hotpot-migration-guide.md` with step-by-step instructions. ✅ Added.
 
 ---
 
