@@ -10,7 +10,23 @@ import type { FieldInfo, SchemaVisitor, WalkSchemaOptions } from './types'
 const METADATA_CACHE = new WeakMap<z.ZodTypeAny, Record<string, unknown> | undefined>()
 
 /**
+ * Metadata key for ZodSensitive wrappers.
+ * Duplicated here to avoid circular import from security module.
+ */
+const SENSITIVE_META_KEY = 'zodvex:sensitive'
+
+/**
+ * Duck-type check for ZodSensitive wrapper.
+ * Avoids circular import from security module.
+ */
+function isZodSensitiveDef(schema: any): boolean {
+  return schema?._def?.type === 'sensitive' && typeof schema?.unwrap === 'function'
+}
+
+/**
  * Get metadata from a Zod schema.
+ *
+ * Handles both Zod's native .meta() and ZodSensitive wrappers.
  *
  * @example
  * ```ts
@@ -31,6 +47,14 @@ export function getMetadata(schema: z.ZodTypeAny): Record<string, unknown> | und
     if (visited.has(current)) return undefined
     visited.add(current)
 
+    // Fast path: ZodSensitive wrapper stores metadata directly
+    if (isZodSensitiveDef(current)) {
+      const sensitiveMeta = (current as any)._def.sensitiveMetadata
+      const meta = { [SENSITIVE_META_KEY]: sensitiveMeta }
+      METADATA_CACHE.set(schema, meta)
+      return meta
+    }
+
     const meta = current.meta?.() as Record<string, unknown> | undefined
     if (meta !== undefined) {
       METADATA_CACHE.set(schema, meta)
@@ -48,6 +72,14 @@ function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
   const defType = (schema as any)._def?.type as string | undefined
 
   switch (defType) {
+    case 'sensitive': {
+      // ZodSensitive wrapper - unwrap to inner schema
+      if (typeof (schema as any).unwrap === 'function') {
+        return (schema as any).unwrap()
+      }
+      return (schema as any)._def?.innerType
+    }
+
     case 'optional':
     case 'nullable': {
       if (typeof (schema as any).unwrap === 'function') {
@@ -142,6 +174,15 @@ export function walkSchema(
 
       // Dispatch based on schema type
       switch (defType) {
+        case 'sensitive': {
+          // ZodSensitive wrapper - already reported via onField, now traverse inner
+          const inner = (sch as any).unwrap?.() ?? (sch as any)._def?.innerType
+          if (inner) {
+            traverse(inner, currentPath, isOptional)
+          }
+          return
+        }
+
         case 'optional': {
           const inner = (sch as any).unwrap()
           traverse(inner, currentPath, true)
@@ -211,9 +252,7 @@ export function walkSchema(
           // Get options from either _def.options or _def.optionsMap
           const variantOptions =
             unionOptions ||
-            ((sch as any)._def.optionsMap
-              ? Array.from((sch as any)._def.optionsMap.values())
-              : [])
+            ((sch as any)._def.optionsMap ? Array.from((sch as any)._def.optionsMap.values()) : [])
 
           visitor.onUnion?.(info, variantOptions as z.ZodTypeAny[])
 

@@ -1,12 +1,13 @@
 # Option 2: Wrapper Type Approach - Custom ZodSensitive Type
 
-> **Status:** Deferred (Not chosen as primary)
+> **Status:** ✅ IMPLEMENTED (Chosen as primary)
 >
-> Rationale: We are prioritizing Option 1’s Zod ergonomics (keep schemas as “normal Zod” types)
-> and pairing it with fail-closed runtime detection (Option 4) for PHI-grade safety.
+> **Rationale:** Investigation revealed Option 1 (Traversal Unwrap) has an unfixable gap:
+> Zod v4's `.refine()`, `.superRefine()`, and `.check()` methods silently drop metadata.
+> There is no way to recover the metadata because these methods create new schema instances
+> without copying the `globalRegistry` entry or maintaining a reference to the original.
 >
-> Revisit if Option 1 maintenance cost becomes unacceptable across Zod versions, or if we need the
-> stronger “cannot lose the marker” guarantees that a wrapper type provides.
+> Option 2 provides structural guarantees that the sensitive marker cannot be lost.
 
 ## Executive Summary
 

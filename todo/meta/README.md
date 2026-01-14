@@ -18,19 +18,25 @@ sensitive(z.string()).transform(s => s.toLowerCase())
 
 ## Decision
 
-**Primary fix:** **Option 1 (Traversal Unwrap)**
+**Primary fix:** **Option 2 (Wrapper Type)** ✅ IMPLEMENTED
 
-- Preserve the intended Zod ergonomics: `sensitive(z.string()).optional()`, `sensitive(z.string()).transform(...)`, etc.
-- Keep the schema as “normal Zod” (no custom Zod type) so other tooling stays simpler.
+Investigation revealed that Option 1 (Traversal Unwrap) has an **unfixable gap**: Zod v4's `.refine()`, `.superRefine()`, and `.check()` methods silently drop metadata because they create new schema instances without copying the `globalRegistry` entry. There is no reference back to the original schema, making the metadata genuinely unrecoverable.
+
+**Why Option 2:**
+
+- `ZodSensitive<T>` wrapper class survives ALL Zod compositions including refine/superRefine
+- `instanceof ZodSensitive` detection is 100% reliable
+- The "wrong ordering" footgun becomes impossible
+- For PHI-grade data, structural guarantees are worth the maintenance cost
 
 **Required safety net:** **Option 4 (Runtime Detection)**
 
-- Default to **hard fail** on “orphaned” sensitive DB values that are not covered by schema marking/traversal.
-- This converts “missed traversal case” from a potential confidentiality issue into an operational error (fail-closed).
+- Still enabled as defense-in-depth
+- Default to **hard fail** on "orphaned" sensitive DB values
 
-**Deferred:** Option 2 (Wrapper Type)
+**Superseded:** Option 1 (Traversal Unwrap)
 
-- Revisit only if Option 1 becomes too costly to maintain across Zod versions, or if we need the wrapper-type guarantees.
+- Was unable to handle refine/superRefine due to Zod v4's metadata architecture
 
 **Keep as a documented add-on:** Option 3 (Path Policies)
 

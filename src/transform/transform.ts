@@ -62,6 +62,15 @@ export function transformBySchema<T, TCtx>(
 
     // Dispatch based on schema type
     switch (defType) {
+      case 'sensitive': {
+        // ZodSensitive wrapper - transform was already called above, now recurse into inner
+        const inner = (sch as any).unwrap?.() ?? (sch as any)._def?.innerType
+        if (inner) {
+          return recurse(val, inner, currentPath)
+        }
+        break
+      }
+
       case 'optional':
       case 'nullable': {
         if (val === null) return null
@@ -188,6 +197,15 @@ export async function transformBySchemaAsync<T, TCtx>(
 
     // Dispatch based on schema type
     switch (defType) {
+      case 'sensitive': {
+        // ZodSensitive wrapper - transform was already called above, now recurse into inner
+        const inner = (sch as any).unwrap?.() ?? (sch as any)._def?.innerType
+        if (inner) {
+          return recurse(val, inner, currentPath)
+        }
+        break
+      }
+
       case 'optional':
       case 'nullable': {
         if (val === null) return null

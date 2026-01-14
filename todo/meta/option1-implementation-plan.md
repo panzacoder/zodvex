@@ -1,8 +1,17 @@
 # Option 1 Implementation Plan: Traversal Unwrap (with Option 4 safety net)
 
+> **Status:** ⚠️ SUPERSEDED by Option 2
+>
+> Investigation revealed that `.refine()`, `.superRefine()`, and `.check()` in Zod v4
+> **silently drop metadata** in a way that cannot be fixed by traversal unwrapping.
+> These methods create new schema instances without copying the `globalRegistry` entry,
+> and there is no reference back to the original schema.
+>
+> See `todo/meta/option2-wrapper-type.md` for the implemented solution.
+
 ## Goal
 
-Make sensitivity marking via `.meta()` reliable across Zod wrapper/effect types, so schema traversal and value transforms cannot “miss” sensitive fields due to composition order (e.g. `sensitive(z.string()).transform(...)`).
+Make sensitivity marking via `.meta()` reliable across Zod wrapper/effect types, so schema traversal and value transforms cannot "miss" sensitive fields due to composition order (e.g. `sensitive(z.string()).transform(...)`).
 
 This plan assumes:
 - **Primary:** Option 1 (Traversal Unwrap)

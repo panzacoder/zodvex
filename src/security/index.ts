@@ -22,10 +22,13 @@ export type {
   WritePolicy
 } from './types'
 
-// Sensitive marker
+// Sensitive marker and ZodSensitive wrapper
 export {
   SENSITIVE_META_KEY,
+  ZodSensitive,
+  type ZodSensitiveDef,
   sensitive,
+  isZodSensitive,
   isSensitiveSchema,
   getSensitiveMetadata,
   findSensitiveFields,

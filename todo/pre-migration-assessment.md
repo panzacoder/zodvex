@@ -133,20 +133,20 @@ if (options?.parallel) {
 | Nested sensitive in sensitive | Outer hides all | Low (fail-closed) | Document behavior |
 | Sensitive discriminator | Union matching fails | Medium | Document as unsupported |
 | `z.lazy()` recursive | ✅ FIXED | Low | Handled with visited Set |
-| `z.transform()` / `z.refine()` | ✅ FIXED | Low | `.meta()` is now discoverable through wrapper types; see Option 1 (`todo/meta/README.md:1`) |
+| `z.transform()` / `z.refine()` | ✅ FIXED (Option 2) | Low | `ZodSensitive` wrapper survives all compositions; see `todo/meta/README.md` |
 | TOCTOU in update | Stale data check | Low (Convex OCC) | Document reliance on Convex |
 
 ### z.transform() / z.refine() Behavior
-**Tests:** 6 new tests in `__tests__/transform/transform.test.ts` under "z.transform() and z.refine() handling"
+**Tests:** 19 new tests in `__tests__/security/sensitive.test.ts` under "ZodSensitive wrapper survival (Option 2)"
 
-**Key Finding (updated):** Metadata is discoverable even when applied before `z.transform()` now that Option 1 is implemented.
-Note: `z.refine()` may still drop metadata when applied before refine, depending on Zod internals.
+**Key Finding (updated):** With Option 2 (`ZodSensitive` wrapper class), sensitive marking survives ALL Zod compositions including `.refine()`, `.superRefine()`, and `.check()`. The wrapper stays in the schema tree and is detectable via `instanceof`.
+
 ```typescript
-// ✅ Correct - meta after transform
-z.string().transform(s => s.toLowerCase()).meta({ sensitive: true })
-
-// ✅ Also correct - meta before transform (Option 1 unwraps the pipe wrapper)
-z.string().meta({ sensitive: true }).transform(s => s.toLowerCase())
+// ✅ All patterns now work with ZodSensitive wrapper:
+sensitive(z.string()).transform(s => s.toLowerCase())
+sensitive(z.string()).refine(s => s.length >= 8)
+sensitive(z.string()).superRefine((val, ctx) => { ... })
+sensitive(z.string()).optional().nullable()
 ```
 
 ---

@@ -10,9 +10,11 @@ import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import {
   SENSITIVE_META_KEY,
+  ZodSensitive,
   findSensitiveFields,
   getSensitiveMetadata,
   isSensitiveSchema,
+  isZodSensitive,
   sensitive
 } from '../../src/security/sensitive'
 import type { ReadPolicy, SensitiveMetadata, WritePolicy } from '../../src/security/types'
@@ -483,6 +485,155 @@ describe('security/sensitive.ts', () => {
         expect(meta.read).toHaveLength(2)
         expect(meta.read?.[1].mask).toBe(maskFn)
         expect(meta.write?.requirements).toBe('admin')
+      })
+    })
+  })
+
+  // =========================================================================
+  // ZodSensitive Wrapper (Option 2) - Survival Tests
+  // =========================================================================
+  describe('ZodSensitive wrapper survival (Option 2)', () => {
+    describe('instanceof detection', () => {
+      it('should be detectable via instanceof', () => {
+        const schema = sensitive(z.string())
+        expect(schema instanceof ZodSensitive).toBe(true)
+      })
+
+      it('should be detectable via isZodSensitive type guard', () => {
+        const schema = sensitive(z.string())
+        expect(isZodSensitive(schema)).toBe(true)
+      })
+    })
+
+    describe('survives refine()', () => {
+      it('should detect sensitive through refine()', () => {
+        const schema = sensitive(z.string()).refine(s => s.length > 0)
+        expect(isSensitiveSchema(schema)).toBe(true)
+      })
+
+      it('should preserve metadata through refine()', () => {
+        const schema = sensitive(z.string(), {
+          read: [{ status: 'full', requirements: 'admin' }]
+        }).refine(s => s.length >= 8, 'Password too short')
+
+        const meta = getSensitiveMetadata<string>(schema)
+        expect(meta).toBeDefined()
+        expect(meta?.sensitive).toBe(true)
+        expect(meta?.read?.[0].requirements).toBe('admin')
+      })
+
+      it('should still parse correctly after refine()', () => {
+        const schema = sensitive(z.string()).refine(s => s.length >= 3)
+
+        expect(schema.parse('hello')).toBe('hello')
+        expect(() => schema.parse('ab')).toThrow()
+      })
+    })
+
+    describe('survives superRefine()', () => {
+      it('should detect sensitive through superRefine()', () => {
+        const schema = sensitive(z.string()).superRefine((val, ctx) => {
+          if (val.length < 8) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'Too short'
+            })
+          }
+        })
+        expect(isSensitiveSchema(schema)).toBe(true)
+      })
+    })
+
+    describe('survives chained methods', () => {
+      it('should detect sensitive through optional()', () => {
+        const schema = sensitive(z.string()).optional()
+        expect(isSensitiveSchema(schema)).toBe(true)
+      })
+
+      it('should detect sensitive through nullable()', () => {
+        const schema = sensitive(z.string()).nullable()
+        expect(isSensitiveSchema(schema)).toBe(true)
+      })
+
+      it('should detect sensitive through nullish()', () => {
+        const schema = sensitive(z.string()).nullish()
+        expect(isSensitiveSchema(schema)).toBe(true)
+      })
+
+      it('should detect sensitive through default()', () => {
+        const schema = sensitive(z.string()).default('secret')
+        expect(isSensitiveSchema(schema)).toBe(true)
+      })
+
+      it('should detect sensitive through array()', () => {
+        const schema = sensitive(z.string()).array()
+        expect(isSensitiveSchema(schema)).toBe(true)
+      })
+
+      it('should detect sensitive through chained refine().optional()', () => {
+        const schema = sensitive(z.string())
+          .refine(s => s.length >= 8)
+          .optional()
+        expect(isSensitiveSchema(schema)).toBe(true)
+      })
+    })
+
+    describe('findSensitiveFields with ZodSensitive', () => {
+      it('should find sensitive fields in objects', () => {
+        const schema = z.object({
+          password: sensitive(z.string()).refine(s => s.length >= 8)
+        })
+        const fields = findSensitiveFields(schema)
+        expect(fields).toHaveLength(1)
+        expect(fields[0].path).toBe('password')
+      })
+
+      it('should find nested sensitive fields', () => {
+        const schema = z.object({
+          user: z.object({
+            email: sensitive(z.string()),
+            ssn: sensitive(z.string()).refine(s => /^\d{9}$/.test(s))
+          })
+        })
+        const fields = findSensitiveFields(schema)
+        expect(fields).toHaveLength(2)
+        expect(fields.map(f => f.path).sort()).toEqual(['user.email', 'user.ssn'])
+      })
+
+      it('should find sensitive fields in arrays', () => {
+        const schema = z.object({
+          secrets: z.array(sensitive(z.string()))
+        })
+        const fields = findSensitiveFields(schema)
+        expect(fields).toHaveLength(1)
+        expect(fields[0].path).toBe('secrets[]')
+      })
+    })
+
+    describe('parsing delegation', () => {
+      it('should parse valid values', () => {
+        const schema = sensitive(z.string().min(3))
+        expect(schema.parse('hello')).toBe('hello')
+      })
+
+      it('should reject invalid values', () => {
+        const schema = sensitive(z.string().min(3))
+        expect(() => schema.parse('ab')).toThrow()
+      })
+
+      it('should safeParse valid values', () => {
+        const schema = sensitive(z.string().email())
+        const result = schema.safeParse('test@example.com')
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('test@example.com')
+        }
+      })
+
+      it('should safeParse invalid values', () => {
+        const schema = sensitive(z.string().email())
+        const result = schema.safeParse('not-an-email')
+        expect(result.success).toBe(false)
       })
     })
   })

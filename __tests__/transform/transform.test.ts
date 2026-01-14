@@ -179,7 +179,10 @@ describe('transform/transform.ts', () => {
     it('should see metadata through wrapper/effect types (Option 1)', () => {
       const schema = z.object({
         // Meta is on the inner string, but the schema node is wrapped.
-        secret: z.string().meta({ sensitive: true }).transform(v => v)
+        secret: z
+          .string()
+          .meta({ sensitive: true })
+          .transform(v => v)
       })
       const value = { secret: 'password123' }
 
