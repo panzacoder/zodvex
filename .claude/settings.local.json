@@ -27,7 +27,8 @@
       "WebFetch(domain:blog.jim-nielsen.com)",
       "WebFetch(domain:glebbahmutov.com)",
       "WebFetch(domain:bun.com)",
-      "WebFetch(domain:www.stefanjudis.com)"
+      "WebFetch(domain:www.stefanjudis.com)",
+      "WebFetch(domain:tsup.egoist.dev)"
     ],
     "deny": [],
     "ask": []
