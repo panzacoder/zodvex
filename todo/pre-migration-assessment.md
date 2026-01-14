@@ -133,18 +133,19 @@ if (options?.parallel) {
 | Nested sensitive in sensitive | Outer hides all | Low (fail-closed) | Document behavior |
 | Sensitive discriminator | Union matching fails | Medium | Document as unsupported |
 | `z.lazy()` recursive | ✅ FIXED | Low | Handled with visited Set |
-| `z.transform()` / `z.refine()` | ✅ DOCUMENTED | Low | Apply `.meta()` AFTER transform/refine |
+| `z.transform()` / `z.refine()` | ✅ FIXED | Low | `.meta()` is now discoverable through wrapper types; see Option 1 (`todo/meta/README.md:1`) |
 | TOCTOU in update | Stale data check | Low (Convex OCC) | Document reliance on Convex |
 
 ### z.transform() / z.refine() Behavior
 **Tests:** 6 new tests in `__tests__/transform/transform.test.ts` under "z.transform() and z.refine() handling"
 
-**Key Finding:** Metadata must be applied AFTER transform/refine to be visible:
+**Key Finding (updated):** Metadata is discoverable even when applied before `z.transform()` now that Option 1 is implemented.
+Note: `z.refine()` may still drop metadata when applied before refine, depending on Zod internals.
 ```typescript
 // ✅ Correct - meta after transform
 z.string().transform(s => s.toLowerCase()).meta({ sensitive: true })
 
-// ❌ Wrong - meta before transform (hidden in pipe wrapper)
+// ✅ Also correct - meta before transform (Option 1 unwraps the pipe wrapper)
 z.string().meta({ sensitive: true }).transform(s => s.toLowerCase())
 ```
 

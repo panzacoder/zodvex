@@ -1,5 +1,9 @@
 # Option 4: Runtime Detection + Warning/Error
 
+> **Status:** Required safety net (paired with Option 1)
+>
+> Decision: Default to **hard fail** (`throw`) when orphaned sensitive DB values are detected, with an escape hatch to configure alternate modes for non-PHI contexts.
+
 ## Executive Summary
 
 Rather than fixing the traversal or changing the architecture, **detect and prevent** the problematic pattern. When `sensitive()` is used in a way that would hide metadata, warn developers or fail securely.

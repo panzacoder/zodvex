@@ -34,6 +34,13 @@ export interface ApplyReadPolicyOptions<TDoc = unknown> {
   doc?: TDoc
   /** Default reason when access is denied */
   defaultDenyReason?: ReasonCode
+  /**
+   * How to handle a SensitiveDb value when the schema at that path is NOT marked as sensitive.
+   * This is a fail-secure guard against traversal/marking gaps.
+   *
+   * Default: 'throw'
+   */
+  orphanedSensitive?: 'throw' | 'redact' | 'passthrough'
   /** Callback when fail-closed occurs (union doesn't match) */
   onFailClosed?: (path: string, reason: string) => void
 }
@@ -48,6 +55,31 @@ function isSensitiveDbValue(value: unknown): value is SensitiveDb<unknown> {
     '__sensitiveValue' in value &&
     !('status' in value)
   )
+}
+
+function handleOrphanedSensitiveDbValue(
+  path: string,
+  value: SensitiveDb<unknown>,
+  mode: NonNullable<ApplyReadPolicyOptions['orphanedSensitive']>,
+  defaultDenyReason?: ReasonCode
+): SensitiveDb<unknown> | SensitiveWire {
+  switch (mode) {
+    case 'passthrough':
+      return value
+    case 'redact':
+      return {
+        status: 'hidden',
+        value: null,
+        reason: defaultDenyReason ?? 'unhandled_sensitive_field'
+      }
+    case 'throw':
+    default:
+      throw new Error(
+        `Security Error: SensitiveDb value found at '${path}' but schema is not marked sensitive.\n` +
+          `This would allow raw sensitive data to escape policy application.\n` +
+          `Fix: mark the field with sensitive(...), and avoid patterns that hide .meta() (e.g. sensitive(...).transform(...)).`
+      )
+  }
 }
 
 /**
@@ -70,11 +102,26 @@ export async function applyReadPolicy<T, TCtx, TReq, TDoc = unknown>(
   resolver: EntitlementResolver<TCtx, TReq, TDoc>,
   options?: ApplyReadPolicyOptions<TDoc>
 ): Promise<T> {
+  const orphanedSensitiveMode = options?.orphanedSensitive ?? 'throw'
+
   return transformBySchemaAsync(
     value,
     schema,
     ctx,
     async (val, info) => {
+      // Fail-secure: detect SensitiveDb wrappers that aren't covered by schema marking.
+      if (isSensitiveDbValue(val)) {
+        const meta = getSensitiveMetadata<TReq>(info.schema)
+        if (!meta) {
+          return handleOrphanedSensitiveDbValue(
+            info.path,
+            val,
+            orphanedSensitiveMode,
+            options?.defaultDenyReason
+          )
+        }
+      }
+
       // Check if this schema is sensitive and value is SensitiveDb
       const meta = getSensitiveMetadata<TReq>(info.schema)
       if (!meta || !isSensitiveDbValue(val)) {
@@ -208,6 +255,35 @@ export async function validateWritePolicy<TCtx, TReq, TDoc = unknown>(
         if (val === null) return
         const inner = (sch as any).unwrap()
         return validate(val, inner, currentPath)
+      }
+
+      case 'lazy': {
+        const getter = (sch as any)._def?.getter
+        if (typeof getter === 'function') {
+          const inner = getter()
+          return validate(val, inner, currentPath)
+        }
+        return
+      }
+
+      case 'default':
+      case 'catch':
+      case 'readonly':
+      case 'prefault':
+      case 'nonoptional': {
+        const inner = (sch as any)._def?.innerType as z.ZodTypeAny | undefined
+        if (inner) {
+          return validate(val, inner, currentPath)
+        }
+        return
+      }
+
+      case 'pipe': {
+        const inner = (sch as any)._def?.in as z.ZodTypeAny | undefined
+        if (inner) {
+          return validate(val, inner, currentPath)
+        }
+        return
       }
 
       case 'object': {

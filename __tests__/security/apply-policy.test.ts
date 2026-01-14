@@ -391,6 +391,21 @@ describe('security/apply-policy.ts', () => {
 
         expect(result.email.reason).toBe('access_denied')
       })
+
+      it('should throw on orphaned SensitiveDb values by default (Option 4 safety net)', async () => {
+        // Schema does NOT mark email as sensitive.
+        const schema = z.object({
+          email: z.string()
+        })
+
+        // Value looks like SensitiveDb (branded storage) - without a schema marker,
+        // this would otherwise bypass policy application and risk raw egress.
+        const value = { email: sensitiveDb('test@example.com') }
+
+        await expect(applyReadPolicy(value, schema, adminCtx, roleResolver)).rejects.toThrow(
+          /schema is not marked sensitive/i
+        )
+      })
     })
   })
 
@@ -499,6 +514,25 @@ describe('security/apply-policy.ts', () => {
 
         expect(result.allowed).toBe(false)
         expect(result.deniedFields[0].path).toBe('profile.email')
+      })
+
+      it('should validate sensitive fields inside wrapped objects (Option 1 wrapper traversal)', async () => {
+        const profileSchema = z.object({
+          email: sensitive(z.string(), {
+            write: { requirements: 'admin' }
+          })
+        })
+
+        const schema = z.object({
+          // Wrapper around an object containing sensitive fields.
+          profile: profileSchema.default({ email: sensitiveDb('x') as any })
+        })
+
+        const value = { profile: { email: sensitiveDb('new@example.com') } }
+        const result = await validateWritePolicy(value, schema, userCtx, roleResolver)
+
+        expect(result.allowed).toBe(false)
+        expect(result.deniedFields.map(f => f.path)).toContain('profile.email')
       })
     })
 

@@ -1,10 +1,43 @@
 # Option 1: Traversal Unwrap - Fix Schema Traversal to Handle Effect Types
 
+> **Status:** Chosen (Primary Fix)
+>
+> Implementation checklist: `todo/meta/option1-implementation-plan.md:1`
+
 ## Executive Summary
 
 The current vulnerability exists because `sensitive()` marks fields using Zod's `.meta()` API, but schema traversal in `src/transform/traverse.ts` only handles a subset of Zod types (optional, nullable, lazy, object, array, union). When a schema is wrapped in effect types like `transform`, `refine`, `catch`, `default`, `brand`, or `pipe`, the metadata becomes inaccessible.
 
 **Option 1** expands the traversal to unwrap these effect types and find the inner schema's metadata.
+
+## Why This Choice (Product + DX Framing)
+
+We want sensitivity to be an **annotation** that is consumed by the server-side read-time policy pass, not a new “schema primitive” that product developers have to reason about in normal Zod usage.
+
+- Keeping sensitivity as `.meta()` preserves **normal Zod schemas** and output types (`z.infer` stays focused on the domain shape).
+- This reduces the cognitive overhead for product developers who are used to “Zod-validated data” and don’t want sensitive schemas to become a separate conceptual type graph.
+- It also keeps schema reuse (server/client) cleaner: client-side code can validate/consume the already-redacted envelope without reintroducing a custom sensitive ZodType into the schema structure.
+
+Safety posture:
+- We pair Option 1 with the Option 4 safety net (orphaned `SensitiveDb` detection defaulting to `throw`) so that any missed traversal case fails closed.
+
+## Important Limitation (Be Explicit)
+
+Option 1 fixes cases where metadata is **hidden behind wrapper/effect nodes** (e.g. `optional`, `nullable`, `pipe`, `default`, `catch`, etc.).
+
+It does **not** help for Zod operations that **clone and drop metadata** without retaining an “inner schema” pointer (e.g. many `z.string()` convenience methods like `.email()`, `.min()`, and some uses of `.refine()` depending on Zod internals).
+
+Practical guidance:
+- Prefer applying `sensitive(...)` (or `.meta(...)`) at the **end** of the chain for string/number “check” methods.
+- Option 4 fail-closed behavior is the backstop for any mismatch between DB branded values and schema marking.
+
+## Security Note: Schema Trust Boundary (Policy Injection)
+
+Option 1 stores read/write policies in schema `.meta()`.
+
+This is safe **only if schemas are trusted configuration** (server-owned constants). Do not accept schemas from user input, request payloads, plugins, or other untrusted sources and then use their metadata to make authorization decisions.
+
+If an attacker can supply or mutate the schema instance used for policy application, they could also supply permissive policies. This risk is not unique to `.meta()`—a wrapper-type approach (Option 2) would have the same issue if untrusted code can provide the schema/wrapper instance.
 
 ---
 

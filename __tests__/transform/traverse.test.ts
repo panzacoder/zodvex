@@ -43,6 +43,28 @@ describe('transform/traverse.ts', () => {
         expect(meta).toBeUndefined()
       }
     })
+
+    it('should find metadata through Zod wrapper/effect types (Option 1)', () => {
+      const base = z.string().meta({ sensitive: true })
+
+      const schemas: Array<z.ZodTypeAny> = [
+        base.optional(),
+        base.nullable(),
+        base.default('x'),
+        base.catch('x'),
+        // Zod v4 represents transform as a pipe wrapper
+        base.transform(v => v),
+        // Some wrappers exist as separate types in v4
+        (base as any).readonly ? (base as any).readonly() : base,
+        (base.optional() as any).nonoptional ? (base.optional() as any).nonoptional() : base,
+        (base as any).prefault ? (base as any).prefault('x') : base
+      ]
+
+      for (const sch of schemas) {
+        const meta = getMetadata(sch)
+        expect(meta?.sensitive).toBe(true)
+      }
+    })
   })
 
   describe('hasMetadata', () => {
@@ -449,6 +471,24 @@ describe('transform/traverse.ts', () => {
 
       expect(results.length).toBe(1)
       expect(results[0].path).toBe('optionalEmail')
+    })
+
+    it('should traverse through wrapper/effect types to find nested metadata (Option 1)', () => {
+      const inner = z.object({
+        email: z.string().meta({ sensitive: true })
+      })
+
+      const schema = z.object({
+        // Wrapping the object should not prevent discovering metadata inside it.
+        profileDefault: inner.default({ email: 'x' }),
+        profileTransform: inner.transform(v => v)
+      })
+
+      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const paths = results.map(r => r.path)
+
+      expect(paths).toContain('profileDefault.email')
+      expect(paths).toContain('profileTransform.email')
     })
   })
 

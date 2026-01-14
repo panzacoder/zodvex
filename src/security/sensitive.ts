@@ -30,6 +30,11 @@ export interface SensitiveOptions<TReq = unknown> {
 /**
  * Mark a Zod schema as sensitive.
  *
+ * Guidance: treat `sensitive()` as the outer wrapper for a fully-defined schema.
+ * Prefer `sensitive(z.string().email().min(3), { ... })` over
+ * `sensitive(z.string(), { ... }).email()`, since many Zod helper methods
+ * clone schemas and do not preserve metadata.
+ *
  * @example
  * ```ts
  * const schema = z.object({

@@ -292,6 +292,32 @@ export type SensitiveMetadata<TReq = unknown> = {
 
 - `sensitive(innerSchema, options)` marks fields as sensitive and stores metadata via `.meta()`.
 - Metadata is the canonical mechanism; path-keyed policies are supported as helper sugar.
+- Decision: harden traversal/transform to reliably discover `.meta()` through Zod wrapper/effect types (Option 1). See `todo/meta/README.md:1`.
+- Authoring guidance: treat `sensitive()` as the **outer wrapper** for a fully-defined validator. Prefer:
+  - `const email = z.string().email(); email: sensitive(email, { ... })`
+  - `email: sensitive(z.string().email().min(3), { ... })`
+
+  Avoid chaining Zod “check” methods after `sensitive(...)` (e.g. `sensitive(z.string(), ...).email()`), since many Zod helpers clone schemas and do not preserve metadata.
+
+### Lint-Level Enforcement (Recommended)
+
+Because many Zod “check” helpers (e.g. `.email()`, `.min()`, `.regex()`, etc.) clone schemas and may drop `.meta()`, the easiest enforcement is an ESLint rule that flags unsafe chaining on the return value of `sensitive(...)`.
+
+**Rule idea:** `zodvex-security/no-chain-after-sensitive`
+
+- **Disallow** any member call chained directly off `sensitive(...)`, except a small allowlist of wrapper/effect methods that Option 1 can traverse safely (example allowlist: `optional`, `nullable`, `default`, `catch`, `transform`, `pipe`).
+- **Message:** “Apply `sensitive()` to the fully-built schema: `sensitive(z.string().email().min(3), opts)` instead of `sensitive(z.string(), opts).email().min(3)`.”
+- **Auto-fix (best effort):** for simple cases `sensitive(A, opts).email()` → `sensitive(A.email(), opts)` (and similar for other method names). For multi-step chains, the rule can either:
+  - provide a suggestion only (no fix), or
+  - apply a conservative fix for the first call and leave the rest for the developer.
+
+**Why lint instead of types?**
+- It keeps schemas as “normal Zod” types (important for reuse and product ergonomics) while still preventing the footgun patterns that can drop `.meta()`.
+
+**How it fits the safety model**
+- Option 1 makes `.meta()` discoverable through wrapper/effect types during traversal.
+- This lint rule prevents authoring patterns where metadata is dropped by cloning helpers.
+- Option 4 fail-closed behavior remains the runtime backstop if something slips through.
 
 ```ts
 function sensitive<T extends z.ZodTypeAny, TReq = unknown>(

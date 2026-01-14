@@ -78,6 +78,26 @@ export function transformBySchema<T, TCtx>(
         break
       }
 
+      case 'default':
+      case 'catch':
+      case 'readonly':
+      case 'prefault':
+      case 'nonoptional': {
+        const inner = (sch as any)._def?.innerType as z.ZodTypeAny | undefined
+        if (inner) {
+          return recurse(val, inner, currentPath)
+        }
+        break
+      }
+
+      case 'pipe': {
+        const inner = (sch as any)._def?.in as z.ZodTypeAny | undefined
+        if (inner) {
+          return recurse(val, inner, currentPath)
+        }
+        break
+      }
+
       case 'object': {
         if (typeof val === 'object' && val !== null) {
           const shape = (sch as any).shape
@@ -179,6 +199,26 @@ export async function transformBySchemaAsync<T, TCtx>(
         const getter = (sch as any)._def?.getter
         if (typeof getter === 'function') {
           const inner = getter()
+          return recurse(val, inner, currentPath)
+        }
+        break
+      }
+
+      case 'default':
+      case 'catch':
+      case 'readonly':
+      case 'prefault':
+      case 'nonoptional': {
+        const inner = (sch as any)._def?.innerType as z.ZodTypeAny | undefined
+        if (inner) {
+          return recurse(val, inner, currentPath)
+        }
+        break
+      }
+
+      case 'pipe': {
+        const inner = (sch as any)._def?.in as z.ZodTypeAny | undefined
+        if (inner) {
           return recurse(val, inner, currentPath)
         }
         break

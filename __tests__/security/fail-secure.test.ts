@@ -69,6 +69,17 @@ describe('security/fail-secure.ts', () => {
 
         expect(result.email.reason).toBe('auto_limited')
       })
+
+      it('should throw on orphaned SensitiveDb values by default (Option 4 safety net)', () => {
+        const schema = z.object({
+          // Not marked sensitive
+          email: z.string()
+        })
+
+        const value = { email: sensitiveDb('test@example.com') }
+
+        expect(() => autoLimit(value, schema)).toThrow(/schema is not marked sensitive/i)
+      })
     })
 
     describe('nested objects', () => {

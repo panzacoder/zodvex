@@ -1,5 +1,13 @@
 # Option 2: Wrapper Type Approach - Custom ZodSensitive Type
 
+> **Status:** Deferred (Not chosen as primary)
+>
+> Rationale: We are prioritizing Option 1’s Zod ergonomics (keep schemas as “normal Zod” types)
+> and pairing it with fail-closed runtime detection (Option 4) for PHI-grade safety.
+>
+> Revisit if Option 1 maintenance cost becomes unacceptable across Zod versions, or if we need the
+> stronger “cannot lose the marker” guarantees that a wrapper type provides.
+
 ## Executive Summary
 
 Instead of using metadata (which can be lost through transforms), create a **custom ZodType class** (`ZodSensitive`) that IS the sensitive marker. This makes sensitivity intrinsic to the schema structure, surviving all compositions.

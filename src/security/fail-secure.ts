@@ -19,6 +19,12 @@ import type { ReasonCode, SensitiveDb, SensitiveWire } from './types'
 export interface AutoLimitOptions {
   /** Default reason to include in hidden fields */
   defaultReason?: ReasonCode
+  /**
+   * How to handle a SensitiveDb value when the schema at that path is NOT marked as sensitive.
+   *
+   * Default: 'throw'
+   */
+  orphanedSensitive?: 'throw' | 'hide' | 'passthrough'
 }
 
 /**
@@ -49,28 +55,45 @@ function isSensitiveDbValue(value: unknown): value is SensitiveDb<unknown> {
  */
 export function autoLimit<T>(value: T, schema: z.ZodTypeAny, options?: AutoLimitOptions): T {
   const defaultReason = options?.defaultReason
+  const orphanedSensitiveMode = options?.orphanedSensitive ?? 'throw'
 
   return transformBySchema(
     value,
     schema,
     null, // No context needed
-    val => {
-      // Only called for sensitive schemas (due to shouldTransform predicate)
-      if (isSensitiveDbValue(val)) {
-        const wire: SensitiveWire = {
-          status: 'hidden',
-          value: null
-        }
-        if (defaultReason) {
-          wire.reason = defaultReason
-        }
-        return wire
+    (val, ctx) => {
+      if (!isSensitiveDbValue(val)) {
+        return val
       }
-      return val
-    },
-    {
-      // Only call transform callback for sensitive schemas
-      shouldTransform: sch => getSensitiveMetadata(sch) !== undefined
+
+      const meta = getSensitiveMetadata(ctx.schema)
+      if (!meta) {
+        switch (orphanedSensitiveMode) {
+          case 'passthrough':
+            return val
+          case 'hide': {
+            return {
+              status: 'hidden',
+              value: null,
+              reason: defaultReason ?? 'unhandled_sensitive_field'
+            } satisfies SensitiveWire
+          }
+          case 'throw':
+          default:
+            throw new Error(
+              `Security Error: SensitiveDb value found at '${ctx.path}' but schema is not marked sensitive.`
+            )
+        }
+      }
+
+      const wire: SensitiveWire = {
+        status: 'hidden',
+        value: null
+      }
+      if (defaultReason) {
+        wire.reason = defaultReason
+      }
+      return wire
     }
   )
 }

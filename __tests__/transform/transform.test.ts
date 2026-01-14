@@ -175,6 +175,23 @@ describe('transform/transform.ts', () => {
 
       expect(capturedPath).toBe('root.field')
     })
+
+    it('should see metadata through wrapper/effect types (Option 1)', () => {
+      const schema = z.object({
+        // Meta is on the inner string, but the schema node is wrapped.
+        secret: z.string().meta({ sensitive: true }).transform(v => v)
+      })
+      const value = { secret: 'password123' }
+
+      const result = transformBySchema(value, schema, null, (val, ctx) => {
+        if (ctx.meta?.sensitive === true) {
+          return '[REDACTED]'
+        }
+        return val
+      })
+
+      expect(result.secret).toBe('[REDACTED]')
+    })
   })
 
   describe('transformBySchemaAsync', () => {
@@ -814,13 +831,12 @@ describe('transform/transform.ts', () => {
       expect(result.password).toBe('[REDACTED]')
     })
 
-    it('should NOT find metadata when applied BEFORE transform (documented limitation)', () => {
-      // Anti-pattern: metadata applied before transform is not visible
-      // The transform creates a 'pipe' wrapper that hides the inner metadata
+    it('should find metadata when applied BEFORE transform (Option 1)', () => {
+      // Option 1: traversal unwrap should find metadata through the pipe wrapper.
       const schema = z.object({
         email: z
           .string()
-          .meta({ sensitive: true }) // Applied BEFORE - will be hidden!
+          .meta({ sensitive: true })
           .transform(s => s.toLowerCase())
       })
       const value = { email: 'TEST@EXAMPLE.COM' }
@@ -832,9 +848,7 @@ describe('transform/transform.ts', () => {
         return val
       })
 
-      // Metadata is NOT found because it's on the inner schema
-      // Note: transformBySchema doesn't run Zod transforms, it just traverses
-      expect(result.email).toBe('TEST@EXAMPLE.COM') // Not redacted, original value
+      expect(result.email).toBe('[REDACTED]')
     })
 
     it('should NOT find metadata when applied BEFORE refine (documented limitation)', () => {

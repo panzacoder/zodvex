@@ -16,6 +16,26 @@ sensitive(z.string()).transform(s => s.toLowerCase())
 // Traversal sees ZodTransform, not the metadata
 ```
 
+## Decision
+
+**Primary fix:** **Option 1 (Traversal Unwrap)**
+
+- Preserve the intended Zod ergonomics: `sensitive(z.string()).optional()`, `sensitive(z.string()).transform(...)`, etc.
+- Keep the schema as “normal Zod” (no custom Zod type) so other tooling stays simpler.
+
+**Required safety net:** **Option 4 (Runtime Detection)**
+
+- Default to **hard fail** on “orphaned” sensitive DB values that are not covered by schema marking/traversal.
+- This converts “missed traversal case” from a potential confidentiality issue into an operational error (fail-closed).
+
+**Deferred:** Option 2 (Wrapper Type)
+
+- Revisit only if Option 1 becomes too costly to maintain across Zod versions, or if we need the wrapper-type guarantees.
+
+**Keep as a documented add-on:** Option 3 (Path Policies)
+
+- Useful for centralized/override policies and per-context variations, but not the primary source of truth.
+
 ## Option Comparison
 
 | Option | Approach | Transform-Safe | DX | Maint. | Security |
@@ -49,9 +69,9 @@ sensitive(z.string()).transform(s => s.toLowerCase())
 
 ## Recommended Approach
 
-**Primary:** Option 1 or Option 2 (fixes the root cause)
-**Secondary:** Option 4 (safety net for edge cases)
-**Optional:** Option 3 (for advanced use cases)
+**Primary:** Option 1 (Traversal Unwrap)
+**Secondary:** Option 4 (Runtime Detection) as a safety net
+**Optional:** Option 3 (Path Policies) for advanced use cases
 
 ## File Index
 
@@ -70,3 +90,7 @@ sensitive(z.string()).transform(s => s.toLowerCase())
 | Option 2 | 3-5 days | Low |
 | Option 3 | 2-3 days | Medium |
 | Option 4 | 1-2 days | Low (additive) |
+
+## Next Steps
+
+Follow the implementation checklist in `todo/meta/option1-implementation-plan.md:1`.
