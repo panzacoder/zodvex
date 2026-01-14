@@ -4,10 +4,11 @@ export default defineConfig({
   entry: ['src/index.ts', 'src/transform/index.ts'],
   format: ['esm'],
   dts: {
-    resolve: true,
+    resolve: false,
     compilerOptions: {
       composite: false,
-      noEmit: false
+      noEmit: false,
+      skipLibCheck: true
     }
   },
   splitting: false,
