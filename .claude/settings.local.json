@@ -23,7 +23,11 @@
       "Bash(glab issue view:*)",
       "Bash(grep:*)",
       "Bash(tree:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "WebFetch(domain:blog.jim-nielsen.com)",
+      "WebFetch(domain:glebbahmutov.com)",
+      "WebFetch(domain:bun.com)",
+      "WebFetch(domain:www.stefanjudis.com)"
     ],
     "deny": [],
     "ask": []
