@@ -30,14 +30,14 @@
   },
   "files": ["dist", "src", "README.md", "LICENSE"],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc --emitDeclarationOnly",
     "dev": "bun run tsup --watch",
     "type-check": "bun run tsc --noEmit",
     "test": "bun test",
     "lint": "bun x biome check src __tests__",
     "lint:fix": "bun x biome check --write src __tests__",
     "format": "bun x biome format --write src __tests__",
-    "prepare": "tsup",
+    "prepare": "tsup && tsc --emitDeclarationOnly",
     "prepublishOnly": "bun test && bun run type-check"
   },
   "peerDependencies": {

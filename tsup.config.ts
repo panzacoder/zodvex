@@ -3,14 +3,8 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: ['src/index.ts', 'src/transform/index.ts'],
   format: ['esm'],
-  dts: {
-    resolve: false,
-    compilerOptions: {
-      composite: false,
-      noEmit: false,
-      skipLibCheck: true
-    }
-  },
+  // DTS handled by tsc in build script - tsup's dts doesn't output individual files
+  dts: false,
   splitting: false,
   sourcemap: true,
   clean: true,
