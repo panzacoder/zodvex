@@ -26,12 +26,14 @@ type NullToUndefinedOrNull<T> = T extends null ? T | undefined | void : T
 type Returns<T> = Promise<NullToUndefinedOrNull<T>> | NullToUndefinedOrNull<T>
 
 // The return value before it's been validated: returned by the handler
+// Uses z.output since the handler produces the internal representation (e.g., Date),
+// which is then encoded to wire format (e.g., string) before sending to the client
 type ReturnValueInput<ReturnsValidator extends z.ZodTypeAny | ZodValidator | void> = [
   ReturnsValidator
 ] extends [z.ZodTypeAny]
-  ? Returns<z.input<ReturnsValidator>>
+  ? Returns<z.output<ReturnsValidator>>
   : [ReturnsValidator] extends [ZodValidator]
-    ? Returns<z.input<z.ZodObject<ReturnsValidator>>>
+    ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
     : any
 
 // The return value after it's been validated: returned to the client

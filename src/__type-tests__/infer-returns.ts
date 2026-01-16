@@ -152,3 +152,27 @@ const treeNodeSchema = z.object({
 })
 declare const treeNodeResult: InferReturns<typeof treeNodeSchema>
 expectNotAny(treeNodeResult)
+
+// --- Codec/Transform schemas: handler returns z.output (internal type), not z.input (wire type) ---
+// This tests the fix for Zod 4.1 codec support where input !== output
+
+// Simulate a pipe/transform schema where input !== output
+// z.input = string (wire format), z.output = Date (internal representation)
+declare const codecSchema: z.ZodPipe<z.ZodString, z.ZodDate>
+declare const codecResult: InferReturns<typeof codecSchema>
+expectNotAny(codecResult)
+// Handler should return Date (z.output), not string (z.input)
+// @ts-expect-error - If this errors with "unused directive", Result is string (the bug)
+const _codecInvalid: typeof codecResult = 'not a date'
+
+// Test with transform (coerce pattern)
+const coerceNumberSchema = z.coerce.number()
+declare const coerceResult: InferReturns<typeof coerceNumberSchema>
+expectNotAny(coerceResult)
+// @ts-expect-error - Result should be number, not string/any
+const _coerceInvalid: typeof coerceResult = 'not a number'
+
+// Test with preprocess (another transform pattern)
+const preprocessedSchema = z.preprocess(val => String(val), z.string())
+declare const preprocessResult: InferReturns<typeof preprocessedSchema>
+expectNotAny(preprocessResult)
