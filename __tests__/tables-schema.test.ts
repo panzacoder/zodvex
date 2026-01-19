@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 import { z } from 'zod'
 import { zodTable } from '../src/tables'
 
@@ -143,6 +143,57 @@ describe('zodTable schema namespace', () => {
 
       const valid = CreateInput.parse({ name: 'John' })
       expect(valid).toEqual({ name: 'John' })
+    })
+  })
+
+  describe('deprecation warnings', () => {
+    let consoleWarnSpy: ReturnType<typeof spyOn>
+
+    beforeEach(() => {
+      consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      consoleWarnSpy.mockRestore()
+    })
+
+    it('warns when accessing zDoc', () => {
+      const Users = zodTable('users', { name: z.string() })
+
+      // First access should warn
+      const _doc = Users.zDoc
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('zDoc')
+      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('schema.doc')
+      )
+    })
+
+    it('warns when accessing docArray', () => {
+      const Users = zodTable('users', { name: z.string() })
+
+      const _arr = Users.docArray
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('docArray')
+      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('schema.docArray')
+      )
+    })
+
+    it('only warns once per property per table', () => {
+      const Users = zodTable('users', { name: z.string() })
+
+      Users.zDoc
+      Users.zDoc
+      Users.zDoc
+
+      // Should only have warned once for zDoc
+      const zDocWarnings = consoleWarnSpy.mock.calls.filter(
+        (call: any[]) => call[0]?.includes('zDoc')
+      )
+      expect(zDocWarnings.length).toBe(1)
     })
   })
 })

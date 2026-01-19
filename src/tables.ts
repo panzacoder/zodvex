@@ -311,13 +311,38 @@ export function zodTable<
       update: updateSchema
     }
 
+    // Track if we've warned about deprecated properties
+    const warned = { zDoc: false, docArray: false }
+
     // Attach everything for comprehensive usage
-    return Object.assign(table, {
+    const result = Object.assign(table, {
       shape,
-      zDoc,      // deprecated
-      docArray,  // deprecated
       schema
     })
+
+    Object.defineProperty(result, 'zDoc', {
+      get() {
+        if (!warned.zDoc) {
+          console.warn('zodvex: `zDoc` is deprecated, use `schema.doc` instead')
+          warned.zDoc = true
+        }
+        return schema.doc
+      },
+      enumerable: true
+    })
+
+    Object.defineProperty(result, 'docArray', {
+      get() {
+        if (!warned.docArray) {
+          console.warn('zodvex: `docArray` is deprecated, use `schema.docArray` instead')
+          warned.docArray = true
+        }
+        return schema.docArray
+      },
+      enumerable: true
+    })
+
+    return result
   } else {
     // Union or other schema type logic
     const schema = schemaOrShape as z.ZodTypeAny
