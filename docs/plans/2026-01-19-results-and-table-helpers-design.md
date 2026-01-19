@@ -275,3 +275,82 @@ This pattern keeps the `.omit()` co-located with the table definition rather tha
 
 - **React hooks** (`useConvexMutationState`, `useConvexActionState`) in `zodvex/react` sub-package
 - These hooks will build on the `FormResult` type and integrate with zodvex's error format
+
+---
+
+## 7. Usage Examples
+
+### Result Types
+
+```typescript
+import { zm } from './util'
+import { zVoidMutationResult, ok, failure, zMutationResult, success } from 'zodvex'
+import type { VoidMutationResult, MutationResult } from 'zodvex'
+
+// Void mutation (delete, update without return)
+export const deleteItem = zm({
+  args: { id: zid('items') },
+  returns: zVoidMutationResult,
+  handler: async (ctx, { id }): Promise<VoidMutationResult> => {
+    const item = await ctx.db.get(id)
+    if (!item) return failure('Item not found')
+
+    await ctx.db.delete(id)
+    return ok()
+  }
+})
+
+// Mutation with data return
+export const createItem = zm({
+  args: { name: z.string() },
+  returns: zMutationResult(zid('items')),
+  handler: async (ctx, { name }): Promise<MutationResult<Id<'items'>>> => {
+    const id = await ctx.db.insert('items', { name })
+    return success(id)
+  }
+})
+```
+
+### Table Schema Helpers
+
+```typescript
+import { zodTable, zid } from 'zodvex'
+import { z } from 'zod'
+
+const dancerShape = {
+  name: z.string(),
+  userId: zid('users'),
+  createdAt: z.number(),
+  bio: z.string().optional(),
+}
+
+export const Dancers = zodTable('dancers', dancerShape)
+
+// App-specific input schema: omit fields populated by handler
+export const DancerCreateInput = Dancers.schema.insert.omit({
+  userId: true,
+  createdAt: true
+})
+
+// Usage in mutations
+export const create = authMutation({
+  args: DancerCreateInput.shape,
+  returns: zid('dancers'),
+  handler: async (ctx, args) => {
+    return ctx.db.insert('dancers', {
+      ...args,
+      userId: ctx.user._id,
+      createdAt: Date.now(),
+    })
+  }
+})
+
+export const update = authMutation({
+  args: { id: zid('dancers'), ...Dancers.schema.update.shape },
+  returns: zVoidMutationResult,
+  handler: async (ctx, { id, ...updates }) => {
+    await ctx.db.patch(id, updates)
+    return ok()
+  }
+})
+```
