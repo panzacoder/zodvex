@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -62,3 +64,47 @@ export const formSuccess = <T>(data: T) => ({ success: true, data }) as const
  */
 export const formFailure = <T>(data: T, error: FormError) =>
   ({ success: false, data, error }) as const
+
+// ============================================================================
+// Zod Schemas for `returns` validation
+// ============================================================================
+
+/**
+ * Zod schema for MutationResult<T>.
+ * Use in `returns` option to validate mutation responses.
+ * @example zMutationResult(z.object({ id: zid('users') }))
+ */
+export const zMutationResult = <T extends z.ZodTypeAny>(dataSchema: T) =>
+  z.discriminatedUnion('success', [
+    z.object({ success: z.literal(true), data: dataSchema }),
+    z.object({ success: z.literal(false), error: z.string() })
+  ])
+
+/**
+ * Zod schema for VoidMutationResult.
+ * Use in `returns` option for void mutations.
+ * @example returns: zVoidMutationResult
+ */
+export const zVoidMutationResult = z.discriminatedUnion('success', [
+  z.object({ success: z.literal(true) }),
+  z.object({ success: z.literal(false), error: z.string() })
+])
+
+/**
+ * Zod schema for FormError.
+ */
+export const zFormError = z.object({
+  formErrors: z.array(z.string()),
+  fieldErrors: z.record(z.string(), z.array(z.string()))
+})
+
+/**
+ * Zod schema for FormResult<T>.
+ * Use in `returns` option for form submissions.
+ * @example zFormResult(z.object({ email: z.string() }))
+ */
+export const zFormResult = <T extends z.ZodTypeAny>(dataSchema: T) =>
+  z.discriminatedUnion('success', [
+    z.object({ success: z.literal(true), data: dataSchema }),
+    z.object({ success: z.literal(false), data: dataSchema, error: zFormError })
+  ])
