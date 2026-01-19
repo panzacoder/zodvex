@@ -29,9 +29,22 @@
       "WebFetch(domain:bun.com)",
       "WebFetch(domain:www.stefanjudis.com)",
       "WebFetch(domain:tsup.egoist.dev)",
+      "Skill(superpowers:brainstorming)",
       "Skill(superpowers:executing-plans)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:subagent-driven-development)",
       "Skill(superpowers:finishing-a-development-branch)",
-      "Skill(superpowers:brainstorming)"
+      "Bash(node -e \"import { zFormResult } from ''./src/results.ts''\")",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex status)",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex diff)",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex log --oneline -5)",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex add src/index.ts __tests__/results.test.ts)",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex commit -m \"$\\(cat <<''EOF''\nfeat\\(results\\): export result types from main index\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex add src/tables.ts __tests__/tables-schema.test.ts)",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex commit -m \"$\\(cat <<''EOF''\nfeat\\(tables\\): add schema.update to zodTable\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex diff src/tables.ts __tests__/tables-schema.test.ts)",
+      "Bash(git -C /Users/jshebert/Development/plfx/zodvex commit -m \"$\\(cat <<''EOF''\nfeat\\(tables\\): add deprecation warnings for zDoc and docArray\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gh:*)"
     ],
     "deny": [
       "Bash(git push --force*)",
