@@ -8,8 +8,12 @@ import {
   success,
   zFormResult,
   zMutationResult,
-  zVoidMutationResult
-} from '../src/results'
+  zVoidMutationResult,
+  type MutationResult,
+  type VoidMutationResult,
+  type FormResult,
+  type FormError
+} from '../src'
 
 describe('result helpers', () => {
   describe('success/failure', () => {

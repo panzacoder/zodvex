@@ -9,4 +9,5 @@ export * from './registry'
 export * from './tables'
 export * from './types'
 export * from './utils'
+export * from './results'
 // wrappers are internal-only - use builders instead
