@@ -358,10 +358,10 @@ type DocArrayElement = ShapeDocArray[number]
 // BUG: DocArrayElement is `unknown`, should be the union type with system fields
 expectNotUnknown({} as DocArrayElement)
 
-// --- Test 22: Union table schema property preserves original schema type ---
-// This should work - schema property is directly typed as Schema
+// --- Test 22: Union table schema.insert property preserves original schema type ---
+// This should work - schema.insert property is directly typed as Schema
 
-type ShapesSchema = typeof ShapesTable.schema
+type ShapesSchema = typeof ShapesTable.schema.insert
 expectNotAny({} as ShapesSchema)
 
 // The schema should be the original union, not any
@@ -382,8 +382,8 @@ const EventsTable = zodTable(
   ])
 )
 
-// The schema should preserve discriminated union type
-type EventsSchema = typeof EventsTable.schema
+// The schema.insert should preserve discriminated union type
+type EventsSchema = typeof EventsTable.schema.insert
 expectNotAny({} as EventsSchema)
 
 type EventsOutput = z.infer<EventsSchema>

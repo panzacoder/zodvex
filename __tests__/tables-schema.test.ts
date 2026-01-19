@@ -146,6 +146,56 @@ describe('zodTable schema namespace', () => {
     })
   })
 
+  describe('union schemas', () => {
+    it('provides schema.doc for unions', () => {
+      const Shapes = zodTable('shapes', z.union([
+        z.object({ kind: z.literal('circle'), r: z.number() }),
+        z.object({ kind: z.literal('rect'), w: z.number() })
+      ]))
+
+      expect(Shapes.schema).toBeDefined()
+      expect(Shapes.schema.doc).toBeInstanceOf(z.ZodUnion)
+
+      // Each variant should have system fields
+      const options = Shapes.schema.doc.options
+      expect(options[0].shape._id).toBeDefined()
+      expect(options[0].shape._creationTime).toBeDefined()
+    })
+
+    it('provides schema.docArray for unions', () => {
+      const Shapes = zodTable('shapes', z.union([
+        z.object({ kind: z.literal('circle'), r: z.number() }),
+        z.object({ kind: z.literal('rect'), w: z.number() })
+      ]))
+
+      expect(Shapes.schema.docArray).toBeInstanceOf(z.ZodArray)
+    })
+
+    it('provides schema.insert for unions (original schema)', () => {
+      const shapeSchema = z.union([
+        z.object({ kind: z.literal('circle'), r: z.number() }),
+        z.object({ kind: z.literal('rect'), w: z.number() })
+      ])
+      const Shapes = zodTable('shapes', shapeSchema)
+
+      // Insert should be the original schema (no system fields)
+      expect(Shapes.schema.insert).toBe(shapeSchema)
+    })
+
+    it('provides schema.update for unions (each variant partial)', () => {
+      const Shapes = zodTable('shapes', z.union([
+        z.object({ kind: z.literal('circle'), r: z.number() }),
+        z.object({ kind: z.literal('rect'), w: z.number() })
+      ]))
+
+      expect(Shapes.schema.update).toBeInstanceOf(z.ZodUnion)
+
+      // Each variant should be partial
+      const result = Shapes.schema.update.parse({ kind: 'circle' })
+      expect(result).toEqual({ kind: 'circle' }) // r is now optional
+    })
+  })
+
   describe('deprecation warnings', () => {
     let consoleWarnSpy: ReturnType<typeof spyOn>
 

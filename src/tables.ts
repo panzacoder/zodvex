@@ -8,7 +8,7 @@ import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields }
 /**
  * Makes all properties of a Zod object shape optional.
  */
-type PartialShape<Shape extends Record<string, z.ZodTypeAny>> = {
+type PartialShape<Shape extends z.ZodRawShape> = {
   [K in keyof Shape]: z.ZodOptional<Shape[K]>
 }
 
@@ -220,6 +220,35 @@ type AddSystemFieldsResult<
       ? z.ZodDiscriminatedUnion<MapSystemFields<TableName, Options>, Disc>
       : Schema
 
+/**
+ * Maps over union options, making each ZodObject variant partial.
+ * Non-object variants are preserved as-is.
+ */
+type MapPartialVariants<Options extends readonly z.ZodTypeAny[]> = {
+  [K in keyof Options]: Options[K] extends z.ZodObject<infer Shape extends z.ZodRawShape>
+    ? z.ZodObject<PartialShape<Shape>>
+    : Options[K]
+}
+
+/**
+ * Computes the update schema type for a given schema.
+ * For unions: each variant becomes partial
+ * For objects: the whole object becomes partial
+ * For other types: returns as-is
+ */
+type UpdateSchemaType<Schema extends z.ZodTypeAny> = Schema extends z.ZodUnion<
+  infer Options extends readonly z.ZodTypeAny[]
+>
+  ? z.ZodUnion<MapPartialVariants<Options>>
+  : Schema extends z.ZodDiscriminatedUnion<
+        infer Options extends readonly z.ZodObject<z.ZodRawShape>[],
+        infer Disc extends string
+      >
+    ? z.ZodUnion<MapPartialVariants<Options>>
+    : Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
+      ? z.ZodObject<PartialShape<Shape>>
+      : Schema
+
 // Overload 1: Object shape (most common case)
 export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
   name: TableName,
@@ -268,7 +297,12 @@ export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
   table: ReturnType<typeof defineTable>
   tableName: TableName
   validator: ReturnType<typeof zodToConvex<Schema>>
-  schema: Schema
+  schema: {
+    doc: AddSystemFieldsResult<TableName, Schema>
+    docArray: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
+    insert: Schema
+    update: UpdateSchemaType<Schema>
+  }
   docArray: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
   withSystemFields: () => AddSystemFieldsResult<TableName, Schema>
 }
@@ -355,10 +389,34 @@ export function zodTable<
     const table = defineTable(convexValidator as any)
 
     // Create document schema with system fields
-    const withFields = addSystemFields(name, schema)
+    const docSchema = addSystemFields(name, schema)
 
     // Create docArray helper
-    const docArray = z.array(withFields)
+    const docArray = z.array(docSchema)
+
+    // Create update schema (each variant partial)
+    let updateSchema: z.ZodTypeAny
+    if (schema instanceof z.ZodUnion || schema instanceof z.ZodDiscriminatedUnion) {
+      const partialOptions = (schema as z.ZodUnion<any>).options.map((variant: z.ZodTypeAny) => {
+        if (variant instanceof z.ZodObject) {
+          return variant.partial()
+        }
+        return variant
+      })
+      updateSchema = z.union(partialOptions as any)
+    } else if (schema instanceof z.ZodObject) {
+      updateSchema = schema.partial()
+    } else {
+      updateSchema = schema
+    }
+
+    // Create schema namespace
+    const schemaNamespace = {
+      doc: docSchema,
+      docArray,
+      insert: schema,
+      update: updateSchema
+    }
 
     // Attach helpers for union tables
     // Return structure similar to Table() but without fields-based helpers
@@ -366,8 +424,8 @@ export function zodTable<
       table,
       tableName: name,
       validator: convexValidator,
-      schema,
-      docArray,
+      schema: schemaNamespace,
+      docArray, // deprecated
       withSystemFields: () => addSystemFields(name, schema)
     }
   }

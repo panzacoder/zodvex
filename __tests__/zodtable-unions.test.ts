@@ -512,8 +512,8 @@ describe('zodTable - union support', () => {
     })
   })
 
-  describe('Schema property for unions', () => {
-    it('provides schema property with original union', () => {
+  describe('Schema namespace for unions', () => {
+    it('provides schema.insert property with original union', () => {
       const shapeSchema = z.union([
         z.object({ kind: z.literal('a'), value: z.string() }),
         z.object({ kind: z.literal('b'), count: z.number() })
@@ -521,8 +521,8 @@ describe('zodTable - union support', () => {
 
       const TestTable = zodTable('test', shapeSchema)
 
-      // Should have schema property with original union
-      expect(TestTable.schema).toBe(shapeSchema)
+      // Should have schema.insert property with original union
+      expect(TestTable.schema.insert).toBe(shapeSchema)
     })
 
     it('does not provide shape property for unions', () => {
