@@ -44,6 +44,62 @@ describe('zodTable schema namespace', () => {
     })
   })
 
+  describe('schema.update', () => {
+    it('provides update schema with all fields partial', () => {
+      const Users = zodTable('users', {
+        name: z.string(),
+        email: z.string().email(),
+        age: z.number()
+      })
+
+      expect(Users.schema.update).toBeInstanceOf(z.ZodObject)
+
+      // All fields should be optional
+      const result = Users.schema.update.parse({})
+      expect(result).toEqual({})
+
+      const partial = Users.schema.update.parse({ name: 'John' })
+      expect(partial).toEqual({ name: 'John' })
+    })
+
+    it('update schema validates field types correctly', () => {
+      const Users = zodTable('users', {
+        name: z.string(),
+        age: z.number()
+      })
+
+      // Valid partial update
+      const valid = Users.schema.update.parse({ age: 30 })
+      expect(valid).toEqual({ age: 30 })
+
+      // Invalid type should fail
+      expect(() => Users.schema.update.parse({ age: 'thirty' })).toThrow()
+    })
+
+    it('update schema does not include system fields', () => {
+      const Users = zodTable('users', { name: z.string() })
+
+      const shape = Users.schema.update.shape
+      expect(shape.name).toBeDefined()
+      expect(shape._id).toBeUndefined()
+      expect(shape._creationTime).toBeUndefined()
+    })
+
+    it('handles already-optional fields correctly', () => {
+      const Users = zodTable('users', {
+        name: z.string(),
+        nickname: z.string().optional()
+      })
+
+      // Both should be optional in update schema
+      const result = Users.schema.update.parse({})
+      expect(result).toEqual({})
+
+      const withNickname = Users.schema.update.parse({ nickname: 'Johnny' })
+      expect(withNickname).toEqual({ nickname: 'Johnny' })
+    })
+  })
+
   describe('schema.insert', () => {
     it('provides insert schema with user fields only (no system fields)', () => {
       const Users = zodTable('users', {

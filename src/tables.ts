@@ -6,6 +6,13 @@ import { zid } from './ids'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 
 /**
+ * Makes all properties of a Zod object shape optional.
+ */
+type PartialShape<Shape extends Record<string, z.ZodTypeAny>> = {
+  [K in keyof Shape]: z.ZodOptional<Shape[K]>
+}
+
+/**
  * Helper type for Convex system fields added to documents
  */
 type SystemFields<TableName extends string> = {
@@ -249,6 +256,7 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
       >
     >
     insert: z.ZodObject<Shape>
+    update: z.ZodObject<PartialShape<Shape>>
   }
 }
 
@@ -292,11 +300,15 @@ export function zodTable<
     // Create insert schema (user fields only, no system fields)
     const insertSchema = z.object(shape)
 
+    // Create update schema (all fields partial)
+    const updateSchema = insertSchema.partial()
+
     // Create schema namespace
     const schema = {
       doc: zDoc,
       docArray,
-      insert: insertSchema
+      insert: insertSchema,
+      update: updateSchema
     }
 
     // Attach everything for comprehensive usage
