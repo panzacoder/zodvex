@@ -242,7 +242,7 @@ type UpdateSchemaType<Schema extends z.ZodTypeAny> = Schema extends z.ZodUnion<
   ? z.ZodUnion<MapPartialVariants<Options>>
   : Schema extends z.ZodDiscriminatedUnion<
         infer Options extends readonly z.ZodObject<z.ZodRawShape>[],
-        infer Disc extends string
+        infer _Disc extends string
       >
     ? z.ZodUnion<MapPartialVariants<Options>>
     : Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>

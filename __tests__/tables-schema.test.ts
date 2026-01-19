@@ -148,10 +148,13 @@ describe('zodTable schema namespace', () => {
 
   describe('union schemas', () => {
     it('provides schema.doc for unions', () => {
-      const Shapes = zodTable('shapes', z.union([
-        z.object({ kind: z.literal('circle'), r: z.number() }),
-        z.object({ kind: z.literal('rect'), w: z.number() })
-      ]))
+      const Shapes = zodTable(
+        'shapes',
+        z.union([
+          z.object({ kind: z.literal('circle'), r: z.number() }),
+          z.object({ kind: z.literal('rect'), w: z.number() })
+        ])
+      )
 
       expect(Shapes.schema).toBeDefined()
       expect(Shapes.schema.doc).toBeInstanceOf(z.ZodUnion)
@@ -163,10 +166,13 @@ describe('zodTable schema namespace', () => {
     })
 
     it('provides schema.docArray for unions', () => {
-      const Shapes = zodTable('shapes', z.union([
-        z.object({ kind: z.literal('circle'), r: z.number() }),
-        z.object({ kind: z.literal('rect'), w: z.number() })
-      ]))
+      const Shapes = zodTable(
+        'shapes',
+        z.union([
+          z.object({ kind: z.literal('circle'), r: z.number() }),
+          z.object({ kind: z.literal('rect'), w: z.number() })
+        ])
+      )
 
       expect(Shapes.schema.docArray).toBeInstanceOf(z.ZodArray)
     })
@@ -183,10 +189,13 @@ describe('zodTable schema namespace', () => {
     })
 
     it('provides schema.update for unions (each variant partial)', () => {
-      const Shapes = zodTable('shapes', z.union([
-        z.object({ kind: z.literal('circle'), r: z.number() }),
-        z.object({ kind: z.literal('rect'), w: z.number() })
-      ]))
+      const Shapes = zodTable(
+        'shapes',
+        z.union([
+          z.object({ kind: z.literal('circle'), r: z.number() }),
+          z.object({ kind: z.literal('rect'), w: z.number() })
+        ])
+      )
 
       expect(Shapes.schema.update).toBeInstanceOf(z.ZodUnion)
 
@@ -200,7 +209,9 @@ describe('zodTable schema namespace', () => {
     let consoleWarnSpy: ReturnType<typeof spyOn>
 
     beforeEach(() => {
-      consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+      consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {
+        /* suppress warnings during tests */
+      })
     })
 
     afterEach(() => {
@@ -212,24 +223,16 @@ describe('zodTable schema namespace', () => {
 
       // First access should warn
       const _doc = Users.zDoc
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('zDoc')
-      )
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('schema.doc')
-      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('zDoc'))
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('schema.doc'))
     })
 
     it('warns when accessing docArray', () => {
       const Users = zodTable('users', { name: z.string() })
 
       const _arr = Users.docArray
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('docArray')
-      )
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('schema.docArray')
-      )
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('docArray'))
+      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('schema.docArray'))
     })
 
     it('only warns once per property per table', () => {
@@ -240,8 +243,8 @@ describe('zodTable schema namespace', () => {
       Users.zDoc
 
       // Should only have warned once for zDoc
-      const zDocWarnings = consoleWarnSpy.mock.calls.filter(
-        (call: any[]) => call[0]?.includes('zDoc')
+      const zDocWarnings = consoleWarnSpy.mock.calls.filter((call: any[]) =>
+        call[0]?.includes('zDoc')
       )
       expect(zDocWarnings.length).toBe(1)
     })

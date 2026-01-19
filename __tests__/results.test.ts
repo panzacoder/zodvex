@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import {
+  type FormError,
+  type FormResult,
   failure,
   formFailure,
   formSuccess,
+  type MutationResult,
   ok,
   success,
+  type VoidMutationResult,
   zFormResult,
   zMutationResult,
-  zVoidMutationResult,
-  type MutationResult,
-  type VoidMutationResult,
-  type FormResult,
-  type FormError
+  zVoidMutationResult
 } from '../src'
 
 describe('result helpers', () => {
