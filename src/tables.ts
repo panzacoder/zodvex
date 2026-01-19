@@ -233,6 +233,22 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
       }
     >
   >
+  schema: {
+    doc: z.ZodObject<
+      Shape & {
+        _id: ReturnType<typeof zid<TableName>>
+        _creationTime: z.ZodNumber
+      }
+    >
+    docArray: z.ZodArray<
+      z.ZodObject<
+        Shape & {
+          _id: ReturnType<typeof zid<TableName>>
+          _creationTime: z.ZodNumber
+        }
+      >
+    >
+  }
 }
 
 // Overload 2: Union/schema types
@@ -272,11 +288,18 @@ export function zodTable<
     // Create docArray helper for return types
     const docArray = z.array(zDoc)
 
+    // Create schema namespace
+    const schema = {
+      doc: zDoc,
+      docArray
+    }
+
     // Attach everything for comprehensive usage
     return Object.assign(table, {
       shape,
-      zDoc,
-      docArray
+      zDoc,      // deprecated
+      docArray,  // deprecated
+      schema
     })
   } else {
     // Union or other schema type logic
