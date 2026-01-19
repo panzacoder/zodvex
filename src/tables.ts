@@ -248,6 +248,7 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
         }
       >
     >
+    insert: z.ZodObject<Shape>
   }
 }
 
@@ -288,10 +289,14 @@ export function zodTable<
     // Create docArray helper for return types
     const docArray = z.array(zDoc)
 
+    // Create insert schema (user fields only, no system fields)
+    const insertSchema = z.object(shape)
+
     // Create schema namespace
     const schema = {
       doc: zDoc,
-      docArray
+      docArray,
+      insert: insertSchema
     }
 
     // Attach everything for comprehensive usage

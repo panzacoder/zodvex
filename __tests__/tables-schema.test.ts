@@ -43,4 +43,50 @@ describe('zodTable schema namespace', () => {
       expect(Users.schema.docArray).toBe(Users.docArray)
     })
   })
+
+  describe('schema.insert', () => {
+    it('provides insert schema with user fields only (no system fields)', () => {
+      const Users = zodTable('users', {
+        name: z.string(),
+        email: z.string().email(),
+        age: z.number().optional()
+      })
+
+      expect(Users.schema.insert).toBeInstanceOf(z.ZodObject)
+
+      const shape = Users.schema.insert.shape
+      expect(shape.name).toBeDefined()
+      expect(shape.email).toBeDefined()
+      expect(shape.age).toBeDefined()
+
+      // Should NOT have system fields
+      expect(shape._id).toBeUndefined()
+      expect(shape._creationTime).toBeUndefined()
+    })
+
+    it('insert schema validates correctly', () => {
+      const Users = zodTable('users', {
+        name: z.string(),
+        email: z.string().email()
+      })
+
+      const valid = Users.schema.insert.parse({ name: 'John', email: 'john@example.com' })
+      expect(valid).toEqual({ name: 'John', email: 'john@example.com' })
+
+      expect(() => Users.schema.insert.parse({ name: 'John' })).toThrow() // missing email
+    })
+
+    it('insert schema can be extended with .omit()', () => {
+      const Users = zodTable('users', {
+        name: z.string(),
+        userId: z.string(),
+        createdAt: z.number()
+      })
+
+      const CreateInput = Users.schema.insert.omit({ userId: true, createdAt: true })
+
+      const valid = CreateInput.parse({ name: 'John' })
+      expect(valid).toEqual({ name: 'John' })
+    })
+  })
 })
