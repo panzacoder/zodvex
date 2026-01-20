@@ -32,7 +32,7 @@ export function transformBySchema<T, TCtx>(
   schema: z.ZodTypeAny,
   ctx: TCtx,
   transform: TransformFn<TCtx>,
-  options?: TransformOptions<TCtx>
+  options?: TransformOptions
 ): T {
   const basePath = options?.path ?? ''
 
@@ -167,7 +167,7 @@ export async function transformBySchemaAsync<T, TCtx>(
   schema: z.ZodTypeAny,
   ctx: TCtx,
   transform: AsyncTransformFn<TCtx>,
-  options?: TransformOptions<TCtx>
+  options?: TransformOptions
 ): Promise<T> {
   const basePath = options?.path ?? ''
 
