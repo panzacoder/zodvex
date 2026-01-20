@@ -19,3 +19,33 @@ describe('transforms.input type', () => {
     expect(builder).toBeDefined()
   })
 })
+
+describe('transforms.input hook', () => {
+  it('calls transforms.input after validation, before handler', async () => {
+    const callOrder: string[] = []
+
+    const builder = zCustomMutationBuilder(
+      mockMutationBuilder,
+      customCtxWithHooks(async () => ({
+        transforms: {
+          input: (args: unknown) => {
+            callOrder.push('transforms.input')
+            return args
+          }
+        }
+      }))
+    )
+
+    const fn = builder({
+      args: z.object({ value: z.string() }),
+      handler: async (_ctx, args) => {
+        callOrder.push('handler')
+        return args.value
+      }
+    })
+
+    await fn.handler({}, { value: 'test' })
+
+    expect(callOrder).toEqual(['transforms.input', 'handler'])
+  })
+})

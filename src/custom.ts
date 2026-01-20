@@ -363,7 +363,16 @@ export function customFnBuilder<
           const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
           const baseArgs = parsed.data as Record<string, unknown>
           const addedArgs = (added?.args as Record<string, unknown>) ?? {}
-          const finalArgs = { ...baseArgs, ...addedArgs }
+          let finalArgs = { ...baseArgs, ...addedArgs }
+
+          // Apply input transform if provided (after validation, before handler)
+          if (added?.transforms?.input) {
+            finalArgs = (await added.transforms.input(finalArgs, argsSchema)) as Record<
+              string,
+              unknown
+            >
+          }
+
           const ret = await handler(finalCtx, finalArgs)
           // Always run Zod return validation when returns schema is provided
           if (returns) {
