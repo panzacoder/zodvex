@@ -253,7 +253,8 @@ describe('transforms.input hook', () => {
 
     const fn = builder({
       args: z.object({ value: z.string() }),
-      returns: z.object({ result: z.string() }),
+      // Schema must include properties that transform adds (transform runs BEFORE validation)
+      returns: z.object({ result: z.string(), outputTransformed: z.boolean() }),
       handler: async (_ctx, args) => {
         callOrder.push('handler')
         handlerArgs = args
