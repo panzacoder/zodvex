@@ -390,17 +390,13 @@ describe('zodTable - union support', () => {
   })
 
   describe('Edge cases', () => {
-    it('handles single-variant union', () => {
+    it('throws for single-variant union (invalid - requires at least 2 options)', () => {
+      // Note: z.union() requires at least 2 options. Single-variant unions are
+      // degenerate cases that indicate a bug in user code.
+      // If you have a single variant, just use z.object() directly.
       const schema = z.union([z.object({ value: z.string() })])
 
-      const TestTable = zodTable('test', schema)
-
-      expect(TestTable.table).toBeDefined()
-
-      // Single-variant unions get optimized to the single object by zodToConvex
-      const validator = TestTable.validator as any
-      expect(validator.kind).toBe('object')
-      expect(validator.fields.value).toBeDefined()
+      expect(() => zodTable('test', schema)).toThrow('z.union() requires at least 2 options')
     })
 
     it('handles union with optional fields across variants', () => {
