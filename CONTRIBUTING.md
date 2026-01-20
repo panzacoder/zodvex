@@ -86,6 +86,7 @@ zodvex/
 
 - `zQueryBuilder`, `zMutationBuilder`, `zActionBuilder` - Function builders
 - `zCustomQueryBuilder`, `zCustomMutationBuilder`, `zCustomActionBuilder` - Custom context builders
+- `customCtxWithHooks` - Helper for defining customizations with hooks and transforms
 - `zodTable`, `zid`, `zodToConvex`, `zodToConvexFields` - Schema utilities
 - `convexCodec`, `pickShape`, `safePick` - Helper functions
 
