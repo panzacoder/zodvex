@@ -21,19 +21,18 @@
  * ```
  */
 
-// Types
-export type {
-  FieldInfo,
-  SchemaVisitor,
-  WalkSchemaOptions,
-  TransformContext,
-  TransformFn,
-  AsyncTransformFn,
-  TransformOptions
-} from './types'
-
-// Traversal
-export { getMetadata, hasMetadata, walkSchema, findFieldsWithMeta } from './traverse'
-
 // Transformation
 export { transformBySchema, transformBySchemaAsync } from './transform'
+
+// Traversal
+export { findFieldsWithMeta, getMetadata, hasMetadata, walkSchema } from './traverse'
+// Types
+export type {
+  AsyncTransformFn,
+  FieldInfo,
+  SchemaVisitor,
+  TransformContext,
+  TransformFn,
+  TransformOptions,
+  WalkSchemaOptions
+} from './types'

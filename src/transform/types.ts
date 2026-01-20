@@ -75,7 +75,7 @@ export type AsyncTransformFn<TCtx = unknown> = (
 /**
  * Options for transformBySchema().
  */
-export type TransformOptions<TCtx = unknown> = {
+export type TransformOptions = {
   /** Starting path prefix */
   path?: string
   /**

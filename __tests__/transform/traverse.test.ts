@@ -9,10 +9,10 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { z } from 'zod'
 import {
+  findFieldsWithMeta,
   getMetadata,
   hasMetadata,
-  walkSchema,
-  findFieldsWithMeta
+  walkSchema
 } from '../../src/transform/traverse'
 import type { FieldInfo } from '../../src/transform/types'
 
@@ -352,7 +352,7 @@ describe('transform/traverse.ts', () => {
       })
 
       // Each path should be visited only once
-      for (const [path, count] of visitCount) {
+      for (const [_path, count] of visitCount) {
         expect(count).toBe(1)
       }
     })

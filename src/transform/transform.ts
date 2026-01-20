@@ -5,8 +5,8 @@
  */
 
 import type { z } from 'zod'
-import type { AsyncTransformFn, TransformContext, TransformFn, TransformOptions } from './types'
 import { getMetadata } from './traverse'
+import type { AsyncTransformFn, TransformContext, TransformFn, TransformOptions } from './types'
 
 /**
  * Recursively transform a value based on its schema structure.

@@ -329,7 +329,9 @@ describe('transform/transform.ts', () => {
           z.object({ type: z.literal('a'), value: z.string() })
         ])
         const invalidValue = { type: 'invalid', value: 'test' }
-        const callback = mock(() => {})
+        const callback = mock(() => {
+          // intentionally empty - just tracking calls
+        })
 
         transformBySchema(invalidValue, schema, null, val => val, {
           onUnmatchedUnion: callback
