@@ -338,6 +338,13 @@ export function customFnBuilder<
         args: convexArgs,
         ...returnValidator,
         handler: async (ctx: Ctx, allArgs: any) => {
+          // Cast justification: customInput expects ObjectType<CustomArgsValidator>, but pick()
+          // returns Partial<T>. The cast is safe because inputArgs keys are derived from
+          // CustomArgsValidator at the type level. The 'added' result is typed as 'any' because
+          // it may include hooks/transforms from CustomizationWithHooks which aren't in the
+          // convex-helpers Customization type.
+          // TODO: Create a type-safe pickArgs<T>() helper that preserves the ObjectType<T>
+          // return type when the keys are statically known from the validator.
           const added: any = await customInput(
             ctx,
             pick(allArgs, Object.keys(inputArgs)) as any,
@@ -388,6 +395,9 @@ export function customFnBuilder<
       args: inputArgs,
       ...returnValidator,
       handler: async (ctx: Ctx, allArgs: any) => {
+        // Cast justification: Same as above - customInput expects ObjectType<CustomArgsValidator>
+        // but pick() returns Partial<T>. Safe because inputArgs keys match CustomArgsValidator.
+        // TODO: Create a type-safe pickArgs<T>() helper (see comment in with-args path above).
         const added: any = await customInput(
           ctx,
           pick(allArgs, Object.keys(inputArgs)) as any,
@@ -476,8 +486,16 @@ export function zCustomQuery<
   query: QueryBuilder<any, Visibility>,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
-  // Implementation deliberately uses 'any' ctx to preserve overload behavior
-  // while avoiding a GenericDataModel constraint at the implementation level.
+  // Cast justification: This is the TypeScript overload implementation pattern. The function
+  // has two overloads (with/without DataModel constraint) that provide precise types to callers.
+  // The implementation must satisfy both overloads, which requires a broader signature.
+  // The 'as any' casts allow the implementation to delegate to customFnBuilder without
+  // TypeScript complaining about the generic parameter differences between overloads.
+  // This is type-safe because: (1) callers only see the overload signatures which are strict,
+  // (2) the runtime behavior is identical regardless of which overload matched.
+  // TODO: Consider using a conditional type or branded types to create a single signature
+  // that satisfies both overloads without casts. Alternatively, accept this as idiomatic
+  // TypeScript for overloaded functions and keep the casts.
   return customFnBuilder<
     any,
     typeof query,
@@ -521,6 +539,8 @@ export function zCustomMutation<
   mutation: Builder,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
+  // Cast justification: Same overload implementation pattern as zCustomQuery.
+  // See detailed comment there. Type safety is enforced by the overload signature above.
   return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     mutation as any,
     customization as any
@@ -560,6 +580,8 @@ export function zCustomAction<
   action: Builder,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
+  // Cast justification: Same overload implementation pattern as zCustomQuery.
+  // See detailed comment there. Type safety is enforced by the overload signature above.
   return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     action as any,
     customization as any

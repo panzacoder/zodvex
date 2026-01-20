@@ -28,7 +28,10 @@
       "WebFetch(domain:glebbahmutov.com)",
       "WebFetch(domain:bun.com)",
       "WebFetch(domain:www.stefanjudis.com)",
-      "WebFetch(domain:tsup.egoist.dev)"
+      "WebFetch(domain:tsup.egoist.dev)",
+      "Skill(superpowers:executing-plans)",
+      "Skill(superpowers:finishing-a-development-branch)",
+      "Skill(superpowers:brainstorming)"
     ],
     "deny": [],
     "ask": []
