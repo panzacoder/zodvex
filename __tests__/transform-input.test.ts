@@ -134,4 +134,32 @@ describe('transforms.input hook', () => {
 
     expect(receivedArgs).toEqual({ value: 123, async: true })
   })
+
+  it('transforms.input has access to context via closure', async () => {
+    let capturedSecret = ''
+
+    const builder = zCustomMutationBuilder(
+      mockMutationBuilder,
+      customCtxWithHooks(async () => {
+        const secretValue = 'security-context-value'
+        return {
+          transforms: {
+            input: (args: unknown) => {
+              capturedSecret = secretValue
+              return args
+            }
+          }
+        }
+      })
+    )
+
+    const fn = builder({
+      args: z.object({ data: z.string() }),
+      handler: async () => 'done'
+    })
+
+    await fn.handler({}, { data: 'test' })
+
+    expect(capturedSecret).toBe('security-context-value')
+  })
 })
