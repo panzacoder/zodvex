@@ -11,13 +11,11 @@ const METADATA_CACHE = new WeakMap<z.ZodTypeAny, Record<string, unknown> | undef
 
 /**
  * Metadata key for ZodSensitive wrappers.
- * Duplicated here to avoid circular import from security module.
  */
 const SENSITIVE_META_KEY = 'zodvex:sensitive'
 
 /**
  * Duck-type check for ZodSensitive wrapper.
- * Avoids circular import from security module.
  */
 function isZodSensitiveDef(schema: any): boolean {
   return schema?._def?.type === 'sensitive' && typeof schema?.unwrap === 'function'
