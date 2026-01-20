@@ -48,4 +48,34 @@ describe('transforms.input hook', () => {
 
     expect(callOrder).toEqual(['transforms.input', 'handler'])
   })
+
+  it('transforms.input receives validated args and schema', async () => {
+    let receivedArgs: unknown
+    let receivedSchema: z.ZodTypeAny | null = null
+
+    const argsSchema = z.object({ name: z.string(), count: z.number() })
+
+    const builder = zCustomMutationBuilder(
+      mockMutationBuilder,
+      customCtxWithHooks(async () => ({
+        transforms: {
+          input: (args: unknown, schema: z.ZodTypeAny) => {
+            receivedArgs = args
+            receivedSchema = schema
+            return args
+          }
+        }
+      }))
+    )
+
+    const fn = builder({
+      args: argsSchema,
+      handler: async (_ctx, args) => args.name
+    })
+
+    await fn.handler({}, { name: 'test', count: 42 })
+
+    expect(receivedArgs).toEqual({ name: 'test', count: 42 })
+    expect(receivedSchema).toBe(argsSchema)
+  })
 })
