@@ -162,4 +162,38 @@ describe('transforms.input hook', () => {
 
     expect(capturedSecret).toBe('security-context-value')
   })
+
+  it('transforms.input runs before handler, hooks.onSuccess runs after', async () => {
+    const callOrder: string[] = []
+
+    const builder = zCustomMutationBuilder(
+      mockMutationBuilder,
+      customCtxWithHooks(async () => ({
+        hooks: {
+          onSuccess: async () => {
+            callOrder.push('hooks.onSuccess')
+          }
+        },
+        transforms: {
+          input: (args: unknown) => {
+            callOrder.push('transforms.input')
+            return args
+          }
+        }
+      }))
+    )
+
+    const fn = builder({
+      args: z.object({ value: z.string() }),
+      returns: z.string(),
+      handler: async (_ctx, args) => {
+        callOrder.push('handler')
+        return args.value
+      }
+    })
+
+    await fn.handler({}, { value: 'test' })
+
+    expect(callOrder).toEqual(['transforms.input', 'handler', 'hooks.onSuccess'])
+  })
 })
