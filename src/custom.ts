@@ -97,21 +97,24 @@ export type CustomizationWithHooks<
 
 /**
  * A helper for defining a Customization with full support for hooks and transforms.
- * Use this instead of customCtx when you need onSuccess, transforms.output, etc.
+ * Use this instead of customCtx when you need onSuccess, transforms.input, transforms.output, etc.
  *
  * @example
  * ```ts
- * const secureQuery = zCustomQueryBuilder(
- *   query,
- *   customCtxWithHooks(async (ctx: QueryCtx) => {
+ * const secureMutation = zCustomMutationBuilder(
+ *   mutation,
+ *   customCtxWithHooks(async (ctx: MutationCtx) => {
  *     const securityCtx = await getSecurityContext(ctx)
  *     return {
  *       ctx: { securityCtx },
  *       hooks: {
- *         onSuccess: ({ result }) => console.log('Query returned:', result),
+ *         onSuccess: ({ result }) => console.log('Mutation returned:', result),
  *       },
  *       transforms: {
- *         output: (result, schema) => transformSensitiveFields(result, securityCtx),
+ *         // Transform incoming args (e.g., wire format → runtime objects)
+ *         input: (args, schema) => transformIncomingArgs(args, securityCtx),
+ *         // Transform outgoing result (e.g., runtime objects → wire format)
+ *         output: (result, schema) => transformOutgoingResult(result, securityCtx),
  *       },
  *     }
  *   })
