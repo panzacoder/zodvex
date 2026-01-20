@@ -34,6 +34,8 @@ export type CustomizationHooks = {
  * Transforms for modifying data in the function flow.
  */
 export type CustomizationTransforms = {
+  /** Transform args after validation but before handler receives them */
+  input?: (args: unknown, schema: z.ZodTypeAny) => unknown | Promise<unknown>
   /** Transform the output after validation but before wire encoding */
   output?: (result: unknown, schema: z.ZodTypeAny) => unknown | Promise<unknown>
 }
