@@ -45,3 +45,4 @@ lerna-debug.log*
 *.pid
 *.seed
 *.pid.lock
+*.local.json
