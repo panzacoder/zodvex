@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["esnext"],
-    "composite": true,
+    "composite": false,
     "declaration": true,
     "declarationMap": true,
     "outDir": "dist",

@@ -26,8 +26,9 @@ export type InferReturns<R> = R extends z.ZodType<any, any, any>
     : R
 
 // For handler authoring: what the handler returns before wrapper validation/encoding
-// Uses z.input since this is what the handler produces before encoding
-export type InferHandlerReturns<R> = R extends z.ZodType<any, any, any> ? z.input<R> : any
+// Uses z.output since the handler produces the internal representation (e.g., Date),
+// which is then encoded to wire format (e.g., string) before sending to the client
+export type InferHandlerReturns<R> = R extends z.ZodType<any, any, any> ? z.output<R> : any
 
 /**
  * Extract the visibility type from a Convex builder function

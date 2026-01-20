@@ -1,0 +1,40 @@
+# What protocol to use when performing Git operations. Supported values: ssh, https.
+git_protocol: ssh
+# What editor glab should run when creating issues, merge requests, etc. This global config cannot be overridden by hostname.
+editor:
+# What browser glab should run when opening links. This global config cannot be overridden by hostname.
+browser:
+# Set your desired Markdown renderer style. Available options are [dark, light, notty]. To set a custom style, refer to https://github.com/charmbracelet/glamour#styles
+glamour_style: dark
+# Allow glab to automatically check for updates and notify you when there are new updates.
+check_update: true
+# Last update check timestamp, used for checking when the last update check was performed.
+last_update_check_timestamp: 2026-01-09T23:37:23-06:00
+# Whether or not to display hyperlink escape characters when listing items like issues or merge requests. Set to TRUE to display hyperlinks in TTYs only. Force hyperlinks by setting FORCE_HYPERLINKS=1 as an environment variable.
+display_hyperlinks: false
+# Default GitLab hostname to use.
+host: gitlab.com
+# Set to true (1) to disable prompts, or false (0) to enable them.
+no_prompt: false
+# Set to false (0) to disable sending usage data to your GitLab instance or true (1) to enable.
+# See https://docs.gitlab.com/administration/settings/usage_statistics/
+# for more information
+telemetry: true
+# Configuration specific for GitLab instances.
+hosts:
+    gitlab.com:
+        # What protocol to use to access the API endpoint. Supported values: http, https.
+        api_protocol: https
+        # Configure host for API endpoint. Defaults to the host itself.
+        api_host: gitlab.com
+        # Your GitLab access token. To get one, read https://docs.gitlab.com/user/profile/personal_access_tokens/
+        token:
+        # The domains of associated container registries. These are used to configure the
+        # Docker credential helper.
+        container_registry_domains: gitlab.com,gitlab.com:443,registry.gitlab.com
+        # Custom HTTP headers to add to all HTTP requests made by glab. Supports both direct values and environment variable loading.
+        # - name: Proxy-Authorization
+        #   value: Bearer token123
+        # - name: Cf-Access-Client-Secret
+        #   valueFromEnv: MY_SECRET_VALUE
+        custom_headers: []

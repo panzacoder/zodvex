@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Zod <=> Convex integration, supporting Zod 4",
   "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
   "homepage": "https://github.com/panzacoder/zodvex#readme",
@@ -21,18 +21,23 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./transform": {
+      "types": "./dist/transform/index.d.ts",
+      "import": "./dist/transform/index.js",
+      "default": "./dist/transform/index.js"
     }
   },
   "files": ["dist", "src", "README.md", "LICENSE"],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc --emitDeclarationOnly",
     "dev": "bun run tsup --watch",
     "type-check": "bun run tsc --noEmit",
     "test": "bun test",
     "lint": "bun x biome check src __tests__",
     "lint:fix": "bun x biome check --write src __tests__",
     "format": "bun x biome format --write src __tests__",
-    "prepare": "tsup",
+    "prepare": "tsup && tsc --emitDeclarationOnly",
     "prepublishOnly": "bun test && bun run type-check"
   },
   "peerDependencies": {
@@ -40,13 +45,15 @@
     "convex-helpers": "^0.1.104",
     "zod": "^4.1.12"
   },
+  "dependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.2.6",
     "@types/bun": "^1.3.0",
     "@types/node": "^24.8.0",
-    "ai": "^6.0.6",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.3"
+    "ai": "^6.0.6"
   },
   "engines": {
     "node": ">=20",

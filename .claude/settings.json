@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun run format || true"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bun run:*)",
+      "Bash(bun test:*)",
+      "Bash(bun:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git branch:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh issue:*)",
+      "WebFetch(domain:docs.convex.dev)",
+      "WebFetch(domain:stack.convex.dev)",
+      "WebFetch(domain:zod.dev)"
+    ]
+  }
+}

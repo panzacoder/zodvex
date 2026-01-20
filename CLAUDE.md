@@ -42,7 +42,7 @@ The library is organized into focused modules in the `src/` directory:
 
 - **wrappers.ts** - Function wrappers (`zQuery`, `zMutation`, `zAction` and their internal variants) that add Zod validation to Convex functions.
 
-- **custom.ts** - Custom function builders (`zCustomQuery`, `zCustomMutation`, `zCustomAction`) for more advanced use cases.
+- **custom.ts** - Custom function builders (`zCustomQuery`, `zCustomMutation`, `zCustomAction`) for more advanced use cases. Also provides `customCtxWithHooks` for defining customizations with hooks (side effects like `onSuccess`) and transforms (data modifications like `transforms.output` for wire-boundary transforms).
 
 - **tables.ts** - Table helpers including `zodTable` for defining Convex tables from Zod schemas.
 
