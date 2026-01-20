@@ -228,4 +228,42 @@ describe('transforms.input hook', () => {
     expect(callOrder).toEqual(['transforms.input', 'handler'])
     expect(receivedArgs).toEqual({ original: 'value', injected: true })
   })
+
+  it('works with both input and output transforms', async () => {
+    const callOrder: string[] = []
+
+    const builder = zCustomMutationBuilder(
+      mockMutationBuilder,
+      customCtxWithHooks(async () => ({
+        transforms: {
+          input: (args: unknown) => {
+            callOrder.push('transforms.input')
+            return { ...(args as object), inputTransformed: true }
+          },
+          output: (result: unknown) => {
+            callOrder.push('transforms.output')
+            return { ...(result as object), outputTransformed: true }
+          }
+        }
+      }))
+    )
+
+    let handlerArgs: any
+
+    const fn = builder({
+      args: z.object({ value: z.string() }),
+      returns: z.object({ result: z.string() }),
+      handler: async (_ctx, args) => {
+        callOrder.push('handler')
+        handlerArgs = args
+        return { result: args.value }
+      }
+    })
+
+    const result = await fn.handler({}, { value: 'test' })
+
+    expect(callOrder).toEqual(['transforms.input', 'handler', 'transforms.output'])
+    expect(handlerArgs).toEqual({ value: 'test', inputTransformed: true })
+    expect(result).toMatchObject({ result: 'test', outputTransformed: true })
+  })
 })
