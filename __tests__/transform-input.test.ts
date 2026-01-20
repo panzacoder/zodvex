@@ -196,4 +196,36 @@ describe('transforms.input hook', () => {
 
     expect(callOrder).toEqual(['transforms.input', 'handler', 'hooks.onSuccess'])
   })
+
+  it('works with no-args path', async () => {
+    const callOrder: string[] = []
+
+    const builder = zCustomMutationBuilder(
+      mockMutationBuilder,
+      customCtxWithHooks(async () => ({
+        transforms: {
+          input: (args: unknown) => {
+            callOrder.push('transforms.input')
+            return { ...(args as object), injected: true }
+          }
+        }
+      }))
+    )
+
+    let receivedArgs: any
+
+    // Function without args validation (uses the no-args code path)
+    const fn = builder({
+      handler: async (_ctx, args) => {
+        callOrder.push('handler')
+        receivedArgs = args
+        return 'done'
+      }
+    })
+
+    await fn.handler({}, { original: 'value' })
+
+    expect(callOrder).toEqual(['transforms.input', 'handler'])
+    expect(receivedArgs).toEqual({ original: 'value', injected: true })
+  })
 })
