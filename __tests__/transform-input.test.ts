@@ -106,4 +106,32 @@ describe('transforms.input hook', () => {
 
     expect(receivedArgs).toEqual({ original: 'value', injected: 'from-transform' })
   })
+
+  it('transforms.input can be async', async () => {
+    const builder = zCustomMutationBuilder(
+      mockMutationBuilder,
+      customCtxWithHooks(async () => ({
+        transforms: {
+          input: async (args: unknown) => {
+            await new Promise(resolve => setTimeout(resolve, 1))
+            return { ...(args as object), async: true }
+          }
+        }
+      }))
+    )
+
+    let receivedArgs: any
+
+    const fn = builder({
+      args: z.object({ value: z.number() }),
+      handler: async (_ctx, args) => {
+        receivedArgs = args
+        return 'done'
+      }
+    })
+
+    await fn.handler({}, { value: 123 })
+
+    expect(receivedArgs).toEqual({ value: 123, async: true })
+  })
 })
