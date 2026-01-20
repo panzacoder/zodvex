@@ -78,4 +78,32 @@ describe('transforms.input hook', () => {
     expect(receivedArgs).toEqual({ name: 'test', count: 42 })
     expect(receivedSchema).toBe(argsSchema)
   })
+
+  it('transforms.input can modify args before handler', async () => {
+    const builder = zCustomMutationBuilder(
+      mockMutationBuilder,
+      customCtxWithHooks(async () => ({
+        transforms: {
+          input: (args: unknown) => ({
+            ...(args as object),
+            injected: 'from-transform'
+          })
+        }
+      }))
+    )
+
+    let receivedArgs: any
+
+    const fn = builder({
+      args: z.object({ original: z.string() }),
+      handler: async (_ctx, args) => {
+        receivedArgs = args
+        return 'done'
+      }
+    })
+
+    await fn.handler({}, { original: 'value' })
+
+    expect(receivedArgs).toEqual({ original: 'value', injected: 'from-transform' })
+  })
 })
