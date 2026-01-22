@@ -379,16 +379,16 @@ export function customFnBuilder<
           const ret = await handler(finalCtx, finalArgs)
           // Always run Zod return validation when returns schema is provided
           if (returns) {
-            // Apply output transform BEFORE validation (converts internal format → wire format)
+            // Apply output transform BEFORE encoding (converts internal format → wire format)
             // This allows class instances (e.g., SensitiveField) to be converted to plain objects
-            // before Zod's parse() spreads them and loses non-enumerable state like WeakMap values
+            // before z.encode() processes them
             const preTransformed = added?.transforms?.output
               ? await added.transforms.output(ret, returns as z.ZodTypeAny)
               : ret
 
             let validated: any
             try {
-              validated = (returns as z.ZodTypeAny).parse(preTransformed)
+              validated = z.encode(returns as z.ZodTypeAny, preTransformed)
             } catch (e) {
               handleZodValidationError(e, 'returns')
             }
@@ -437,16 +437,16 @@ export function customFnBuilder<
         const ret = await handler(finalCtx, finalArgs)
         // Always run Zod return validation when returns schema is provided
         if (returns) {
-          // Apply output transform BEFORE validation (converts internal format → wire format)
+          // Apply output transform BEFORE encoding (converts internal format → wire format)
           // This allows class instances (e.g., SensitiveField) to be converted to plain objects
-          // before Zod's parse() spreads them and loses non-enumerable state like WeakMap values
+          // before z.encode() processes them
           const preTransformed = added?.transforms?.output
             ? await added.transforms.output(ret, returns as z.ZodTypeAny)
             : ret
 
           let validated: any
           try {
-            validated = (returns as z.ZodTypeAny).parse(preTransformed)
+            validated = z.encode(returns as z.ZodTypeAny, preTransformed)
           } catch (e) {
             handleZodValidationError(e, 'returns')
           }
