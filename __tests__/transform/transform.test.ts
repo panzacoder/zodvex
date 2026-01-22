@@ -330,7 +330,7 @@ describe('transform/transform.ts', () => {
         ])
         const invalidValue = { type: 'invalid', value: 'test' }
         const callback = mock(() => {
-          // intentionally empty - just tracking calls
+          /* no-op mock callback */
         })
 
         transformBySchema(invalidValue, schema, null, val => val, {
