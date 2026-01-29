@@ -342,32 +342,42 @@ type AddSystemFieldsResult<
       : Schema
 
 /**
- * Maps over union options, making each ZodObject variant partial.
- * Non-object variants are preserved as-is.
+ * Update schema shape: _id required, _creationTime optional, user fields partial
  */
-type MapPartialVariants<Options extends readonly z.ZodTypeAny[]> = {
+type UpdateShape<TableName extends string, Shape extends z.ZodRawShape> = {
+  _id: ReturnType<typeof zid<TableName>>
+  _creationTime: z.ZodOptional<z.ZodNumber>
+} & PartialShape<Shape>
+
+/**
+ * Maps over union options for update schema.
+ * Each variant gets _id required, _creationTime optional, and user fields partial.
+ */
+type MapUpdateVariants<TableName extends string, Options extends readonly z.ZodTypeAny[]> = {
   [K in keyof Options]: Options[K] extends z.ZodObject<infer Shape extends z.ZodRawShape>
-    ? z.ZodObject<PartialShape<Shape>>
+    ? z.ZodObject<UpdateShape<TableName, Shape>>
     : Options[K]
 }
 
 /**
  * Computes the update schema type for a given schema.
- * For unions: each variant becomes partial
- * For objects: the whole object becomes partial
+ * Includes _id (required), _creationTime (optional), and partial user fields.
+ * For unions: each variant gets update shape
+ * For objects: the whole object gets update shape
  * For other types: returns as-is
  */
-type UpdateSchemaType<Schema extends z.ZodTypeAny> = Schema extends z.ZodUnion<
-  infer Options extends readonly z.ZodTypeAny[]
->
-  ? z.ZodUnion<MapPartialVariants<Options>>
+type UpdateSchemaType<
+  TableName extends string,
+  Schema extends z.ZodTypeAny
+> = Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
+  ? z.ZodUnion<MapUpdateVariants<TableName, Options>>
   : Schema extends z.ZodDiscriminatedUnion<
         infer Options extends readonly z.ZodObject<z.ZodRawShape>[],
         infer _Disc extends string
       >
-    ? z.ZodUnion<MapPartialVariants<Options>>
+    ? z.ZodUnion<MapUpdateVariants<TableName, Options>>
     : Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
-      ? z.ZodObject<PartialShape<Shape>>
+      ? z.ZodObject<UpdateShape<TableName, Shape>>
       : Schema
 
 // Overload 1: Object shape (most common case)
@@ -405,8 +415,12 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
         }
       >
     >
+    /** The base schema - user fields without system fields */
+    base: z.ZodObject<Shape>
+    /** Alias for base - user fields for insert operations */
     insert: z.ZodObject<Shape>
-    update: z.ZodObject<PartialShape<Shape>>
+    /** Update schema - _id required, _creationTime optional, user fields partial */
+    update: z.ZodObject<UpdateShape<TableName, Shape>>
   }
 }
 
@@ -421,8 +435,12 @@ export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
   schema: {
     doc: AddSystemFieldsResult<TableName, Schema>
     docArray: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
+    /** The base schema - user fields without system fields */
+    base: Schema
+    /** Alias for base - user fields for insert operations */
     insert: Schema
-    update: UpdateSchemaType<Schema>
+    /** Update schema - _id required, _creationTime optional, user fields partial */
+    update: UpdateSchemaType<TableName, Schema>
   }
   docArray: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
   withSystemFields: () => AddSystemFieldsResult<TableName, Schema>
@@ -452,17 +470,28 @@ export function zodTable<
     // Create docArray helper for return types
     const docArray = z.array(zDoc)
 
-    // Create insert schema (user fields only, no system fields)
-    const insertSchema = z.object(shape)
+    // Create base schema (user fields only, no system fields)
+    const baseSchema = z.object(shape)
 
-    // Create update schema (all fields partial)
-    const updateSchema = insertSchema.partial()
+    // Create partial shape for user fields
+    const partialShape: Record<string, z.ZodTypeAny> = {}
+    for (const [key, value] of Object.entries(shape)) {
+      partialShape[key] = value.optional()
+    }
+
+    // Create update schema: _id required, _creationTime optional, user fields partial
+    const updateSchema = z.object({
+      _id: zid(name),
+      _creationTime: z.number().optional(),
+      ...partialShape
+    })
 
     // Create schema namespace
     const schema = {
       doc: zDoc,
       docArray,
-      insert: insertSchema,
+      base: baseSchema,
+      insert: baseSchema, // alias for base
       update: updateSchema
     }
 
@@ -515,19 +544,39 @@ export function zodTable<
     // Create docArray helper
     const docArray = z.array(docSchema)
 
-    // Create update schema (each variant partial)
+    // Create update schema: _id required, _creationTime optional, user fields partial
     let updateSchema: z.ZodTypeAny
     if (isZodUnion(schema)) {
       const originalOptions = getUnionOptions(schema)
-      const partialOptions = originalOptions.map((variant: z.ZodTypeAny) => {
+      const updateOptions = originalOptions.map((variant: z.ZodTypeAny) => {
         if (variant instanceof z.ZodObject) {
-          return variant.partial()
+          // Create partial shape for user fields
+          const partialShape: Record<string, z.ZodTypeAny> = {}
+          for (const [key, value] of Object.entries(variant.shape)) {
+            partialShape[key] = (value as z.ZodTypeAny).optional()
+          }
+          // Add system fields: _id required, _creationTime optional
+          return z.object({
+            _id: zid(name),
+            _creationTime: z.number().optional(),
+            ...partialShape
+          })
         }
         return variant
       })
-      updateSchema = createUnionFromOptions(partialOptions)
+      updateSchema = createUnionFromOptions(updateOptions)
     } else if (schema instanceof z.ZodObject) {
-      updateSchema = schema.partial()
+      // Create partial shape for user fields
+      const partialShape: Record<string, z.ZodTypeAny> = {}
+      for (const [key, value] of Object.entries(schema.shape)) {
+        partialShape[key] = (value as z.ZodTypeAny).optional()
+      }
+      // Add system fields: _id required, _creationTime optional
+      updateSchema = z.object({
+        _id: zid(name),
+        _creationTime: z.number().optional(),
+        ...partialShape
+      })
     } else {
       updateSchema = schema
     }
@@ -536,7 +585,8 @@ export function zodTable<
     const schemaNamespace = {
       doc: docSchema,
       docArray,
-      insert: schema,
+      base: schema,
+      insert: schema, // alias for base
       update: updateSchema
     }
 

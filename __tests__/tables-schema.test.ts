@@ -45,7 +45,7 @@ describe('zodTable schema namespace', () => {
   })
 
   describe('schema.update', () => {
-    it('provides update schema with all fields partial', () => {
+    it('provides update schema with _id required, _creationTime optional, user fields partial', () => {
       const Users = zodTable('users', {
         name: z.string(),
         email: z.string().email(),
@@ -54,12 +54,12 @@ describe('zodTable schema namespace', () => {
 
       expect(Users.schema.update).toBeInstanceOf(z.ZodObject)
 
-      // All fields should be optional
-      const result = Users.schema.update.parse({})
-      expect(result).toEqual({})
+      // _id is required, user fields are optional
+      const result = Users.schema.update.parse({ _id: 'users:123' as any })
+      expect(result._id).toBe('users:123')
 
-      const partial = Users.schema.update.parse({ name: 'John' })
-      expect(partial).toEqual({ name: 'John' })
+      const partial = Users.schema.update.parse({ _id: 'users:123' as any, name: 'John' })
+      expect(partial).toEqual({ _id: 'users:123', name: 'John' })
     })
 
     it('update schema validates field types correctly', () => {
@@ -68,21 +68,28 @@ describe('zodTable schema namespace', () => {
         age: z.number()
       })
 
-      // Valid partial update
-      const valid = Users.schema.update.parse({ age: 30 })
-      expect(valid).toEqual({ age: 30 })
+      // Valid partial update with _id
+      const valid = Users.schema.update.parse({ _id: 'users:123' as any, age: 30 })
+      expect(valid).toEqual({ _id: 'users:123', age: 30 })
 
       // Invalid type should fail
-      expect(() => Users.schema.update.parse({ age: 'thirty' })).toThrow()
+      expect(() => Users.schema.update.parse({ _id: 'users:123' as any, age: 'thirty' })).toThrow()
     })
 
-    it('update schema does not include system fields', () => {
+    it('update schema includes _id required and _creationTime optional', () => {
       const Users = zodTable('users', { name: z.string() })
 
       const shape = Users.schema.update.shape
       expect(shape.name).toBeDefined()
-      expect(shape._id).toBeUndefined()
-      expect(shape._creationTime).toBeUndefined()
+      expect(shape._id).toBeDefined()
+      expect(shape._creationTime).toBeDefined()
+
+      // _id is required
+      expect(() => Users.schema.update.parse({})).toThrow()
+
+      // _creationTime is optional
+      const valid = Users.schema.update.parse({ _id: 'users:123' as any })
+      expect(valid._id).toBe('users:123')
     })
 
     it('handles already-optional fields correctly', () => {
@@ -91,12 +98,40 @@ describe('zodTable schema namespace', () => {
         nickname: z.string().optional()
       })
 
-      // Both should be optional in update schema
-      const result = Users.schema.update.parse({})
-      expect(result).toEqual({})
+      // Both user fields should be optional in update schema, but _id is required
+      const result = Users.schema.update.parse({ _id: 'users:123' as any })
+      expect(result._id).toBe('users:123')
 
-      const withNickname = Users.schema.update.parse({ nickname: 'Johnny' })
-      expect(withNickname).toEqual({ nickname: 'Johnny' })
+      const withNickname = Users.schema.update.parse({
+        _id: 'users:123' as any,
+        nickname: 'Johnny'
+      })
+      expect(withNickname).toEqual({ _id: 'users:123', nickname: 'Johnny' })
+    })
+  })
+
+  describe('schema.base', () => {
+    it('provides base schema with user fields only (no system fields)', () => {
+      const Users = zodTable('users', {
+        name: z.string(),
+        email: z.string().email()
+      })
+
+      expect(Users.schema.base).toBeInstanceOf(z.ZodObject)
+
+      const shape = Users.schema.base.shape
+      expect(shape.name).toBeDefined()
+      expect(shape.email).toBeDefined()
+
+      // Should NOT have system fields
+      expect(shape._id).toBeUndefined()
+      expect(shape._creationTime).toBeUndefined()
+    })
+
+    it('base and insert are the same schema', () => {
+      const Users = zodTable('users', { name: z.string() })
+
+      expect(Users.schema.base).toBe(Users.schema.insert)
     })
   })
 
@@ -177,18 +212,29 @@ describe('zodTable schema namespace', () => {
       expect(Shapes.schema.docArray).toBeInstanceOf(z.ZodArray)
     })
 
-    it('provides schema.insert for unions (original schema)', () => {
+    it('provides schema.base for unions (original schema)', () => {
       const shapeSchema = z.union([
         z.object({ kind: z.literal('circle'), r: z.number() }),
         z.object({ kind: z.literal('rect'), w: z.number() })
       ])
       const Shapes = zodTable('shapes', shapeSchema)
 
-      // Insert should be the original schema (no system fields)
-      expect(Shapes.schema.insert).toBe(shapeSchema)
+      // Base should be the original schema (no system fields)
+      expect(Shapes.schema.base).toBe(shapeSchema)
     })
 
-    it('provides schema.update for unions (each variant partial)', () => {
+    it('provides schema.insert as alias for base (unions)', () => {
+      const shapeSchema = z.union([
+        z.object({ kind: z.literal('circle'), r: z.number() }),
+        z.object({ kind: z.literal('rect'), w: z.number() })
+      ])
+      const Shapes = zodTable('shapes', shapeSchema)
+
+      // Insert should be alias for base
+      expect(Shapes.schema.insert).toBe(Shapes.schema.base)
+    })
+
+    it('provides schema.update for unions (_id required, user fields partial)', () => {
       const Shapes = zodTable(
         'shapes',
         z.union([
@@ -199,9 +245,10 @@ describe('zodTable schema namespace', () => {
 
       expect(Shapes.schema.update).toBeInstanceOf(z.ZodUnion)
 
-      // Each variant should be partial
-      const result = Shapes.schema.update.parse({ kind: 'circle' })
-      expect(result).toEqual({ kind: 'circle' }) // r is now optional
+      // Each variant has _id required and user fields partial
+      const result = Shapes.schema.update.parse({ _id: 'shapes:123' as any, kind: 'circle' })
+      expect(result._id).toBe('shapes:123')
+      expect(result.kind).toBe('circle') // r is now optional
     })
   })
 
