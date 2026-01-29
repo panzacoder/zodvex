@@ -15,6 +15,7 @@ import type {
   VUnion
 } from 'convex/values'
 import { z } from 'zod'
+import type { ZodvexWireSchema } from '../types'
 
 // Check if a type has the _tableName property added by zid()
 type IsZid<T> = T extends { _tableName: infer _TableName extends string } ? true : false
@@ -129,9 +130,13 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                                 ? VAny<'required'>
                                 : Z extends z.ZodUnknown
                                   ? VAny<'required'>
-                                  : Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
-                                    ? ConvexValidatorFromZodBase<A> // Use input schema (wire format) for Convex
-                                    : VAny<'required'>
+                                  : Z extends {
+                                        readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny
+                                      }
+                                    ? ConvexValidatorFromZodBase<W> // Extract wire schema from branded codec
+                                    : Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
+                                      ? ConvexValidatorFromZodBase<A> // Use input schema (wire format) for Convex
+                                      : VAny<'required'>
 
 // Main type mapper with constraint system
 export type ConvexValidatorFromZod<
@@ -218,9 +223,13 @@ export type ConvexValidatorFromZod<
                                         Constraint,
                                         string
                                       >
-                                    : Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
-                                      ? ConvexValidatorFromZod<A, Constraint> // Use input schema (wire format) for Convex
-                                      : VAny<'required'>
+                                    : Z extends {
+                                          readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny
+                                        }
+                                      ? ConvexValidatorFromZod<W, Constraint> // Extract wire schema from branded codec
+                                      : Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
+                                        ? ConvexValidatorFromZod<A, Constraint> // Use input schema (wire format) for Convex
+                                        : VAny<'required'>
 
 type ConvexValidatorFromZodFields<
   T extends { [key: string]: any },

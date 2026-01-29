@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { zodToConvex } from './mapping'
 import { findBaseCodec, isDateSchema } from './registry'
+import { type ZodvexCodec } from './types'
+
+// Re-export ZodvexCodec type for convenience
+export { type ZodvexCodec } from './types'
 
 // Helper to convert Zod's internal types to ZodTypeAny
 function asZodType<T>(schema: T): z.ZodTypeAny {
@@ -222,4 +226,41 @@ export function fromConvexJS(value: any, schema: any): any {
   }
 
   return value
+}
+
+/**
+ * Creates a branded ZodCodec for use with zodvex type inference.
+ * Thin wrapper around z.codec() that adds type branding, allowing
+ * ConvexValidatorFromZod to extract the wire schema even when the
+ * codec is wrapped in a custom type alias.
+ *
+ * @example
+ * ```typescript
+ * type MyCodec = ZodvexCodec<z.ZodObject<{ ts: z.ZodNumber }>, z.ZodCustom<Date>>
+ *
+ * function myCodec(): MyCodec {
+ *   return zodvexCodec(
+ *     z.object({ ts: z.number() }),
+ *     z.custom<Date>(() => true),
+ *     {
+ *       decode: (wire) => new Date(wire.ts),
+ *       encode: (date) => ({ ts: date.getTime() })
+ *     }
+ *   )
+ * }
+ * ```
+ */
+export function zodvexCodec<W extends z.ZodTypeAny, R extends z.ZodTypeAny>(
+  wire: W,
+  runtime: R,
+  transforms: {
+    decode: (wire: z.output<W>) => z.input<R>
+    encode: (runtime: z.output<R>) => z.input<W>
+  }
+): ZodvexCodec<W, R> {
+  // Cast transforms to satisfy Zod's internal MaybeAsync typing while keeping our API simple
+  return z.codec(wire, runtime, transforms as Parameters<typeof z.codec<W, R>>[2]) as ZodvexCodec<
+    W,
+    R
+  >
 }
