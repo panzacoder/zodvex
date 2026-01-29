@@ -19,6 +19,7 @@ Type-safe Convex functions with Zod schemas. Preserve Convex's optional/nullable
 - [API Reference](#api-reference)
 - [Advanced Usage](#advanced-usage)
   - [Custom Context Builders](#custom-context-builders)
+    - [Hooks and Transforms](#hooks-and-transforms)
   - [Date Handling](#date-handling)
   - [Return Type Helpers](#return-type-helpers)
   - [Working with Large Schemas](#working-with-large-schemas)
@@ -444,6 +445,80 @@ export const updateProfile = authMutation({
     return null
   }
 })
+```
+
+#### Hooks and Transforms
+
+For advanced use cases like logging, analytics, or data transformations, use `customCtxWithHooks`:
+
+```ts
+import { zCustomMutationBuilder, customCtxWithHooks } from 'zodvex'
+import { type MutationCtx, mutation } from './_generated/server'
+
+export const secureMutation = zCustomMutationBuilder(
+  mutation,
+  customCtxWithHooks(async (ctx: MutationCtx) => {
+    const securityCtx = await getSecurityContext(ctx)
+
+    return {
+      // Custom context (same as customCtx)
+      ctx: { securityCtx },
+
+      // Hooks: observe execution (side effects, no return value)
+      hooks: {
+        onSuccess: ({ ctx, args, result }) => {
+          // Called after successful execution
+          console.log('Mutation succeeded:', { args, result })
+          analytics.track('mutation_success', { userId: ctx.securityCtx.userId })
+        }
+      },
+
+      // Transforms: modify data in the flow
+      transforms: {
+        // Transform args after validation, before handler
+        input: (args, schema) => {
+          // e.g., Convert wire format to runtime objects
+          return transformIncomingArgs(args, securityCtx)
+        },
+        // Transform result after handler, before response
+        output: (result, schema) => {
+          // e.g., Mask sensitive fields based on permissions
+          return transformOutgoingResult(result, securityCtx)
+        }
+      }
+    }
+  })
+)
+```
+
+**Execution order:**
+
+1. Args received from client
+2. Zod validation on args
+3. `transforms.input` runs (if provided)
+4. Handler executes
+5. Zod validation on returns (if provided)
+6. `hooks.onSuccess` runs (if provided)
+7. `transforms.output` runs (if provided)
+8. Response sent to client
+
+**Use cases:**
+
+| Feature | Use Case |
+|---------|----------|
+| `hooks.onSuccess` | Logging, analytics, audit trails, cache invalidation |
+| `transforms.input` | Wire format → runtime objects, field decryption, data hydration |
+| `transforms.output` | Sensitive field masking, data redaction, format conversion |
+
+**Note:** Both `transforms.input` and `transforms.output` can be async:
+
+```ts
+transforms: {
+  input: async (args, schema) => {
+    const decrypted = await decrypt(args.sensitiveField)
+    return { ...args, sensitiveField: decrypted }
+  }
+}
 ```
 
 ### Date Handling

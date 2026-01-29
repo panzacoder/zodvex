@@ -16,7 +16,7 @@ import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility } from './types'
-import { handleZodValidationError, pick } from './utils'
+import { handleZodValidationError, pick, validateReturns } from './utils'
 
 /**
  * Hooks for observing the function execution (side effects, no return value).
@@ -34,6 +34,8 @@ export type CustomizationHooks = {
  * Transforms for modifying data in the function flow.
  */
 export type CustomizationTransforms = {
+  /** Transform args after validation but before handler receives them */
+  input?: (args: unknown, schema: z.ZodTypeAny) => unknown | Promise<unknown>
   /** Transform the output after validation but before wire encoding */
   output?: (result: unknown, schema: z.ZodTypeAny) => unknown | Promise<unknown>
 }
@@ -95,21 +97,24 @@ export type CustomizationWithHooks<
 
 /**
  * A helper for defining a Customization with full support for hooks and transforms.
- * Use this instead of customCtx when you need onSuccess, transforms.output, etc.
+ * Use this instead of customCtx when you need onSuccess, transforms.input, transforms.output, etc.
  *
  * @example
  * ```ts
- * const secureQuery = zCustomQueryBuilder(
- *   query,
- *   customCtxWithHooks(async (ctx: QueryCtx) => {
+ * const secureMutation = zCustomMutationBuilder(
+ *   mutation,
+ *   customCtxWithHooks(async (ctx: MutationCtx) => {
  *     const securityCtx = await getSecurityContext(ctx)
  *     return {
  *       ctx: { securityCtx },
  *       hooks: {
- *         onSuccess: ({ result }) => console.log('Query returned:', result),
+ *         onSuccess: ({ result }) => console.log('Mutation returned:', result),
  *       },
  *       transforms: {
- *         output: (result, schema) => transformSensitiveFields(result, securityCtx),
+ *         // Transform incoming args (e.g., wire format → runtime objects)
+ *         input: (args, schema) => transformIncomingArgs(args, securityCtx),
+ *         // Transform outgoing result (e.g., runtime objects → wire format)
+ *         output: (result, schema) => transformOutgoingResult(result, securityCtx),
  *       },
  *     }
  *   })
@@ -361,16 +366,28 @@ export function customFnBuilder<
           const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
           const baseArgs = parsed.data as Record<string, unknown>
           const addedArgs = (added?.args as Record<string, unknown>) ?? {}
-          const finalArgs = { ...baseArgs, ...addedArgs }
+          let finalArgs = { ...baseArgs, ...addedArgs }
+
+          // Apply input transform if provided (after validation, before handler)
+          if (added?.transforms?.input) {
+            finalArgs = (await added.transforms.input(finalArgs, argsSchema)) as Record<
+              string,
+              unknown
+            >
+          }
+
           const ret = await handler(finalCtx, finalArgs)
           // Always run Zod return validation when returns schema is provided
           if (returns) {
-            let validated: any
-            try {
-              validated = (returns as z.ZodTypeAny).parse(ret)
-            } catch (e) {
-              handleZodValidationError(e, 'returns')
-            }
+            // Apply output transform BEFORE validation (converts internal format → wire format)
+            // This allows class instances (e.g., SensitiveField) to be converted to plain objects
+            // before validation processes them
+            const preTransformed = added?.transforms?.output
+              ? await added.transforms.output(ret, returns as z.ZodTypeAny)
+              : ret
+
+            // Validate using encode (for codecs) with fallback to parse (for transforms)
+            const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
             if (added?.hooks?.onSuccess) {
               await added.hooks.onSuccess({
                 ctx,
@@ -378,11 +395,7 @@ export function customFnBuilder<
                 result: validated
               })
             }
-            // Apply output transform if provided
-            const transformed = added?.transforms?.output
-              ? await added.transforms.output(validated, returns as z.ZodTypeAny)
-              : validated
-            return toConvexJS(returns as z.ZodTypeAny, transformed)
+            return toConvexJS(returns as z.ZodTypeAny, validated)
           }
           if (added?.hooks?.onSuccess) {
             await added.hooks.onSuccess({ ctx, args: parsed.data, result: ret })
@@ -406,24 +419,33 @@ export function customFnBuilder<
         const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
         const baseArgs = allArgs as Record<string, unknown>
         const addedArgs = (added?.args as Record<string, unknown>) ?? {}
-        const finalArgs = { ...baseArgs, ...addedArgs }
+        let finalArgs = { ...baseArgs, ...addedArgs }
+
+        // Apply input transform if provided (even without args schema)
+        // Note: schema is z.unknown() in no-args path, transform should handle this
+        if (added?.transforms?.input) {
+          finalArgs = (await added.transforms.input(finalArgs, z.unknown())) as Record<
+            string,
+            unknown
+          >
+        }
+
         const ret = await handler(finalCtx, finalArgs)
         // Always run Zod return validation when returns schema is provided
         if (returns) {
-          let validated: any
-          try {
-            validated = (returns as z.ZodTypeAny).parse(ret)
-          } catch (e) {
-            handleZodValidationError(e, 'returns')
-          }
+          // Apply output transform BEFORE validation (converts internal format → wire format)
+          // This allows class instances (e.g., SensitiveField) to be converted to plain objects
+          // before validation processes them
+          const preTransformed = added?.transforms?.output
+            ? await added.transforms.output(ret, returns as z.ZodTypeAny)
+            : ret
+
+          // Validate using encode (for codecs) with fallback to parse (for transforms)
+          const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
           if (added?.hooks?.onSuccess) {
             await added.hooks.onSuccess({ ctx, args: allArgs, result: validated })
           }
-          // Apply output transform if provided
-          const transformed = added?.transforms?.output
-            ? await added.transforms.output(validated, returns as z.ZodTypeAny)
-            : validated
-          return toConvexJS(returns as z.ZodTypeAny, transformed)
+          return toConvexJS(returns as z.ZodTypeAny, validated)
         }
         if (added?.hooks?.onSuccess) {
           await added.hooks.onSuccess({ ctx, args: allArgs, result: ret })
