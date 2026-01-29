@@ -184,19 +184,31 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
       }
       case 'transform':
       case 'pipe': {
-        // Check for registered codec first
-        const codec = findBaseCodec(actualValidator)
-        if (codec) {
-          convexValidator = codec.toValidator(actualValidator)
-        } else {
-          // Check for brand metadata
-          const metadata = registryHelpers.getMetadata(actualValidator)
-          if (metadata?.brand && metadata?.originalSchema) {
-            // For branded types created by our zBrand function, use the original schema
-            convexValidator = zodToConvexInternal(metadata.originalSchema, visited)
+        // Check for native Zod v4 codec first (z.codec())
+        // Codecs have def.type='pipe' but are specifically for bidirectional transforms
+        // Use the input schema (wire format) for Convex validation
+        if (actualValidator instanceof z.ZodCodec) {
+          const inputSchema = (actualValidator as any).def?.in
+          if (inputSchema && inputSchema instanceof z.ZodType) {
+            convexValidator = zodToConvexInternal(inputSchema, visited)
           } else {
-            // For non-registered transforms, return v.any()
             convexValidator = v.any()
+          }
+        } else {
+          // Check for registered codec from the registry
+          const codec = findBaseCodec(actualValidator)
+          if (codec) {
+            convexValidator = codec.toValidator(actualValidator)
+          } else {
+            // Check for brand metadata
+            const metadata = registryHelpers.getMetadata(actualValidator)
+            if (metadata?.brand && metadata?.originalSchema) {
+              // For branded types created by our zBrand function, use the original schema
+              convexValidator = zodToConvexInternal(metadata.originalSchema, visited)
+            } else {
+              // For non-registered transforms, return v.any()
+              convexValidator = v.any()
+            }
           }
         }
         break

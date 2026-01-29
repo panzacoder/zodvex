@@ -129,7 +129,9 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                                 ? VAny<'required'>
                                 : Z extends z.ZodUnknown
                                   ? VAny<'required'>
-                                  : VAny<'required'>
+                                  : Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
+                                    ? ConvexValidatorFromZodBase<A> // Use input schema (wire format) for Convex
+                                    : VAny<'required'>
 
 // Main type mapper with constraint system
 export type ConvexValidatorFromZod<
@@ -216,7 +218,9 @@ export type ConvexValidatorFromZod<
                                         Constraint,
                                         string
                                       >
-                                    : VAny<'required'>
+                                    : Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
+                                      ? ConvexValidatorFromZod<A, Constraint> // Use input schema (wire format) for Convex
+                                      : VAny<'required'>
 
 type ConvexValidatorFromZodFields<
   T extends { [key: string]: any },
