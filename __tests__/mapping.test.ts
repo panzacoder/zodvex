@@ -209,3 +209,112 @@ describe('zodToConvexFields', () => {
     })
   })
 })
+
+describe('zodToConvex native z.codec() handling', () => {
+  it('handles basic codec - uses input (wire) schema for validation', () => {
+    // Create a codec that transforms between wire format and runtime format
+    const wireSchema = z.object({ value: z.string() })
+    const fieldSchema = z.string()
+    const codec = z.codec(wireSchema, fieldSchema, {
+      encode: (val: string) => ({ value: val }),
+      decode: (wire: { value: string }) => wire.value
+    })
+
+    const validator = zodToConvex(codec)
+
+    // The Convex validator should be based on the wire schema (input type)
+    expect(validator).toEqual(v.object({ value: v.string() }))
+  })
+
+  it('handles codec with nullable inner value', () => {
+    const wireSchema = z.object({
+      value: z.string().nullable(),
+      metadata: z.object({ timestamp: z.number() })
+    })
+    const fieldSchema = z.string().nullable()
+    const codec = z.codec(wireSchema, fieldSchema, {
+      encode: (val: string | null) => ({
+        value: val,
+        metadata: { timestamp: Date.now() }
+      }),
+      decode: (wire: { value: string | null }) => wire.value
+    })
+
+    const validator = zodToConvex(codec)
+
+    // Should create validator for the wire schema
+    expect(validator).toEqual(
+      v.object({
+        value: v.union(v.string(), v.null()),
+        metadata: v.object({ timestamp: v.float64() })
+      })
+    )
+  })
+
+  it('handles optional codec field', () => {
+    const wireSchema = z.object({ value: z.string() })
+    const fieldSchema = z.string()
+    const codec = z.codec(wireSchema, fieldSchema, {
+      encode: (val: string) => ({ value: val }),
+      decode: (wire: { value: string }) => wire.value
+    })
+
+    const optionalCodec = codec.optional()
+    const validator = zodToConvex(optionalCodec)
+
+    // Optional codec should be v.optional(wireSchemaValidator)
+    expect(validator).toEqual(v.optional(v.object({ value: v.string() })))
+  })
+
+  it('handles nullable codec field', () => {
+    const wireSchema = z.object({ value: z.string() })
+    const fieldSchema = z.string()
+    const codec = z.codec(wireSchema, fieldSchema, {
+      encode: (val: string) => ({ value: val }),
+      decode: (wire: { value: string }) => wire.value
+    })
+
+    const nullableCodec = codec.nullable()
+    const validator = zodToConvex(nullableCodec)
+
+    // Nullable codec should be v.union(wireSchemaValidator, v.null())
+    expect(validator).toEqual(v.union(v.object({ value: v.string() }), v.null()))
+  })
+
+  it('handles codec in object field', () => {
+    const sensitiveCodec = z.codec(
+      z.object({ encrypted: z.string(), iv: z.string() }),
+      z.string(),
+      {
+        encode: (plain: string) => ({ encrypted: btoa(plain), iv: 'random' }),
+        decode: (wire: { encrypted: string; iv: string }) => atob(wire.encrypted)
+      }
+    )
+
+    const schema = z.object({
+      id: z.string(),
+      secret: sensitiveCodec
+    })
+
+    const validator = zodToConvex(schema)
+
+    expect(validator).toEqual(
+      v.object({
+        id: v.string(),
+        secret: v.object({ encrypted: v.string(), iv: v.string() })
+      })
+    )
+  })
+
+  it('handles codec as array element', () => {
+    const itemCodec = z.codec(z.object({ raw: z.number() }), z.number(), {
+      encode: (n: number) => ({ raw: n }),
+      decode: (wire: { raw: number }) => wire.raw
+    })
+
+    const schema = z.array(itemCodec)
+    const validator = zodToConvex(schema)
+
+    expect(validator).toEqual(v.array(v.object({ raw: v.float64() })))
+  })
+})

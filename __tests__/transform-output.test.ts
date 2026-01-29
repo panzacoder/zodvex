@@ -7,7 +7,7 @@ import { customCtxWithHooks, zCustomQueryBuilder } from '../src'
 const mockQueryBuilder = (fn: any) => fn
 
 describe('transforms.output hook', () => {
-  it('calls transforms.output after validation', async () => {
+  it('calls transforms.output before validation (to convert internal → wire format)', async () => {
     const callOrder: string[] = []
 
     const builder = zCustomQueryBuilder(
@@ -82,7 +82,8 @@ describe('transforms.output hook', () => {
 
     const fn = builder({
       args: z.object({}),
-      returns: z.object({ value: z.number() }),
+      // Schema must include properties that transform adds (transform runs BEFORE validation)
+      returns: z.object({ value: z.number(), transformed: z.boolean() }),
       handler: async () => ({ value: 42 })
     })
 
@@ -120,7 +121,7 @@ describe('transforms.output hook', () => {
     expect(capturedValue).toBe('captured-in-closure')
   })
 
-  it('transforms.output is called after hooks.onSuccess', async () => {
+  it('transforms.output is called before validation and hooks.onSuccess', async () => {
     const callOrder: string[] = []
 
     const builder = zCustomQueryBuilder(
@@ -151,7 +152,9 @@ describe('transforms.output hook', () => {
 
     await fn.handler({}, {})
 
-    expect(callOrder).toEqual(['handler', 'hooks.onSuccess', 'transforms.output'])
+    // transforms.output runs BEFORE validation (to convert internal → wire format)
+    // hooks.onSuccess runs AFTER validation
+    expect(callOrder).toEqual(['handler', 'transforms.output', 'hooks.onSuccess'])
   })
 
   it('works without transforms (backward compatible)', async () => {
@@ -188,7 +191,8 @@ describe('transforms.output hook', () => {
 
     const fn = builder({
       args: z.object({}),
-      returns: z.object({ value: z.number() }),
+      // Schema must include properties that transform adds (transform runs BEFORE validation)
+      returns: z.object({ value: z.number(), async: z.boolean() }),
       handler: async () => ({ value: 1 })
     })
 
@@ -214,7 +218,8 @@ describe('transforms.output hook', () => {
 
     // Function without args validation (uses the no-args code path)
     const fn = builder({
-      returns: z.object({ value: z.number() }),
+      // Schema must include properties that transform adds (transform runs BEFORE validation)
+      returns: z.object({ value: z.number(), transformed: z.boolean() }),
       handler: async () => {
         callOrder.push('handler')
         return { value: 42 }
