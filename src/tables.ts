@@ -180,23 +180,6 @@ type DocSystemFields<TableName extends string> = {
   _id: ReturnType<typeof zid<TableName>>
   _creationTime: z.ZodNumber
 }
-
-/**
- * Merges a Zod shape with additional fields, preserving type information.
- *
- * TypeScript cannot verify that `{ ...shape1, ...shape2 }` produces `Shape1 & Shape2`
- * at the type level (it infers a mapped type instead). This helper makes the type
- * assertion explicit and localized.
- *
- * @internal
- */
-function mergeShapes<Base extends z.ZodRawShape, Extension extends z.ZodRawShape>(
-  base: Base,
-  extension: Extension
-): Base & Extension {
-  return { ...base, ...extension } as Base & Extension
-}
-
 /**
  * Type for validators that can be used with Convex's defineTable.
  *
@@ -226,6 +209,8 @@ function asTableValidator<V extends { kind: string }>(validator: V): TableValida
 
 /**
  * Creates a Zod schema for a Convex document with system fields.
+ * Uses .extend() to preserve object-level options like .passthrough(), .strict(),
+ * .catchall(), and object-level refinements.
  *
  * @param tableName - The Convex table name
  * @param schema - The Zod object schema for user fields
@@ -235,12 +220,10 @@ export function zodDoc<TableName extends string, Shape extends z.ZodRawShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & DocSystemFields<TableName>> {
-  const systemFields: DocSystemFields<TableName> = {
+  return schema.extend({
     _id: zid(tableName),
     _creationTime: z.number()
-  }
-
-  return z.object(mergeShapes(schema.shape, systemFields))
+  }) as z.ZodObject<Shape & DocSystemFields<TableName>>
 }
 
 // Helper to create nullable doc schema

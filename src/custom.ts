@@ -16,7 +16,7 @@ import { z } from 'zod'
 import { fromConvexJS, toConvexJS } from './codec'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility } from './types'
-import { handleZodValidationError, pick } from './utils'
+import { handleZodValidationError, pick, validateReturns } from './utils'
 
 /**
  * Hooks for observing the function execution (side effects, no return value).
@@ -379,19 +379,15 @@ export function customFnBuilder<
           const ret = await handler(finalCtx, finalArgs)
           // Always run Zod return validation when returns schema is provided
           if (returns) {
-            // Apply output transform BEFORE encoding (converts internal format → wire format)
+            // Apply output transform BEFORE validation (converts internal format → wire format)
             // This allows class instances (e.g., SensitiveField) to be converted to plain objects
-            // before z.encode() processes them
+            // before validation processes them
             const preTransformed = added?.transforms?.output
               ? await added.transforms.output(ret, returns as z.ZodTypeAny)
               : ret
 
-            let validated: any
-            try {
-              validated = z.encode(returns as z.ZodTypeAny, preTransformed)
-            } catch (e) {
-              handleZodValidationError(e, 'returns')
-            }
+            // Validate using encode (for codecs) with fallback to parse (for transforms)
+            const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
             if (added?.hooks?.onSuccess) {
               await added.hooks.onSuccess({
                 ctx,
@@ -437,19 +433,15 @@ export function customFnBuilder<
         const ret = await handler(finalCtx, finalArgs)
         // Always run Zod return validation when returns schema is provided
         if (returns) {
-          // Apply output transform BEFORE encoding (converts internal format → wire format)
+          // Apply output transform BEFORE validation (converts internal format → wire format)
           // This allows class instances (e.g., SensitiveField) to be converted to plain objects
-          // before z.encode() processes them
+          // before validation processes them
           const preTransformed = added?.transforms?.output
             ? await added.transforms.output(ret, returns as z.ZodTypeAny)
             : ret
 
-          let validated: any
-          try {
-            validated = z.encode(returns as z.ZodTypeAny, preTransformed)
-          } catch (e) {
-            handleZodValidationError(e, 'returns')
-          }
+          // Validate using encode (for codecs) with fallback to parse (for transforms)
+          const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
           if (added?.hooks?.onSuccess) {
             await added.hooks.onSuccess({ ctx, args: allArgs, result: validated })
           }

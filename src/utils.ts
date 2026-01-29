@@ -48,6 +48,41 @@ export function handleZodValidationError(
   throw e
 }
 
+/**
+ * Validates a return value against a Zod schema, supporting both codecs and regular schemas.
+ *
+ * Tries z.encode() first (for codec support), then falls back to .parse() if the schema
+ * contains unidirectional transforms (which don't support encoding).
+ *
+ * For codecs: returns the encoded wire format (z.input<T>)
+ * For transforms: returns the transformed output (z.output<T>)
+ * For plain schemas: returns the validated value
+ *
+ * @param schema - The Zod schema to validate against
+ * @param value - The value to validate
+ * @returns The validated/encoded value
+ * @throws Calls handleZodValidationError on validation failure
+ */
+export function validateReturns(schema: z.ZodTypeAny, value: unknown): unknown {
+  try {
+    // Try encode first - works for codecs and plain schemas
+    return z.encode(schema, value)
+  } catch (e: any) {
+    // If it's a unidirectional transform error, fall back to parse
+    if (e?.message?.includes('unidirectional transform')) {
+      try {
+        return schema.parse(value)
+      } catch (parseError) {
+        handleZodValidationError(parseError, 'returns')
+      }
+    }
+    // For any other error, handle it normally
+    handleZodValidationError(e, 'returns')
+  }
+  // TypeScript can't infer that handleZodValidationError always throws
+  throw new Error('Unreachable')
+}
+
 // Helper: standard Convex paginate() result schema
 export function zPaginated<T extends z.ZodTypeAny>(item: T) {
   return z.object({
