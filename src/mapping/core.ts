@@ -286,6 +286,21 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         // Can't properly handle intersections
         convexValidator = v.any()
         break
+      case 'optional': {
+        // Fallback for optional types that weren't caught by the instanceof check at line 53.
+        // This can happen when pipes/codecs are wrapped with .optional() - the instanceof
+        // z.ZodOptional check fails but def.type is still 'optional'.
+        const innerType =
+          (actualValidator as any).def?.innerType ?? (actualValidator as any).unwrap?.()
+        if (innerType && innerType instanceof z.ZodType) {
+          convexValidator = zodToConvexInternal(innerType, visited)
+          isOptional = true
+        } else {
+          convexValidator = v.any()
+          isOptional = true
+        }
+        break
+      }
       default:
         // For any unrecognized def.type, return v.any()
         // No instanceof fallbacks - keep it simple and performant
