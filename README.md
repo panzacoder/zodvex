@@ -17,6 +17,7 @@ Type-safe Convex functions with Zod schemas. Preserve Convex's optional/nullable
 - [Working with Subsets](#working-with-subsets)
 - [Form Validation](#form-validation)
 - [API Reference](#api-reference)
+  - [The zx Namespace](#the-zx-namespace)
 - [Advanced Usage](#advanced-usage)
   - [Custom Context Builders](#custom-context-builders)
     - [Hooks and Transforms](#hooks-and-transforms)
@@ -61,12 +62,12 @@ export const za = zActionBuilder(action)
 ```ts
 // convex/users.ts
 import { z } from 'zod'
-import { zid } from 'zodvex'
+import { zx } from 'zodvex'
 import { zq, zm } from './util'
 import { Users } from './schemas/users'
 
 export const getUser = zq({
-  args: { id: zid('users') },
+  args: { id: zx.id('users') },
   returns: Users.zDoc.nullable(),
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id)
@@ -75,7 +76,7 @@ export const getUser = zq({
 
 export const createUser = zm({
   args: Users.shape,
-  returns: zid('users'),
+  returns: zx.id('users'),
   handler: async (ctx, user) => {
     // user is fully typed and validated
     return await ctx.db.insert('users', user)
@@ -89,7 +90,7 @@ Define your Zod schemas as plain objects for best type inference:
 
 ```ts
 import { z } from 'zod'
-import { zid } from 'zodvex'
+import { zx } from 'zodvex'
 
 // Plain object shape - recommended
 export const userShape = {
@@ -97,7 +98,8 @@ export const userShape = {
   email: z.string().email(),
   age: z.number().optional(),
   avatarUrl: z.string().url().nullable(),
-  teamId: zid('teams').optional() // Convex ID reference
+  createdAt: zx.date(),            // Date ↔ timestamp codec
+  teamId: zx.id('teams').optional() // Convex ID reference
 }
 
 // Can also use z.object() if preferred
@@ -111,14 +113,15 @@ Use `zodTable` as a drop-in replacement for Convex's `Table`:
 ```ts
 // convex/schema.ts
 import { z } from 'zod'
-import { zodTable, zid } from 'zodvex'
+import { zodTable, zx } from 'zodvex'
 
 export const Users = zodTable('users', {
   name: z.string(),
   email: z.string().email(),
-  age: z.number().optional(), // → v.optional(v.float64())
-  deletedAt: z.date().nullable(), // → v.union(v.float64(), v.null())
-  teamId: zid('teams').optional()
+  age: z.number().optional(),        // → v.optional(v.float64())
+  createdAt: zx.date(),              // → v.float64() (explicit codec)
+  deletedAt: zx.date().nullable(),   // → v.union(v.float64(), v.null())
+  teamId: zx.id('teams').optional()  // → v.optional(v.id('teams'))
 })
 
 // Access the underlying table
@@ -154,7 +157,7 @@ Use your builders from `util.ts` to create type-safe functions:
 
 ```ts
 import { z } from 'zod'
-import { zid } from 'zodvex'
+import { zx } from 'zodvex'
 import { zq, zm } from './util'
 import { Users } from './tables/users'
 
@@ -169,7 +172,7 @@ export const listUsers = zq({
 
 // Mutation with Convex ID
 export const deleteUser = zm({
-  args: { id: zid('users') },
+  args: { id: zx.id('users') },
   returns: z.null(),
   handler: async (ctx, { id }) => {
     await ctx.db.delete(id)
@@ -180,7 +183,7 @@ export const deleteUser = zm({
 // Using the full schema
 export const createUser = zm({
   args: Users.shape,
-  returns: zid('users'),
+  returns: zx.id('users'),
   handler: async (ctx, user) => {
     return await ctx.db.insert('users', user)
   }
@@ -193,7 +196,7 @@ Pick a subset of fields for focused operations:
 
 ```ts
 import { z } from 'zod'
-import { zid } from 'zodvex'
+import { zx } from 'zodvex'
 import { zm } from './util'
 import { Users, zUsers } from './tables/users'
 
@@ -206,7 +209,7 @@ const UpdateFields = zUsers.pick({
 
 export const updateUserProfile = zm({
   args: {
-    id: zid('users'),
+    id: zx.id('users'),
     ...UpdateFields.shape
   },
   handler: async (ctx, { id, ...fields }) => {
@@ -217,7 +220,7 @@ export const updateUserProfile = zm({
 // Or inline for simple cases
 export const updateUserName = zm({
   args: {
-    id: zid('users'),
+    id: zx.id('users'),
     name: z.string()
   },
   handler: async (ctx, { id, name }) => {
@@ -272,6 +275,33 @@ function UserForm() {
 ```
 
 ## API Reference
+
+### The zx Namespace
+
+The `zx` namespace provides zodvex-specific validators and codecs. The name signals "zodvex" or "zod + convex" - explicit transformations for Convex compatibility.
+
+```ts
+import { z } from 'zod'
+import { zx } from 'zodvex'
+
+const schema = z.object({
+  id: zx.id('users'),      // Convex ID
+  createdAt: zx.date(),    // Date ↔ timestamp
+  secret: zx.codec(...)    // Custom codec
+})
+```
+
+| Helper | Wire Format | Runtime Format | Use Case |
+|--------|------------|----------------|----------|
+| `zx.id('table')` | `string` | `GenericId<T>` | Convex document IDs |
+| `zx.date()` | `number` | `Date` | Timestamps |
+| `zx.codec(wire, runtime, transforms)` | Custom | Custom | Custom transformations |
+
+**Why `zx.*` instead of `z.*`?**
+
+- Makes Convex-specific transformations explicit (no "magic")
+- Clearly distinct from standard Zod types
+- Discoverable via IDE autocomplete on `zx.`
 
 ### Builders
 
@@ -393,13 +423,19 @@ const fromZod = zodToConvex(z.enum(['a', 'b']))
 
 This limitation exists because Zod v4 changed enum types from tuple-based to Record-based ([`ToEnum<T>`](https://github.com/colinhacks/zod/blob/v4/src/v4/core/util.ts#L83-L85)). TypeScript cannot convert a Record type to a specific tuple without knowing the keys at compile time. See [Zod v4 changelog](https://zod.dev/v4/changelog) and [enum evolution discussion](https://github.com/colinhacks/zod/discussions/2125) for more details.
 
-**Convex IDs:**
+**Convex IDs and Dates (zx namespace):**
 
 ```ts
-import { zid } from 'zodvex'
+import { zx } from 'zodvex'
 
-zid('tableName') // → v.id('tableName')
-zid('tableName').optional() // → v.optional(v.id('tableName'))
+// Convex IDs
+zx.id('tableName')           // → v.id('tableName')
+zx.id('tableName').optional() // → v.optional(v.id('tableName'))
+
+// Dates (explicit codec - no magic!)
+zx.date()           // → v.float64() (timestamp)
+zx.date().optional() // → v.optional(v.float64())
+zx.date().nullable() // → v.union(v.float64(), v.null())
 ```
 
 ## Advanced Usage
@@ -524,7 +560,7 @@ transforms: {
 
 ### Custom Codecs
 
-For complex type transformations beyond simple dates, zodvex provides `zodvexCodec` to create custom codecs that automatically work with validator generation and runtime encoding/decoding.
+For complex type transformations beyond the built-in `zx.date()` and `zx.id()`, use `zx.codec()` to create custom codecs that automatically work with validator generation and runtime encoding/decoding.
 
 #### When to Use Custom Codecs
 
@@ -536,7 +572,7 @@ For complex type transformations beyond simple dates, zodvex provides `zodvexCod
 
 ```ts
 import { z } from 'zod'
-import { zodvexCodec, type ZodvexCodec } from 'zodvex'
+import { zx, type ZodvexCodec } from 'zodvex'
 
 // Define wire (storage) and runtime schemas
 type SensitiveCodec = ZodvexCodec<
@@ -545,7 +581,7 @@ type SensitiveCodec = ZodvexCodec<
 >
 
 function sensitiveString(): SensitiveCodec {
-  return zodvexCodec(
+  return zx.codec(
     z.object({ encrypted: z.string() }),  // Wire format (stored in Convex)
     z.custom<string>(() => true),          // Runtime format (used in code)
     {
@@ -564,7 +600,7 @@ const userShape = {
 
 #### Automatic Codec Detection
 
-zodvex automatically detects `zodvexCodec` and native `z.codec()` instances. No manual registration required:
+zodvex automatically detects codecs created with `zx.codec()` and native `z.codec()`. No manual registration required:
 
 ```ts
 import { zodToConvex, toConvexJS, fromConvexJS } from 'zodvex'
@@ -591,8 +627,8 @@ Codecs work correctly when nested in object schemas:
 ```ts
 const schema = z.object({
   id: z.string(),
-  secret: sensitiveString(),       // Custom codec
-  createdAt: z.date()              // Built-in Date handling
+  secret: sensitiveString(),  // Custom codec
+  createdAt: zx.date()        // Built-in zx.date() codec
 })
 
 // All fields automatically encoded/decoded
@@ -604,9 +640,9 @@ const encoded = toConvexJS(schema, {
 // → { id: 'user-123', secret: { encrypted: '...' }, createdAt: 1234567890 }
 ```
 
-#### Why `zodvexCodec` Instead of `z.codec`
+#### Why `zx.codec()` Instead of `z.codec()`
 
-Use `zodvexCodec` instead of native `z.codec()` for better type inference:
+Use `zx.codec()` instead of native `z.codec()` for better type inference when using type aliases:
 
 ```ts
 // ❌ Type alias loses codec structure
@@ -616,7 +652,7 @@ zodToConvex(codec)  // → v.any() (type lost)
 
 // ✅ ZodvexCodec preserves wire schema type
 type MyCodec = ZodvexCodec<WireSchema, RuntimeSchema>
-const codec: MyCodec = zodvexCodec(wire, runtime, transforms)
+const codec: MyCodec = zx.codec(wire, runtime, transforms)
 zodToConvex(codec)  // → v.object({ ... }) (correct inference)
 ```
 
@@ -636,22 +672,22 @@ registerBaseCodec({
 })
 ```
 
-**Note:** For most use cases, `zodvexCodec` is simpler and preferred over `registerBaseCodec`.
+**Note:** For most use cases, `zx.codec()` is simpler and preferred over `registerBaseCodec`.
 
 ### Date Handling
 
-zodvex automatically converts dates between JavaScript `Date` objects and Convex timestamps when using `z.date()` in your schemas.
+Use `zx.date()` for explicit, type-safe date handling. This codec transforms between JavaScript `Date` objects and Convex timestamps.
 
-#### Automatic Conversion (Recommended)
-
-Use `z.date()` for automatic handling - no manual conversion needed:
+#### Using zx.date() (Recommended)
 
 ```ts
+import { zx } from 'zodvex'
+
 const eventShape = {
   title: z.string(),
-  startDate: z.date(),
-  endDate: z.date().nullable(),
-  createdAt: z.date().optional()
+  startDate: zx.date(),
+  endDate: zx.date().nullable(),
+  createdAt: zx.date().optional()
 }
 
 export const Events = zodTable('events', eventShape)
@@ -675,20 +711,24 @@ await createEvent({
   startDate: new Date('2024-01-01'),
   endDate: new Date('2024-01-02')
 })
-// ✅ No manual conversion needed!
+// ✅ Automatically encoded to timestamps
 ```
 
 **How it works:**
-- **Args**: Timestamps from client → automatically decoded to `Date` objects
-- **Returns**: `Date` objects from handler → automatically encoded to timestamps
+- **Args**: Timestamps from client → decoded to `Date` objects via codec
+- **Returns**: `Date` objects from handler → encoded to timestamps via codec
 - **Storage**: Dates are stored as `v.float64()` (Convex doesn't have a native Date type)
 
-#### Manual String Dates (Alternative)
+**Why `zx.date()` instead of `z.date()`?**
+
+The `zx.date()` codec makes the transformation explicit - you know at a glance that wire format conversion is happening. This avoids "magic" behavior that can be confusing.
+
+#### Alternative: Manual String Dates
 
 If you prefer working with ISO strings instead of Date objects, use `z.string()`:
 
 ```ts
-// ❌ Using z.string() means NO automatic conversion
+// Using z.string() means NO automatic conversion
 const schema = {
   birthday: z.string() // Stored as ISO string
 }
@@ -701,32 +741,15 @@ export const updateUser = zm({
     await ctx.db.insert('users', { birthday })
   }
 })
-
-// On frontend - manual conversion
-await updateUser({
-  birthday: new Date().toISOString() // Must manually convert
-})
 ```
 
 **When to use which:**
-- ✅ **`z.date()`** - When you want automatic conversion and type-safe Date objects (recommended)
+- ✅ **`zx.date()`** - When you want automatic conversion and type-safe Date objects (recommended)
 - ⚠️ **`z.string()`** - When you need ISO strings for display/formatting (requires manual parsing)
 
-#### Edge Case: Date/Number Unions
+#### Legacy: z.date() Support
 
-If you need a field that accepts both dates and numbers (rare), use explicit transforms:
-
-```ts
-// Edge case: field that can be a date OR a timestamp
-const flexibleDate = z.union([
-  z.date(),
-  z.number().transform(ts => new Date(ts))
-])
-
-// Most apps don't need this - fields are either dates OR numbers, not both
-```
-
-**Note:** In real-world schemas, mixing dates and numbers in unions is uncommon. Design your data model so fields have a single type.
+For backwards compatibility, `z.date()` is still supported and will be automatically converted. However, `zx.date()` is preferred for new code as it makes the transformation explicit.
 
 ### Return Type Helpers
 
@@ -889,7 +912,7 @@ export const Shapes = zodTable('shapes', shapeSchema)
 
 ### AI SDK Compatibility
 
-zodvex schemas are fully compatible with [Vercel's AI SDK](https://sdk.vercel.ai/docs), including `zid` for Convex IDs.
+zodvex schemas are fully compatible with [Vercel's AI SDK](https://sdk.vercel.ai/docs), including `zx.id()` for Convex IDs.
 
 #### Using with AI SDK
 
@@ -897,14 +920,14 @@ zodvex schemas are fully compatible with [Vercel's AI SDK](https://sdk.vercel.ai
 import { generateObject } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
-import { zid } from 'zodvex'
+import { zx } from 'zodvex'
 
 const userSchema = z.object({
-  id: zid('users'),        // ✅ Works with AI SDK
+  id: zx.id('users'),        // ✅ Works with AI SDK
   name: z.string(),
   email: z.string().email(),
   age: z.number().int(),
-  teamId: zid('teams').optional()
+  teamId: zx.id('teams').optional()
 })
 
 const result = await generateObject({
@@ -919,11 +942,11 @@ console.log(result.object.id) // Type: GenericId<'users'>
 
 #### Why It Works
 
-AI SDK requires schemas to be serializable (no `.transform()` or `.brand()`). zodvex's `zid` uses type-level branding instead of runtime transforms, making it compatible:
+AI SDK requires schemas to be serializable (no `.transform()` or `.brand()`). zodvex's `zx.id()` uses type-level branding instead of runtime transforms, making it compatible:
 
 ```ts
 // zodvex approach (compatible)
-zid('users') // String validator with type assertion → GenericId<'users'>
+zx.id('users') // String validator with type assertion → GenericId<'users'>
 
 // Not compatible (using transforms)
 z.string().transform(s => s as GenericId<'users'>) // ❌ AI SDK rejects

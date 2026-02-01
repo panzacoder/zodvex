@@ -10,4 +10,5 @@ export * from './results'
 export * from './tables'
 export * from './types'
 export * from './utils'
+export * from './zx'
 // wrappers are internal-only - use builders instead
