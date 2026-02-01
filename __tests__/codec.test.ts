@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { convexCodec, fromConvexJS, toConvexJS } from '../src/codec'
+import { convexCodec, fromConvexJS, toConvexJS, zodvexCodec } from '../src/codec'
 
 describe('convexCodec', () => {
   it('creates codec from Zod schema', () => {
@@ -261,5 +261,129 @@ describe('fromConvexJS', () => {
     const result = fromConvexJS(input, schema)
 
     expect(result).toEqual(input)
+  })
+})
+
+describe('automatic codec detection', () => {
+  it('toConvexJS automatically encodes zodvexCodec values', () => {
+    // Create a codec that transforms Date to { ts: number }
+    const dateCodec = zodvexCodec(
+      z.object({ ts: z.number() }),
+      z.custom<Date>(() => true),
+      {
+        decode: wire => new Date(wire.ts),
+        encode: date => ({ ts: date.getTime() })
+      }
+    )
+
+    const now = new Date('2024-06-15T12:00:00Z')
+    const result = toConvexJS(dateCodec, now)
+
+    // Should automatically encode Date → { ts: number }
+    expect(result).toEqual({ ts: now.getTime() })
+  })
+
+  it('fromConvexJS automatically decodes zodvexCodec values', () => {
+    // Create a codec that transforms { ts: number } to Date
+    const dateCodec = zodvexCodec(
+      z.object({ ts: z.number() }),
+      z.custom<Date>(() => true),
+      {
+        decode: wire => new Date(wire.ts),
+        encode: date => ({ ts: date.getTime() })
+      }
+    )
+
+    const timestamp = 1718452800000 // 2024-06-15T12:00:00Z
+    const result = fromConvexJS({ ts: timestamp }, dateCodec)
+
+    // Should automatically decode { ts: number } → Date
+    expect(result).toBeInstanceOf(Date)
+    expect(result.getTime()).toBe(timestamp)
+  })
+
+  it('handles nested codecs with Date in wire schema', () => {
+    // Codec where wire schema contains a Date (which needs Convex conversion)
+    const codec = zodvexCodec(
+      z.object({
+        name: z.string(),
+        timestamp: z.date() // Date in wire schema
+      }),
+      z.custom<{ displayName: string; when: Date }>(() => true),
+      {
+        decode: wire => ({ displayName: wire.name, when: wire.timestamp }),
+        encode: runtime => ({ name: runtime.displayName, timestamp: runtime.when })
+      }
+    )
+
+    const now = new Date('2024-06-15T12:00:00Z')
+    const runtimeValue = { displayName: 'Test', when: now }
+
+    // toConvexJS should: encode runtime → wire, then convert wire → Convex
+    const convexValue = toConvexJS(codec, runtimeValue)
+
+    // Wire schema has Date, which should be converted to timestamp
+    expect(convexValue).toEqual({
+      name: 'Test',
+      timestamp: now.getTime()
+    })
+
+    // fromConvexJS should: convert Convex → wire, then decode wire → runtime
+    const decoded = fromConvexJS(convexValue, codec)
+
+    expect(decoded.displayName).toBe('Test')
+    expect(decoded.when).toBeInstanceOf(Date)
+    expect(decoded.when.getTime()).toBe(now.getTime())
+  })
+
+  it('works with native z.codec() (not just zodvexCodec)', () => {
+    // Native Zod codec should also be auto-detected
+    const codec = z.codec(
+      z.object({ value: z.string() }),
+      z.custom<number>(() => true),
+      {
+        decode: (wire: { value: string }) => parseInt(wire.value, 10),
+        encode: (num: number) => ({ value: num.toString() })
+      }
+    )
+
+    const encoded = toConvexJS(codec, 42)
+    expect(encoded).toEqual({ value: '42' })
+
+    const decoded = fromConvexJS({ value: '123' }, codec)
+    expect(decoded).toBe(123)
+  })
+
+  it('handles codec in object schema field', () => {
+    const sensitiveCodec = zodvexCodec(
+      z.object({ encrypted: z.string() }),
+      z.custom<string>(() => true),
+      {
+        decode: wire => atob(wire.encrypted),
+        encode: value => ({ encrypted: btoa(value) })
+      }
+    )
+
+    const schema = z.object({
+      id: z.string(),
+      secret: sensitiveCodec
+    })
+
+    const runtimeValue = {
+      id: 'user-123',
+      secret: 'my-password'
+    }
+
+    const convexValue = toConvexJS(schema, runtimeValue)
+
+    expect(convexValue).toEqual({
+      id: 'user-123',
+      secret: { encrypted: btoa('my-password') }
+    })
+
+    const decoded = fromConvexJS(convexValue, schema)
+
+    expect(decoded.id).toBe('user-123')
+    expect(decoded.secret).toBe('my-password')
   })
 })
