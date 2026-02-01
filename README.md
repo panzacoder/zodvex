@@ -971,22 +971,22 @@ const internalUserSchema = z.object({
 
 **Option 2: Use zodvex's JSON Schema helper**
 ```ts
-import { toJSONSchema } from 'zodvex'
+import { zx, toJSONSchema } from 'zodvex'
 
 const schema = z.object({
-  userId: zid('users'),
-  createdAt: z.date(),
+  userId: zx.id('users'),
+  createdAt: zx.date(),
   name: z.string()
 })
 
-// Automatically handles zid and z.date() for JSON Schema generation
+// Automatically handles zx.id() and zx.date() for JSON Schema generation
 const jsonSchema = toJSONSchema(schema)
 // Use with AI SDK or other JSON Schema consumers
 ```
 
 The `toJSONSchema` helper automatically handles zodvex-managed types:
-- `zid('tableName')` → `{ type: "string", format: "convex-id:tableName" }`
-- `z.date()` → `{ type: "string", format: "date-time" }`
+- `zx.id('tableName')` → `{ type: "string", format: "convex-id:tableName" }`
+- `zx.date()` → `{ type: "string", format: "date-time" }`
 
 For custom overrides, use `zodvexJSONSchemaOverride` directly:
 ```ts
@@ -1019,10 +1019,11 @@ Convex officially supports Zod 4 via `convex-helpers/server/zod4`. zodvex builds
 
 | Feature | zodvex | convex-helpers/zod4 |
 |---------|--------|---------------------|
-| Date conversion | Automatic with `z.date()` | Manual `z.codec()` required |
+| Date conversion | Explicit with `zx.date()` | Manual `z.codec()` required |
+| ID handling | `zx.id('table')` with type branding | Manual setup |
 | Table helpers | `zodTable()` with helpers | Not provided |
 | Builder pattern | `zQueryBuilder()`, etc. | Not provided |
-| Codec abstraction | `convexCodec()` with `.pick()` | Not provided |
+| Codec abstraction | `zx.codec()` / `convexCodec()` | Not provided |
 | Philosophy | Batteries-included | Minimal primitives |
 
 Both are valid choices - zodvex trades some explicitness for significantly better ergonomics.

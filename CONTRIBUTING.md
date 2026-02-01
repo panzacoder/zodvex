@@ -65,7 +65,8 @@ zodvex/
 │   ├── mapping.ts        # Core: Zod → Convex validator conversion
 │   ├── codec.ts          # Core: encode/decode (Date ↔ timestamp, etc.)
 │   ├── tables.ts         # Public API: zodTable for schema definitions
-│   ├── ids.ts            # Public API: zid() for Convex IDs
+│   ├── ids.ts            # Internal: zid() implementation (deprecated, use zx.id())
+│   ├── zx.ts             # Public API: zx namespace (zx.id(), zx.date(), zx.codec())
 │   ├── types.ts          # Type definitions and utilities
 │   ├── utils.ts          # Utility functions
 │   └── index.ts          # Public API exports

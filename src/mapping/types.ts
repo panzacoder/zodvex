@@ -17,10 +17,10 @@ import type {
 import { z } from 'zod'
 import type { ZodvexWireSchema } from '../types'
 
-// Check if a type has the _tableName property added by zid()
+// Check if a type has the _tableName property added by zx.id() (or legacy zid())
 type IsZid<T> = T extends { _tableName: infer _TableName extends string } ? true : false
 
-// Extract table name from zid type (via _tableName property)
+// Extract table name from zx.id() type (via _tableName property)
 type ExtractTableName<T> = T extends { _tableName: infer TableName } ? TableName : never
 
 // Helper to map enum tuple to VLiteral validators tuple
