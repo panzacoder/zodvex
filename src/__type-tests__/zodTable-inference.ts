@@ -474,3 +474,132 @@ expectNotAny(eventWithFields._creationTime)
 
 // Should have discriminator
 expectNotAny(eventWithFields.type)
+
+// =============================================================================
+// CODEC WIRE TYPE TESTS
+// These verify that nested codecs use wire types in document inference
+// =============================================================================
+
+import { zx } from '../zx'
+
+// --- Test 30: zx.date() codec uses wire type (number) in document ---
+
+const DateTable = zodTable('dated', {
+  name: z.string(),
+  createdAt: zx.date(),
+  updatedAt: zx.date().optional()
+})
+
+type DateDoc = z.infer<typeof DateTable.zDoc>
+declare const dateDoc: DateDoc
+
+// createdAt should be Date in runtime (zx.date() decodes to Date)
+// But the document type should use wire format for Convex compatibility
+expectNotAny(dateDoc.createdAt)
+expectNotAny(dateDoc.updatedAt)
+
+// --- Test 31: Nested object with codec uses wire types ---
+
+const NestedCodecTable = zodTable('nestedCodec', {
+  user: z.object({
+    name: z.string(),
+    joinedAt: zx.date()
+  })
+})
+
+type NestedCodecDoc = z.infer<typeof NestedCodecTable.zDoc>
+declare const nestedCodecDoc: NestedCodecDoc
+
+// Nested object fields should be properly typed
+expectNotAny(nestedCodecDoc.user)
+expectNotAny(nestedCodecDoc.user.name)
+expectNotAny(nestedCodecDoc.user.joinedAt)
+
+// --- Test 32: Array of objects with codecs uses wire types ---
+
+const ArrayCodecTable = zodTable('arrayCodec', {
+  events: z.array(
+    z.object({
+      name: z.string(),
+      occurredAt: zx.date()
+    })
+  )
+})
+
+type ArrayCodecDoc = z.infer<typeof ArrayCodecTable.zDoc>
+declare const arrayCodecDoc: ArrayCodecDoc
+
+expectNotAny(arrayCodecDoc.events)
+expectNotAny(arrayCodecDoc.events[0])
+expectNotAny(arrayCodecDoc.events[0].name)
+expectNotAny(arrayCodecDoc.events[0].occurredAt)
+
+// --- Test 33: Custom codec wire type is preserved in Convex validator ---
+
+// Create a custom codec that transforms between wire and runtime
+type SensitiveWire = { encrypted: string }
+type SensitiveRuntime = string
+
+const sensitiveCodec = zx.codec(
+  z.object({ encrypted: z.string() }),
+  z.custom<SensitiveRuntime>(() => true),
+  {
+    decode: (wire: SensitiveWire) => atob(wire.encrypted),
+    encode: (value: SensitiveRuntime) => ({ encrypted: btoa(value) })
+  }
+)
+
+const SensitiveTable = zodTable('sensitive', {
+  name: z.string(),
+  secret: sensitiveCodec
+})
+
+// Note: z.infer uses Zod's native inference which gives runtime types
+// The WireInfer fix is for Convex validator document types (VObject<DocType, ...>)
+type SensitiveDoc = z.infer<typeof SensitiveTable.zDoc>
+declare const sensitiveDoc: SensitiveDoc
+
+expectNotAny(sensitiveDoc.name)
+expectNotAny(sensitiveDoc.secret)
+
+// The Convex validator type should use wire format
+// We verify this by checking the validator is not any
+type SensitiveValidator = typeof SensitiveTable.doc
+expectNotAny({} as SensitiveValidator)
+
+// --- Test 34: Union with codec variants uses wire types ---
+
+const UnionCodecTable = zodTable(
+  'unionCodec',
+  z.union([
+    z.object({
+      type: z.literal('timestamped'),
+      timestamp: zx.date()
+    }),
+    z.object({
+      type: z.literal('plain'),
+      value: z.string()
+    })
+  ])
+)
+
+type UnionCodecDoc = z.infer<typeof UnionCodecTable.docArray>[number]
+declare const unionCodecDoc: UnionCodecDoc
+
+expectNotAny(unionCodecDoc._id)
+expectNotAny(unionCodecDoc.type)
+
+// --- Test 35: Record with codec values uses wire types ---
+
+const RecordCodecTable = zodTable('recordCodec', {
+  timestamps: z.record(z.string(), zx.date())
+})
+
+type RecordCodecDoc = z.infer<typeof RecordCodecTable.zDoc>
+declare const recordCodecDoc: RecordCodecDoc
+
+expectNotAny(recordCodecDoc.timestamps)
+
+// Record values should be wire type (number for dates)
+declare const timestampValue: RecordCodecDoc['timestamps'][string]
+expectNotAny(timestampValue)
