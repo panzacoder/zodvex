@@ -29,7 +29,7 @@ import type { ZodvexCodec } from './types'
 /**
  * Date codec type for explicit type annotations
  */
-export type ZxDate = ZodvexCodec<z.ZodNumber, z.ZodCustom<Date>>
+export type ZxDate = ZodvexCodec<z.ZodNumber, z.ZodCustom<Date, Date>>
 
 /**
  * Creates a Date codec that transforms between Date objects and timestamps.
