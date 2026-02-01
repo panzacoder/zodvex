@@ -4,10 +4,96 @@ This guide helps you upgrade between zodvex versions with breaking changes.
 
 ## Table of Contents
 
+- [Upgrading to the zx Namespace](#upgrading-to-the-zx-namespace)
+  - [zid() → zx.id()](#zid--zxid)
+  - [z.date() → zx.date()](#zdate--zxdate)
+  - [zodvexCodec() → zx.codec()](#zodvexcodec--zxcodec)
 - [Upgrading to v0.3.0](#upgrading-to-v030)
   - [zid() Implementation Change](#zid-implementation-change)
   - [zCrud Removal](#zcrud-removal)
   - [skipConvexValidation Behavior Change](#skipconvexvalidation-behavior-change)
+
+---
+
+## Upgrading to the zx Namespace
+
+zodvex now provides the `zx` namespace for explicit, discoverable helpers. The old functions still work but show deprecation warnings.
+
+### zid() → zx.id()
+
+**What changed:**
+
+`zid()` is deprecated in favor of `zx.id()`. The functionality is identical.
+
+**Before:**
+```ts
+import { zid } from 'zodvex'
+
+const schema = z.object({
+  userId: zid('users'),
+  teamId: zid('teams').optional()
+})
+```
+
+**After:**
+```ts
+import { zx } from 'zodvex'
+
+const schema = z.object({
+  userId: zx.id('users'),
+  teamId: zx.id('teams').optional()
+})
+```
+
+### z.date() → zx.date()
+
+**What changed:**
+
+`z.date()` still works but `zx.date()` is now the preferred approach. The `zx.date()` codec makes the Date ↔ timestamp transformation explicit.
+
+**Before:**
+```ts
+const schema = z.object({
+  createdAt: z.date(),
+  updatedAt: z.date().nullable()
+})
+```
+
+**After:**
+```ts
+import { zx } from 'zodvex'
+
+const schema = z.object({
+  createdAt: zx.date(),
+  updatedAt: zx.date().nullable()
+})
+```
+
+**Why the change:**
+
+Using `zx.date()` makes it immediately clear that a wire format transformation is happening (Date ↔ timestamp). This addresses feedback that the "magic" conversion of `z.date()` was unclear.
+
+### zodvexCodec() → zx.codec()
+
+**What changed:**
+
+`zodvexCodec()` is now also available as `zx.codec()` for consistency.
+
+**Before:**
+```ts
+import { zodvexCodec } from 'zodvex'
+
+const myCodec = zodvexCodec(wireSchema, runtimeSchema, transforms)
+```
+
+**After:**
+```ts
+import { zx } from 'zodvex'
+
+const myCodec = zx.codec(wireSchema, runtimeSchema, transforms)
+```
+
+Both forms continue to work - `zx.codec()` is simply an alias for `zodvexCodec()`.
 
 ---
 

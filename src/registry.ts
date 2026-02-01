@@ -98,16 +98,16 @@ export interface JSONSchemaOverrideContext {
  * Override function for z.toJSONSchema that handles zodvex-managed types.
  *
  * Handles:
- * - zid schemas: Converts to { type: "string" } with convexId format
- * - z.date(): Converts to { type: "string", format: "date-time" }
+ * - zx.id() schemas: Converts to { type: "string" } with convexId format
+ * - zx.date(): Converts to { type: "string", format: "date-time" }
  *
  * @example
  * ```ts
  * import { z } from 'zod'
- * import { zid, zodvexJSONSchemaOverride } from 'zodvex'
+ * import { zx, zodvexJSONSchemaOverride } from 'zodvex'
  *
  * const schema = z.object({
- *   userId: zid('users'),
+ *   userId: zx.id('users'),
  *   name: z.string()
  * })
  *
@@ -194,15 +194,15 @@ export interface ToJSONSchemaOptions {
  * Converts a Zod schema to JSON Schema with zodvex-aware overrides.
  *
  * This is a convenience wrapper around z.toJSONSchema that automatically
- * handles zodvex-managed types like zid and dates.
+ * handles zodvex-managed types like zx.id() and zx.date().
  *
  * @example
  * ```ts
- * import { zid, toJSONSchema } from 'zodvex'
+ * import { zx, toJSONSchema } from 'zodvex'
  *
  * const schema = z.object({
- *   userId: zid('users'),
- *   createdAt: z.date(),
+ *   userId: zx.id('users'),
+ *   createdAt: zx.date(),
  *   name: z.string()
  * })
  *
