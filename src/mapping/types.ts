@@ -17,10 +17,107 @@ import type {
 import { z } from 'zod'
 import type { ZodvexWireSchema } from '../types'
 
+// ============================================================================
+// WireInfer - Extract wire types from Zod schemas for Convex document types
+// ============================================================================
+
+/**
+ * Checks if a Zod field type represents an optional field (ZodOptional or ZodDefault).
+ * Used to determine which fields should use TypeScript's optional property syntax (?:).
+ */
+type IsOptionalField<Z> = Z extends z.ZodOptional<any>
+  ? true
+  : Z extends z.ZodDefault<any>
+    ? true
+    : false
+
+/**
+ * Unwraps ZodOptional and ZodDefault to get the inner type.
+ * For ZodOptional<T> -> T
+ * For ZodDefault<T> -> T
+ * For other types -> Z (unchanged)
+ *
+ * Note: Returns the wire-inferred value directly, not a Zod type.
+ * This is used in the context of WireInferObject where we need the
+ * value type, not the schema type.
+ */
+type UnwrapOptionalValue<Z> = Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
+  ? WireInferValue<Inner>
+  : Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
+    ? WireInferValue<Inner>
+    : Z extends z.ZodTypeAny
+      ? WireInferValue<Z>
+      : never
+
+/**
+ * Like WireInfer but doesn't add | undefined for optionals.
+ * Used for extracting field value types in objects where optionality
+ * is expressed via TypeScript's ?: syntax instead of | undefined.
+ *
+ * This distinction is critical for Convex's FieldTypeFromFieldPath:
+ * - { email?: T } allows path extraction to work correctly
+ * - { email: T | undefined } breaks path extraction because undefined
+ *   doesn't extend GenericDocument (Record<string, Value>)
+ */
+type WireInferValue<Z extends z.ZodTypeAny> =
+  // Handle branded zodvex codecs (zx.date(), zx.codec(), etc.)
+  Z extends { readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny }
+    ? z.infer<W>
+    : // Handle native Zod codecs
+      Z extends z.ZodCodec<infer Wire extends z.ZodTypeAny, any>
+      ? z.infer<Wire>
+      : // Recursively process objects to handle nested codecs
+        // Uses the same ?: pattern for nested optional fields
+        Z extends z.ZodObject<infer Shape extends z.ZodRawShape>
+        ? WireInferObject<Shape>
+        : // Handle optionals - DON'T add | undefined here, let ?: handle it
+          Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
+          ? WireInferValue<Inner>
+          : // Handle nullables - DO add | null since this is about value, not presence
+            Z extends z.ZodNullable<infer Inner extends z.ZodTypeAny>
+            ? WireInferValue<Inner> | null
+            : // Handle defaults - unwrap to inner type
+              Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
+              ? WireInferValue<Inner>
+              : // Handle arrays
+                Z extends z.ZodArray<infer Element extends z.ZodTypeAny>
+                ? WireInferValue<Element>[]
+                : // Handle unions
+                  Z extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
+                  ? WireInferValue<Options[number]>
+                  : // Handle records
+                    Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
+                    ? Record<string, WireInferValue<V>>
+                    : // Handle z.date() - wire format is number (timestamp)
+                      Z extends z.ZodDate
+                      ? number
+                      : // Fallback to regular inference for primitives
+                        z.infer<Z>
+
+/**
+ * Builds an object type from a Zod shape using TypeScript's ?: syntax for optional fields.
+ * This ensures Convex's FieldTypeFromFieldPath works correctly with nested paths.
+ *
+ * The key insight: Convex's path extraction checks `FieldValue extends GenericDocument`.
+ * - With { email: T | undefined }, this check fails (undefined doesn't extend Record<string, Value>)
+ * - With { email?: T }, the ?: is just syntax sugar and path extraction works correctly
+ */
+type WireInferObject<Shape extends z.ZodRawShape> = {
+  // Required fields (non-optional, non-default)
+  [K in keyof Shape as IsOptionalField<Shape[K]> extends true
+    ? never
+    : K]: Shape[K] extends z.ZodTypeAny ? WireInferValue<Shape[K]> : never
+} & {
+  // Optional fields with ?: syntax
+  [K in keyof Shape as IsOptionalField<Shape[K]> extends true ? K : never]?: UnwrapOptionalValue<
+    Shape[K]
+  >
+}
+
 /**
  * Recursively extracts the wire/input type from a Zod schema.
  * For codecs (including zx.date()), uses the wire format type.
- * For objects, recursively processes each field.
+ * For objects, recursively processes each field using ?: for optional fields.
  * For other types, falls back to z.infer.
  *
  * This is critical for Convex's GenericDocument constraint - the document type
@@ -35,11 +132,10 @@ type WireInfer<Z extends z.ZodTypeAny> =
       Z extends z.ZodCodec<infer Wire extends z.ZodTypeAny, any>
       ? z.infer<Wire>
       : // Recursively process objects to handle nested codecs
+        // Uses ?: for optional fields to maintain Convex path extraction compatibility
         Z extends z.ZodObject<infer Shape extends z.ZodRawShape>
-        ? {
-            [K in keyof Shape]: Shape[K] extends z.ZodTypeAny ? WireInfer<Shape[K]> : never
-          }
-        : // Handle optionals
+        ? WireInferObject<Shape>
+        : // Handle optionals - add | undefined for standalone optionals (not in object context)
           Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
           ? WireInfer<Inner> | undefined
           : // Handle nullables
@@ -50,13 +146,13 @@ type WireInfer<Z extends z.ZodTypeAny> =
               ? WireInfer<Inner>
               : // Handle arrays
                 Z extends z.ZodArray<infer Element extends z.ZodTypeAny>
-                ? WireInfer<Element>[]
+                ? WireInferValue<Element>[]
                 : // Handle unions
                   Z extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
                   ? WireInfer<Options[number]>
                   : // Handle records
                     Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
-                    ? Record<string, WireInfer<V>>
+                    ? Record<string, WireInferValue<V>>
                     : // Handle z.date() - wire format is number (timestamp)
                       Z extends z.ZodDate
                       ? number
