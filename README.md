@@ -20,6 +20,7 @@ Type-safe Convex functions with Zod schemas. Preserve Convex's optional/nullable
 - [Advanced Usage](#advanced-usage)
   - [Custom Context Builders](#custom-context-builders)
     - [Hooks and Transforms](#hooks-and-transforms)
+  - [Custom Codecs](#custom-codecs)
   - [Date Handling](#date-handling)
   - [Return Type Helpers](#return-type-helpers)
   - [Working with Large Schemas](#working-with-large-schemas)
@@ -520,6 +521,122 @@ transforms: {
   }
 }
 ```
+
+### Custom Codecs
+
+For complex type transformations beyond simple dates, zodvex provides `zodvexCodec` to create custom codecs that automatically work with validator generation and runtime encoding/decoding.
+
+#### When to Use Custom Codecs
+
+- **Sensitive data**: Encrypt/decrypt fields before storage
+- **Complex objects**: Serialize/deserialize custom class instances
+- **Wire format transformations**: Convert between API formats and internal representations
+
+#### Creating a Custom Codec
+
+```ts
+import { z } from 'zod'
+import { zodvexCodec, type ZodvexCodec } from 'zodvex'
+
+// Define wire (storage) and runtime schemas
+type SensitiveCodec = ZodvexCodec<
+  z.ZodObject<{ encrypted: z.ZodString }>,
+  z.ZodCustom<string>
+>
+
+function sensitiveString(): SensitiveCodec {
+  return zodvexCodec(
+    z.object({ encrypted: z.string() }),  // Wire format (stored in Convex)
+    z.custom<string>(() => true),          // Runtime format (used in code)
+    {
+      decode: (wire) => decrypt(wire.encrypted),
+      encode: (value) => ({ encrypted: encrypt(value) })
+    }
+  )
+}
+
+// Use in your schema
+const userShape = {
+  name: z.string(),
+  ssn: sensitiveString()  // Automatically encrypted/decrypted
+}
+```
+
+#### Automatic Codec Detection
+
+zodvex automatically detects `zodvexCodec` and native `z.codec()` instances. No manual registration required:
+
+```ts
+import { zodToConvex, toConvexJS, fromConvexJS } from 'zodvex'
+
+const codec = sensitiveString()
+
+// Validator generation - uses wire schema automatically
+const validator = zodToConvex(codec)
+// → v.object({ encrypted: v.string() })
+
+// Runtime encoding - automatically applies encode transform
+const convexValue = toConvexJS(codec, 'my-secret')
+// → { encrypted: '<encrypted-value>' }
+
+// Runtime decoding - automatically applies decode transform
+const runtimeValue = fromConvexJS(convexValue, codec)
+// → 'my-secret'
+```
+
+#### Nested Codecs
+
+Codecs work correctly when nested in object schemas:
+
+```ts
+const schema = z.object({
+  id: z.string(),
+  secret: sensitiveString(),       // Custom codec
+  createdAt: z.date()              // Built-in Date handling
+})
+
+// All fields automatically encoded/decoded
+const encoded = toConvexJS(schema, {
+  id: 'user-123',
+  secret: 'password',
+  createdAt: new Date()
+})
+// → { id: 'user-123', secret: { encrypted: '...' }, createdAt: 1234567890 }
+```
+
+#### Why `zodvexCodec` Instead of `z.codec`
+
+Use `zodvexCodec` instead of native `z.codec()` for better type inference:
+
+```ts
+// ❌ Type alias loses codec structure
+type MyCodec = z.ZodType<string>
+const codec: MyCodec = z.codec(wire, runtime, transforms)
+zodToConvex(codec)  // → v.any() (type lost)
+
+// ✅ ZodvexCodec preserves wire schema type
+type MyCodec = ZodvexCodec<WireSchema, RuntimeSchema>
+const codec: MyCodec = zodvexCodec(wire, runtime, transforms)
+zodToConvex(codec)  // → v.object({ ... }) (correct inference)
+```
+
+#### Advanced: Custom Type Registration
+
+For types that aren't codecs (like third-party classes), use `registerBaseCodec`:
+
+```ts
+import { registerBaseCodec } from 'zodvex/registry'
+
+// Register handling for a custom class
+registerBaseCodec({
+  check: (schema) => schema instanceof MyCustomZodType,
+  toValidator: (schema) => v.object({ /* ... */ }),
+  toConvex: (value, schema) => serializeMyClass(value),
+  fromConvex: (value, schema) => deserializeMyClass(value)
+})
+```
+
+**Note:** For most use cases, `zodvexCodec` is simpler and preferred over `registerBaseCodec`.
 
 ### Date Handling
 

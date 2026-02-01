@@ -76,7 +76,17 @@ function basicToConvex(value: any): any {
 function schemaToConvex(value: any, schema: any): any {
   if (value === undefined || value === null) return value
 
-  // Check base codec registry first
+  // Check for native ZodCodec first (including zodvexCodec instances)
+  // This allows automatic codec detection without needing registerBaseCodec
+  if (schema instanceof z.ZodCodec) {
+    const wireSchema = (schema as any).def?.in
+    // Use Zod's encode to convert runtime → wire format
+    const wireValue = z.encode(schema, value)
+    // Then convert wire format to Convex-safe JSON
+    return wireSchema ? schemaToConvex(wireValue, wireSchema) : basicToConvex(wireValue)
+  }
+
+  // Check base codec registry for non-codec custom types
   const codec = findBaseCodec(schema)
   if (codec) {
     return codec.toConvex(value, schema)
@@ -150,7 +160,17 @@ function schemaToConvex(value: any, schema: any): any {
 export function fromConvexJS(value: any, schema: any): any {
   if (value === undefined || value === null) return value
 
-  // Check base codec registry first
+  // Check for native ZodCodec first (including zodvexCodec instances)
+  // This allows automatic codec detection without needing registerBaseCodec
+  if (schema instanceof z.ZodCodec) {
+    const wireSchema = (schema as any).def?.in
+    // First convert Convex JSON to wire format
+    const wireValue = wireSchema ? fromConvexJS(value, wireSchema) : value
+    // Then use Zod's parse to decode wire → runtime format
+    return schema.parse(wireValue)
+  }
+
+  // Check base codec registry for non-codec custom types
   const codec = findBaseCodec(schema)
   if (codec) {
     return codec.fromConvex(value, schema)
