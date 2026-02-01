@@ -363,7 +363,7 @@ type UpdateSchemaType<
       ? z.ZodObject<UpdateShape<TableName, Shape>>
       : Schema
 
-// Overload 1: Object shape (most common case)
+// Overload 1: Object shape (most common case - raw object with Zod validators)
 export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
   name: TableName,
   shape: Shape
@@ -407,7 +407,51 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   }
 }
 
-// Overload 2: Union/schema types
+// Overload 2: ZodObject wrapper (extracts shape for same type inference as raw shape)
+export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
+  name: TableName,
+  schema: z.ZodObject<Shape>
+): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
+  shape: Shape
+  zDoc: z.ZodObject<
+    Shape & {
+      _id: ReturnType<typeof zid<TableName>>
+      _creationTime: z.ZodNumber
+    }
+  >
+  docArray: z.ZodArray<
+    z.ZodObject<
+      Shape & {
+        _id: ReturnType<typeof zid<TableName>>
+        _creationTime: z.ZodNumber
+      }
+    >
+  >
+  schema: {
+    doc: z.ZodObject<
+      Shape & {
+        _id: ReturnType<typeof zid<TableName>>
+        _creationTime: z.ZodNumber
+      }
+    >
+    docArray: z.ZodArray<
+      z.ZodObject<
+        Shape & {
+          _id: ReturnType<typeof zid<TableName>>
+          _creationTime: z.ZodNumber
+        }
+      >
+    >
+    /** The base schema - user fields without system fields */
+    base: z.ZodObject<Shape>
+    /** Alias for base - user fields for insert operations */
+    insert: z.ZodObject<Shape>
+    /** Update schema - _id required, _creationTime optional, user fields partial */
+    update: z.ZodObject<UpdateShape<TableName, Shape>>
+  }
+}
+
+// Overload 3: Union/schema types
 export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
   name: TableName,
   schema: Schema
@@ -433,10 +477,14 @@ export function zodTable<
   TableName extends string,
   SchemaOrShape extends z.ZodTypeAny | Record<string, z.ZodTypeAny>
 >(name: TableName, schemaOrShape: SchemaOrShape): any {
-  // Detect if it's an object shape or a schema
-  if (isObjectShape(schemaOrShape)) {
-    // Original object shape logic
-    const shape = schemaOrShape as Record<string, z.ZodTypeAny>
+  // Detect if it's an object shape, ZodObject, or other schema
+  // For ZodObject: extract its shape to use the type-preserving path
+  const isZodObject = schemaOrShape instanceof z.ZodObject
+  if (isObjectShape(schemaOrShape) || isZodObject) {
+    // Extract shape from ZodObject or use raw shape directly
+    const shape = isZodObject
+      ? (schemaOrShape as z.ZodObject<z.ZodRawShape>).shape
+      : (schemaOrShape as Record<string, z.ZodTypeAny>)
 
     // Convert fields with proper types
     const convexFields = zodToConvexFields(shape) as ConvexValidatorFromZodFieldsAuto<typeof shape>
@@ -459,7 +507,7 @@ export function zodTable<
     // Create partial shape for user fields
     const partialShape: Record<string, z.ZodTypeAny> = {}
     for (const [key, value] of Object.entries(shape)) {
-      partialShape[key] = value.optional()
+      partialShape[key] = (value as z.ZodTypeAny).optional()
     }
 
     // Create update schema: _id required, _creationTime optional, user fields partial
