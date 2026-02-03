@@ -603,7 +603,8 @@ const userShape = {
 zodvex automatically detects codecs created with `zx.codec()` and native `z.codec()`. No manual registration required:
 
 ```ts
-import { zodToConvex, toConvexJS, fromConvexJS } from 'zodvex'
+import { z } from 'zod'
+import { zodToConvex } from 'zodvex'
 
 const codec = sensitiveString()
 
@@ -611,12 +612,12 @@ const codec = sensitiveString()
 const validator = zodToConvex(codec)
 // → v.object({ encrypted: v.string() })
 
-// Runtime encoding - automatically applies encode transform
-const convexValue = toConvexJS(codec, 'my-secret')
+// Runtime encoding - use Zod's native z.encode()
+const convexValue = z.encode(codec, 'my-secret')
 // → { encrypted: '<encrypted-value>' }
 
-// Runtime decoding - automatically applies decode transform
-const runtimeValue = fromConvexJS(convexValue, codec)
+// Runtime decoding - use schema.parse()
+const runtimeValue = codec.parse({ encrypted: '<encrypted-value>' })
 // → 'my-secret'
 ```
 
@@ -631,13 +632,17 @@ const schema = z.object({
   createdAt: zx.date()        // Built-in zx.date() codec
 })
 
-// All fields automatically encoded/decoded
-const encoded = toConvexJS(schema, {
+// All fields automatically encoded/decoded using Zod's native functions
+const encoded = z.encode(schema, {
   id: 'user-123',
   secret: 'password',
   createdAt: new Date()
 })
 // → { id: 'user-123', secret: { encrypted: '...' }, createdAt: 1234567890 }
+
+// Decode with schema.parse()
+const decoded = schema.parse(encoded)
+// → { id: 'user-123', secret: 'password', createdAt: Date(...) }
 ```
 
 #### Why `zx.codec()` Instead of `z.codec()`
@@ -655,24 +660,6 @@ type MyCodec = ZodvexCodec<WireSchema, RuntimeSchema>
 const codec: MyCodec = zx.codec(wire, runtime, transforms)
 zodToConvex(codec)  // → v.object({ ... }) (correct inference)
 ```
-
-#### Advanced: Custom Type Registration
-
-For types that aren't codecs (like third-party classes), use `registerBaseCodec`:
-
-```ts
-import { registerBaseCodec } from 'zodvex/registry'
-
-// Register handling for a custom class
-registerBaseCodec({
-  check: (schema) => schema instanceof MyCustomZodType,
-  toValidator: (schema) => v.object({ /* ... */ }),
-  toConvex: (value, schema) => serializeMyClass(value),
-  fromConvex: (value, schema) => deserializeMyClass(value)
-})
-```
-
-**Note:** For most use cases, `zx.codec()` is simpler and preferred over `registerBaseCodec`.
 
 ### Date Handling
 
@@ -747,9 +734,23 @@ export const updateUser = zm({
 - ✅ **`zx.date()`** - When you want automatic conversion and type-safe Date objects (recommended)
 - ⚠️ **`z.string()`** - When you need ISO strings for display/formatting (requires manual parsing)
 
-#### Legacy: z.date() Support
+#### z.date() Is Not Supported
 
-For backwards compatibility, `z.date()` is still supported and will be automatically converted. However, `zx.date()` is preferred for new code as it makes the transformation explicit.
+Using native `z.date()` will throw an error at runtime with guidance to migrate:
+
+```ts
+// ❌ This will throw an error
+const schema = z.object({
+  createdAt: z.date()  // Error: z.date() is not compatible with Convex
+})
+
+// ✅ Use zx.date() instead
+const schema = z.object({
+  createdAt: zx.date()  // Works correctly
+})
+```
+
+**Why?** Convex stores dates as timestamps (numbers), which native `z.date()` cannot parse directly. The `zx.date()` codec handles the timestamp ↔ Date conversion automatically.
 
 ### Return Type Helpers
 
