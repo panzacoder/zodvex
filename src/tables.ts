@@ -2,8 +2,8 @@ import { defineTable } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
-import { zid } from './ids'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
+import { type ZxId, zx } from './zx'
 
 /**
  * Makes all properties of a Zod object shape optional.
@@ -16,7 +16,7 @@ type PartialShape<Shape extends z.ZodRawShape> = {
  * Helper type for Convex system fields added to documents
  */
 type SystemFields<TableName extends string> = {
-  _id: ReturnType<typeof zid<TableName>>
+  _id: ZxId<TableName>
   _creationTime: z.ZodNumber
 }
 
@@ -151,7 +151,7 @@ export function addSystemFields<TableName extends string>(
     const extendedOptions = originalOptions.map((variant: z.ZodTypeAny) => {
       if (variant instanceof z.ZodObject) {
         return variant.extend({
-          _id: zid(tableName),
+          _id: zx.id(tableName),
           _creationTime: z.number()
         })
       }
@@ -164,7 +164,7 @@ export function addSystemFields<TableName extends string>(
   // Handle object schemas
   if (schema instanceof z.ZodObject) {
     return schema.extend({
-      _id: zid(tableName),
+      _id: zx.id(tableName),
       _creationTime: z.number()
     })
   }
@@ -177,7 +177,7 @@ export function addSystemFields<TableName extends string>(
  * System fields added to Convex documents.
  */
 type DocSystemFields<TableName extends string> = {
-  _id: ReturnType<typeof zid<TableName>>
+  _id: ZxId<TableName>
   _creationTime: z.ZodNumber
 }
 /**
@@ -221,7 +221,7 @@ export function zodDoc<TableName extends string, Shape extends z.ZodRawShape>(
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & DocSystemFields<TableName>> {
   return schema.extend({
-    _id: zid(tableName),
+    _id: zx.id(tableName),
     _creationTime: z.number()
   }) as z.ZodObject<Shape & DocSystemFields<TableName>>
 }
@@ -328,7 +328,7 @@ type AddSystemFieldsResult<
  * Update schema shape: _id required, _creationTime optional, user fields partial
  */
 type UpdateShape<TableName extends string, Shape extends z.ZodRawShape> = {
-  _id: ReturnType<typeof zid<TableName>>
+  _id: ZxId<TableName>
   _creationTime: z.ZodOptional<z.ZodNumber>
 } & PartialShape<Shape>
 
@@ -371,14 +371,14 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   shape: Shape
   zDoc: z.ZodObject<
     Shape & {
-      _id: ReturnType<typeof zid<TableName>>
+      _id: ZxId<TableName>
       _creationTime: z.ZodNumber
     }
   >
   docArray: z.ZodArray<
     z.ZodObject<
       Shape & {
-        _id: ReturnType<typeof zid<TableName>>
+        _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
     >
@@ -386,14 +386,14 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   schema: {
     doc: z.ZodObject<
       Shape & {
-        _id: ReturnType<typeof zid<TableName>>
+        _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
     >
     docArray: z.ZodArray<
       z.ZodObject<
         Shape & {
-          _id: ReturnType<typeof zid<TableName>>
+          _id: ZxId<TableName>
           _creationTime: z.ZodNumber
         }
       >
@@ -415,14 +415,14 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
   shape: Shape
   zDoc: z.ZodObject<
     Shape & {
-      _id: ReturnType<typeof zid<TableName>>
+      _id: ZxId<TableName>
       _creationTime: z.ZodNumber
     }
   >
   docArray: z.ZodArray<
     z.ZodObject<
       Shape & {
-        _id: ReturnType<typeof zid<TableName>>
+        _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
     >
@@ -430,14 +430,14 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
   schema: {
     doc: z.ZodObject<
       Shape & {
-        _id: ReturnType<typeof zid<TableName>>
+        _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
     >
     docArray: z.ZodArray<
       z.ZodObject<
         Shape & {
-          _id: ReturnType<typeof zid<TableName>>
+          _id: ZxId<TableName>
           _creationTime: z.ZodNumber
         }
       >
@@ -512,7 +512,7 @@ export function zodTable<
 
     // Create update schema: _id required, _creationTime optional, user fields partial
     const updateSchema = z.object({
-      _id: zid(name),
+      _id: zx.id(name),
       _creationTime: z.number().optional(),
       ...partialShape
     })
@@ -588,7 +588,7 @@ export function zodTable<
           }
           // Add system fields: _id required, _creationTime optional
           return z.object({
-            _id: zid(name),
+            _id: zx.id(name),
             _creationTime: z.number().optional(),
             ...partialShape
           })
@@ -604,7 +604,7 @@ export function zodTable<
       }
       // Add system fields: _id required, _creationTime optional
       updateSchema = z.object({
-        _id: zid(name),
+        _id: zx.id(name),
         _creationTime: z.number().optional(),
         ...partialShape
       })
