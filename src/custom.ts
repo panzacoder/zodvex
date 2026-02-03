@@ -13,10 +13,9 @@ import {
 import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
-import { fromConvexJS, toConvexJS } from './codec'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility } from './types'
-import { handleZodValidationError, pick, validateReturns } from './utils'
+import { assertNoNativeZodDate, handleZodValidationError, pick, validateReturns } from './utils'
 
 /**
  * Hooks for observing the function execution (side effects, no return value).
@@ -357,9 +356,10 @@ export function customFnBuilder<
           )
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
-          const decoded = fromConvexJS(rawArgs, argsSchema)
-          // Always run Zod validation, regardless of skipConvexValidation
-          const parsed = argsSchema.safeParse(decoded)
+          // Check for z.date() usage and guide users to zx.date()
+          assertNoNativeZodDate(argsSchema, 'args')
+          // Zod handles codec transforms natively via safeParse
+          const parsed = argsSchema.safeParse(rawArgs)
           if (!parsed.success) {
             handleZodValidationError(parsed.error, 'args')
           }
@@ -379,6 +379,8 @@ export function customFnBuilder<
           const ret = await handler(finalCtx, finalArgs)
           // Always run Zod return validation when returns schema is provided
           if (returns) {
+            // Check for z.date() usage and guide users to zx.date()
+            assertNoNativeZodDate(returns as z.ZodTypeAny, 'returns')
             // Apply output transform BEFORE validation (converts internal format → wire format)
             // This allows class instances (e.g., SensitiveField) to be converted to plain objects
             // before validation processes them
@@ -386,7 +388,7 @@ export function customFnBuilder<
               ? await added.transforms.output(ret, returns as z.ZodTypeAny)
               : ret
 
-            // Validate using encode (for codecs) with fallback to parse (for transforms)
+            // Validate and encode using z.encode (Zod handles codecs natively)
             const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
             if (added?.hooks?.onSuccess) {
               await added.hooks.onSuccess({
@@ -395,7 +397,7 @@ export function customFnBuilder<
                 result: validated
               })
             }
-            return toConvexJS(returns as z.ZodTypeAny, validated)
+            return validated
           }
           if (added?.hooks?.onSuccess) {
             await added.hooks.onSuccess({ ctx, args: parsed.data, result: ret })
@@ -433,6 +435,8 @@ export function customFnBuilder<
         const ret = await handler(finalCtx, finalArgs)
         // Always run Zod return validation when returns schema is provided
         if (returns) {
+          // Check for z.date() usage and guide users to zx.date()
+          assertNoNativeZodDate(returns as z.ZodTypeAny, 'returns')
           // Apply output transform BEFORE validation (converts internal format → wire format)
           // This allows class instances (e.g., SensitiveField) to be converted to plain objects
           // before validation processes them
@@ -440,12 +444,12 @@ export function customFnBuilder<
             ? await added.transforms.output(ret, returns as z.ZodTypeAny)
             : ret
 
-          // Validate using encode (for codecs) with fallback to parse (for transforms)
+          // Validate and encode using z.encode (Zod handles codecs natively)
           const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
           if (added?.hooks?.onSuccess) {
             await added.hooks.onSuccess({ ctx, args: allArgs, result: validated })
           }
-          return toConvexJS(returns as z.ZodTypeAny, validated)
+          return validated
         }
         if (added?.hooks?.onSuccess) {
           await added.hooks.onSuccess({ ctx, args: allArgs, result: ret })

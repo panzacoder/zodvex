@@ -168,3 +168,80 @@ export function safeOmit(schema: z.ZodObject<any>, mask: Mask): z.ZodObject<any>
   const picked = pickShape(schema, keep)
   return z.object(picked)
 }
+
+/**
+ * Recursively checks if a schema contains native z.date().
+ * Stops recursion at ZodCodec boundaries since codecs handle their own transforms.
+ */
+function containsNativeZodDate(schema: z.ZodTypeAny): boolean {
+  // Check if this is a native ZodDate (not our codec)
+  if (schema instanceof z.ZodDate) {
+    return true
+  }
+
+  // Codecs handle their own transforms - don't recurse into them
+  if (schema instanceof z.ZodCodec) {
+    return false
+  }
+
+  // Recurse into wrappers - cast unwrap result to ZodTypeAny for Zod v4 compatibility
+  if (
+    schema instanceof z.ZodOptional ||
+    schema instanceof z.ZodNullable ||
+    schema instanceof z.ZodDefault
+  ) {
+    return containsNativeZodDate(schema.unwrap() as unknown as z.ZodTypeAny)
+  }
+
+  // Recurse into objects
+  if (schema instanceof z.ZodObject) {
+    return Object.values(schema.shape).some(field => containsNativeZodDate(field as z.ZodTypeAny))
+  }
+
+  // Recurse into arrays - cast element for Zod v4 compatibility
+  if (schema instanceof z.ZodArray) {
+    return containsNativeZodDate(schema.element as unknown as z.ZodTypeAny)
+  }
+
+  // Recurse into unions - cast options for Zod v4 compatibility
+  if (schema instanceof z.ZodUnion) {
+    return (schema.options as unknown as z.ZodTypeAny[]).some(opt => containsNativeZodDate(opt))
+  }
+
+  // Recurse into records - use valueType property (Zod v4)
+  if (schema instanceof z.ZodRecord) {
+    return containsNativeZodDate(schema.valueType as unknown as z.ZodTypeAny)
+  }
+
+  // Recurse into tuples - access items via def (Zod v4)
+  if (schema instanceof z.ZodTuple) {
+    const items = (schema as any).def?.items as z.ZodTypeAny[] | undefined
+    return items ? items.some(item => containsNativeZodDate(item)) : false
+  }
+
+  return false
+}
+
+/**
+ * Throws if schema contains native z.date() which isn't compatible with Convex.
+ * Guides users to use zx.date() instead.
+ *
+ * @param schema - The Zod schema to check
+ * @param context - Context for the error message (args, returns, schema)
+ * @throws Error with migration guidance if z.date() is found
+ */
+export function assertNoNativeZodDate(
+  schema: z.ZodTypeAny,
+  context: 'args' | 'returns' | 'schema'
+): void {
+  if (containsNativeZodDate(schema)) {
+    throw new Error(
+      `[zodvex] Native z.date() found in ${context}. ` +
+        `Convex stores dates as timestamps (numbers), which z.date() cannot parse.\n\n` +
+        `Fix: Replace z.date() with zx.date()\n\n` +
+        `Before: { createdAt: z.date() }\n` +
+        `After:  { createdAt: zx.date() }\n\n` +
+        `zx.date() is a codec that handles timestamp ↔ Date conversion automatically.`
+    )
+  }
+}

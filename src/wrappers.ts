@@ -6,7 +6,6 @@ import type {
 } from 'convex/server'
 import { ConvexError } from 'convex/values'
 import { z } from 'zod'
-import { fromConvexJS, toConvexJS } from './codec'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 // Typing helpers to keep handler args/returns precise without deep remapping
 import type {
@@ -16,7 +15,7 @@ import type {
   InferReturns,
   ZodToConvexArgs
 } from './types'
-import { handleZodValidationError, validateReturns } from './utils'
+import { assertNoNativeZodDate, handleZodValidationError, validateReturns } from './utils'
 
 // Cache to avoid re-checking the same schema
 const customCheckCache = new WeakMap<z.ZodTypeAny, boolean>()
@@ -94,21 +93,24 @@ export function zQuery<
     args,
     returns,
     handler: async (ctx: any, argsObject: unknown) => {
-      const decoded = fromConvexJS(argsObject, zodSchema)
+      // Check for z.date() usage and guide users to zx.date()
+      assertNoNativeZodDate(zodSchema, 'args')
+      // Zod handles codec transforms natively via parse
       let parsed: any
       try {
-        parsed = zodSchema.parse(decoded) as any
+        parsed = zodSchema.parse(argsObject) as any
       } catch (e) {
         handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        // Validate using encode (for codecs) with fallback to parse (for transforms)
+        // Check for z.date() usage in returns
+        assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+        // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
-        return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        return validated
       }
-      // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
-      return toConvexJS(raw) as any
+      return raw as any
     }
   }) as any
 }
@@ -165,21 +167,24 @@ export function zMutation<
     args,
     returns,
     handler: async (ctx: any, argsObject: unknown) => {
-      const decoded = fromConvexJS(argsObject, zodSchema)
+      // Check for z.date() usage and guide users to zx.date()
+      assertNoNativeZodDate(zodSchema, 'args')
+      // Zod handles codec transforms natively via parse
       let parsed: any
       try {
-        parsed = zodSchema.parse(decoded) as any
+        parsed = zodSchema.parse(argsObject) as any
       } catch (e) {
         handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        // Validate using encode (for codecs) with fallback to parse (for transforms)
+        // Check for z.date() usage in returns
+        assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+        // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
-        return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        return validated
       }
-      // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
-      return toConvexJS(raw) as any
+      return raw as any
     }
   }) as any
 }
@@ -236,21 +241,24 @@ export function zAction<
     args,
     returns,
     handler: async (ctx: any, argsObject: unknown) => {
-      const decoded = fromConvexJS(argsObject, zodSchema)
+      // Check for z.date() usage and guide users to zx.date()
+      assertNoNativeZodDate(zodSchema, 'args')
+      // Zod handles codec transforms natively via parse
       let parsed: any
       try {
-        parsed = zodSchema.parse(decoded) as any
+        parsed = zodSchema.parse(argsObject) as any
       } catch (e) {
         handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        // Validate using encode (for codecs) with fallback to parse (for transforms)
+        // Check for z.date() usage in returns
+        assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+        // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
-        return toConvexJS(options.returns as z.ZodTypeAny, validated)
+        return validated
       }
-      // Fallback: ensure Convex-safe return values (e.g., Date → timestamp)
-      return toConvexJS(raw) as any
+      return raw as any
     }
   }) as any
 }

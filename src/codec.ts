@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { zodToConvex } from './mapping'
-import { findBaseCodec, isDateSchema } from './registry'
 import { type ZodvexCodec } from './types'
 
 // Re-export ZodvexCodec type for convenience
@@ -23,8 +22,8 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
 
   return {
     validator,
-    encode: (value: T) => toConvexJS(schema, value),
-    decode: (value: any) => fromConvexJS(value, schema),
+    encode: (value: T) => z.encode(schema, value),
+    decode: (value: any) => schema.parse(value),
     pick: <K extends keyof T>(keys: K[] | Record<K, true>) => {
       if (!(schema instanceof z.ZodObject)) {
         throw new Error('pick() can only be called on object schemas')
@@ -40,7 +39,8 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
 }
 
 // Convert JS values to Convex-safe JSON (handle Dates, remove undefined)
-export function toConvexJS(schema?: any, value?: any): any {
+// NOTE: This is an internal function. Use z.encode() for encoding instead.
+function toConvexJS(schema?: any, value?: any): any {
   // If no schema provided, do basic conversion
   if (!schema || arguments.length === 1) {
     value = schema
@@ -77,19 +77,12 @@ function schemaToConvex(value: any, schema: any): any {
   if (value === undefined || value === null) return value
 
   // Check for native ZodCodec first (including zodvexCodec instances)
-  // This allows automatic codec detection without needing registerBaseCodec
   if (schema instanceof z.ZodCodec) {
     const wireSchema = (schema as any).def?.in
     // Use Zod's encode to convert runtime → wire format
     const wireValue = z.encode(schema, value)
     // Then convert wire format to Convex-safe JSON
     return wireSchema ? schemaToConvex(wireValue, wireSchema) : basicToConvex(wireValue)
-  }
-
-  // Check base codec registry for non-codec custom types
-  const codec = findBaseCodec(schema)
-  if (codec) {
-    return codec.toConvex(value, schema)
   }
 
   // Handle wrapper types
@@ -157,23 +150,17 @@ function schemaToConvex(value: any, schema: any): any {
 }
 
 // Convert Convex JSON back to JS values (handle timestamps -> Dates)
-export function fromConvexJS(value: any, schema: any): any {
+// NOTE: This is an internal function. Use schema.parse() for decoding instead.
+function fromConvexJS(value: any, schema: any): any {
   if (value === undefined || value === null) return value
 
   // Check for native ZodCodec first (including zodvexCodec instances)
-  // This allows automatic codec detection without needing registerBaseCodec
   if (schema instanceof z.ZodCodec) {
     const wireSchema = (schema as any).def?.in
     // First convert Convex JSON to wire format
     const wireValue = wireSchema ? fromConvexJS(value, wireSchema) : value
     // Then use Zod's parse to decode wire → runtime format
     return schema.parse(wireValue)
-  }
-
-  // Check base codec registry for non-codec custom types
-  const codec = findBaseCodec(schema)
-  if (codec) {
-    return codec.fromConvex(value, schema)
   }
 
   // Handle wrapper types
@@ -187,13 +174,8 @@ export function fromConvexJS(value: any, schema: any): any {
     return fromConvexJS(value, asZodType(inner))
   }
 
-  // Handle Date specifically
+  // Handle Date specifically (note: z.date() will be caught by assertNoNativeZodDate)
   if (schema instanceof z.ZodDate && typeof value === 'number') {
-    return new Date(value)
-  }
-
-  // Check if schema is a Date through effects/transforms
-  if (isDateSchema(schema) && typeof value === 'number') {
     return new Date(value)
   }
 

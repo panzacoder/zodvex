@@ -2,7 +2,6 @@ import type { GenericValidator, PropertyValidators } from 'convex/values'
 import { v } from 'convex/values'
 import { z } from 'zod'
 import { registryHelpers } from '../ids'
-import { findBaseCodec } from '../registry'
 import {
   convertDiscriminatedUnionType,
   convertEnumType,
@@ -195,18 +194,24 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
             convexValidator = v.any()
           }
         } else {
-          // Check for registered codec from the registry
-          const codec = findBaseCodec(actualValidator)
-          if (codec) {
-            convexValidator = codec.toValidator(actualValidator)
+          // Check for brand metadata
+          const metadata = registryHelpers.getMetadata(actualValidator)
+          if (metadata?.brand && metadata?.originalSchema) {
+            // For branded types created by our zBrand function, use the original schema
+            convexValidator = zodToConvexInternal(metadata.originalSchema, visited)
           } else {
-            // Check for brand metadata
-            const metadata = registryHelpers.getMetadata(actualValidator)
-            if (metadata?.brand && metadata?.originalSchema) {
-              // For branded types created by our zBrand function, use the original schema
-              convexValidator = zodToConvexInternal(metadata.originalSchema, visited)
+            // Non-codec transform - extract input schema but warn
+            const inputSchema = (actualValidator as any).def?.in
+            if (inputSchema && inputSchema instanceof z.ZodType) {
+              if (process.env.NODE_ENV !== 'production') {
+                console.warn(
+                  '[zodvex] z.transform() detected. Using input schema for Convex validation.\n' +
+                    'Transforms are unidirectional - they work for parsing but not encoding.\n' +
+                    'For bidirectional transforms, use zx.codec() instead.'
+                )
+              }
+              convexValidator = zodToConvexInternal(inputSchema, visited)
             } else {
-              // For non-registered transforms, return v.any()
               convexValidator = v.any()
             }
           }

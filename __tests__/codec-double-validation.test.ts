@@ -1,17 +1,16 @@
 /**
- * Reproduction test for double-validation bug in custom builders.
+ * Tests for codec-first architecture.
  *
- * Issue: Custom builders call both fromConvexJS() and argsSchema.safeParse()
- * on mutation args. For ZodCodec fields where the runtime class stores data
- * internally (not as properties matching wire schema), the second validation
- * fails because Zod tries to validate the runtime instance as wire format.
+ * Verifies that Zod's native codec handling works correctly for all patterns:
+ * - schema.safeParse(wireArgs) decodes wire → runtime
+ * - z.encode(schema, runtimeValue) encodes runtime → wire
  *
- * @see 2026-02-02-custom-builder-double-codec-validation.md
+ * @see docs/plans/2026-02-02-codec-first-simplification.md
  */
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { fromConvexJS, zodvexCodec } from '../src'
+import { zodvexCodec } from '../src'
 
 // ============================================================================
 // Test Setup: Codec that stores value internally (like SensitiveField)
@@ -100,7 +99,7 @@ function createSensitiveCodec<T extends z.ZodTypeAny>(inner: T) {
 }
 
 // ============================================================================
-// Also test: Simple wrapper that exposes value as property (should work)
+// Also test: Simple wrapper that exposes value as property
 // ============================================================================
 
 class SimpleWrapper<T> {
@@ -134,11 +133,10 @@ const createSimpleCodec = <T extends z.ZodTypeAny>(inner: T) =>
   )
 
 // ============================================================================
-// Bug Reproduction Tests
+// Codec-First Tests: Verify Zod handles codecs natively
 // ============================================================================
 
-describe('ZodCodec double-validation bug', () => {
-  // Sensitive codec: stores value in WeakMap (like hotpot's SensitiveField)
+describe('Codec-first: safeParse decodes wire → runtime', () => {
   const sensitiveString = createSensitiveCodec(z.string())
 
   const sensitiveSchema = z.object({
@@ -147,7 +145,6 @@ describe('ZodCodec double-validation bug', () => {
     firstName: sensitiveString.optional()
   })
 
-  // Simple codec: exposes value as property (works with double validation)
   const simpleString = createSimpleCodec(z.string())
 
   const simpleSchema = z.object({
@@ -155,186 +152,221 @@ describe('ZodCodec double-validation bug', () => {
     wrapped: simpleString.optional()
   })
 
-  describe('fromConvexJS correctly decodes wire → runtime', () => {
-    it('decodes sensitive codec to SensitiveWrapper', () => {
-      const wireArgs = {
-        clinicId: 'clinic-1',
-        email: { value: 'test@example.com', status: 'full' as const },
-        firstName: { value: 'John', status: 'full' as const }
-      }
+  it('parses wire format directly to SensitiveWrapper', () => {
+    const wireArgs = {
+      clinicId: 'clinic-1',
+      email: { value: 'test@example.com', status: 'full' as const },
+      firstName: { value: 'John', status: 'full' as const }
+    }
 
-      const decoded = fromConvexJS(wireArgs, sensitiveSchema)
+    const result = sensitiveSchema.safeParse(wireArgs)
 
-      expect(decoded.clinicId).toBe('clinic-1')
-      expect(decoded.email).toBeInstanceOf(SensitiveWrapper)
-      expect(decoded.email?.expose()).toBe('test@example.com')
-      expect(decoded.firstName).toBeInstanceOf(SensitiveWrapper)
-      expect(decoded.firstName?.expose()).toBe('John')
-    })
-
-    it('decodes simple codec to SimpleWrapper', () => {
-      const wireArgs = {
-        name: 'test',
-        wrapped: { value: 'hello', meta: 'some-metadata' }
-      }
-
-      const decoded = fromConvexJS(wireArgs, simpleSchema)
-
-      expect(decoded.name).toBe('test')
-      expect(decoded.wrapped).toBeInstanceOf(SimpleWrapper)
-      expect(decoded.wrapped?.value).toBe('hello')
-    })
-
-    it('handles missing optional codec fields', () => {
-      const wireArgs = { clinicId: 'clinic-1' }
-
-      const decoded = fromConvexJS(wireArgs, sensitiveSchema)
-
-      expect(decoded.clinicId).toBe('clinic-1')
-      expect(decoded.email).toBeUndefined()
-      expect(decoded.firstName).toBeUndefined()
-    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.clinicId).toBe('clinic-1')
+      expect(result.data.email).toBeInstanceOf(SensitiveWrapper)
+      expect(result.data.email?.expose()).toBe('test@example.com')
+      expect(result.data.firstName).toBeInstanceOf(SensitiveWrapper)
+      expect(result.data.firstName?.expose()).toBe('John')
+    }
   })
 
-  describe('FAILING: safeParse on already-decoded data should work', () => {
-    it('should succeed when parsing decoded SensitiveWrapper', () => {
-      const wireArgs = {
-        clinicId: 'clinic-1',
-        email: { value: 'test@example.com', status: 'full' as const },
-        firstName: { value: 'John', status: 'full' as const }
-      }
+  it('parses wire format directly to SimpleWrapper', () => {
+    const wireArgs = {
+      name: 'test',
+      wrapped: { value: 'hello', meta: 'some-metadata' }
+    }
 
-      // Step 1: Decode wire → runtime (this works)
-      const decoded = fromConvexJS(wireArgs, sensitiveSchema)
-      expect(decoded.email).toBeInstanceOf(SensitiveWrapper)
-      expect(decoded.firstName).toBeInstanceOf(SensitiveWrapper)
+    const result = simpleSchema.safeParse(wireArgs)
 
-      // Step 2: safeParse on decoded data
-      // BUG: Currently fails because codec tries to re-validate as wire format
-      // EXPECTED: Should succeed - data is already decoded and valid
-      const result = sensitiveSchema.safeParse(decoded)
-
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.email).toBeInstanceOf(SensitiveWrapper)
-        expect(result.data.email?.expose()).toBe('test@example.com')
-        expect(result.data.firstName).toBeInstanceOf(SensitiveWrapper)
-        expect(result.data.firstName?.expose()).toBe('John')
-      }
-    })
-
-    it('should work in zCustomMutationBuilder flow (fromConvexJS then safeParse)', () => {
-      const wireArgs = {
-        clinicId: 'clinic-1',
-        email: { value: 'test@example.com', status: 'full' as const }
-      }
-
-      // This is what zCustomMutationBuilder does in src/custom.ts:360-364
-      const decoded = fromConvexJS(wireArgs, sensitiveSchema)
-      const parsed = sensitiveSchema.safeParse(decoded)
-
-      // EXPECTED: Should succeed after fix
-      expect(parsed.success).toBe(true)
-      if (parsed.success) {
-        expect(parsed.data.email).toBeInstanceOf(SensitiveWrapper)
-      }
-    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.name).toBe('test')
+      expect(result.data.wrapped).toBeInstanceOf(SimpleWrapper)
+      expect(result.data.wrapped?.value).toBe('hello')
+    }
   })
 
-  describe('OK: safeParse on simple codec (value as property) works', () => {
-    it('succeeds when runtime class exposes value as property', () => {
-      const wireArgs = {
-        name: 'test',
-        wrapped: { value: 'hello' }
-      }
+  it('handles missing optional codec fields', () => {
+    const wireArgs = { clinicId: 'clinic-1' }
 
-      // Step 1: Decode
-      const decoded = fromConvexJS(wireArgs, simpleSchema)
-      expect(decoded.wrapped).toBeInstanceOf(SimpleWrapper)
+    const result = sensitiveSchema.safeParse(wireArgs)
 
-      // Step 2: safeParse on decoded data
-      // This works because SimpleWrapper.value is a public property
-      const result = simpleSchema.safeParse(decoded)
-
-      // This passes because the codec can read .value from the instance
-      expect(result.success).toBe(true)
-    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.clinicId).toBe('clinic-1')
+      expect(result.data.email).toBeUndefined()
+      expect(result.data.firstName).toBeUndefined()
+    }
   })
 
-  describe('Direct parse of wire format always works', () => {
-    it('sensitiveSchema.parse() on wire format works', () => {
-      const wireArgs = {
-        clinicId: 'clinic-1',
-        email: { value: 'test@example.com', status: 'full' as const }
-      }
+  it('handles hidden sensitive fields', () => {
+    const wireArgs = {
+      clinicId: 'clinic-1',
+      email: { value: null, status: 'hidden' as const, reason: 'no_access' }
+    }
 
-      const result = sensitiveSchema.parse(wireArgs)
+    const result = sensitiveSchema.safeParse(wireArgs)
 
-      expect(result.clinicId).toBe('clinic-1')
-      expect(result.email).toBeInstanceOf(SensitiveWrapper)
-      expect(result.email?.expose()).toBe('test@example.com')
-    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.email).toBeInstanceOf(SensitiveWrapper)
+      expect(result.data.email?.status).toBe('hidden')
+    }
+  })
+})
+
+describe('Codec-first: z.encode encodes runtime → wire', () => {
+  const sensitiveString = createSensitiveCodec(z.string())
+
+  const sensitiveSchema = z.object({
+    clinicId: z.string(),
+    email: sensitiveString.optional(),
+    firstName: sensitiveString.optional()
   })
 
-  describe('FAILING: Nested and array sensitive codec scenarios', () => {
-    const nestedSchema = z.object({
-      patient: z.object({
-        ssn: sensitiveString
-      })
-    })
+  const simpleString = createSimpleCodec(z.string())
 
-    it('should work with nested sensitive codec after fromConvexJS', () => {
-      const wireArgs = {
-        patient: {
-          ssn: { value: '123-45-6789', status: 'full' as const }
-        }
-      }
+  const simpleSchema = z.object({
+    name: z.string(),
+    wrapped: simpleString.optional()
+  })
 
-      const decoded = fromConvexJS(wireArgs, nestedSchema)
-      expect(decoded.patient.ssn).toBeInstanceOf(SensitiveWrapper)
+  it('encodes SensitiveWrapper to wire format', () => {
+    const runtimeValue = {
+      clinicId: 'clinic-1',
+      email: SensitiveWrapper.full('test@example.com'),
+      firstName: SensitiveWrapper.full('John')
+    }
 
-      // EXPECTED: Should succeed after fix
-      const result = nestedSchema.safeParse(decoded)
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.patient.ssn).toBeInstanceOf(SensitiveWrapper)
-        expect(result.data.patient.ssn.expose()).toBe('123-45-6789')
-      }
-    })
+    const wire = z.encode(sensitiveSchema, runtimeValue)
 
-    const arraySchema = z.object({
-      secrets: z.array(sensitiveString)
-    })
+    expect(wire.clinicId).toBe('clinic-1')
+    expect(wire.email).toEqual({ value: 'test@example.com', status: 'full' })
+    expect(wire.firstName).toEqual({ value: 'John', status: 'full' })
+  })
 
-    it('should work with array of sensitive codecs after fromConvexJS', () => {
-      const wireArgs = {
-        secrets: [
-          { value: 'secret1', status: 'full' as const },
-          { value: 'secret2', status: 'full' as const }
-        ]
-      }
+  it('encodes SimpleWrapper to wire format', () => {
+    const runtimeValue = {
+      name: 'test',
+      wrapped: new SimpleWrapper('hello', 'some-metadata')
+    }
 
-      const decoded = fromConvexJS(wireArgs, arraySchema)
-      expect(decoded.secrets[0]).toBeInstanceOf(SensitiveWrapper)
-      expect(decoded.secrets[1]).toBeInstanceOf(SensitiveWrapper)
+    const wire = z.encode(simpleSchema, runtimeValue)
 
-      // EXPECTED: Should succeed after fix
-      const result = arraySchema.safeParse(decoded)
-      expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.secrets[0]).toBeInstanceOf(SensitiveWrapper)
-        expect(result.data.secrets[0].expose()).toBe('secret1')
-        expect(result.data.secrets[1].expose()).toBe('secret2')
-      }
+    expect(wire.name).toBe('test')
+    expect(wire.wrapped).toEqual({ value: 'hello', meta: 'some-metadata' })
+  })
+
+  it('handles undefined optional codec fields in encode', () => {
+    const runtimeValue = {
+      clinicId: 'clinic-1'
+    }
+
+    const wire = z.encode(sensitiveSchema, runtimeValue)
+
+    expect(wire.clinicId).toBe('clinic-1')
+    expect(wire.email).toBeUndefined()
+    expect(wire.firstName).toBeUndefined()
+  })
+
+  it('encodes hidden sensitive fields', () => {
+    const runtimeValue = {
+      clinicId: 'clinic-1',
+      email: SensitiveWrapper.hidden<string>('email', 'no_access')
+    }
+
+    const wire = z.encode(sensitiveSchema, runtimeValue)
+
+    expect(wire.email).toEqual({
+      value: null,
+      status: 'hidden',
+      __sensitiveField: 'email',
+      reason: 'no_access'
     })
   })
 })
 
-// ============================================================================
-// Additional Edge Cases (for comprehensive fix verification)
-// ============================================================================
+describe('Codec-first: Nested codec scenarios', () => {
+  const sensitiveString = createSensitiveCodec(z.string())
 
-describe('Edge cases for fix verification', () => {
+  const nestedSchema = z.object({
+    patient: z.object({
+      ssn: sensitiveString
+    })
+  })
+
+  it('parses nested codec from wire format', () => {
+    const wireArgs = {
+      patient: {
+        ssn: { value: '123-45-6789', status: 'full' as const }
+      }
+    }
+
+    const result = nestedSchema.safeParse(wireArgs)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.patient.ssn).toBeInstanceOf(SensitiveWrapper)
+      expect(result.data.patient.ssn.expose()).toBe('123-45-6789')
+    }
+  })
+
+  it('encodes nested codec to wire format', () => {
+    const runtimeValue = {
+      patient: {
+        ssn: SensitiveWrapper.full('123-45-6789')
+      }
+    }
+
+    const wire = z.encode(nestedSchema, runtimeValue)
+
+    expect(wire.patient.ssn).toEqual({ value: '123-45-6789', status: 'full' })
+  })
+})
+
+describe('Codec-first: Array of codecs', () => {
+  const sensitiveString = createSensitiveCodec(z.string())
+
+  const arraySchema = z.object({
+    secrets: z.array(sensitiveString)
+  })
+
+  it('parses array of codecs from wire format', () => {
+    const wireArgs = {
+      secrets: [
+        { value: 'secret1', status: 'full' as const },
+        { value: 'secret2', status: 'full' as const }
+      ]
+    }
+
+    const result = arraySchema.safeParse(wireArgs)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.secrets).toHaveLength(2)
+      expect(result.data.secrets[0]).toBeInstanceOf(SensitiveWrapper)
+      expect(result.data.secrets[0].expose()).toBe('secret1')
+      expect(result.data.secrets[1]).toBeInstanceOf(SensitiveWrapper)
+      expect(result.data.secrets[1].expose()).toBe('secret2')
+    }
+  })
+
+  it('encodes array of codecs to wire format', () => {
+    const runtimeValue = {
+      secrets: [SensitiveWrapper.full('secret1'), SensitiveWrapper.full('secret2')]
+    }
+
+    const wire = z.encode(arraySchema, runtimeValue)
+
+    expect(wire.secrets).toEqual([
+      { value: 'secret1', status: 'full' },
+      { value: 'secret2', status: 'full' }
+    ])
+  })
+})
+
+describe('Codec-first: Round-trip verification', () => {
   const sensitiveString = createSensitiveCodec(z.string())
 
   const schema = z.object({
@@ -342,44 +374,273 @@ describe('Edge cases for fix verification', () => {
     email: sensitiveString.optional()
   })
 
-  it('should preserve validation errors for non-codec fields', () => {
-    // Non-codec field has wrong type
-    const wireArgs = {
-      clinicId: 123,
+  it('wire → runtime → wire round-trip preserves data', () => {
+    const originalWire = {
+      clinicId: 'clinic-1',
       email: { value: 'test@example.com', status: 'full' as const }
     }
 
-    // fromConvexJS may or may not throw here depending on implementation
-    // The key is that validation should catch the clinicId type error
-    try {
-      const decoded = fromConvexJS(wireArgs, schema)
-      const parsed = schema.safeParse(decoded)
-      expect(parsed.success).toBe(false)
-      if (!parsed.success) {
-        // Should have error on clinicId, not on email
-        const paths = parsed.error.issues.map(i => i.path.join('.'))
-        expect(paths).toContain('clinicId')
-      }
-    } catch {
-      // Also acceptable if fromConvexJS throws on type mismatch
+    // Decode: wire → runtime
+    const parseResult = schema.safeParse(originalWire)
+    expect(parseResult.success).toBe(true)
+    if (!parseResult.success) return
+
+    const runtime = parseResult.data
+
+    // Encode: runtime → wire
+    const encodedWire = z.encode(schema, runtime)
+
+    // Verify round-trip
+    expect(encodedWire.clinicId).toBe(originalWire.clinicId)
+    expect(encodedWire.email).toEqual(originalWire.email)
+  })
+
+  it('runtime → wire → runtime round-trip preserves data', () => {
+    const originalRuntime = {
+      clinicId: 'clinic-1',
+      email: SensitiveWrapper.full('test@example.com')
+    }
+
+    // Encode: runtime → wire
+    const wire = z.encode(schema, originalRuntime)
+
+    // Decode: wire → runtime
+    const parseResult = schema.safeParse(wire)
+    expect(parseResult.success).toBe(true)
+    if (!parseResult.success) return
+
+    const decoded = parseResult.data
+
+    // Verify round-trip
+    expect(decoded.clinicId).toBe(originalRuntime.clinicId)
+    expect(decoded.email).toBeInstanceOf(SensitiveWrapper)
+    expect(decoded.email?.expose()).toBe('test@example.com')
+  })
+})
+
+describe('Codec-first: Validation errors preserved', () => {
+  const sensitiveString = createSensitiveCodec(z.string())
+
+  const schema = z.object({
+    clinicId: z.string(),
+    email: sensitiveString.optional()
+  })
+
+  it('preserves validation errors for non-codec fields', () => {
+    const wireArgs = {
+      clinicId: 123, // Wrong type
+      email: { value: 'test@example.com', status: 'full' as const }
+    }
+
+    const result = schema.safeParse(wireArgs)
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const paths = result.error.issues.map(i => i.path.join('.'))
+      expect(paths).toContain('clinicId')
     }
   })
 
-  it('should handle hidden sensitive fields correctly', () => {
+  it('preserves validation errors for invalid codec wire format', () => {
     const wireArgs = {
       clinicId: 'clinic-1',
-      email: { value: null, status: 'hidden' as const, reason: 'no_access' }
+      email: { value: 'test@example.com', status: 'invalid_status' } // Invalid status
     }
 
-    const decoded = fromConvexJS(wireArgs, schema)
-    expect(decoded.email).toBeInstanceOf(SensitiveWrapper)
-    expect(decoded.email?.status).toBe('hidden')
+    const result = schema.safeParse(wireArgs)
 
-    // EXPECTED: Should succeed after fix
-    const result = schema.safeParse(decoded)
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.email?.status).toBe('hidden')
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const paths = result.error.issues.map(i => i.path.join('.'))
+      expect(paths.some(p => p.startsWith('email'))).toBe(true)
     }
+  })
+})
+
+// ============================================================================
+// Verify Zod Native Behavior Matches fromConvexJS Semantics
+// ============================================================================
+// These tests verify that switching from fromConvexJS to schema.safeParse()
+// won't change behavior for edge cases around optional fields and nested codecs.
+
+describe('Verify Zod native behavior matches fromConvexJS semantics', () => {
+  describe('Optional field handling', () => {
+    const schema = z.object({
+      required: z.string(),
+      optional: z.string().optional()
+    })
+
+    it('should NOT include missing optional keys in output (matches fromConvexJS)', () => {
+      // fromConvexJS only iterates Object.entries(value), so missing keys stay missing
+      // Zod should behave the same way
+      const input = { required: 'hello' } // 'optional' key is missing
+
+      const result = schema.safeParse(input)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        // Key should NOT be present (not even as undefined)
+        expect('optional' in result.data).toBe(false)
+        // Object.keys should only have 'required'
+        expect(Object.keys(result.data)).toEqual(['required'])
+      }
+    })
+
+    it('should preserve explicit undefined values', () => {
+      // When undefined is explicitly set, it should be preserved
+      const input = { required: 'hello', optional: undefined }
+
+      const result = schema.safeParse(input)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        // Explicit undefined may or may not be preserved - document actual behavior
+        // This test documents whatever Zod's actual behavior is
+        console.log('Explicit undefined preserved:', 'optional' in result.data)
+      }
+    })
+
+    it('should handle optional codec fields the same as optional primitives', () => {
+      const sensitiveString = createSensitiveCodec(z.string())
+      const schemaWithCodec = z.object({
+        required: z.string(),
+        sensitive: sensitiveString.optional()
+      })
+
+      const input = { required: 'hello' } // 'sensitive' key is missing
+
+      const result = schemaWithCodec.safeParse(input)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        // Missing optional codec field should also NOT be in output
+        expect('sensitive' in result.data).toBe(false)
+        expect(Object.keys(result.data)).toEqual(['required'])
+      }
+    })
+  })
+
+  describe('Nested codec in wire schema', () => {
+    // This tests whether Zod handles codecs inside other codecs' wire schemas
+    // fromConvexJS recursively processes wireSchema before parsing
+
+    // Create a date codec similar to zx.date()
+    const dateCodec = zodvexCodec(
+      z.number(), // Wire: timestamp
+      z.custom<Date>(val => val instanceof Date),
+      {
+        decode: (ts: number) => new Date(ts),
+        encode: (date: Date) => date.getTime()
+      }
+    )
+
+    it('should handle codec inside another codec wire schema', () => {
+      // Outer codec whose wire schema contains the date codec
+      const outerCodec = zodvexCodec(
+        z.object({
+          when: dateCodec,
+          label: z.string()
+        }),
+        z.custom<{ when: Date; label: string }>(),
+        {
+          decode: wire => ({ when: wire.when, label: wire.label }),
+          encode: runtime => ({ when: runtime.when, label: runtime.label })
+        }
+      )
+
+      const schema = z.object({
+        event: outerCodec
+      })
+
+      // Wire data with timestamp (not Date object)
+      const wireData = {
+        event: {
+          when: 1706832000000, // Timestamp
+          label: 'Meeting'
+        }
+      }
+
+      const result = schema.safeParse(wireData)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        // The nested dateCodec should have decoded the timestamp to Date
+        expect(result.data.event.when).toBeInstanceOf(Date)
+        expect(result.data.event.when.getTime()).toBe(1706832000000)
+        expect(result.data.event.label).toBe('Meeting')
+      }
+    })
+
+    it('should encode nested codecs correctly', () => {
+      const outerCodec = zodvexCodec(
+        z.object({
+          when: dateCodec,
+          label: z.string()
+        }),
+        z.custom<{ when: Date; label: string }>(),
+        {
+          decode: wire => ({ when: wire.when, label: wire.label }),
+          encode: runtime => ({ when: runtime.when, label: runtime.label })
+        }
+      )
+
+      const schema = z.object({
+        event: outerCodec
+      })
+
+      const runtimeData = {
+        event: {
+          when: new Date(1706832000000),
+          label: 'Meeting'
+        }
+      }
+
+      const wire = z.encode(schema, runtimeData)
+
+      // The nested dateCodec should have encoded the Date to timestamp
+      expect(wire.event.when).toBe(1706832000000)
+      expect(wire.event.label).toBe('Meeting')
+    })
+  })
+
+  describe('Record with codec values', () => {
+    const sensitiveString = createSensitiveCodec(z.string())
+
+    const recordSchema = z.object({
+      fields: z.record(z.string(), sensitiveString)
+    })
+
+    it('should parse record with codec values', () => {
+      const wireData = {
+        fields: {
+          email: { value: 'test@example.com', status: 'full' as const },
+          phone: { value: '555-1234', status: 'full' as const }
+        }
+      }
+
+      const result = recordSchema.safeParse(wireData)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.fields.email).toBeInstanceOf(SensitiveWrapper)
+        expect(result.data.fields.email.expose()).toBe('test@example.com')
+        expect(result.data.fields.phone).toBeInstanceOf(SensitiveWrapper)
+        expect(result.data.fields.phone.expose()).toBe('555-1234')
+      }
+    })
+
+    it('should encode record with codec values', () => {
+      const runtimeData = {
+        fields: {
+          email: SensitiveWrapper.full('test@example.com'),
+          phone: SensitiveWrapper.full('555-1234')
+        }
+      }
+
+      const wire = z.encode(recordSchema, runtimeData)
+
+      expect(wire.fields.email).toEqual({ value: 'test@example.com', status: 'full' })
+      expect(wire.fields.phone).toEqual({ value: '555-1234', status: 'full' })
+    })
   })
 })

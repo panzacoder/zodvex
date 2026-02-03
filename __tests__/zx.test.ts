@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { v } from 'convex/values'
 import { z } from 'zod'
-import { fromConvexJS, toConvexJS, zodToConvex, zx } from '../src'
+import { zodToConvex, zx } from '../src'
 
 describe('zx namespace', () => {
   describe('zx.date()', () => {
@@ -34,19 +34,19 @@ describe('zx namespace', () => {
       expect(validator).toEqual(v.float64())
     })
 
-    it('works with toConvexJS', () => {
+    it('works with z.encode()', () => {
       const dateSchema = zx.date()
       const now = new Date('2024-06-15T12:00:00.000Z')
 
-      const convexValue = toConvexJS(dateSchema, now)
+      const convexValue = z.encode(dateSchema, now)
       expect(convexValue).toBe(now.getTime())
     })
 
-    it('works with fromConvexJS', () => {
+    it('works with schema.parse()', () => {
       const dateSchema = zx.date()
       const timestamp = 1718452800000
 
-      const runtimeValue = fromConvexJS(timestamp, dateSchema)
+      const runtimeValue = dateSchema.parse(timestamp)
       expect(runtimeValue).toBeInstanceOf(Date)
       expect(runtimeValue.getTime()).toBe(timestamp)
     })
@@ -60,8 +60,8 @@ describe('zx namespace', () => {
 
       const now = new Date('2024-06-15T12:00:00.000Z')
 
-      // Encode
-      const convexValue = toConvexJS(schema, {
+      // Encode with z.encode()
+      const convexValue = z.encode(schema, {
         name: 'Test',
         createdAt: now
       })
@@ -70,8 +70,8 @@ describe('zx namespace', () => {
         createdAt: now.getTime()
       })
 
-      // Decode
-      const runtimeValue = fromConvexJS(convexValue, schema)
+      // Decode with schema.parse()
+      const runtimeValue = schema.parse(convexValue)
       expect(runtimeValue.name).toBe('Test')
       expect(runtimeValue.createdAt).toBeInstanceOf(Date)
       expect(runtimeValue.createdAt.getTime()).toBe(now.getTime())
@@ -83,17 +83,17 @@ describe('zx namespace', () => {
       })
 
       // With date
-      const withDate = toConvexJS(schema, { deletedAt: new Date('2024-01-01') })
+      const withDate = z.encode(schema, { deletedAt: new Date('2024-01-01') })
       expect(typeof withDate.deletedAt).toBe('number')
 
-      const decodedWithDate = fromConvexJS(withDate, schema)
+      const decodedWithDate = schema.parse(withDate)
       expect(decodedWithDate.deletedAt).toBeInstanceOf(Date)
 
       // With null
-      const withNull = toConvexJS(schema, { deletedAt: null })
+      const withNull = z.encode(schema, { deletedAt: null })
       expect(withNull.deletedAt).toBe(null)
 
-      const decodedWithNull = fromConvexJS(withNull, schema)
+      const decodedWithNull = schema.parse(withNull)
       expect(decodedWithNull.deletedAt).toBe(null)
     })
   })
@@ -176,7 +176,7 @@ describe('zx namespace', () => {
       expect(decoded).toBe('world')
     })
 
-    it('works with toConvexJS/fromConvexJS', () => {
+    it('works with z.encode()/schema.parse()', () => {
       const codec = zx.codec(
         z.object({ ts: z.number() }),
         z.custom<Date>(() => true),
@@ -188,10 +188,10 @@ describe('zx namespace', () => {
 
       const now = new Date('2024-06-15T12:00:00.000Z')
 
-      const encoded = toConvexJS(codec, now)
+      const encoded = z.encode(codec, now)
       expect(encoded).toEqual({ ts: now.getTime() })
 
-      const decoded = fromConvexJS(encoded, codec)
+      const decoded = codec.parse(encoded)
       expect(decoded).toBeInstanceOf(Date)
       expect(decoded.getTime()).toBe(now.getTime())
     })
@@ -242,7 +242,7 @@ describe('zx namespace', () => {
       )
     })
 
-    it('round-trips data correctly', () => {
+    it('round-trips data correctly using Zod native functions', () => {
       const schema = z.object({
         userId: zx.id('users'),
         timestamp: zx.date(),
@@ -259,12 +259,12 @@ describe('zx namespace', () => {
         }
       }
 
-      const encoded = toConvexJS(schema, original)
+      const encoded = z.encode(schema, original)
       expect(encoded.userId).toBe('user123')
       expect(typeof encoded.timestamp).toBe('number')
       expect(typeof encoded.data.nested).toBe('number')
 
-      const decoded = fromConvexJS(encoded, schema)
+      const decoded = schema.parse(encoded)
       expect(decoded.userId).toBe('user123')
       expect(decoded.timestamp).toBeInstanceOf(Date)
       expect(decoded.timestamp.getTime()).toBe(original.timestamp.getTime())

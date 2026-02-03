@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { zid } from '../src/ids'
 import { zodTable } from '../src/tables'
 import { zAction, zMutation, zQuery } from '../src/wrappers'
+import { zx } from '../src/zx'
 
 // Minimal builder stub that mimics Convex builder shape
 function makeBuilder() {
@@ -21,12 +22,13 @@ function makeCapturingBuilder() {
   return { builder, getLastConfig: () => lastConfig }
 }
 
-describe('wrappers arg decoding', () => {
-  it('decodes date args to Date instances before user handler', async () => {
+describe('wrappers arg decoding with codec-first approach', () => {
+  it('decodes date args to Date instances using zx.date() codec', async () => {
     const builder = makeBuilder()
     let sawDateInstance = false
 
-    const fn = zQuery(builder as any, z.object({ when: z.date() }), async (_ctx, args) => {
+    // Use zx.date() codec instead of z.date()
+    const fn = zQuery(builder as any, z.object({ when: zx.date() }), async (_ctx, args) => {
       sawDateInstance = args.when instanceof Date
       return true
     }) as unknown as (ctx: any, args: any) => Promise<any>
@@ -37,31 +39,36 @@ describe('wrappers arg decoding', () => {
     expect(sawDateInstance).toBe(true)
   })
 
-  it('auto-encodes Date return without returns schema', async () => {
+  it('encodes Date return with explicit zx.date() schema', async () => {
     const builder = makeBuilder()
 
-    const fn = zQuery(builder as any, { id: z.string() }, async () => {
-      return new Date('2025-02-02T00:00:00Z')
-    }) as unknown as (ctx: any, args: any) => Promise<any>
+    // Use explicit returns schema with zx.date() for encoding
+    const fn = zQuery(
+      builder as any,
+      { id: z.string() },
+      async () => new Date('2025-02-02T00:00:00Z'),
+      { returns: zx.date() }
+    ) as unknown as (ctx: any, args: any) => Promise<any>
 
     const ret = await fn({}, { id: 'x' })
     expect(typeof ret).toBe('number')
   })
 
-  it('mutation: decodes nested date args and encodes return with returns schema', async () => {
+  it('mutation: decodes nested date args and encodes return with zx.date()', async () => {
     const builder = makeBuilder()
 
+    // Use zx.date() for both args and returns
     const fn = zMutation(
       builder as any,
       z.object({
-        range: z.object({ start: z.date() })
+        range: z.object({ start: zx.date() })
       }),
       async (_ctx, args) => {
         // Ensure nested arg decoded to Date
         expect(args.range.start).toBeInstanceOf(Date)
         return { createdAt: new Date('2025-03-03T00:00:00Z') }
       },
-      { returns: z.object({ createdAt: z.date() }) }
+      { returns: z.object({ createdAt: zx.date() }) }
     ) as unknown as (ctx: any, args: any) => Promise<any>
 
     const timestamp = new Date('2025-01-01T00:00:00Z').getTime()
@@ -69,16 +76,41 @@ describe('wrappers arg decoding', () => {
     expect(typeof ret.createdAt).toBe('number')
   })
 
-  it('action: encodes return without returns schema and removes undefined fields', async () => {
+  it('action: returns raw values without schema', async () => {
     const builder = makeBuilder()
 
+    // Without returns schema, values are returned as-is
     const fn = zAction(builder as any, { id: z.string() }, async () => {
-      return { when: new Date('2025-04-04T00:00:00Z'), maybe: undefined as any }
+      return { message: 'done', count: 42 }
     }) as unknown as (ctx: any, args: any) => Promise<any>
 
     const ret = await fn({}, { id: 'x' })
-    expect(typeof ret.when).toBe('number')
-    expect('maybe' in ret).toBe(false)
+    expect(ret.message).toBe('done')
+    expect(ret.count).toBe(42)
+  })
+
+  it('throws helpful error when z.date() is used in args', async () => {
+    const builder = makeBuilder()
+
+    const fn = zQuery(builder as any, z.object({ when: z.date() }), async (_ctx, _args) => {
+      return true
+    }) as unknown as (ctx: any, args: any) => Promise<any>
+
+    const timestamp = new Date('2025-01-01T00:00:00Z').getTime()
+    await expect(fn({}, { when: timestamp })).rejects.toThrow(/z\.date\(\)/)
+  })
+
+  it('throws helpful error when z.date() is used in returns', async () => {
+    const builder = makeBuilder()
+
+    const fn = zQuery(
+      builder as any,
+      { id: z.string() },
+      async () => new Date('2025-02-02T00:00:00Z'),
+      { returns: z.date() }
+    ) as unknown as (ctx: any, args: any) => Promise<any>
+
+    await expect(fn({}, { id: 'x' })).rejects.toThrow(/z\.date\(\)/)
   })
 })
 
