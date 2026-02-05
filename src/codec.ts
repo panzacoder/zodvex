@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { zodToConvex } from './mapping'
 import { type ZodvexCodec } from './types'
+import { assertNoNativeZodDate } from './utils'
 
 // Re-export ZodvexCodec type for convenience
 export { type ZodvexCodec } from './types'
@@ -13,6 +14,10 @@ export type ConvexCodec<T> = {
 }
 
 export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
+  // Fail fast if z.date() is used - it won't encode correctly
+  // Use zx.date() instead for Date ↔ timestamp conversion
+  assertNoNativeZodDate(schema as z.ZodTypeAny, 'schema')
+
   const validator = zodToConvex(schema)
 
   return {

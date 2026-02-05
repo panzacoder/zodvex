@@ -360,16 +360,17 @@ const fields = zodToConvexFields({
 Convert between Zod-shaped data and Convex-safe JSON:
 
 ```ts
-import { convexCodec } from 'zodvex'
+import { z } from 'zod'
+import { zx, convexCodec } from 'zodvex'
 
 const UserSchema = z.object({
   name: z.string(),
-  birthday: z.date().optional()
+  birthday: zx.date().optional()  // Use zx.date() for Date ↔ timestamp
 })
 
 const codec = convexCodec(UserSchema)
 
-// Encode: Date → timestamp, omit undefined
+// Encode: Date → timestamp, strip undefined
 const encoded = codec.encode({
   name: 'Alice',
   birthday: new Date('1990-01-01')
@@ -381,6 +382,8 @@ const decoded = codec.decode(encoded)
 // → { name: 'Alice', birthday: Date('1990-01-01') }
 ```
 
+> **Note:** `convexCodec` will throw an error if the schema contains native `z.date()`. Use `zx.date()` instead for automatic Date ↔ timestamp conversion.
+
 ### Supported Types
 
 | Zod Type             | Convex Validator                            |
@@ -389,7 +392,6 @@ const decoded = codec.decode(encoded)
 | `z.number()`         | `v.float64()`                               |
 | `z.bigint()`         | `v.int64()`                                 |
 | `z.boolean()`        | `v.boolean()`                               |
-| `z.date()`           | `v.float64()` (timestamp)                   |
 | `z.null()`           | `v.null()`                                  |
 | `z.array(T)`         | `v.array(T)`                                |
 | `z.object({...})`    | `v.object({...})`                           |
@@ -399,6 +401,8 @@ const decoded = codec.decode(encoded)
 | `z.enum(['a', 'b'])` | `v.union(v.literal('a'), v.literal('b'))` ¹ |
 | `z.optional(T)`      | `v.optional(T)`                             |
 | `z.nullable(T)`      | `v.union(T, v.null())`                      |
+
+> **Note:** Native `z.date()` is **not supported** - use `zx.date()` instead. See [Date Handling](#date-handling) for details.
 
 **Zod v4 Enum Type Note:**
 

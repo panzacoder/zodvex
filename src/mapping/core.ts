@@ -97,7 +97,14 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         convexValidator = v.boolean()
         break
       case 'date':
-        convexValidator = v.float64() // Dates are stored as timestamps in Convex
+        // LEGACY: Maps z.date() to v.float64() for backwards compatibility in type inference.
+        // However, z.date() does NOT work at runtime because:
+        // 1. z.date() produces Date objects, not numbers
+        // 2. Convex rejects Date objects as non-serializable
+        // 3. z.encode() on z.date() returns a Date, not a timestamp
+        // Use zx.date() instead, which provides proper Date ↔ timestamp codec.
+        // The wrappers and convexCodec will throw if z.date() is used.
+        convexValidator = v.float64()
         break
       case 'null':
         convexValidator = v.null()

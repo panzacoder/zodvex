@@ -88,7 +88,8 @@ type WireInferValue<Z extends z.ZodTypeAny> =
                   : // Handle records
                     Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                     ? Record<string, WireInferValue<V>>
-                    : // Handle z.date() - wire format is number (timestamp)
+                    : // Handle z.date() - maps to number for type inference only.
+                      // IMPORTANT: z.date() does not work at runtime (use zx.date()).
                       Z extends z.ZodDate
                       ? number
                       : // Fallback to regular inference for primitives
@@ -153,7 +154,8 @@ type WireInfer<Z extends z.ZodTypeAny> =
                   : // Handle records
                     Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                     ? Record<string, WireInferValue<V>>
-                    : // Handle z.date() - wire format is number (timestamp)
+                    : // Handle z.date() - maps to number for type inference only.
+                      // IMPORTANT: z.date() does not work at runtime (use zx.date()).
                       Z extends z.ZodDate
                       ? number
                       : // Fallback to regular inference for primitives
