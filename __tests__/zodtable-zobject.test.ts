@@ -55,7 +55,7 @@ describe('zodTable with z.object()', () => {
 
     // These type assertions verify the fix works at the type level
     type Doc = z.infer<typeof Table.schema.doc>
-    type DocStatus = Doc['status']
+    type _DocStatus = Doc['status']
 
     // Runtime check that the schema structure is correct
     const parsed = Table.schema.doc.safeParse({

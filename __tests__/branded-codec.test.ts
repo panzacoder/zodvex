@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { v } from 'convex/values'
 import { z } from 'zod'
-import { zodvexCodec, type ZodvexCodec } from '../src/codec'
+import { type ZodvexCodec, zodvexCodec } from '../src/codec'
 import { zodToConvex } from '../src/mapping'
 
 /**
