@@ -500,14 +500,16 @@ export function zodTable<
       convexFields
     )
 
+    // Create base schema (user fields only, no system fields)
+    // When a ZodObject is passed, preserve it to maintain options like .passthrough(), .strict(), .catchall()
+    const baseSchema = isZodObject ? (schemaOrShape as z.ZodObject<z.ZodRawShape>) : z.object(shape)
+
     // Create zDoc schema with system fields
-    const zDoc = zodDoc(name, z.object(shape))
+    // Uses .extend() which preserves object-level options from baseSchema
+    const zDoc = zodDoc(name, baseSchema as z.ZodObject<z.ZodRawShape>)
 
     // Create docArray helper for return types
     const docArray = z.array(zDoc)
-
-    // Create base schema (user fields only, no system fields)
-    const baseSchema = z.object(shape)
 
     // Create partial shape for user fields
     const partialShape: Record<string, z.ZodTypeAny> = {}

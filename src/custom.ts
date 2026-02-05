@@ -15,7 +15,13 @@ import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility } from './types'
-import { assertNoNativeZodDate, handleZodValidationError, pick, validateReturns } from './utils'
+import {
+  assertNoNativeZodDate,
+  handleZodValidationError,
+  pick,
+  stripUndefined,
+  validateReturns
+} from './utils'
 
 /**
  * Hooks for observing the function execution (side effects, no return value).
@@ -390,14 +396,16 @@ export function customFnBuilder<
 
             // Validate and encode using z.encode (Zod handles codecs natively)
             const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
+            // Strip undefined values before returning (Convex rejects explicit undefined)
+            const result = stripUndefined(validated)
             if (added?.hooks?.onSuccess) {
               await added.hooks.onSuccess({
                 ctx,
                 args: parsed.data,
-                result: validated
+                result
               })
             }
-            return validated
+            return result
           }
           if (added?.hooks?.onSuccess) {
             await added.hooks.onSuccess({ ctx, args: parsed.data, result: ret })
@@ -446,10 +454,12 @@ export function customFnBuilder<
 
           // Validate and encode using z.encode (Zod handles codecs natively)
           const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
+          // Strip undefined values before returning (Convex rejects explicit undefined)
+          const result = stripUndefined(validated)
           if (added?.hooks?.onSuccess) {
-            await added.hooks.onSuccess({ ctx, args: allArgs, result: validated })
+            await added.hooks.onSuccess({ ctx, args: allArgs, result })
           }
-          return validated
+          return result
         }
         if (added?.hooks?.onSuccess) {
           await added.hooks.onSuccess({ ctx, args: allArgs, result: ret })

@@ -15,7 +15,12 @@ import type {
   InferReturns,
   ZodToConvexArgs
 } from './types'
-import { assertNoNativeZodDate, handleZodValidationError, validateReturns } from './utils'
+import {
+  assertNoNativeZodDate,
+  handleZodValidationError,
+  stripUndefined,
+  validateReturns
+} from './utils'
 
 // Cache to avoid re-checking the same schema
 const customCheckCache = new WeakMap<z.ZodTypeAny, boolean>()
@@ -108,7 +113,7 @@ export function zQuery<
         assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
         // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
-        return validated
+        return stripUndefined(validated)
       }
       return raw as any
     }
@@ -182,7 +187,7 @@ export function zMutation<
         assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
         // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
-        return validated
+        return stripUndefined(validated)
       }
       return raw as any
     }
@@ -256,7 +261,7 @@ export function zAction<
         assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
         // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
-        return validated
+        return stripUndefined(validated)
       }
       return raw as any
     }
