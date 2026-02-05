@@ -48,6 +48,39 @@ describe('convexCodec', () => {
     expect(codec.decode(codec.encode(withoutNickname))).toEqual(withoutNickname)
   })
 
+  it('strips explicit undefined from encoded output', () => {
+    const schema = z.object({
+      name: z.string(),
+      nickname: z.string().optional()
+    })
+
+    const codec = convexCodec(schema)
+
+    // Explicit undefined should be stripped (Convex rejects it)
+    const withExplicitUndefined = { name: 'John', nickname: undefined }
+    const encoded = codec.encode(withExplicitUndefined)
+
+    expect('nickname' in encoded).toBe(false)
+    expect(encoded).toEqual({ name: 'John' })
+  })
+
+  it('strips nested undefined from encoded output', () => {
+    const schema = z.object({
+      user: z.object({
+        name: z.string(),
+        email: z.string().optional()
+      })
+    })
+
+    const codec = convexCodec(schema)
+
+    const data = { user: { name: 'John', email: undefined } }
+    const encoded = codec.encode(data)
+
+    expect('email' in encoded.user).toBe(false)
+    expect(encoded).toEqual({ user: { name: 'John' } })
+  })
+
   it('converts dates to timestamps and back with zx.date()', () => {
     const schema = z.object({
       created: zx.date()

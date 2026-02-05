@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { zodToConvex } from './mapping'
 import { type ZodvexCodec } from './types'
-import { assertNoNativeZodDate } from './utils'
+import { assertNoNativeZodDate, stripUndefined } from './utils'
 
 // Re-export ZodvexCodec type for convenience
 export { type ZodvexCodec } from './types'
@@ -22,7 +22,8 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
 
   return {
     validator,
-    encode: (value: T) => z.encode(schema, value),
+    // Strip undefined to ensure Convex-safe output (Convex rejects explicit undefined)
+    encode: (value: T) => stripUndefined(z.encode(schema, value)),
     decode: (value: any) => schema.parse(value),
     pick: <K extends keyof T>(keys: K[] | Record<K, true>) => {
       if (!(schema instanceof z.ZodObject)) {

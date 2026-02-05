@@ -407,10 +407,12 @@ export function customFnBuilder<
             }
             return result
           }
+          // Strip undefined even without returns schema (Convex rejects explicit undefined)
+          const result = stripUndefined(ret)
           if (added?.hooks?.onSuccess) {
-            await added.hooks.onSuccess({ ctx, args: parsed.data, result: ret })
+            await added.hooks.onSuccess({ ctx, args: parsed.data, result })
           }
-          return ret
+          return result
         }
       })
     }
@@ -461,10 +463,12 @@ export function customFnBuilder<
           }
           return result
         }
+        // Strip undefined even without returns schema (Convex rejects explicit undefined)
+        const result = stripUndefined(ret)
         if (added?.hooks?.onSuccess) {
-          await added.hooks.onSuccess({ ctx, args: allArgs, result: ret })
+          await added.hooks.onSuccess({ ctx, args: allArgs, result })
         }
-        return ret
+        return result
       }
     })
   }

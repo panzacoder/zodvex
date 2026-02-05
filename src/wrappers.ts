@@ -115,7 +115,8 @@ export function zQuery<
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
         return stripUndefined(validated)
       }
-      return raw as any
+      // Strip undefined even without returns schema (Convex rejects explicit undefined)
+      return stripUndefined(raw) as any
     }
   }) as any
 }
@@ -189,7 +190,8 @@ export function zMutation<
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
         return stripUndefined(validated)
       }
-      return raw as any
+      // Strip undefined even without returns schema (Convex rejects explicit undefined)
+      return stripUndefined(raw) as any
     }
   }) as any
 }
@@ -263,7 +265,8 @@ export function zAction<
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
         return stripUndefined(validated)
       }
-      return raw as any
+      // Strip undefined even without returns schema (Convex rejects explicit undefined)
+      return stripUndefined(raw) as any
     }
   }) as any
 }
