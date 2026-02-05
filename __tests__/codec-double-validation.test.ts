@@ -493,11 +493,8 @@ describe('Verify Zod native behavior matches fromConvexJS semantics', () => {
       const result = schema.safeParse(input)
 
       expect(result.success).toBe(true)
-      if (result.success) {
-        // Explicit undefined may or may not be preserved - document actual behavior
-        // This test documents whatever Zod's actual behavior is
-        console.log('Explicit undefined preserved:', 'optional' in result.data)
-      }
+      // Explicit undefined may or may not be preserved depending on Zod's behavior
+      // This test verifies parsing succeeds regardless
     })
 
     it('should handle optional codec fields the same as optional primitives', () => {
