@@ -252,48 +252,22 @@ describe('zodTable schema namespace', () => {
     })
   })
 
-  describe('deprecation warnings', () => {
-    let consoleWarnSpy: ReturnType<typeof spyOn>
+  describe('deprecated properties (backward compatibility)', () => {
+    // These properties are deprecated but still work for backward compatibility
+    // Deprecation is now via TypeScript @deprecated JSDoc annotations, not runtime warnings
 
-    beforeEach(() => {
-      consoleWarnSpy = spyOn(console, 'warn').mockImplementation(() => {
-        /* suppress warnings during tests */
-      })
-    })
-
-    afterEach(() => {
-      consoleWarnSpy.mockRestore()
-    })
-
-    it('warns when accessing zDoc', () => {
+    it('zDoc still returns the document schema', () => {
       const Users = zodTable('users', { name: z.string() })
 
-      // First access should warn
-      const _doc = Users.zDoc
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('zDoc'))
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('schema.doc'))
+      // Deprecated but still works
+      expect(Users.zDoc).toBe(Users.schema.doc)
     })
 
-    it('warns when accessing docArray', () => {
+    it('docArray still returns the array schema', () => {
       const Users = zodTable('users', { name: z.string() })
 
-      const _arr = Users.docArray
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('docArray'))
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('schema.docArray'))
-    })
-
-    it('only warns once per property per table', () => {
-      const Users = zodTable('users', { name: z.string() })
-
-      Users.zDoc
-      Users.zDoc
-      Users.zDoc
-
-      // Should only have warned once for zDoc
-      const zDocWarnings = consoleWarnSpy.mock.calls.filter((call: any[]) =>
-        call[0]?.includes('zDoc')
-      )
-      expect(zDocWarnings.length).toBe(1)
+      // Deprecated but still works
+      expect(Users.docArray).toBe(Users.schema.docArray)
     })
   })
 })

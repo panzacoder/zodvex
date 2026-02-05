@@ -369,12 +369,14 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   shape: Shape
 ): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
   shape: Shape
+  /** @deprecated Use `schema.doc` instead */
   zDoc: z.ZodObject<
     Shape & {
       _id: ZxId<TableName>
       _creationTime: z.ZodNumber
     }
   >
+  /** @deprecated Use `schema.docArray` instead */
   docArray: z.ZodArray<
     z.ZodObject<
       Shape & {
@@ -413,12 +415,14 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
   schema: z.ZodObject<Shape>
 ): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
   shape: Shape
+  /** @deprecated Use `schema.doc` instead */
   zDoc: z.ZodObject<
     Shape & {
       _id: ZxId<TableName>
       _creationTime: z.ZodNumber
     }
   >
+  /** @deprecated Use `schema.docArray` instead */
   docArray: z.ZodArray<
     z.ZodObject<
       Shape & {
@@ -469,6 +473,7 @@ export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
     /** Update schema - _id required, _creationTime optional, user fields partial */
     update: UpdateSchemaType<TableName, Schema>
   }
+  /** @deprecated Use `schema.docArray` instead */
   docArray: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
   withSystemFields: () => AddSystemFieldsResult<TableName, Schema>
 }
@@ -526,38 +531,15 @@ export function zodTable<
       update: updateSchema
     }
 
-    // Track if we've warned about deprecated properties
-    const warned = { zDoc: false, docArray: false }
-
     // Attach everything for comprehensive usage
-    const result = Object.assign(table, {
+    // zDoc and docArray are deprecated but kept for backwards compatibility
+    // TypeScript @deprecated annotations provide compile-time warnings
+    return Object.assign(table, {
       shape,
-      schema
+      schema,
+      zDoc,
+      docArray
     })
-
-    Object.defineProperty(result, 'zDoc', {
-      get() {
-        if (!warned.zDoc) {
-          console.warn('zodvex: `zDoc` is deprecated, use `schema.doc` instead')
-          warned.zDoc = true
-        }
-        return schema.doc
-      },
-      enumerable: true
-    })
-
-    Object.defineProperty(result, 'docArray', {
-      get() {
-        if (!warned.docArray) {
-          console.warn('zodvex: `docArray` is deprecated, use `schema.docArray` instead')
-          warned.docArray = true
-        }
-        return schema.docArray
-      },
-      enumerable: true
-    })
-
-    return result
   } else {
     // Union or other schema type logic
     const schema = schemaOrShape as z.ZodTypeAny

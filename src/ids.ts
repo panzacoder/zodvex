@@ -31,11 +31,6 @@ export const registryHelpers = {
 export function zid<TableName extends string>(
   tableName: TableName
 ): z.ZodType<GenericId<TableName>> & { _tableName: TableName } {
-  if (process.env.NODE_ENV !== 'production') {
-    console.warn(
-      `zodvex: \`zid('${tableName}')\` is deprecated. Use \`zx.id('${tableName}')\` instead.`
-    )
-  }
   // Create base string validator with refinement (no transform or brand)
   const baseSchema = z
     .string()
