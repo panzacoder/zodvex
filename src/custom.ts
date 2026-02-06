@@ -321,6 +321,11 @@ export function customFnBuilder<
     const returnValidator =
       returns && !skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
 
+    // Check for z.date() usage at construction time (once), not on every invocation
+    if (returns) {
+      assertNoNativeZodDate(returns as z.ZodTypeAny, 'returns')
+    }
+
     if (args) {
       let argsValidator = args
       let argsSchema: z.ZodObject<any>
@@ -344,6 +349,9 @@ export function customFnBuilder<
         ? inputArgs
         : { ...zodToConvexFields(argsValidator), ...inputArgs }
 
+      // Check for z.date() usage at construction time (once), not on every invocation
+      assertNoNativeZodDate(argsSchema, 'args')
+
       return builder({
         args: convexArgs,
         ...returnValidator,
@@ -362,8 +370,6 @@ export function customFnBuilder<
           )
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
-          // Check for z.date() usage and guide users to zx.date()
-          assertNoNativeZodDate(argsSchema, 'args')
           // Zod handles codec transforms natively via safeParse
           const parsed = argsSchema.safeParse(rawArgs)
           if (!parsed.success) {
@@ -385,8 +391,6 @@ export function customFnBuilder<
           const ret = await handler(finalCtx, finalArgs)
           // Always run Zod return validation when returns schema is provided
           if (returns) {
-            // Check for z.date() usage and guide users to zx.date()
-            assertNoNativeZodDate(returns as z.ZodTypeAny, 'returns')
             // Apply output transform BEFORE validation (converts internal format → wire format)
             // This allows class instances (e.g., SensitiveField) to be converted to plain objects
             // before validation processes them
@@ -445,8 +449,6 @@ export function customFnBuilder<
         const ret = await handler(finalCtx, finalArgs)
         // Always run Zod return validation when returns schema is provided
         if (returns) {
-          // Check for z.date() usage and guide users to zx.date()
-          assertNoNativeZodDate(returns as z.ZodTypeAny, 'returns')
           // Apply output transform BEFORE validation (converts internal format → wire format)
           // This allows class instances (e.g., SensitiveField) to be converted to plain objects
           // before validation processes them

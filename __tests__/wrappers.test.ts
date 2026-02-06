@@ -89,28 +89,26 @@ describe('wrappers arg decoding with codec-first approach', () => {
     expect(ret.count).toBe(42)
   })
 
-  it('throws helpful error when z.date() is used in args', async () => {
+  it('throws helpful error when z.date() is used in args (at construction time)', () => {
     const builder = makeBuilder()
 
-    const fn = zQuery(builder as any, z.object({ when: z.date() }), async (_ctx, _args) => {
-      return true
-    }) as unknown as (ctx: any, args: any) => Promise<any>
-
-    const timestamp = new Date('2025-01-01T00:00:00Z').getTime()
-    await expect(fn({}, { when: timestamp })).rejects.toThrow(/z\.date\(\)/)
+    // Error should throw at construction time, not invocation time
+    expect(() => {
+      zQuery(builder as any, z.object({ when: z.date() }), async (_ctx, _args) => {
+        return true
+      })
+    }).toThrow(/z\.date\(\)/)
   })
 
-  it('throws helpful error when z.date() is used in returns', async () => {
+  it('throws helpful error when z.date() is used in returns (at construction time)', () => {
     const builder = makeBuilder()
 
-    const fn = zQuery(
-      builder as any,
-      { id: z.string() },
-      async () => new Date('2025-02-02T00:00:00Z'),
-      { returns: z.date() }
-    ) as unknown as (ctx: any, args: any) => Promise<any>
-
-    await expect(fn({}, { id: 'x' })).rejects.toThrow(/z\.date\(\)/)
+    // Error should throw at construction time, not invocation time
+    expect(() => {
+      zQuery(builder as any, { id: z.string() }, async () => new Date('2025-02-02T00:00:00Z'), {
+        returns: z.date()
+      })
+    }).toThrow(/z\.date\(\)/)
   })
 })
 

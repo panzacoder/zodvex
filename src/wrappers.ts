@@ -94,12 +94,16 @@ export function zQuery<
   const returns =
     options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
 
+  // Check for z.date() usage at construction time (once), not on every invocation
+  assertNoNativeZodDate(zodSchema, 'args')
+  if (options?.returns) {
+    assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+  }
+
   return query({
     args,
     returns,
     handler: async (ctx: any, argsObject: unknown) => {
-      // Check for z.date() usage and guide users to zx.date()
-      assertNoNativeZodDate(zodSchema, 'args')
       // Zod handles codec transforms natively via parse
       let parsed: any
       try {
@@ -109,8 +113,6 @@ export function zQuery<
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        // Check for z.date() usage in returns
-        assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
         // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
         return stripUndefined(validated)
@@ -169,12 +171,16 @@ export function zMutation<
   const returns =
     options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
 
+  // Check for z.date() usage at construction time (once), not on every invocation
+  assertNoNativeZodDate(zodSchema, 'args')
+  if (options?.returns) {
+    assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+  }
+
   return mutation({
     args,
     returns,
     handler: async (ctx: any, argsObject: unknown) => {
-      // Check for z.date() usage and guide users to zx.date()
-      assertNoNativeZodDate(zodSchema, 'args')
       // Zod handles codec transforms natively via parse
       let parsed: any
       try {
@@ -184,8 +190,6 @@ export function zMutation<
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        // Check for z.date() usage in returns
-        assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
         // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
         return stripUndefined(validated)
@@ -244,12 +248,16 @@ export function zAction<
   const returns =
     options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
 
+  // Check for z.date() usage at construction time (once), not on every invocation
+  assertNoNativeZodDate(zodSchema, 'args')
+  if (options?.returns) {
+    assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+  }
+
   return action({
     args,
     returns,
     handler: async (ctx: any, argsObject: unknown) => {
-      // Check for z.date() usage and guide users to zx.date()
-      assertNoNativeZodDate(zodSchema, 'args')
       // Zod handles codec transforms natively via parse
       let parsed: any
       try {
@@ -259,8 +267,6 @@ export function zAction<
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
-        // Check for z.date() usage in returns
-        assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
         // Validate and encode using z.encode (Zod handles codecs natively)
         const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
         return stripUndefined(validated)
