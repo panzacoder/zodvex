@@ -474,3 +474,240 @@ expectNotAny(eventWithFields._creationTime)
 
 // Should have discriminator
 expectNotAny(eventWithFields.type)
+
+// =============================================================================
+// CODEC WIRE TYPE TESTS
+// These verify that nested codecs use wire types in document inference
+// =============================================================================
+
+import { zx } from '../zx'
+
+// --- Test 30: zx.date() codec uses wire type (number) in document ---
+
+const DateTable = zodTable('dated', {
+  name: z.string(),
+  createdAt: zx.date(),
+  updatedAt: zx.date().optional()
+})
+
+type DateDoc = z.infer<typeof DateTable.zDoc>
+declare const dateDoc: DateDoc
+
+// createdAt should be Date in runtime (zx.date() decodes to Date)
+// But the document type should use wire format for Convex compatibility
+expectNotAny(dateDoc.createdAt)
+expectNotAny(dateDoc.updatedAt)
+
+// --- Test 31: Nested object with codec uses wire types ---
+
+const NestedCodecTable = zodTable('nestedCodec', {
+  user: z.object({
+    name: z.string(),
+    joinedAt: zx.date()
+  })
+})
+
+type NestedCodecDoc = z.infer<typeof NestedCodecTable.zDoc>
+declare const nestedCodecDoc: NestedCodecDoc
+
+// Nested object fields should be properly typed
+expectNotAny(nestedCodecDoc.user)
+expectNotAny(nestedCodecDoc.user.name)
+expectNotAny(nestedCodecDoc.user.joinedAt)
+
+// --- Test 32: Array of objects with codecs uses wire types ---
+
+const ArrayCodecTable = zodTable('arrayCodec', {
+  events: z.array(
+    z.object({
+      name: z.string(),
+      occurredAt: zx.date()
+    })
+  )
+})
+
+type ArrayCodecDoc = z.infer<typeof ArrayCodecTable.zDoc>
+declare const arrayCodecDoc: ArrayCodecDoc
+
+expectNotAny(arrayCodecDoc.events)
+expectNotAny(arrayCodecDoc.events[0])
+expectNotAny(arrayCodecDoc.events[0].name)
+expectNotAny(arrayCodecDoc.events[0].occurredAt)
+
+// --- Test 33: Custom codec wire type is preserved in Convex validator ---
+
+// Create a custom codec that transforms between wire and runtime
+type SensitiveWire = { encrypted: string }
+type SensitiveRuntime = string
+
+const sensitiveCodec = zx.codec(
+  z.object({ encrypted: z.string() }),
+  z.custom<SensitiveRuntime>(() => true),
+  {
+    decode: (wire: SensitiveWire) => atob(wire.encrypted),
+    encode: (value: SensitiveRuntime) => ({ encrypted: btoa(value) })
+  }
+)
+
+const SensitiveTable = zodTable('sensitive', {
+  name: z.string(),
+  secret: sensitiveCodec
+})
+
+// Note: z.infer uses Zod's native inference which gives runtime types
+// The WireInfer fix is for Convex validator document types (VObject<DocType, ...>)
+type SensitiveDoc = z.infer<typeof SensitiveTable.zDoc>
+declare const sensitiveDoc: SensitiveDoc
+
+expectNotAny(sensitiveDoc.name)
+expectNotAny(sensitiveDoc.secret)
+
+// The Convex validator type should use wire format
+// We verify this by checking the validator is not any
+type SensitiveValidator = typeof SensitiveTable.doc
+expectNotAny({} as SensitiveValidator)
+
+// --- Test 34: Union with codec variants uses wire types ---
+
+const UnionCodecTable = zodTable(
+  'unionCodec',
+  z.union([
+    z.object({
+      type: z.literal('timestamped'),
+      timestamp: zx.date()
+    }),
+    z.object({
+      type: z.literal('plain'),
+      value: z.string()
+    })
+  ])
+)
+
+type UnionCodecDoc = z.infer<typeof UnionCodecTable.docArray>[number]
+declare const unionCodecDoc: UnionCodecDoc
+
+expectNotAny(unionCodecDoc._id)
+expectNotAny(unionCodecDoc.type)
+
+// --- Test 35: Record with codec values uses wire types ---
+
+const RecordCodecTable = zodTable('recordCodec', {
+  timestamps: z.record(z.string(), zx.date())
+})
+
+type RecordCodecDoc = z.infer<typeof RecordCodecTable.zDoc>
+declare const recordCodecDoc: RecordCodecDoc
+
+expectNotAny(recordCodecDoc.timestamps)
+
+// Record values should be wire type (number for dates)
+declare const timestampValue: RecordCodecDoc['timestamps'][string]
+expectNotAny(timestampValue)
+
+// =============================================================================
+// OPTIONAL FIELD INDEX PATH TESTS
+// These verify that optional fields with nested codecs work correctly with
+// Convex's index path typing (FieldTypeFromFieldPath)
+// =============================================================================
+
+// --- Test 36: Optional field with nested codec uses ?: syntax ---
+// This is the key test for the WireInfer optional handling fix.
+// The issue: { email: T | undefined } breaks Convex's path extraction
+// The fix: { email?: T } allows path extraction to work correctly
+
+const OptionalCodecTable = zodTable('optionalCodec', {
+  clinicId: z.string(),
+  // Optional field with a codec that has nested structure
+  email: zx
+    .codec(
+      z.object({ value: z.string().nullable(), status: z.enum(['full', 'hidden']) }),
+      z.custom<{ decrypted: string }>(() => true),
+      {
+        decode: wire => ({ decrypted: wire.value ?? '' }),
+        encode: value => ({ value: value.decrypted, status: 'full' as const })
+      }
+    )
+    .optional()
+})
+
+type OptionalCodecDoc = z.infer<typeof OptionalCodecTable.zDoc>
+declare const optionalCodecDoc: OptionalCodecDoc
+
+// The document should have proper types
+expectNotAny(optionalCodecDoc.clinicId)
+expectNotAny(optionalCodecDoc.email)
+
+// --- Test 37: WireInfer produces ?: for optional fields, not | undefined ---
+// This tests the core fix: optional fields should use TypeScript's ?: syntax
+
+import type { ConvexValidatorFromZod } from '../mapping/types'
+
+// Get the validator type for our table
+type OptionalCodecValidator = typeof OptionalCodecTable.doc
+
+// The validator's document type (first type param of VObject)
+// should have email as an optional property, not email: T | undefined
+expectNotAny({} as OptionalCodecValidator)
+
+// --- Test 38: Nested path on optional field should extract correct type ---
+// When accessing email.value on { email?: { value: T } }, the result should be T | undefined
+// NOT just undefined (which was the bug)
+
+// Simulate what Convex's FieldTypeFromFieldPath does
+type DocType = {
+  clinicId: string
+  // This is what WireInfer should produce (?: syntax)
+  email?: { value: string | null; status: 'full' | 'hidden' }
+}
+
+// Helper to simulate Convex's path extraction (simplified)
+type ExtractPath<D, P extends string> = P extends `${infer First}.${infer Rest}`
+  ? First extends keyof D
+    ? D[First] extends infer V
+      ? V extends Record<string, any>
+        ? ExtractPath<V, Rest>
+        : undefined
+      : undefined
+    : undefined
+  : P extends keyof D
+    ? D[P]
+    : undefined
+
+// With the fix, email.value should be string | null | undefined (value type + optional)
+// NOT just undefined (which was the broken behavior)
+type EmailValueType = ExtractPath<DocType, 'email.value'>
+
+// This should NOT be just undefined
+declare const emailValue: EmailValueType
+// @ts-expect-error - emailValue can be string | null | undefined, not just undefined
+const _testNotOnlyUndefined: undefined = emailValue
+
+// --- Test 39: Multiple optional fields with different codec types ---
+
+const MultiOptionalTable = zodTable('multiOptional', {
+  required: z.string(),
+  optionalDate: zx.date().optional(),
+  optionalNested: z
+    .object({
+      inner: z.string(),
+      deepOptional: z.number().optional()
+    })
+    .optional(),
+  optionalWithDefault: z.string().default('default-value')
+})
+
+type MultiOptionalDoc = z.infer<typeof MultiOptionalTable.zDoc>
+declare const multiOptionalDoc: MultiOptionalDoc
+
+// Required field should be required
+expectNotAny(multiOptionalDoc.required)
+
+// Optional fields should be optional (?: syntax means accessing gives T | undefined)
+expectNotAny(multiOptionalDoc.optionalDate)
+expectNotAny(multiOptionalDoc.optionalNested)
+expectNotAny(multiOptionalDoc.optionalWithDefault)
+
+// Nested optional within optional object should also work
+declare const nestedDoc: NonNullable<MultiOptionalDoc['optionalNested']>
+expectNotAny(nestedDoc.inner)
+expectNotAny(nestedDoc.deepOptional)

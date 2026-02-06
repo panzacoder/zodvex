@@ -19,6 +19,12 @@ export const registryHelpers = {
  * Compatible with AI SDK and other tools that don't support transforms.
  * Uses type-level branding instead of runtime transforms for GenericId<T> compatibility.
  *
+ * @deprecated Use `zx.id()` instead for consistent naming with other zodvex helpers.
+ * ```typescript
+ * import { zx } from 'zodvex'
+ * zx.id('users')  // instead of zid('users')
+ * ```
+ *
  * @param tableName - The Convex table name for this ID
  * @returns A Zod string validator typed as GenericId<TableName>
  */

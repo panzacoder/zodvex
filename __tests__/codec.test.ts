@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { convexCodec, fromConvexJS, toConvexJS } from '../src/codec'
+import { convexCodec, zodvexCodec } from '../src/codec'
+import { zx } from '../src/zx'
 
 describe('convexCodec', () => {
   it('creates codec from Zod schema', () => {
@@ -47,9 +48,42 @@ describe('convexCodec', () => {
     expect(codec.decode(codec.encode(withoutNickname))).toEqual(withoutNickname)
   })
 
-  it('converts dates to timestamps and back', () => {
+  it('strips explicit undefined from encoded output', () => {
     const schema = z.object({
-      created: z.date()
+      name: z.string(),
+      nickname: z.string().optional()
+    })
+
+    const codec = convexCodec(schema)
+
+    // Explicit undefined should be stripped (Convex rejects it)
+    const withExplicitUndefined = { name: 'John', nickname: undefined }
+    const encoded = codec.encode(withExplicitUndefined)
+
+    expect('nickname' in encoded).toBe(false)
+    expect(encoded).toEqual({ name: 'John' })
+  })
+
+  it('strips nested undefined from encoded output', () => {
+    const schema = z.object({
+      user: z.object({
+        name: z.string(),
+        email: z.string().optional()
+      })
+    })
+
+    const codec = convexCodec(schema)
+
+    const data = { user: { name: 'John', email: undefined } }
+    const encoded = codec.encode(data)
+
+    expect('email' in encoded.user).toBe(false)
+    expect(encoded).toEqual({ user: { name: 'John' } })
+  })
+
+  it('converts dates to timestamps and back with zx.date()', () => {
+    const schema = z.object({
+      created: zx.date()
     })
 
     const codec = convexCodec(schema)
@@ -59,12 +93,13 @@ describe('convexCodec', () => {
     expect(encoded.created).toBe(original.created.getTime())
 
     const decoded = codec.decode(encoded)
-    expect(decoded.created).toEqual(original.created)
+    expect(decoded.created).toBeInstanceOf(Date)
+    expect(decoded.created.getTime()).toBe(original.created.getTime())
   })
 
-  it('handles nullable dates', () => {
+  it('handles nullable dates with zx.date()', () => {
     const schema = z.object({
-      birthday: z.date().nullable()
+      birthday: zx.date().nullable()
     })
 
     const codec = convexCodec(schema)
@@ -74,7 +109,8 @@ describe('convexCodec', () => {
 
     const encodedDate = codec.encode(withDate)
     const decodedDate = codec.decode(encodedDate)
-    expect(decodedDate.birthday).toEqual(withDate.birthday)
+    expect(decodedDate.birthday).toBeInstanceOf(Date)
+    expect(decodedDate.birthday?.getTime()).toBe(withDate.birthday.getTime())
 
     const encodedNull = codec.encode(withNull)
     const decodedNull = codec.decode(encodedNull)
@@ -92,8 +128,6 @@ describe('convexCodec', () => {
     const codec = convexCodec(schema)
     const pickedCodec = codec.pick({ name: true, email: true })
 
-    // Test data - original has more fields than picked
-    // const original = { id: '123', name: 'John', email: 'john@example.com', age: 30 }
     const picked = { name: 'John', email: 'john@example.com' }
 
     const encoded = pickedCodec.encode(picked)
@@ -103,163 +137,132 @@ describe('convexCodec', () => {
   })
 })
 
-describe('toConvexJS', () => {
-  it('removes undefined values', () => {
-    const input = {
-      a: 'test',
-      b: undefined,
-      c: null,
-      d: 0
-    }
-
-    const result = toConvexJS(input)
-
-    expect(result).toEqual({
-      a: 'test',
-      c: null,
-      d: 0
-    })
-    expect('b' in result).toBe(false)
-  })
-
-  it('converts dates to timestamps', () => {
-    const date = new Date('2024-01-01T12:00:00Z')
-    const input = {
-      created: date,
-      updated: null
-    }
-
-    const result = toConvexJS(input)
-
-    expect(result).toEqual({
-      created: date.getTime(),
-      updated: null
-    })
-  })
-
-  it('handles nested objects', () => {
-    const input = {
-      user: {
-        name: 'John',
-        metadata: {
-          created: new Date('2024-01-01'),
-          optional: undefined
-        }
+describe('zodvexCodec', () => {
+  it('creates a ZodCodec instance', () => {
+    const codec = zodvexCodec(
+      z.object({ value: z.string() }),
+      z.custom<number>(() => true),
+      {
+        decode: wire => parseInt(wire.value, 10),
+        encode: num => ({ value: num.toString() })
       }
-    }
+    )
 
-    const result = toConvexJS(input)
+    expect(codec instanceof z.ZodCodec).toBe(true)
+  })
 
-    expect(result).toEqual({
-      user: {
-        name: 'John',
-        metadata: {
-          created: new Date('2024-01-01').getTime()
-        }
+  it('encodes with z.encode()', () => {
+    const dateCodec = zodvexCodec(
+      z.object({ ts: z.number() }),
+      z.custom<Date>(() => true),
+      {
+        decode: wire => new Date(wire.ts),
+        encode: date => ({ ts: date.getTime() })
       }
-    })
+    )
+
+    const now = new Date('2024-06-15T12:00:00Z')
+    const result = z.encode(dateCodec, now)
+
+    expect(result).toEqual({ ts: now.getTime() })
   })
 
-  it('handles arrays', () => {
-    const date = new Date()
-    const input = {
-      items: [1, 'test', date, null, undefined]
-    }
-
-    const result = toConvexJS(input)
-
-    expect(result).toEqual({
-      items: [1, 'test', date.getTime(), null, undefined]
-    })
-  })
-})
-
-describe('fromConvexJS', () => {
-  it('converts timestamps to dates based on schema', () => {
-    const schema = z.object({
-      created: z.date(),
-      count: z.number()
-    })
-
-    const input = {
-      created: 1704110400000, // 2024-01-01T12:00:00Z
-      count: 42
-    }
-
-    const result = fromConvexJS(input, schema)
-
-    expect(result.created).toBeInstanceOf(Date)
-    expect(result.created.getTime()).toBe(1704110400000)
-    expect(result.count).toBe(42)
-  })
-
-  it('handles nullable dates', () => {
-    const schema = z.object({
-      birthday: z.date().nullable()
-    })
-
-    const withTimestamp = { birthday: 1704110400000 }
-    const withNull = { birthday: null }
-
-    const result1 = fromConvexJS(withTimestamp, schema)
-    expect(result1.birthday).toBeInstanceOf(Date)
-
-    const result2 = fromConvexJS(withNull, schema)
-    expect(result2.birthday).toBe(null)
-  })
-
-  it('handles nested schemas', () => {
-    const schema = z.object({
-      user: z.object({
-        joined: z.date(),
-        name: z.string()
-      })
-    })
-
-    const input = {
-      user: {
-        joined: 1704110400000,
-        name: 'John'
+  it('decodes with schema.parse()', () => {
+    const dateCodec = zodvexCodec(
+      z.object({ ts: z.number() }),
+      z.custom<Date>(() => true),
+      {
+        decode: wire => new Date(wire.ts),
+        encode: date => ({ ts: date.getTime() })
       }
-    }
+    )
 
-    const result = fromConvexJS(input, schema)
+    const timestamp = 1718452800000
+    const result = dateCodec.parse({ ts: timestamp })
 
-    expect(result.user.joined).toBeInstanceOf(Date)
-    expect(result.user.name).toBe('John')
+    expect(result).toBeInstanceOf(Date)
+    expect(result.getTime()).toBe(timestamp)
   })
 
-  it('handles arrays with dates', () => {
-    const schema = z.object({
-      events: z.array(z.date())
-    })
+  it('works with native z.codec()', () => {
+    const codec = z.codec(
+      z.object({ value: z.string() }),
+      z.custom<number>(() => true),
+      {
+        decode: (wire: { value: string }) => parseInt(wire.value, 10),
+        encode: (num: number) => ({ value: num.toString() })
+      }
+    )
 
-    const input = {
-      events: [1704110400000, 1704196800000]
-    }
+    const encoded = z.encode(codec, 42)
+    expect(encoded).toEqual({ value: '42' })
 
-    const result = fromConvexJS(input, schema)
-
-    expect(result.events).toHaveLength(2)
-    expect(result.events[0]).toBeInstanceOf(Date)
-    expect(result.events[1]).toBeInstanceOf(Date)
+    const decoded = codec.parse({ value: '123' })
+    expect(decoded).toBe(123)
   })
 
-  it('passes through non-date values unchanged', () => {
+  it('handles codec in object schema field', () => {
+    const sensitiveCodec = zodvexCodec(
+      z.object({ encrypted: z.string() }),
+      z.custom<string>(() => true),
+      {
+        decode: wire => atob(wire.encrypted),
+        encode: value => ({ encrypted: btoa(value) })
+      }
+    )
+
     const schema = z.object({
-      name: z.string(),
-      count: z.number(),
-      active: z.boolean()
+      id: z.string(),
+      secret: sensitiveCodec
     })
 
-    const input = {
-      name: 'test',
-      count: 123,
-      active: true
+    const runtimeValue = {
+      id: 'user-123',
+      secret: 'my-password'
     }
 
-    const result = fromConvexJS(input, schema)
+    // Encode with z.encode()
+    const convexValue = z.encode(schema, runtimeValue)
 
-    expect(result).toEqual(input)
+    expect(convexValue).toEqual({
+      id: 'user-123',
+      secret: { encrypted: btoa('my-password') }
+    })
+
+    // Decode with schema.parse()
+    const decoded = schema.parse(convexValue)
+
+    expect(decoded.id).toBe('user-123')
+    expect(decoded.secret).toBe('my-password')
+  })
+
+  it('round-trips data correctly', () => {
+    const codec = zodvexCodec(
+      z.object({ ts: z.number() }),
+      z.custom<Date>(() => true),
+      {
+        decode: wire => new Date(wire.ts),
+        encode: date => ({ ts: date.getTime() })
+      }
+    )
+
+    const schema = z.object({
+      id: z.string(),
+      event: codec
+    })
+
+    const original = {
+      id: 'event-123',
+      event: new Date('2024-06-15T12:00:00Z')
+    }
+
+    const encoded = z.encode(schema, original)
+    expect(encoded.id).toBe('event-123')
+    expect(encoded.event).toEqual({ ts: original.event.getTime() })
+
+    const decoded = schema.parse(encoded)
+    expect(decoded.id).toBe('event-123')
+    expect(decoded.event).toBeInstanceOf(Date)
+    expect(decoded.event.getTime()).toBe(original.event.getTime())
   })
 })

@@ -2,8 +2,8 @@ import { defineTable } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
-import { zid } from './ids'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
+import { type ZxId, zx } from './zx'
 
 /**
  * Makes all properties of a Zod object shape optional.
@@ -16,7 +16,7 @@ type PartialShape<Shape extends z.ZodRawShape> = {
  * Helper type for Convex system fields added to documents
  */
 type SystemFields<TableName extends string> = {
-  _id: ReturnType<typeof zid<TableName>>
+  _id: ZxId<TableName>
   _creationTime: z.ZodNumber
 }
 
@@ -151,7 +151,7 @@ export function addSystemFields<TableName extends string>(
     const extendedOptions = originalOptions.map((variant: z.ZodTypeAny) => {
       if (variant instanceof z.ZodObject) {
         return variant.extend({
-          _id: zid(tableName),
+          _id: zx.id(tableName),
           _creationTime: z.number()
         })
       }
@@ -164,7 +164,7 @@ export function addSystemFields<TableName extends string>(
   // Handle object schemas
   if (schema instanceof z.ZodObject) {
     return schema.extend({
-      _id: zid(tableName),
+      _id: zx.id(tableName),
       _creationTime: z.number()
     })
   }
@@ -177,7 +177,7 @@ export function addSystemFields<TableName extends string>(
  * System fields added to Convex documents.
  */
 type DocSystemFields<TableName extends string> = {
-  _id: ReturnType<typeof zid<TableName>>
+  _id: ZxId<TableName>
   _creationTime: z.ZodNumber
 }
 /**
@@ -221,7 +221,7 @@ export function zodDoc<TableName extends string, Shape extends z.ZodRawShape>(
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & DocSystemFields<TableName>> {
   return schema.extend({
-    _id: zid(tableName),
+    _id: zx.id(tableName),
     _creationTime: z.number()
   }) as z.ZodObject<Shape & DocSystemFields<TableName>>
 }
@@ -328,7 +328,7 @@ type AddSystemFieldsResult<
  * Update schema shape: _id required, _creationTime optional, user fields partial
  */
 type UpdateShape<TableName extends string, Shape extends z.ZodRawShape> = {
-  _id: ReturnType<typeof zid<TableName>>
+  _id: ZxId<TableName>
   _creationTime: z.ZodOptional<z.ZodNumber>
 } & PartialShape<Shape>
 
@@ -363,22 +363,24 @@ type UpdateSchemaType<
       ? z.ZodObject<UpdateShape<TableName, Shape>>
       : Schema
 
-// Overload 1: Object shape (most common case)
+// Overload 1: Object shape (most common case - raw object with Zod validators)
 export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
   name: TableName,
   shape: Shape
 ): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
   shape: Shape
+  /** @deprecated Use `schema.doc` instead */
   zDoc: z.ZodObject<
     Shape & {
-      _id: ReturnType<typeof zid<TableName>>
+      _id: ZxId<TableName>
       _creationTime: z.ZodNumber
     }
   >
+  /** @deprecated Use `schema.docArray` instead */
   docArray: z.ZodArray<
     z.ZodObject<
       Shape & {
-        _id: ReturnType<typeof zid<TableName>>
+        _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
     >
@@ -386,14 +388,14 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   schema: {
     doc: z.ZodObject<
       Shape & {
-        _id: ReturnType<typeof zid<TableName>>
+        _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
     >
     docArray: z.ZodArray<
       z.ZodObject<
         Shape & {
-          _id: ReturnType<typeof zid<TableName>>
+          _id: ZxId<TableName>
           _creationTime: z.ZodNumber
         }
       >
@@ -407,7 +409,53 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   }
 }
 
-// Overload 2: Union/schema types
+// Overload 2: ZodObject wrapper (extracts shape for same type inference as raw shape)
+export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
+  name: TableName,
+  schema: z.ZodObject<Shape>
+): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
+  shape: Shape
+  /** @deprecated Use `schema.doc` instead */
+  zDoc: z.ZodObject<
+    Shape & {
+      _id: ZxId<TableName>
+      _creationTime: z.ZodNumber
+    }
+  >
+  /** @deprecated Use `schema.docArray` instead */
+  docArray: z.ZodArray<
+    z.ZodObject<
+      Shape & {
+        _id: ZxId<TableName>
+        _creationTime: z.ZodNumber
+      }
+    >
+  >
+  schema: {
+    doc: z.ZodObject<
+      Shape & {
+        _id: ZxId<TableName>
+        _creationTime: z.ZodNumber
+      }
+    >
+    docArray: z.ZodArray<
+      z.ZodObject<
+        Shape & {
+          _id: ZxId<TableName>
+          _creationTime: z.ZodNumber
+        }
+      >
+    >
+    /** The base schema - user fields without system fields */
+    base: z.ZodObject<Shape>
+    /** Alias for base - user fields for insert operations */
+    insert: z.ZodObject<Shape>
+    /** Update schema - _id required, _creationTime optional, user fields partial */
+    update: z.ZodObject<UpdateShape<TableName, Shape>>
+  }
+}
+
+// Overload 3: Union/schema types
 export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
   name: TableName,
   schema: Schema
@@ -425,6 +473,7 @@ export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
     /** Update schema - _id required, _creationTime optional, user fields partial */
     update: UpdateSchemaType<TableName, Schema>
   }
+  /** @deprecated Use `schema.docArray` instead */
   docArray: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
   withSystemFields: () => AddSystemFieldsResult<TableName, Schema>
 }
@@ -433,10 +482,14 @@ export function zodTable<
   TableName extends string,
   SchemaOrShape extends z.ZodTypeAny | Record<string, z.ZodTypeAny>
 >(name: TableName, schemaOrShape: SchemaOrShape): any {
-  // Detect if it's an object shape or a schema
-  if (isObjectShape(schemaOrShape)) {
-    // Original object shape logic
-    const shape = schemaOrShape as Record<string, z.ZodTypeAny>
+  // Detect if it's an object shape, ZodObject, or other schema
+  // For ZodObject: extract its shape to use the type-preserving path
+  const isZodObject = schemaOrShape instanceof z.ZodObject
+  if (isObjectShape(schemaOrShape) || isZodObject) {
+    // Extract shape from ZodObject or use raw shape directly
+    const shape = isZodObject
+      ? (schemaOrShape as z.ZodObject<z.ZodRawShape>).shape
+      : (schemaOrShape as Record<string, z.ZodTypeAny>)
 
     // Convert fields with proper types
     const convexFields = zodToConvexFields(shape) as ConvexValidatorFromZodFieldsAuto<typeof shape>
@@ -447,24 +500,26 @@ export function zodTable<
       convexFields
     )
 
+    // Create base schema (user fields only, no system fields)
+    // When a ZodObject is passed, preserve it to maintain options like .passthrough(), .strict(), .catchall()
+    const baseSchema = isZodObject ? (schemaOrShape as z.ZodObject<z.ZodRawShape>) : z.object(shape)
+
     // Create zDoc schema with system fields
-    const zDoc = zodDoc(name, z.object(shape))
+    // Uses .extend() which preserves object-level options from baseSchema
+    const zDoc = zodDoc(name, baseSchema as z.ZodObject<z.ZodRawShape>)
 
     // Create docArray helper for return types
     const docArray = z.array(zDoc)
 
-    // Create base schema (user fields only, no system fields)
-    const baseSchema = z.object(shape)
-
     // Create partial shape for user fields
     const partialShape: Record<string, z.ZodTypeAny> = {}
     for (const [key, value] of Object.entries(shape)) {
-      partialShape[key] = value.optional()
+      partialShape[key] = (value as z.ZodTypeAny).optional()
     }
 
     // Create update schema: _id required, _creationTime optional, user fields partial
     const updateSchema = z.object({
-      _id: zid(name),
+      _id: zx.id(name),
       _creationTime: z.number().optional(),
       ...partialShape
     })
@@ -478,38 +533,15 @@ export function zodTable<
       update: updateSchema
     }
 
-    // Track if we've warned about deprecated properties
-    const warned = { zDoc: false, docArray: false }
-
     // Attach everything for comprehensive usage
-    const result = Object.assign(table, {
+    // zDoc and docArray are deprecated but kept for backwards compatibility
+    // TypeScript @deprecated annotations provide compile-time warnings
+    return Object.assign(table, {
       shape,
-      schema
+      schema,
+      zDoc,
+      docArray
     })
-
-    Object.defineProperty(result, 'zDoc', {
-      get() {
-        if (!warned.zDoc) {
-          console.warn('zodvex: `zDoc` is deprecated, use `schema.doc` instead')
-          warned.zDoc = true
-        }
-        return schema.doc
-      },
-      enumerable: true
-    })
-
-    Object.defineProperty(result, 'docArray', {
-      get() {
-        if (!warned.docArray) {
-          console.warn('zodvex: `docArray` is deprecated, use `schema.docArray` instead')
-          warned.docArray = true
-        }
-        return schema.docArray
-      },
-      enumerable: true
-    })
-
-    return result
   } else {
     // Union or other schema type logic
     const schema = schemaOrShape as z.ZodTypeAny
@@ -540,7 +572,7 @@ export function zodTable<
           }
           // Add system fields: _id required, _creationTime optional
           return z.object({
-            _id: zid(name),
+            _id: zx.id(name),
             _creationTime: z.number().optional(),
             ...partialShape
           })
@@ -556,7 +588,7 @@ export function zodTable<
       }
       // Add system fields: _id required, _creationTime optional
       updateSchema = z.object({
-        _id: zid(name),
+        _id: zx.id(name),
         _creationTime: z.number().optional(),
         ...partialShape
       })

@@ -4,10 +4,228 @@ This guide helps you upgrade between zodvex versions with breaking changes.
 
 ## Table of Contents
 
+- [Upgrading to Codec-First Architecture](#upgrading-to-codec-first-architecture)
+  - [z.date() Now Throws an Error](#zdate-now-throws-an-error)
+  - [toConvexJS and fromConvexJS Removed](#toconvexjs-and-fromconvexjs-removed)
+  - [registerBaseCodec Removed](#registerbasecodec-removed)
+- [Upgrading to the zx Namespace](#upgrading-to-the-zx-namespace)
+  - [zid() → zx.id()](#zid--zxid)
+  - [z.date() → zx.date()](#zdate--zxdate)
+  - [zodvexCodec() → zx.codec()](#zodvexcodec--zxcodec)
 - [Upgrading to v0.3.0](#upgrading-to-v030)
   - [zid() Implementation Change](#zid-implementation-change)
   - [zCrud Removal](#zcrud-removal)
   - [skipConvexValidation Behavior Change](#skipconvexvalidation-behavior-change)
+
+---
+
+## Upgrading to Codec-First Architecture
+
+zodvex has adopted a codec-first architecture that uses Zod's native `z.encode()` and `schema.parse()` functions for wire format transformations. This simplifies the codebase and provides better integration with Zod v4's codec system.
+
+### z.date() Now Throws an Error
+
+**What changed:**
+
+Using native `z.date()` in args or returns schemas now throws an error at runtime with guidance to migrate to `zx.date()`.
+
+**Before (worked with deprecation):**
+```ts
+const schema = z.object({
+  createdAt: z.date()  // Previously worked but was discouraged
+})
+```
+
+**After (throws error):**
+```ts
+// ❌ This will throw:
+// "[zodvex] Native z.date() found in args. Convex stores dates as timestamps (numbers),
+// which z.date() cannot parse. Fix: Replace z.date() with zx.date()"
+
+const schema = z.object({
+  createdAt: z.date()  // Error!
+})
+
+// ✅ Use zx.date() instead
+import { zx } from 'zodvex'
+
+const schema = z.object({
+  createdAt: zx.date()  // Works correctly
+})
+```
+
+**Migration:**
+
+Find and replace all instances of `z.date()` with `zx.date()`:
+
+```bash
+# Find z.date() usages
+grep -r "z\.date()" --include="*.ts" src/ convex/
+```
+
+### toConvexJS and fromConvexJS Removed
+
+**What changed:**
+
+The `toConvexJS` and `fromConvexJS` functions have been removed. Use Zod's native `z.encode()` and `schema.parse()` instead.
+
+**Before:**
+```ts
+import { toConvexJS, fromConvexJS } from 'zodvex'
+
+// Encoding
+const wireValue = toConvexJS(schema, runtimeValue)
+
+// Decoding
+const runtimeValue = fromConvexJS(wireValue, schema)
+```
+
+**After:**
+```ts
+import { z } from 'zod'
+
+// Encoding - use Zod's native z.encode()
+const wireValue = z.encode(schema, runtimeValue)
+
+// Decoding - use schema.parse()
+const runtimeValue = schema.parse(wireValue)
+```
+
+**Why the change:**
+
+Zod v4 introduced native codec support with `z.codec()`, `z.encode()`, and `schema.parse()`. These provide the same functionality as `toConvexJS`/`fromConvexJS` but are part of Zod's standard API. This:
+
+- Reduces zodvex's API surface
+- Provides better integration with Zod tooling
+- Fixes a double-parsing bug where codecs were being decoded twice
+
+### registerBaseCodec Removed
+
+**What changed:**
+
+The `registerBaseCodec` function has been removed from the public API.
+
+**Before:**
+```ts
+import { registerBaseCodec } from 'zodvex/registry'
+
+registerBaseCodec({
+  check: (schema) => schema instanceof MyCustomZodType,
+  toValidator: (schema) => v.object({ /* ... */ }),
+  toConvex: (value, schema) => serializeMyClass(value),
+  fromConvex: (value, schema) => deserializeMyClass(value)
+})
+```
+
+**After:**
+
+Use `zx.codec()` to create custom codecs:
+
+```ts
+import { z } from 'zod'
+import { zx } from 'zodvex'
+
+// Create a codec with wire and runtime schemas
+const myCodec = zx.codec(
+  z.object({ /* wire format */ }),  // How data is stored in Convex
+  z.custom<MyType>(() => true),      // Runtime type
+  {
+    decode: (wire) => /* wire → runtime */,
+    encode: (runtime) => /* runtime → wire */
+  }
+)
+```
+
+**Why the change:**
+
+The base codec registry was a complex, global-state-based solution. Zod v4's native codec system provides the same capabilities with a simpler, local approach. Creating codecs with `zx.codec()` or `z.codec()`:
+
+- Avoids global mutable state
+- Works automatically with `zodToConvex()` (uses wire schema)
+- Works automatically with `z.encode()`/`schema.parse()`
+- Is more discoverable and type-safe
+
+---
+
+## Upgrading to the zx Namespace
+
+zodvex now provides the `zx` namespace for explicit, discoverable helpers. The old functions still work but show deprecation warnings.
+
+### zid() → zx.id()
+
+**What changed:**
+
+`zid()` is deprecated in favor of `zx.id()`. The functionality is identical.
+
+**Before:**
+```ts
+import { zid } from 'zodvex'
+
+const schema = z.object({
+  userId: zid('users'),
+  teamId: zid('teams').optional()
+})
+```
+
+**After:**
+```ts
+import { zx } from 'zodvex'
+
+const schema = z.object({
+  userId: zx.id('users'),
+  teamId: zx.id('teams').optional()
+})
+```
+
+### z.date() → zx.date()
+
+**What changed:**
+
+`z.date()` is no longer supported and will throw an error. You must use `zx.date()` instead. The `zx.date()` codec makes the Date ↔ timestamp transformation explicit.
+
+**Before:**
+```ts
+const schema = z.object({
+  createdAt: z.date(),
+  updatedAt: z.date().nullable()
+})
+```
+
+**After:**
+```ts
+import { zx } from 'zodvex'
+
+const schema = z.object({
+  createdAt: zx.date(),
+  updatedAt: zx.date().nullable()
+})
+```
+
+**Why the change:**
+
+Convex stores dates as timestamps (numbers), which native `z.date()` cannot parse. Using `zx.date()` makes it immediately clear that a wire format transformation is happening (Date ↔ timestamp) and correctly handles the conversion.
+
+### zodvexCodec() → zx.codec()
+
+**What changed:**
+
+`zodvexCodec()` is now also available as `zx.codec()` for consistency.
+
+**Before:**
+```ts
+import { zodvexCodec } from 'zodvex'
+
+const myCodec = zodvexCodec(wireSchema, runtimeSchema, transforms)
+```
+
+**After:**
+```ts
+import { zx } from 'zodvex'
+
+const myCodec = zx.codec(wireSchema, runtimeSchema, transforms)
+```
+
+Both forms continue to work - `zx.codec()` is simply an alias for `zodvexCodec()`.
 
 ---
 

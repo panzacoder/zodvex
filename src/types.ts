@@ -86,3 +86,41 @@ export type ZodToConvexArgs<A> = A extends z.ZodObject<any>
     : A extends z.ZodTypeAny
       ? { value: z.infer<A> }
       : Record<string, never>
+
+/**
+ * Brand symbol for preserving wire schema type through type aliases.
+ * Allows ConvexValidatorFromZod to extract wire schema even when
+ * consumers wrap ZodCodec in custom type aliases.
+ *
+ * @internal Used by ZodvexCodec type and ConvexValidatorFromZod
+ */
+declare const ZodvexWireSchema: unique symbol
+export { ZodvexWireSchema }
+
+/**
+ * A branded ZodCodec that preserves wire schema type information.
+ * Use this when creating type aliases for custom codecs to ensure
+ * zodvex can infer the correct Convex validator.
+ *
+ * @example
+ * ```typescript
+ * type MyCodec<T> = ZodvexCodec<
+ *   z.ZodObject<{ value: T }>,
+ *   z.ZodCustom<MyClass<T>>
+ * >
+ *
+ * function myCodec<T extends z.ZodTypeAny>(inner: T): MyCodec<T> {
+ *   return zodvexCodec(
+ *     z.object({ value: inner }),
+ *     z.custom<MyClass<z.output<T>>>(() => true),
+ *     { decode: ..., encode: ... }
+ *   )
+ * }
+ * ```
+ */
+export type ZodvexCodec<Wire extends z.ZodTypeAny, Runtime extends z.ZodTypeAny> = z.ZodCodec<
+  Wire,
+  Runtime
+> & {
+  readonly [ZodvexWireSchema]: Wire
+}

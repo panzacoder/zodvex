@@ -2,7 +2,6 @@ import type { GenericValidator, PropertyValidators } from 'convex/values'
 import { v } from 'convex/values'
 import { z } from 'zod'
 import { registryHelpers } from '../ids'
-import { findBaseCodec } from '../registry'
 import {
   convertDiscriminatedUnionType,
   convertEnumType,
@@ -98,7 +97,14 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         convexValidator = v.boolean()
         break
       case 'date':
-        convexValidator = v.float64() // Dates are stored as timestamps in Convex
+        // LEGACY: Maps z.date() to v.float64() for backwards compatibility in type inference.
+        // However, z.date() does NOT work at runtime because:
+        // 1. z.date() produces Date objects, not numbers
+        // 2. Convex rejects Date objects as non-serializable
+        // 3. z.encode() on z.date() returns a Date, not a timestamp
+        // Use zx.date() instead, which provides proper Date ↔ timestamp codec.
+        // The wrappers and convexCodec will throw if z.date() is used.
+        convexValidator = v.float64()
         break
       case 'null':
         convexValidator = v.null()
@@ -195,18 +201,24 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
             convexValidator = v.any()
           }
         } else {
-          // Check for registered codec from the registry
-          const codec = findBaseCodec(actualValidator)
-          if (codec) {
-            convexValidator = codec.toValidator(actualValidator)
+          // Check for brand metadata
+          const metadata = registryHelpers.getMetadata(actualValidator)
+          if (metadata?.brand && metadata?.originalSchema) {
+            // For branded types created by our zBrand function, use the original schema
+            convexValidator = zodToConvexInternal(metadata.originalSchema, visited)
           } else {
-            // Check for brand metadata
-            const metadata = registryHelpers.getMetadata(actualValidator)
-            if (metadata?.brand && metadata?.originalSchema) {
-              // For branded types created by our zBrand function, use the original schema
-              convexValidator = zodToConvexInternal(metadata.originalSchema, visited)
+            // Non-codec transform - extract input schema but warn
+            const inputSchema = (actualValidator as any).def?.in
+            if (inputSchema && inputSchema instanceof z.ZodType) {
+              if (process.env.NODE_ENV !== 'production') {
+                console.warn(
+                  '[zodvex] z.transform() detected. Using input schema for Convex validation.\n' +
+                    'Transforms are unidirectional - they work for parsing but not encoding.\n' +
+                    'For bidirectional transforms, use zx.codec() instead.'
+                )
+              }
+              convexValidator = zodToConvexInternal(inputSchema, visited)
             } else {
-              // For non-registered transforms, return v.any()
               convexValidator = v.any()
             }
           }
@@ -286,6 +298,21 @@ function zodToConvexInternal<Z extends z.ZodTypeAny>(
         // Can't properly handle intersections
         convexValidator = v.any()
         break
+      case 'optional': {
+        // Fallback for optional types that weren't caught by the instanceof check at line 53.
+        // This can happen when pipes/codecs are wrapped with .optional() - the instanceof
+        // z.ZodOptional check fails but def.type is still 'optional'.
+        const innerType =
+          (actualValidator as any).def?.innerType ?? (actualValidator as any).unwrap?.()
+        if (innerType && innerType instanceof z.ZodType) {
+          convexValidator = zodToConvexInternal(innerType, visited)
+          isOptional = true
+        } else {
+          convexValidator = v.any()
+          isOptional = true
+        }
+        break
+      }
       default:
         // For any unrecognized def.type, return v.any()
         // No instanceof fallbacks - keep it simple and performant

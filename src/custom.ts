@@ -13,10 +13,15 @@ import {
 import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
-import { fromConvexJS, toConvexJS } from './codec'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility } from './types'
-import { handleZodValidationError, pick, validateReturns } from './utils'
+import {
+  assertNoNativeZodDate,
+  handleZodValidationError,
+  pick,
+  stripUndefined,
+  validateReturns
+} from './utils'
 
 /**
  * Hooks for observing the function execution (side effects, no return value).
@@ -316,6 +321,11 @@ export function customFnBuilder<
     const returnValidator =
       returns && !skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
 
+    // Check for z.date() usage at construction time (once), not on every invocation
+    if (returns) {
+      assertNoNativeZodDate(returns as z.ZodTypeAny, 'returns')
+    }
+
     if (args) {
       let argsValidator = args
       let argsSchema: z.ZodObject<any>
@@ -339,6 +349,9 @@ export function customFnBuilder<
         ? inputArgs
         : { ...zodToConvexFields(argsValidator), ...inputArgs }
 
+      // Check for z.date() usage at construction time (once), not on every invocation
+      assertNoNativeZodDate(argsSchema, 'args')
+
       return builder({
         args: convexArgs,
         ...returnValidator,
@@ -357,9 +370,8 @@ export function customFnBuilder<
           )
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
-          const decoded = fromConvexJS(rawArgs, argsSchema)
-          // Always run Zod validation, regardless of skipConvexValidation
-          const parsed = argsSchema.safeParse(decoded)
+          // Zod handles codec transforms natively via safeParse
+          const parsed = argsSchema.safeParse(rawArgs)
           if (!parsed.success) {
             handleZodValidationError(parsed.error, 'args')
           }
@@ -386,21 +398,25 @@ export function customFnBuilder<
               ? await added.transforms.output(ret, returns as z.ZodTypeAny)
               : ret
 
-            // Validate using encode (for codecs) with fallback to parse (for transforms)
+            // Validate and encode using z.encode (Zod handles codecs natively)
             const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
+            // Strip undefined values before returning (Convex rejects explicit undefined)
+            const result = stripUndefined(validated)
             if (added?.hooks?.onSuccess) {
               await added.hooks.onSuccess({
                 ctx,
                 args: parsed.data,
-                result: validated
+                result
               })
             }
-            return toConvexJS(returns as z.ZodTypeAny, validated)
+            return result
           }
+          // Strip undefined even without returns schema (Convex rejects explicit undefined)
+          const result = stripUndefined(ret)
           if (added?.hooks?.onSuccess) {
-            await added.hooks.onSuccess({ ctx, args: parsed.data, result: ret })
+            await added.hooks.onSuccess({ ctx, args: parsed.data, result })
           }
-          return ret
+          return result
         }
       })
     }
@@ -440,17 +456,21 @@ export function customFnBuilder<
             ? await added.transforms.output(ret, returns as z.ZodTypeAny)
             : ret
 
-          // Validate using encode (for codecs) with fallback to parse (for transforms)
+          // Validate and encode using z.encode (Zod handles codecs natively)
           const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
+          // Strip undefined values before returning (Convex rejects explicit undefined)
+          const result = stripUndefined(validated)
           if (added?.hooks?.onSuccess) {
-            await added.hooks.onSuccess({ ctx, args: allArgs, result: validated })
+            await added.hooks.onSuccess({ ctx, args: allArgs, result })
           }
-          return toConvexJS(returns as z.ZodTypeAny, validated)
+          return result
         }
+        // Strip undefined even without returns schema (Convex rejects explicit undefined)
+        const result = stripUndefined(ret)
         if (added?.hooks?.onSuccess) {
-          await added.hooks.onSuccess({ ctx, args: allArgs, result: ret })
+          await added.hooks.onSuccess({ ctx, args: allArgs, result })
         }
-        return ret
+        return result
       }
     })
   }

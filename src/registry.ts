@@ -1,61 +1,4 @@
-import { v } from 'convex/values'
 import { z } from 'zod'
-
-// Registry for base type codecs
-type BaseCodec = {
-  check: (schema: any) => boolean
-  toValidator: (schema: any) => any
-  fromConvex: (value: any, schema: any) => any
-  toConvex: (value: any, schema: any) => any
-}
-
-const baseCodecs: BaseCodec[] = []
-
-export function registerBaseCodec(codec: BaseCodec): void {
-  baseCodecs.unshift(codec) // Add to front for priority
-}
-
-export function findBaseCodec(schema: any): BaseCodec | undefined {
-  return baseCodecs.find(codec => codec.check(schema))
-}
-
-// Built-in codec for Date
-registerBaseCodec({
-  check: schema => schema instanceof z.ZodDate,
-  toValidator: () => v.float64(),
-  fromConvex: value => {
-    if (typeof value === 'number') {
-      return new Date(value)
-    }
-    return value
-  },
-  toConvex: value => {
-    if (value instanceof Date) {
-      return value.getTime()
-    }
-    return value
-  }
-})
-
-// Helper to convert Zod's internal types to ZodTypeAny
-function asZodType<T>(schema: T): z.ZodTypeAny {
-  return schema as unknown as z.ZodTypeAny
-}
-
-// Helper to check if a schema is a Date type through the registry
-export function isDateSchema(schema: any): boolean {
-  if (schema instanceof z.ZodDate) return true
-
-  // Check through optional/nullable (these have public unwrap())
-  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) {
-    return isDateSchema(asZodType(schema.unwrap()))
-  }
-
-  // Cannot check transforms/pipes without _def access
-  // This is a limitation of using only public APIs
-
-  return false
-}
 
 // ============================================================================
 // JSON Schema Override Support
@@ -98,16 +41,16 @@ export interface JSONSchemaOverrideContext {
  * Override function for z.toJSONSchema that handles zodvex-managed types.
  *
  * Handles:
- * - zid schemas: Converts to { type: "string" } with convexId format
- * - z.date(): Converts to { type: "string", format: "date-time" }
+ * - zx.id() schemas: Converts to { type: "string" } with convexId format
+ * - zx.date(): Converts to { type: "string", format: "date-time" }
  *
  * @example
  * ```ts
  * import { z } from 'zod'
- * import { zid, zodvexJSONSchemaOverride } from 'zodvex'
+ * import { zx, zodvexJSONSchemaOverride } from 'zodvex'
  *
  * const schema = z.object({
- *   userId: zid('users'),
+ *   userId: zx.id('users'),
  *   name: z.string()
  * })
  *
@@ -194,15 +137,15 @@ export interface ToJSONSchemaOptions {
  * Converts a Zod schema to JSON Schema with zodvex-aware overrides.
  *
  * This is a convenience wrapper around z.toJSONSchema that automatically
- * handles zodvex-managed types like zid and dates.
+ * handles zodvex-managed types like zx.id() and zx.date().
  *
  * @example
  * ```ts
- * import { zid, toJSONSchema } from 'zodvex'
+ * import { zx, toJSONSchema } from 'zodvex'
  *
  * const schema = z.object({
- *   userId: zid('users'),
- *   createdAt: z.date(),
+ *   userId: zx.id('users'),
+ *   createdAt: zx.date(),
  *   name: z.string()
  * })
  *
