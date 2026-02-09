@@ -12,12 +12,9 @@
 
 // Re-export customCtx for convenience
 export { customCtx } from 'convex-helpers/server/customFunctions'
-
-// Table creation and helpers
-export * from '../tables'
-
 // Function builders (zQueryBuilder, zMutationBuilder, zActionBuilder, etc.)
 export * from '../builders'
-
 // Custom function utilities (customCtxWithHooks, zCustomQuery, etc.)
 export * from '../custom'
+// Table creation and helpers
+export * from '../tables'

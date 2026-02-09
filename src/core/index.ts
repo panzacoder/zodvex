@@ -8,29 +8,23 @@
  * - Any code that runs in the browser
  */
 
-// Zod extensions for Convex
-export * from '../zx'
-
 // Codec utilities
 export * from '../codec'
-
 // ID utilities
 export * from '../ids'
-
 // Zod → Convex validator mapping
 export * from '../mapping'
-
-// Transform utilities
-export * from '../transform'
-
+// JSON Schema overrides and registry
+export * from '../registry'
 // Result types
 export * from '../results'
+// Transform utilities
+export * from '../transform'
 
 // Types (server imports are type-only and erased at compile time)
 export * from '../types'
 
 // Utilities (no server imports)
 export * from '../utils'
-
-// JSON Schema overrides and registry
-export * from '../registry'
+// Zod extensions for Convex
+export * from '../zx'
