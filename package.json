@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.6.0",
+  "version": "0.5.1",
   "description": "Zod <=> Convex integration, supporting Zod 4",
   "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
   "homepage": "https://github.com/panzacoder/zodvex#readme",
