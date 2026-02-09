@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Zod <=> Convex integration, supporting Zod 4",
   "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
   "homepage": "https://github.com/panzacoder/zodvex#readme",
@@ -21,6 +21,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
     },
     "./transform": {
       "types": "./dist/transform/index.d.ts",

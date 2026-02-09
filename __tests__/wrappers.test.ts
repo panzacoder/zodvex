@@ -89,6 +89,21 @@ describe('wrappers arg decoding with codec-first approach', () => {
     expect(ret.count).toBe(42)
   })
 
+  it('action: does not convert Date without returns schema', async () => {
+    const builder = makeBuilder()
+    const created = new Date('2025-02-02T00:00:00Z')
+
+    // Without returns schema, Date should be returned as-is (no timestamp conversion)
+    const fn = zAction(builder as any, { id: z.string() }, async () => {
+      return { created }
+    }) as unknown as (ctx: any, args: any) => Promise<any>
+
+    const ret = await fn({}, { id: 'x' })
+    expect(ret.created).toBe(created)
+    expect(ret.created).toBeInstanceOf(Date)
+    expect(ret.created.getTime()).toBe(created.getTime())
+  })
+
   it('throws helpful error when z.date() is used in args (at construction time)', () => {
     const builder = makeBuilder()
 

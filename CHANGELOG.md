@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-02-09
+
+### Added
+
+- New `zodvex/core` entry point for client-safe imports
+  - Contains: `zx`, `zodToConvex`, `zodToConvexFields`, codec utilities, transform utilities, registry, and more
+  - No imports from `convex/server` or `convex-helpers/server`
+  - Reduces client bundle size when used instead of root import
+- New `zodvex/server` entry point for server-only utilities
+  - Contains: `zodTable`, `customCtx`, function builders (`zQueryBuilder`, `zMutationBuilder`, `zActionBuilder`), custom function utilities
+
+### Changed
+
+- Root `zodvex` import now re-exports from `zodvex/core` and `zodvex/server`
+- No breaking changes - existing imports continue to work
+
 ## [Unreleased]
 
 ### Changed
