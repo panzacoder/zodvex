@@ -1,7 +1,12 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/transform/index.ts'],
+  entry: [
+    'src/index.ts',
+    'src/core/index.ts',
+    'src/server/index.ts',
+    'src/transform/index.ts',
+  ],
   format: ['esm'],
   // DTS handled by tsc in build script - tsup's dts doesn't output individual files
   dts: false,

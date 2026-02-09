@@ -9,6 +9,7 @@ Type-safe Convex functions with Zod schemas. Preserve Convex's optional/nullable
 ## Table of Contents
 
 - [Installation](#installation)
+- [Import Paths](#import-paths)
 - [Quick Start](#quick-start)
 - [Defining Schemas](#defining-schemas)
 - [Table Definitions](#table-definitions)
@@ -40,6 +41,45 @@ npm install zodvex zod@^4.1.0 convex convex-helpers
 - `zod` (^4.1.0 or later)
 - `convex` (>= 1.27.0)
 - `convex-helpers` (>= 0.1.104)
+
+## Import Paths
+
+zodvex provides multiple entry points for optimal bundle sizes:
+
+### `zodvex/core` - Client-Safe (Recommended for client code)
+
+Use this in React components, hooks, and any client-side code:
+
+```typescript
+import { zx, zodToConvex } from 'zodvex/core'
+
+// Define schemas that can be used anywhere
+const userSchema = z.object({
+  id: zx.id('users'),
+  createdAt: zx.date(),
+})
+```
+
+### `zodvex/server` - Server-Only
+
+Use this in Convex functions and schema definitions:
+
+```typescript
+import { zodTable, zCustomQuery } from 'zodvex/server'
+
+// In convex/schema.ts
+const Users = zodTable('users', userShape)
+```
+
+### `zodvex` - Full Library (Backwards Compatible)
+
+For convenience or when you don't care about bundle size:
+
+```typescript
+import { zx, zodTable } from 'zodvex'
+```
+
+> **Note:** This pulls in server code. Use `zodvex/core` for client bundles.
 
 ## Quick Start
 
