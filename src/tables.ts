@@ -3,7 +3,126 @@ import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
+import type { ZodvexWireSchema } from './types'
 import { type ZxId, zx } from './zx'
+
+// ============================================================================
+// Wire Format Helpers - Convert codec schemas to their wire (storage) schemas
+// ============================================================================
+
+/**
+ * Recursively replaces codec schemas with their wire (input) schemas at the type level.
+ * Used to ensure doc/docArray types match what Convex actually stores in the database.
+ *
+ * For example, `zx.date()` (ZodCodec<ZodNumber, ZodCustom<Date>>) becomes `ZodNumber`,
+ * so `z.infer<doc>` gives `number` instead of `Date`, matching what `ctx.db.query()` returns.
+ */
+type ToWireField<Z extends z.ZodTypeAny> =
+  // Handle branded zodvex codecs (zx.date(), zx.codec(), etc.)
+  Z extends { readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny }
+    ? W
+    : // Handle native Zod codecs
+      Z extends z.ZodCodec<infer W extends z.ZodTypeAny, any>
+      ? W
+      : // Recurse into optionals
+        Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
+        ? z.ZodOptional<ToWireField<Inner>>
+        : // Recurse into nullables
+          Z extends z.ZodNullable<infer Inner extends z.ZodTypeAny>
+          ? z.ZodNullable<ToWireField<Inner>>
+          : // Recurse into defaults
+            Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
+            ? z.ZodDefault<ToWireField<Inner>>
+            : // Recurse into arrays
+              Z extends z.ZodArray<infer E extends z.ZodTypeAny>
+              ? z.ZodArray<ToWireField<E>>
+              : // Recurse into objects
+                Z extends z.ZodObject<infer S extends z.ZodRawShape>
+                ? z.ZodObject<ToWireShape<S>>
+                : // All other types pass through unchanged
+                  Z
+
+/**
+ * Applies ToWireField to every field in a Zod object shape.
+ */
+type ToWireShape<Shape extends z.ZodRawShape> = {
+  [K in keyof Shape]: Shape[K] extends z.ZodTypeAny ? ToWireField<Shape[K]> : Shape[K]
+}
+
+/**
+ * Recursively replaces ZodCodec instances with their wire (input) schemas at runtime.
+ * This ensures doc/docArray schemas validate wire-format data (e.g., numbers for dates)
+ * rather than runtime-format data (e.g., Date objects).
+ *
+ * @param field - A Zod schema that may contain codecs
+ * @returns The equivalent schema with codecs replaced by their wire schemas
+ */
+function toWireField(field: z.ZodTypeAny): z.ZodTypeAny {
+  // Handle codecs - extract wire (input) schema
+  if (field instanceof z.ZodCodec) {
+    const wireSchema = (field as any).def?.in
+    if (wireSchema && wireSchema instanceof z.ZodType) {
+      return wireSchema
+    }
+    return field
+  }
+
+  // Recurse into optionals
+  if (field instanceof z.ZodOptional) {
+    return toWireField(field.unwrap() as z.ZodTypeAny).optional()
+  }
+
+  // Fallback for optionals that don't pass instanceof
+  // (can happen with codec.optional() in some Zod v4 edge cases)
+  if (!(field instanceof z.ZodOptional) && (field as any).def?.type === 'optional') {
+    const innerType = (field as any).def?.innerType ?? (field as any).unwrap?.()
+    if (innerType && innerType instanceof z.ZodType) {
+      return toWireField(innerType).optional()
+    }
+  }
+
+  // Recurse into nullables
+  if (field instanceof z.ZodNullable) {
+    return toWireField(field.unwrap() as z.ZodTypeAny).nullable()
+  }
+
+  // Recurse into defaults
+  if (field instanceof z.ZodDefault) {
+    const inner = (field as any).def?.innerType
+    if (inner && inner instanceof z.ZodType) {
+      const defaultValue = (field as any).def?.defaultValue
+      return toWireField(inner).default(defaultValue)
+    }
+    return field
+  }
+
+  // Recurse into arrays
+  if (field instanceof z.ZodArray) {
+    return z.array(toWireField(field.element as z.ZodTypeAny))
+  }
+
+  // Recurse into objects
+  if (field instanceof z.ZodObject) {
+    return z.object(toWireShape(field.shape))
+  }
+
+  // All other types pass through unchanged
+  return field
+}
+
+/**
+ * Converts all fields in a Zod object shape to their wire-format equivalents.
+ *
+ * @param shape - A Zod object shape potentially containing codecs
+ * @returns A new shape with codecs replaced by their wire schemas
+ */
+function toWireShape(shape: z.ZodRawShape): z.ZodRawShape {
+  const wireShape: Record<string, z.ZodTypeAny> = {}
+  for (const [key, value] of Object.entries(shape)) {
+    wireShape[key] = toWireField(value as z.ZodTypeAny)
+  }
+  return wireShape as z.ZodRawShape
+}
 
 /**
  * Makes all properties of a Zod object shape optional.
@@ -22,11 +141,12 @@ type SystemFields<TableName extends string> = {
 
 /**
  * Maps over union options, extending each ZodObject variant with system fields.
+ * Converts codec fields to wire format for doc/docArray type compatibility.
  * Non-object variants are preserved as-is.
  */
 type MapSystemFields<TableName extends string, Options extends readonly z.ZodTypeAny[]> = {
   [K in keyof Options]: Options[K] extends z.ZodObject<infer Shape extends z.ZodRawShape>
-    ? z.ZodObject<Shape & SystemFields<TableName>>
+    ? z.ZodObject<ToWireShape<Shape> & SystemFields<TableName>>
     : Options[K]
 }
 
@@ -111,11 +231,11 @@ export function createUnionFromOptions<T extends z.ZodTypeAny>(
  * @param schema - The Zod schema (object or union)
  * @returns Schema with system fields added
  */
-// Overload 1: ZodObject - extends with system fields
+// Overload 1: ZodObject - extends with system fields (wire format)
 export function addSystemFields<TableName extends string, Shape extends z.ZodRawShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
-): z.ZodObject<Shape & SystemFields<TableName>>
+): z.ZodObject<ToWireShape<Shape> & SystemFields<TableName>>
 
 // Overload 2: ZodUnion - maps system fields to each variant
 export function addSystemFields<TableName extends string, Options extends readonly z.ZodTypeAny[]>(
@@ -145,15 +265,23 @@ export function addSystemFields<TableName extends string>(
   tableName: TableName,
   schema: z.ZodTypeAny
 ): z.ZodTypeAny {
-  // Handle union schemas - add system fields to each variant
+  // Handle union schemas - add system fields to each variant (wire format)
   if (isZodUnion(schema)) {
     const originalOptions = getUnionOptions(schema)
     const extendedOptions = originalOptions.map((variant: z.ZodTypeAny) => {
       if (variant instanceof z.ZodObject) {
-        return variant.extend({
+        const wireShape = toWireShape(variant.shape)
+        let variantDoc = z.object({
+          ...wireShape,
           _id: zx.id(tableName),
           _creationTime: z.number()
         })
+        // Preserve object-level options
+        const catchall = (variant as any).def?.catchall
+        if (catchall) {
+          variantDoc = variantDoc.catchall(catchall)
+        }
+        return variantDoc
       }
       // Non-object variants are returned as-is (shouldn't happen in practice)
       return variant
@@ -161,12 +289,20 @@ export function addSystemFields<TableName extends string>(
     return createUnionFromOptions(extendedOptions)
   }
 
-  // Handle object schemas
+  // Handle object schemas (wire format)
   if (schema instanceof z.ZodObject) {
-    return schema.extend({
+    const wireShape = toWireShape(schema.shape)
+    let docSchema = z.object({
+      ...wireShape,
       _id: zx.id(tableName),
       _creationTime: z.number()
     })
+    // Preserve object-level options
+    const catchall = (schema as any).def?.catchall
+    if (catchall) {
+      docSchema = docSchema.catchall(catchall)
+    }
+    return docSchema
   }
 
   // Fallback: return schema as-is
@@ -209,21 +345,33 @@ function asTableValidator<V extends { kind: string }>(validator: V): TableValida
 
 /**
  * Creates a Zod schema for a Convex document with system fields.
- * Uses .extend() to preserve object-level options like .passthrough(), .strict(),
- * .catchall(), and object-level refinements.
+ * Converts codec fields (e.g., zx.date()) to their wire-format schemas so that
+ * `z.infer<doc>` matches what Convex actually stores and returns from queries.
+ * Preserves object-level options (.passthrough(), .strict(), .catchall()) from
+ * the original schema.
  *
  * @param tableName - The Convex table name
  * @param schema - The Zod object schema for user fields
- * @returns A Zod object schema with _id and _creationTime added
+ * @returns A Zod object schema with wire-format fields, _id, and _creationTime
  */
 export function zodDoc<TableName extends string, Shape extends z.ZodRawShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
-): z.ZodObject<Shape & DocSystemFields<TableName>> {
-  return schema.extend({
+): z.ZodObject<ToWireShape<Shape> & DocSystemFields<TableName>> {
+  const wireShape = toWireShape(schema.shape as z.ZodRawShape)
+  let docSchema = z.object({
+    ...wireShape,
     _id: zx.id(tableName),
     _creationTime: z.number()
-  }) as z.ZodObject<Shape & DocSystemFields<TableName>>
+  })
+
+  // Preserve object-level options (passthrough/strict/catchall) from original schema
+  const catchall = (schema as any).def?.catchall
+  if (catchall) {
+    docSchema = docSchema.catchall(catchall)
+  }
+
+  return docSchema as z.ZodObject<ToWireShape<Shape> & DocSystemFields<TableName>>
 }
 
 // Helper to create nullable doc schema
@@ -310,11 +458,12 @@ function isObjectShape(input: any): input is Record<string, z.ZodTypeAny> {
  * ```
  */
 // Helper type to compute the result of addSystemFields for use in zodTable return type
+// Uses ToWireShape to ensure doc types match what Convex stores (wire format)
 type AddSystemFieldsResult<
   TableName extends string,
   Schema extends z.ZodTypeAny
 > = Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
-  ? z.ZodObject<Shape & SystemFields<TableName>>
+  ? z.ZodObject<ToWireShape<Shape> & SystemFields<TableName>>
   : Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
     ? z.ZodUnion<MapSystemFields<TableName, Options>>
     : Schema extends z.ZodDiscriminatedUnion<
@@ -371,7 +520,7 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   shape: Shape
   /** @deprecated Use `schema.doc` instead */
   zDoc: z.ZodObject<
-    Shape & {
+    ToWireShape<Shape> & {
       _id: ZxId<TableName>
       _creationTime: z.ZodNumber
     }
@@ -379,7 +528,7 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   /** @deprecated Use `schema.docArray` instead */
   docArray: z.ZodArray<
     z.ZodObject<
-      Shape & {
+      ToWireShape<Shape> & {
         _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
@@ -387,14 +536,14 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   >
   schema: {
     doc: z.ZodObject<
-      Shape & {
+      ToWireShape<Shape> & {
         _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
     >
     docArray: z.ZodArray<
       z.ZodObject<
-        Shape & {
+        ToWireShape<Shape> & {
           _id: ZxId<TableName>
           _creationTime: z.ZodNumber
         }
@@ -417,7 +566,7 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
   shape: Shape
   /** @deprecated Use `schema.doc` instead */
   zDoc: z.ZodObject<
-    Shape & {
+    ToWireShape<Shape> & {
       _id: ZxId<TableName>
       _creationTime: z.ZodNumber
     }
@@ -425,7 +574,7 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
   /** @deprecated Use `schema.docArray` instead */
   docArray: z.ZodArray<
     z.ZodObject<
-      Shape & {
+      ToWireShape<Shape> & {
         _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
@@ -433,14 +582,14 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
   >
   schema: {
     doc: z.ZodObject<
-      Shape & {
+      ToWireShape<Shape> & {
         _id: ZxId<TableName>
         _creationTime: z.ZodNumber
       }
     >
     docArray: z.ZodArray<
       z.ZodObject<
-        Shape & {
+        ToWireShape<Shape> & {
           _id: ZxId<TableName>
           _creationTime: z.ZodNumber
         }

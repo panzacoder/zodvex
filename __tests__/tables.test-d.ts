@@ -5,6 +5,7 @@ import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { zid } from '../src/ids'
 import { zodDoc, zodTable } from '../src/tables'
+import { zx } from '../src/zx'
 import { mutation, query } from './_generated/server'
 
 describe('zodTable type inference', () => {
@@ -164,5 +165,87 @@ describe('zodDoc helper', () => {
     // Optional should remain optional in doc type
     expectTypeOf<DocType['optional']>().toEqualTypeOf<number | undefined>()
     expectTypeOf<DocType['required']>().toEqualTypeOf<string>()
+  })
+})
+
+describe('zodTable doc types with codecs (issue #37)', () => {
+  it('doc type uses wire format for zx.date() fields', () => {
+    const Events = zodTable('events', {
+      name: z.string(),
+      createdAt: zx.date()
+    })
+
+    type DocType = z.infer<typeof Events.schema.doc>
+
+    // createdAt should be number (wire format), not Date (runtime format)
+    expectTypeOf<DocType['createdAt']>().toEqualTypeOf<number>()
+    // Other fields should be unchanged
+    expectTypeOf<DocType['name']>().toEqualTypeOf<string>()
+    // System fields should be present
+    expectTypeOf<DocType['_creationTime']>().toEqualTypeOf<number>()
+  })
+
+  it('docArray type uses wire format for zx.date() fields', () => {
+    const Events = zodTable('events', {
+      name: z.string(),
+      createdAt: zx.date()
+    })
+
+    type DocArrayType = z.infer<typeof Events.schema.docArray>
+
+    // Array elements should have wire-format dates
+    expectTypeOf<DocArrayType[number]['createdAt']>().toEqualTypeOf<number>()
+  })
+
+  it('handles optional zx.date() in doc type', () => {
+    const Events = zodTable('events', {
+      name: z.string(),
+      updatedAt: zx.date().optional()
+    })
+
+    type DocType = z.infer<typeof Events.schema.doc>
+
+    // Optional date should be number | undefined in wire format
+    expectTypeOf<DocType['updatedAt']>().toEqualTypeOf<number | undefined>()
+  })
+
+  it('handles nullable zx.date() in doc type', () => {
+    const Events = zodTable('events', {
+      name: z.string(),
+      deletedAt: zx.date().nullable()
+    })
+
+    type DocType = z.infer<typeof Events.schema.doc>
+
+    // Nullable date should be number | null in wire format
+    expectTypeOf<DocType['deletedAt']>().toEqualTypeOf<number | null>()
+  })
+
+  it('base/insert types preserve codec runtime types', () => {
+    const Events = zodTable('events', {
+      name: z.string(),
+      createdAt: zx.date()
+    })
+
+    type BaseType = z.infer<typeof Events.schema.base>
+
+    // base schema should use runtime types (Date) for codec fields
+    // because it represents data before encoding for Convex
+    expectTypeOf<BaseType['createdAt']>().toEqualTypeOf<Date>()
+  })
+
+  it('zodDoc uses wire format for codec fields', () => {
+    const docSchema = zodDoc(
+      'events',
+      z.object({
+        name: z.string(),
+        createdAt: zx.date()
+      })
+    )
+
+    type DocType = z.infer<typeof docSchema>
+
+    expectTypeOf<DocType['createdAt']>().toEqualTypeOf<number>()
+    expectTypeOf<DocType['name']>().toEqualTypeOf<string>()
   })
 })

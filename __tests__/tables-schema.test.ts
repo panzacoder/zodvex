@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 import { z } from 'zod'
 import { zodTable } from '../src/tables'
+import { zx } from '../src/zx'
 
 describe('zodTable schema namespace', () => {
   describe('object shapes', () => {
@@ -268,6 +269,187 @@ describe('zodTable schema namespace', () => {
 
       // Deprecated but still works
       expect(Users.docArray).toBe(Users.schema.docArray)
+    })
+  })
+
+  describe('codec wire format in doc/docArray (issue #37)', () => {
+    it('doc schema uses wire format for zx.date() fields', () => {
+      const Events = zodTable('events', {
+        name: z.string(),
+        createdAt: zx.date()
+      })
+
+      // doc schema should accept wire-format data (numbers for dates)
+      const wireData = {
+        _id: 'events:123' as any,
+        _creationTime: Date.now(),
+        name: 'test event',
+        createdAt: 1718452800000 // number, not Date
+      }
+
+      const result = Events.schema.doc.safeParse(wireData)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.createdAt).toBe(1718452800000)
+        expect(typeof result.data.createdAt).toBe('number')
+      }
+    })
+
+    it('doc schema rejects non-number for zx.date() fields', () => {
+      const Events = zodTable('events', {
+        name: z.string(),
+        createdAt: zx.date()
+      })
+
+      const invalidData = {
+        _id: 'events:123' as any,
+        _creationTime: Date.now(),
+        name: 'test event',
+        createdAt: 'not-a-number'
+      }
+
+      const result = Events.schema.doc.safeParse(invalidData)
+      expect(result.success).toBe(false)
+    })
+
+    it('docArray schema validates array of wire-format documents', () => {
+      const Events = zodTable('events', {
+        name: z.string(),
+        createdAt: zx.date()
+      })
+
+      const wireData = [
+        {
+          _id: 'events:1' as any,
+          _creationTime: Date.now(),
+          name: 'event 1',
+          createdAt: 1718452800000
+        },
+        {
+          _id: 'events:2' as any,
+          _creationTime: Date.now(),
+          name: 'event 2',
+          createdAt: 1718539200000
+        }
+      ]
+
+      const result = Events.schema.docArray.safeParse(wireData)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.length).toBe(2)
+        expect(typeof result.data[0].createdAt).toBe('number')
+      }
+    })
+
+    it('z.encode on doc schema passes through wire-format data', () => {
+      const Events = zodTable('events', {
+        name: z.string(),
+        createdAt: zx.date()
+      })
+
+      const wireData = {
+        _id: 'events:123' as any,
+        _creationTime: Date.now(),
+        name: 'test',
+        createdAt: 1718452800000
+      }
+
+      // z.encode should work with wire-format data (no codec to encode)
+      const encoded = z.encode(Events.schema.doc, wireData)
+      expect(encoded.createdAt).toBe(1718452800000)
+    })
+
+    it('handles optional zx.date() fields in doc schema', () => {
+      const Events = zodTable('events', {
+        name: z.string(),
+        updatedAt: zx.date().optional()
+      })
+
+      // Without optional field
+      const withoutDate = {
+        _id: 'events:123' as any,
+        _creationTime: Date.now(),
+        name: 'test'
+      }
+      expect(Events.schema.doc.safeParse(withoutDate).success).toBe(true)
+
+      // With optional field as number
+      const withDate = {
+        ...withoutDate,
+        updatedAt: 1718452800000
+      }
+      expect(Events.schema.doc.safeParse(withDate).success).toBe(true)
+    })
+
+    it('handles nullable zx.date() fields in doc schema', () => {
+      const Events = zodTable('events', {
+        name: z.string(),
+        deletedAt: zx.date().nullable()
+      })
+
+      // With null
+      const withNull = {
+        _id: 'events:123' as any,
+        _creationTime: Date.now(),
+        name: 'test',
+        deletedAt: null
+      }
+      expect(Events.schema.doc.safeParse(withNull).success).toBe(true)
+
+      // With number
+      const withNumber = {
+        ...withNull,
+        deletedAt: 1718452800000
+      }
+      expect(Events.schema.doc.safeParse(withNumber).success).toBe(true)
+    })
+
+    it('non-codec fields are unaffected in doc schema', () => {
+      const Events = zodTable('events', {
+        name: z.string(),
+        count: z.number(),
+        createdAt: zx.date()
+      })
+
+      const wireData = {
+        _id: 'events:123' as any,
+        _creationTime: Date.now(),
+        name: 'test',
+        count: 42,
+        createdAt: 1718452800000
+      }
+
+      const result = Events.schema.doc.safeParse(wireData)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.name).toBe('test')
+        expect(result.data.count).toBe(42)
+      }
+    })
+
+    it('base/insert schemas preserve codec fields (for encoding)', () => {
+      const Events = zodTable('events', {
+        name: z.string(),
+        createdAt: zx.date()
+      })
+
+      // base/insert should still work with Date objects (runtime type)
+      // because they're used for encoding user input, not Convex query results
+      const now = new Date('2024-06-15T12:00:00.000Z')
+      const runtimeData = {
+        name: 'test',
+        createdAt: now
+      }
+
+      // The base schema should parse runtime data (decode wire → runtime)
+      // First encode the data to wire format, then parse it
+      const wireData = z.encode(Events.schema.base, runtimeData)
+      expect(typeof wireData.createdAt).toBe('number')
+      expect(wireData.createdAt).toBe(now.getTime())
+
+      // And parse (decode) it back
+      const decoded = Events.schema.base.parse(wireData)
+      expect(decoded.createdAt).toBeInstanceOf(Date)
     })
   })
 })
