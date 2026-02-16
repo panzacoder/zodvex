@@ -18,6 +18,8 @@ export * from '../builders'
 export * from '../custom'
 // DB primitives (decodeDoc, encodeDoc)
 export * from '../db'
+// One-time setup (initZodvex, zCustomCtx, zCustomCtxWithArgs)
+export * from '../init'
 // Schema definition utilities (defineZodSchema)
 export * from '../schema'
 // Table creation and helpers
