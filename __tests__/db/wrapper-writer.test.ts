@@ -110,7 +110,7 @@ describe('createZodDbWriter', () => {
     const zodDb = createZodDbWriter(db as any, zodTables)
     const event = await zodDb.get('events:99' as any)
 
-    expect(event!.startDate).toBeInstanceOf(Date)
+    expect(event?.startDate).toBeInstanceOf(Date)
   })
 
   it('calls encode.before hook on insert', async () => {

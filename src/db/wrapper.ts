@@ -71,7 +71,7 @@ async function decodeOne(
   }
 
   // Step 2: codec decode
-  let runtime: RuntimeDoc = decodeDoc(schema, wire)
+  let runtime: RuntimeDoc = decodeDoc(schema, wire) as RuntimeDoc
 
   // Step 3: decode.after.one
   if (hooks?.decode?.after?.one) {
@@ -117,7 +117,7 @@ async function decodeMany(
   }
 
   // --- Codec decode each ---
-  let runtimeDocs: RuntimeDoc[] = wireDocs.map(doc => decodeDoc(schema, doc))
+  let runtimeDocs: RuntimeDoc[] = wireDocs.map(doc => decodeDoc(schema, doc) as RuntimeDoc)
 
   // --- After stage ---
   const afterOneHook = hooks?.decode?.after?.one

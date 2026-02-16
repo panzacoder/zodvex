@@ -53,9 +53,9 @@ describe('createZodDbReader', () => {
     const event = await zodDb.get('events:1' as any)
 
     expect(event).not.toBeNull()
-    expect(event!.title).toBe('Meeting')
-    expect(event!.startDate).toBeInstanceOf(Date)
-    expect(event!.startDate.getTime()).toBe(1700000000000)
+    expect(event?.title).toBe('Meeting')
+    expect(event?.startDate).toBeInstanceOf(Date)
+    expect(event?.startDate.getTime()).toBe(1700000000000)
   })
 
   it('returns null from db.get() when document not found', async () => {
@@ -106,7 +106,7 @@ describe('createZodDbReader', () => {
     const event = await zodDb.query('events').first()
 
     expect(event).not.toBeNull()
-    expect(event!.startDate).toBeInstanceOf(Date)
+    expect(event?.startDate).toBeInstanceOf(Date)
   })
 
   it('returns null from query().first() when no results', async () => {
@@ -205,8 +205,8 @@ describe('createZodDbReader', () => {
 
     const zodDb = createZodDbReader(db as any, zodTables, hooks)
     const event = await zodDb.get('events:1' as any)
-    expect(event!.enriched).toBe(true)
-    expect(event!.startDate).toBeInstanceOf(Date) // still decoded
+    expect(event?.enriched).toBe(true)
+    expect(event?.startDate).toBeInstanceOf(Date) // still decoded
   })
 
   it('applies decode.before.one to filter in query().collect()', async () => {
