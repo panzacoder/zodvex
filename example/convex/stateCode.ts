@@ -12,7 +12,7 @@ const REVERSE_MAP: Record<string, string> = Object.fromEntries(
 )
 
 /**
- * Custom codec: 2-letter state codes <-> full state names.
+ * Custom codec: 2-letter state codes ↔ full state names.
  *
  * Wire format (stored in Convex): "CA", "NY", "TX"
  * Runtime format (used in code): "California", "New York", "Texas"
