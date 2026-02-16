@@ -1,6 +1,6 @@
 # Codec-Aware Database Infrastructure Design
 
-> **Status**: Draft (hooks resolved)
+> **Status**: Draft (codegen + actions resolved)
 > **Date**: 2026-02-15
 > **Context**: zodvex issue #37 revealed that codec support is incomplete — codecs work at the wrapper/validator level but not at the database access or client boundaries. This design generalizes the codec pipeline so it works across all boundaries.
 
@@ -23,6 +23,8 @@ zodvex asserts opinions about how codecs work and where they run. By supporting 
 5. **Client-side decode** — `decodeResult()` in `zodvex/core` (client-safe) for decoding wire-format results on the frontend.
 
 6. **Auto-encode in wrappers** — Builders auto-encode args via `z.encode()`, eliminating manual arg processing (replaces patterns like hotpot's `processSensitiveArgs`).
+
+7. **Codegen** — Build-time generation of `_generated/zodvex/` containing schema re-exports and a validator registry. Enables auto-decode in actions (`ctx.runQuery()`), client hooks, and framework-agnostic `getReturns(fn)` / `getArgs(fn)` lookups. Avoids custom codec serialization by referencing model schemas directly.
 
 ### Export Structure
 
@@ -102,23 +104,7 @@ Internally, `initZodvex` calls `zQueryBuilder(server.query, schema)` etc. for ea
 
 - `zq`, `ziq` — `zQueryBuilder(query, schema)`: Zod validation on args/returns + auto-decode `ctx.db` reads
 - `zm`, `zim` — `zMutationBuilder(mutation, schema)`: Zod validation + auto-decode reads + auto-encode writes
-- `za`, `zia` — `zActionBuilder(action, schema)`: Zod validation on args/returns (actions have no `ctx.db`)
-
-### Codegen (future)
-
-With codegen, `_generated/zodvex.ts` would contain the `initZodvex` call automatically:
-
-```typescript
-// _generated/zodvex.ts (auto-generated)
-import schema from '../schema'
-import * as server from './server'
-import { initZodvex } from 'zodvex/server'
-
-export const { zq, zm, za, ziq, zim, zia, zCustomCtx, zCustomCtxWithArgs } =
-  initZodvex(schema, server)
-```
-
-Manual setup today, codegen tomorrow. Same output either way.
+- `za`, `zia` — `zActionBuilder(action, schema)`: Zod validation on args/returns + auto-decode on `ctx.runQuery()`/`ctx.runMutation()` via validator registry
 
 ---
 
@@ -407,6 +393,190 @@ Decodes wire-format query results on the frontend.
 
 ---
 
+## Codegen: `_generated/zodvex/`
+
+zodvex provides a build-time codegen engine that generates two files: a schema re-export and a validator registry. The generated files serve as the stable interface between server-defined schemas and all consumers (client hooks, server actions, future REST endpoints).
+
+### Architecture
+
+```
+schema.ts (user-authored)
+  defineZodSchema({ patients: Patients, events: Events })
+        │
+        ▼
+_generated/zodvex/schema.ts (codegen)
+  Re-exports zodTable schemas from defineZodSchema (client-safe)
+        │
+        ▼
+_generated/zodvex/validators.ts (codegen)
+  Validator registry: args + returns for every decorated function
+        │
+        ├── Client hooks: auto-decode query results
+        ├── Server actions: auto-decode ctx.runQuery() results
+        └── Framework-agnostic: getReturns(fn) / getArgs(fn)
+```
+
+### Generated Schema: `_generated/zodvex/schema.ts`
+
+Re-exports the zodTable schemas from `defineZodSchema()`. This provides a stable, client-safe import path for model schemas — consumers never import from user-authored model files directly.
+
+```typescript
+// _generated/zodvex/schema.ts (auto-generated)
+export { Events, Users } from '../schema'
+// Or, if sanitization is needed for client safety:
+// Re-export with server-only fields stripped
+```
+
+### Generated Validators: `_generated/zodvex/validators.ts`
+
+A strongly-typed validator registry mapping each decorated function to its Zod args and returns schemas. Schemas reference the generated schema re-exports — no `zodToSource()` serialization of custom codecs needed.
+
+```typescript
+// _generated/zodvex/validators.ts (auto-generated)
+import { z } from 'zod'
+import { zx } from 'zodvex/core'
+import type { FunctionReference } from 'convex/server'
+import { getFunctionName } from 'convex/server'
+import { Events, Users } from './schema'
+import { api } from '../_generated/api'
+
+// ============================================================================
+// Validator Registry
+// ============================================================================
+
+export const validators = {
+  "events/index:get": {
+    args: z.object({ eventId: zx.id('events') }),
+    returns: Events.schema.doc.nullable(),
+  },
+  "events/index:listUpcoming": {
+    args: z.object({}),
+    returns: Events.schema.docArray,
+  },
+  // ... all decorated functions
+} as const
+
+// ============================================================================
+// Type-Safe Lookup (Overloaded Signatures)
+// ============================================================================
+
+export function getReturns(fn: typeof api.events.index.get): typeof validators['events/index:get']['returns']
+export function getReturns(fn: typeof api.events.index.listUpcoming): typeof validators['events/index:listUpcoming']['returns']
+// ... one overload per function
+export function getReturns(fn: FunctionReference<any>): z.ZodType
+export function getReturns(fn: FunctionReference<any>): z.ZodType {
+  const key = getFunctionName(fn) as keyof typeof validators
+  const entry = validators[key]
+  if (!entry) throw new Error(`No validator registered for "${String(key)}". Run codegen to regenerate.`)
+  return entry.returns
+}
+
+export function getArgs(fn: typeof api.events.index.get): typeof validators['events/index:get']['args']
+// ... one overload per function
+export function getArgs(fn: FunctionReference<any>): z.ZodType
+export function getArgs(fn: FunctionReference<any>): z.ZodType {
+  const key = getFunctionName(fn) as keyof typeof validators
+  const entry = validators[key]
+  if (!entry) throw new Error(`No validator registered for "${String(key)}". Run codegen to regenerate.`)
+  return entry.args
+}
+```
+
+### Why Direct References (Not Serialization)
+
+The original hotpot codegen plan used `zodToSource()` to serialize Zod schemas into self-contained source code. This created a hard problem: custom constructs like `sensitive()` and `zx.date()` produce opaque codecs that can't be reverse-engineered into source code at runtime.
+
+By importing model schemas directly from `_generated/zodvex/schema.ts`, the generated validators reference the live schema objects — custom codecs, transforms, and all. No serialization, no provenance tagging, no AST parsing.
+
+`zodToSource()` is only needed for simple arg types (`z.string()`, `z.number()`, `zx.id('tableName')`, `z.enum([...])`) which are all standard Zod types with introspectable `_def.typeName`. Custom codecs don't appear in function args — they appear in model schemas, which are referenced directly.
+
+### Function Discovery
+
+Builders from `initZodvex` decorate their return values with Zod validators for codegen discovery:
+
+```typescript
+// Internally, zq() does:
+const fn = query({ args, handler, ... })
+fn.__zodvexMeta = { zodArgs: config.args, zodReturns: config.returns }
+return fn
+```
+
+The codegen script loads all modules, discovers decorated exports, and emits the registry. This mirrors Convex's own function decoration pattern (`isQuery`, `exportArgs`, etc.).
+
+### Codegen Workflow
+
+Manual setup today, codegen tomorrow — same API either way.
+
+```typescript
+// Manual setup (works now)
+export const { zq, zm, za, ... } = initZodvex(schema, server)
+
+// Codegen (future) — _generated/zodvex/index.ts
+import schema from '../../schema'
+import * as server from '../server'
+import { initZodvex } from 'zodvex/server'
+
+export const { zq, zm, za, ziq, zim, zia, zCustomCtx, zCustomCtxWithArgs } =
+  initZodvex(schema, server)
+
+export { getReturns, getArgs } from './validators'
+```
+
+---
+
+## Action Support
+
+Actions have no `ctx.db` but call queries/mutations via `ctx.runQuery()` / `ctx.runMutation()`. These return wire-format data that needs decoding. The validator registry (from codegen) provides the return schema for each function.
+
+### How It Works
+
+`za` (action builder) wraps `ctx.runQuery()`, `ctx.runMutation()`, and `ctx.runAction()` to auto-decode using the registry:
+
+```typescript
+// Inside za's context wrapper
+const wrappedCtx = {
+  ...ctx,
+  async runQuery(fn, args) {
+    const result = await ctx.runQuery(fn, args)
+    const schema = getReturns(fn)  // registry lookup
+    return decodeResult(schema, result)
+  },
+  async runMutation(fn, args) {
+    const result = await ctx.runMutation(fn, args)
+    const schema = getReturns(fn)
+    return decodeResult(schema, result)
+  },
+  async runAction(fn, args) {
+    const result = await ctx.runAction(fn, args)
+    const schema = getReturns(fn)
+    return decodeResult(schema, result)
+  },
+}
+```
+
+### Usage
+
+```typescript
+export const processEvent = za({
+  args: { eventId: zx.id('events') },
+  handler: async (ctx, { eventId }) => {
+    const event = await ctx.runQuery(api.events.get, { eventId })
+    // event.startDate is Date — auto-decoded via registry lookup
+    await ctx.runMutation(api.events.update, { eventId, processed: true })
+  },
+})
+```
+
+### Context Customization
+
+Actions support `.withContext()` for auth, security context, etc. — same as queries and mutations. `.withHooks()` does not apply (no `ctx.db`).
+
+```typescript
+export const hotpotAction = za.withContext(hotpotCtx)
+```
+
+---
+
 ## Usage Examples
 
 ### Simple User (Calendar App)
@@ -454,13 +624,22 @@ export const listUpcoming = zq({
   },
 })
 
-// === Client ===
+// === Client (manual decode) ===
 import { decodeResult } from 'zodvex/core'
 
 function EventList() {
   const rawEvents = useQuery(api.events.listUpcoming)
   const events = decodeResult(Events.schema.docArray, rawEvents)
   // events[0].startDate is Date
+}
+
+// === Client (with codegen — auto-decode) ===
+import { getReturns } from './_generated/zodvex/validators'
+
+function EventList() {
+  const rawEvents = useQuery(api.events.listUpcoming)
+  const events = decodeResult(getReturns(api.events.listUpcoming), rawEvents)
+  // No manual schema import — validator looked up from registry
 }
 ```
 
@@ -584,6 +763,8 @@ zodvex builds on convex-helpers but takes a different approach to make codecs au
 - **`zQueryBuilder(query, schema)`** — Enhanced. Optional second arg enables auto-codec on `ctx.db`. Without schema, works as before.
 - **`zodTable()`** — Enhanced. Stores table name on return value.
 - **`customCtxWithHooks` transforms** — May be simplified or deprecated. DB-level hooks replace function-level transforms for codec concerns.
+- **Codegen engine** — New. Build-time script that generates `_generated/zodvex/` with schema re-exports and validator registry.
+- **`zActionBuilder(action, schema)`** — Enhanced. Wraps `ctx.runQuery()`/`ctx.runMutation()` with auto-decode via registry.
 
 ### What Stays the Same
 
@@ -615,13 +796,16 @@ zodvex builds on convex-helpers but takes a different approach to make codecs au
 | Primitives | `decodeDoc()`/`encodeDoc()` escape hatch | For consumers who build custom DB layers |
 | Client decode | `decodeResult()` in `zodvex/core` | No React dependency in zodvex; client hook brainstormed separately |
 | Arg encoding | Auto-encode in wrappers via `z.encode()` | Eliminates manual `processSensitiveArgs`-style code |
-| Codegen | Future — generates `_generated/zodvex.ts` | Manual setup works today; codegen automates it tomorrow |
+| Codegen | `_generated/zodvex/` with schema re-exports + validator registry | Direct schema references — no custom codec serialization needed |
+| Codegen strategy | Reference model schemas, don't serialize them | Eliminates zodToSource for codecs, AST parsing, and provenance tagging |
+| Validator registry | `getReturns(fn)` / `getArgs(fn)` with overloaded signatures | Same registry serves client hooks, server actions, and future REST |
+| Action auto-decode | `za` wraps `ctx.runQuery()` etc. with registry lookup | Actions get decoded results automatically, same as queries |
 | Scope | Generic codec infra | zodvex owns codecs; consumers (hotpot) own domain logic (security, audit) |
 
 ---
 
 ## Open Questions
 
-1. **Action support**: `actionCtx` is a passthrough today (no `ctx.db`). Future: wrap `ctx.runQuery()`/`ctx.runMutation()` for auto-decode of results?
-2. **Client-side React hooks**: `useCodecQuery` or similar — deferred to separate brainstorm.
-3. **Codegen**: `zodToSource()` serializer for client-safe schemas — separate design, relates to hotpot's `_generated/validators.ts` task.
+1. **Client-side React hooks**: `useCodecQuery` or similar — deferred to separate brainstorm. With the validator registry, this becomes `useCodecQuery(fn, args)` → auto-lookup via `getReturns(fn)` + `decodeResult()`.
+2. **Codegen implementation details**: Watch mode, CI staleness checks, generated file git strategy. See hotpot's codegen plan for prior art on these concerns.
+3. **`zodToSource()` for args**: Simple Zod types in function args (`z.string()`, `z.number()`, `zx.id()`, `z.enum()`) still need serialization. This is straightforward — these types have introspectable `_def.typeName`. No custom codec serialization needed.
