@@ -1,6 +1,6 @@
 # Codec-Aware Database Infrastructure Design
 
-> **Status**: Draft (revised)
+> **Status**: Draft (hooks resolved)
 > **Date**: 2026-02-15
 > **Context**: zodvex issue #37 revealed that codec support is incomplete — codecs work at the wrapper/validator level but not at the database access or client boundaries. This design generalizes the codec pipeline so it works across all boundaries.
 
@@ -16,7 +16,7 @@ zodvex asserts opinions about how codecs work and where they run. By supporting 
 
 2. **`initZodvex(schema, server)`** — One-time initialization that returns pre-configured builders (`zq`, `zm`, `za`, etc.) with codecs automatic. Also returns `zCustomCtx` for advanced context customization.
 
-3. **DB wrapping** — Codec-aware wrapper around `GenericDatabaseReader`/`GenericDatabaseWriter` that auto-decodes on read and auto-encodes on write. Preserves the full Convex query API. Advanced users can add hooks (parallel to convex-helpers' `wrapDatabaseReader/Writer`). **See Open Design section.**
+3. **DB wrapping** — Codec-aware wrapper around `GenericDatabaseReader`/`GenericDatabaseWriter` that auto-decodes on read and auto-encodes on write. Preserves the full Convex query API. Advanced users add hooks via `createDatabaseHooks()` + `.withHooks()` on builders (parallel to convex-helpers' `wrapDatabaseReader/Writer`).
 
 4. **Primitive utilities** — `decodeDoc()` and `encodeDoc()` as escape hatches for consumers who build their own DB layer.
 
@@ -138,7 +138,6 @@ const authCtx = zCustomCtx(async (ctx) => {
 })
 
 export const authQuery = zq.withContext(authCtx)
-// or however composition works — see Open Design
 ```
 
 ### `zCustomCtxWithArgs({ args, input })`
@@ -166,48 +165,80 @@ const hotpotCtx = zCustomCtxWithArgs({
 
 ---
 
-## Open Design: DB Wrapping Hooks
+## DB Wrapping Hooks
 
-> **Status**: Needs dedicated design session.
->
-> This section captures the previous hook design for context. The hooks concept is sound, but how it composes with `zCustomCtx` and `initZodvex` needs to be thought through in isolation, informed by the decisions above.
->
-> The hooks are zodvex's equivalent of convex-helpers' `wrapDatabaseReader()` / `wrapDatabaseWriter()` — they intercept database operations to apply transforms, security checks, or logging. The key difference: zodvex's hooks are codec-aware (they understand wire vs runtime format and where in the pipeline they run).
+zodvex's hooks are the equivalent of convex-helpers' `wrapDatabaseReader()` / `wrapDatabaseWriter()` — they intercept database operations to apply transforms, security checks, or logging. The key difference: zodvex's hooks are codec-aware (they understand wire vs runtime format and where in the pipeline they run).
 
-### Previous Hook Design (for reference)
+### `createDatabaseHooks<Ctx>()`
+
+Factory function that creates a typed hook configuration. The `Ctx` generic flows to all hook callbacks, ensuring hooks have access to the augmented context (e.g., security context from `zCustomCtx`).
+
+```typescript
+const securityHooks = createDatabaseHooks<HotpotCtx>({
+  decode: {
+    before: {
+      one: async (ctx, doc) => {
+        // RLS check + FLS application — sees wire format
+        // Return null to filter out, return doc to pass through
+      },
+      many: async (ctx, docs, one) => {
+        // Batch RLS — receives pre-bound `one` as third arg
+        // Can call `one` per-doc or implement batch logic directly
+      },
+    },
+    after: {
+      one: async (ctx, doc) => {
+        // Post-decode — sees runtime format (Date, SensitiveField, etc.)
+        return doc
+      },
+    },
+  },
+  encode: {
+    before: async (ctx, doc) => {
+      // Write RLS + FLS — sees runtime format before encoding
+    },
+    after: async (ctx, doc) => {
+      // Post-encode — sees wire format, useful for audit logging
+      return doc
+    },
+  },
+})
+```
+
+### Hook Types
 
 Hooks are grouped **operation-first** (decode/encode), then **timing** (before/after), then **cardinality** (one/many).
 
 ```typescript
-type DecodeHooks = {
+type DecodeHooks<Ctx> = {
   before?: {
-    one?:  (ctx: SingleDocRead, doc: WireDoc) => Promise<WireDoc | null> | WireDoc | null
+    one?:  (ctx: Ctx & SingleDocRead, doc: WireDoc) => Promise<WireDoc | null> | WireDoc | null
     many?: (
-      ctx: MultiDocRead,
+      ctx: Ctx & MultiDocRead,
       docs: WireDoc[],
       one: (doc: WireDoc) => Promise<WireDoc | null>
     ) => Promise<WireDoc[]> | WireDoc[]
   }
   after?: {
-    one?:  (ctx: SingleDocRead, doc: RuntimeDoc) => Promise<RuntimeDoc | null> | RuntimeDoc | null
+    one?:  (ctx: Ctx & SingleDocRead, doc: RuntimeDoc) => Promise<RuntimeDoc | null> | RuntimeDoc | null
     many?: (
-      ctx: MultiDocRead,
+      ctx: Ctx & MultiDocRead,
       docs: RuntimeDoc[],
       one: (doc: RuntimeDoc) => Promise<RuntimeDoc | null>
     ) => Promise<RuntimeDoc[]> | RuntimeDoc[]
   }
 }
 
-type EncodeHooks = {
-  before?: (ctx: WriteContext, doc: RuntimeDoc) => Promise<RuntimeDoc | null> | RuntimeDoc | null
-  after?:  (ctx: WriteContext, doc: WireDoc) => Promise<WireDoc | null> | WireDoc | null
+type EncodeHooks<Ctx> = {
+  before?: (ctx: Ctx & WriteContext, doc: RuntimeDoc) => Promise<RuntimeDoc | null> | RuntimeDoc | null
+  after?:  (ctx: Ctx & WriteContext, doc: WireDoc) => Promise<WireDoc | null> | WireDoc | null
 }
 ```
 
 ### Hook Contexts (Discriminated Unions)
 
 ```typescript
-// Read contexts
+// Read contexts — intersected with Ctx from createDatabaseHooks
 interface SingleDocRead { table: string; operation: 'get' | 'first' | 'unique' }
 interface MultiDocRead { table: string; operation: 'collect' | 'take' | 'paginate' }
 
@@ -224,12 +255,76 @@ interface DeleteContext { table: string; operation: 'delete'; existingDoc: WireD
 - Default `many`: maps `one` over array. Advanced users override for batch optimization.
 - `many` receives pre-bound `one` as third arg — **chooses** whether to call it.
 
-### Open Questions for Hook Design
+### Builder Composition: `.withContext()` / `.withHooks()`
 
-1. **Where do hooks attach?** On `zCustomCtx`? On a separate `wrapDatabase` function? On the builder?
-2. **How do hooks access the augmented ctx?** Hooks need security context (from `zCustomCtx`), not just operation metadata.
-3. **Should hooks compose?** Can multiple hook layers stack (e.g., codec hooks + security hooks + audit hooks)?
-4. **Naming**: Should this be `zWrapDatabase()` to parallel convex-helpers' `wrapDatabaseReader`?
+Hooks attach to builders via fluent chaining. Each builder from `initZodvex` supports `.withContext()` and `.withHooks()`:
+
+```typescript
+// Base builder — codecs only (most users)
+export const getEvent = zq({ ... })
+
+// Context only — no custom DB hooks
+export const authQuery = zq.withContext(authCtx)
+
+// Hooks only — no custom context (rare, but valid)
+export const auditQuery = zq.withHooks(auditHooks)
+
+// Both — hotpot's use case
+export const hotpotQuery = zq.withContext(hotpotCtx).withHooks(securityHooks)
+```
+
+**Ordering constraint**: `.withContext()` must come before `.withHooks()` when both are used, because hooks need access to the augmented context type. The fluent chain enforces this — `.withContext()` returns a builder whose `.withHooks()` method accepts hooks typed to the augmented ctx.
+
+**Type flow through the chain:**
+
+```typescript
+zq                          // Builder<QueryCtx>
+  .withContext(hotpotCtx)   // Builder<QueryCtx & { securityCtx }>
+  .withHooks(securityHooks) // Builder<QueryCtx & { securityCtx }> (hooks see augmented ctx)
+```
+
+The result is a new builder — a "template" — that produces functions when called:
+
+```typescript
+const hotpotQuery = zq.withContext(hotpotCtx).withHooks(hotpotHooks)
+
+// Calling the builder produces a Convex function
+export const getPatient = hotpotQuery({ ... })
+export const listPatients = hotpotQuery({ ... })
+```
+
+### Hook Composition: `composeHooks()`
+
+`.withHooks()` accepts a single hook config. When multiple hook concerns need to combine (security + audit, etc.), use `composeHooks()`:
+
+```typescript
+import { composeHooks, createDatabaseHooks } from 'zodvex/server'
+
+const securityHooks = createDatabaseHooks<HotpotCtx>({
+  decode: {
+    before: {
+      one: async (ctx, doc) => { /* RLS + FLS */ },
+      many: async (ctx, docs, one) => { /* batch RLS */ },
+    },
+  },
+  encode: {
+    before: async (ctx, doc) => { /* write RLS + FLS */ },
+  },
+})
+
+const auditHooks = createDatabaseHooks<HotpotCtx>({
+  decode: {
+    after: {
+      one: async (ctx, doc) => { /* log read */ return doc },
+    },
+  },
+})
+
+// Pipeline: security runs first at each stage, audit runs second
+const hotpotHooks = composeHooks([securityHooks, auditHooks])
+```
+
+`composeHooks(hooks: DatabaseHooks[])` takes an array and pipes each stage in order — at each stage (e.g., `decode.before.one`), hook A's result feeds into hook B. For `many`, the composed `one` is also piped.
 
 ---
 
@@ -353,7 +448,7 @@ function EventList() {
 // === setup.ts ===
 import schema from './schema'
 import * as server from './_generated/server'
-import { initZodvex } from 'zodvex/server'
+import { initZodvex, createDatabaseHooks, composeHooks } from 'zodvex/server'
 
 const { zq, zm, zCustomCtxWithArgs } = initZodvex(schema, server)
 
@@ -368,12 +463,52 @@ const hotpotCtx = zCustomCtxWithArgs({
 })
 
 // DB wrapping hooks — parallels wrapDatabaseReader/Writer from convex-helpers
-// (exact API TBD — see Open Design section)
-// Would add RLS, FLS, audit logging to the db wrapper
+const securityHooks = createDatabaseHooks<HotpotMutationCtx>({
+  decode: {
+    before: {
+      one: async (ctx, doc) => {
+        // Per-doc RLS check + FLS application
+        const rlsResult = await checkRlsRead(ctx.securityCtx, doc, ...)
+        if (!rlsResult.allowed) return null
+        return applyFls(doc, ...)
+      },
+      many: async (ctx, docs, one) => {
+        // Batch RLS — ignores bound `one`, implements FLS directly
+        return filterByRls(ctx.securityCtx, docs, ...)
+      },
+    },
+  },
+  encode: {
+    before: async (ctx, doc) => {
+      // Two-phase RLS for patch (old + new state) + FLS write policy
+      await checkRlsWrite(ctx.securityCtx, doc, ...)
+      return applyFlsWrite(doc, ...)
+    },
+  },
+})
+
+const auditHooks = createDatabaseHooks<HotpotMutationCtx>({
+  decode: {
+    after: {
+      one: async (ctx, doc) => {
+        produceReadAuditLog(ctx.securityCtx, doc)
+        return doc
+      },
+    },
+  },
+  encode: {
+    after: async (ctx, doc) => {
+      produceWriteAuditLog(ctx.securityCtx, doc)
+      return doc
+    },
+  },
+})
+
+const hotpotHooks = composeHooks([securityHooks, auditHooks])
 
 // Create builders with hotpot's ctx + hooks
-export const hotpotQuery = zq.withContext(hotpotCtx /* , dbHooks? */)
-export const hotpotMutation = zm.withContext(hotpotCtx /* , dbHooks? */)
+export const hotpotQuery = zq.withContext(hotpotCtx).withHooks(hotpotHooks)
+export const hotpotMutation = zm.withContext(hotpotCtx).withHooks(hotpotHooks)
 
 // === handlers.ts ===
 export const getPatient = hotpotQuery({
@@ -409,8 +544,8 @@ zodvex builds on convex-helpers but takes a different approach to make codecs au
 | Concern | convex-helpers approach | zodvex approach |
 |---|---|---|
 | Custom context | `customCtx(fn)` | `zCustomCtx(fn)` — same pattern, schema pre-injected |
-| DB wrapping | `wrapDatabaseReader(ctx, db, rules)` — manual, per-request | Auto via `initZodvex` builders; hooks for advanced (TBD) |
-| RLS | `RowLevelSecurity(components, rules)` — function-level | DB-level hooks in codec pipeline (TBD) |
+| DB wrapping | `wrapDatabaseReader(ctx, db, rules)` — manual, per-request | Auto via `initZodvex` builders; `createDatabaseHooks()` + `.withHooks()` for advanced |
+| RLS | `RowLevelSecurity(components, rules)` — function-level | DB-level hooks via `createDatabaseHooks()` in codec pipeline |
 | Zod validation | `zodV4` module for schema mapping | Full codec support: validation + wire↔runtime transforms |
 | Function builders | `customQuery`, `customMutation` | `zq`, `zm` from `initZodvex` — codecs built in |
 
@@ -450,7 +585,10 @@ zodvex builds on convex-helpers but takes a different approach to make codecs au
 | Initialization | `initZodvex(schema, server)` returns all builders | Zero-config for simple users; one setup call |
 | Builder codecs | `zQueryBuilder(query, schema)` auto-wraps ctx.db | Codecs should be automatic, not manual wiring |
 | Context customization | `zCustomCtx(fn)` / `zCustomCtxWithArgs({args, input})` | Parallels convex-helpers pattern; familiar to Convex developers |
-| DB hooks | Separate concern from context (parallel to `wrapDatabaseReader`) | **Open design** — needs dedicated session |
+| DB hooks | Separate concern from context (parallel to `wrapDatabaseReader`) | Hooks are codec-aware transforms, not context augmentation |
+| Hook factory | `createDatabaseHooks<Ctx>({decode, encode})` | Ctx generic flows to all hooks; typed to augmented context |
+| Hook attachment | `.withHooks()` on the builder, after `.withContext()` | Fluent chain enforces ordering; hooks see augmented ctx type |
+| Hook composition | `composeHooks(hooks[])` — array, piped in order | Consumer controls ordering; zodvex provides utility, doesn't impose |
 | Hook grouping | Operation-first (decode/encode), then timing, then cardinality | Groups related concerns; validated in earlier brainstorm |
 | Hook cardinality | one/many split with bound `one` passed to `many` | `many` chooses whether to use `one`; enables batch optimization |
 | Query API | Explicit wrapper class (not Proxy) | Debuggable, type-safe, zodvex owns Convex API coupling |
@@ -464,9 +602,7 @@ zodvex builds on convex-helpers but takes a different approach to make codecs au
 
 ## Open Questions
 
-1. **DB wrapping hooks**: How do hooks compose with `zCustomCtx`? Where do they attach? Needs dedicated design session informed by convex-helpers' `wrapDatabaseReader/Writer` pattern.
-2. **`zq.withContext(ctx)` composition**: How does a base builder compose with a custom context to produce a new builder? What's the exact API?
-3. **Action support**: `actionCtx` is a passthrough today (no `ctx.db`). Future: wrap `ctx.runQuery()`/`ctx.runMutation()` for auto-decode of results?
-4. **Client-side React hooks**: `useCodecQuery` or similar — deferred to separate brainstorm.
-5. **Codegen**: `zodToSource()` serializer for client-safe schemas — separate design, relates to hotpot's `_generated/validators.ts` task.
-6. **ExtraArgs**: How does `{ required?: HotpotEntitlement[] }` flow through `zCustomCtxWithArgs` to the function definition? Convex-helpers has this via the `Customization` type.
+1. **Action support**: `actionCtx` is a passthrough today (no `ctx.db`). Future: wrap `ctx.runQuery()`/`ctx.runMutation()` for auto-decode of results?
+2. **Client-side React hooks**: `useCodecQuery` or similar — deferred to separate brainstorm.
+3. **Codegen**: `zodToSource()` serializer for client-safe schemas — separate design, relates to hotpot's `_generated/validators.ts` task.
+4. **ExtraArgs**: How does `{ required?: HotpotEntitlement[] }` flow through `zCustomCtxWithArgs` to the function definition? Convex-helpers has this via the `Customization` type.
