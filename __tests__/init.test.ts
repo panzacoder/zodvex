@@ -81,4 +81,31 @@ describe('initZodvex', () => {
     expect(hooked).toBeDefined()
     expect(typeof hooked).toBe('function')
   })
+
+  it('za does not have .withHooks() (actions have no ctx.db)', () => {
+    const { za } = initZodvex(schema, server as any)
+    expect((za as any).withHooks).toBeUndefined()
+  })
+
+  it('za.withContext() does not have .withHooks()', () => {
+    const { za, zCustomCtx } = initZodvex(schema, server as any)
+    const authCtx = zCustomCtx(async () => ({ user: 'test' }))
+    const authAction = za.withContext(authCtx)
+    expect((authAction as any).withHooks).toBeUndefined()
+  })
+
+  it('za handler receives ctx without db wrapping', async () => {
+    const { za } = initZodvex(schema, server as any)
+    const fn = za({
+      args: {},
+      handler: async (ctx: any) => {
+        // Actions don't have ctx.db — verify it wasn't injected
+        expect(ctx.db).toBeUndefined()
+        return 'action result'
+      }
+    })
+    // Mock server returns { handler, _invoke }, call the handler directly
+    const result = await fn.handler({}, {})
+    expect(result).toBe('action result')
+  })
 })
