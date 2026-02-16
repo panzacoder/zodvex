@@ -1,16 +1,18 @@
-import type { z } from 'zod'
+import { z } from 'zod'
+import { stripUndefined } from '../utils'
 import type { DatabaseHooks, RuntimeDoc, WireDoc } from './hooks'
-import { decodeDoc } from './primitives'
+import { decodeDoc, encodeDoc } from './primitives'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/** Minimal shape of a zodTable entry — we only need `name` and `schema.doc`. */
+/** Minimal shape of a zodTable entry — we need `name`, `schema.doc`, and `schema.base`. */
 type ZodTableEntry = {
   name: string
   schema: {
     doc: z.ZodTypeAny
+    base: z.ZodTypeAny
   }
 }
 
@@ -36,6 +38,13 @@ interface ConvexDbReader {
   get(id: any): Promise<any | null>
   query(table: string): ConvexQueryChain
   system?: any
+}
+
+/** Minimal interface for a Convex database writer (extends reader). */
+interface ConvexDbWriter extends ConvexDbReader {
+  insert(table: string, doc: any): Promise<any>
+  patch(id: any, patch: any): Promise<void>
+  delete(id: any): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +151,20 @@ function findTableSchema(raw: WireDoc, zodTables: ZodTableMap): z.ZodTypeAny | u
     const result = entry.schema.doc.safeParse(raw)
     if (result.success) {
       return entry.schema.doc
+    }
+  }
+  return undefined
+}
+
+/**
+ * Try each zodTable's doc schema with safeParse to find the matching table entry.
+ * Returns the full entry (name + schemas) on first successful parse, or undefined.
+ */
+function findTableEntry(raw: WireDoc, zodTables: ZodTableMap): ZodTableEntry | undefined {
+  for (const entry of Object.values(zodTables)) {
+    const result = entry.schema.doc.safeParse(raw)
+    if (result.success) {
+      return entry
     }
   }
   return undefined
@@ -282,6 +305,209 @@ export function createZodDbReader(
     /** Passthrough to db.system if available. */
     get system() {
       return (db as any).system
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Encode pipeline
+// ---------------------------------------------------------------------------
+
+/**
+ * Encode a full document using the base schema (for insert).
+ * Applies z.encode on the entire schema, then strips undefined.
+ */
+function encodeFullDoc(baseSchema: z.ZodTypeAny, doc: RuntimeDoc): WireDoc {
+  return encodeDoc(baseSchema, doc) as WireDoc
+}
+
+/**
+ * Encode a partial document field-by-field (for patch).
+ * Only encodes fields that are present in the patch, using each field's
+ * individual schema from the base schema's shape.
+ */
+function encodePatchFields(baseSchema: z.ZodTypeAny, patch: RuntimeDoc): WireDoc {
+  // If the base schema isn't a ZodObject, fall back to encoding as-is
+  if (!(baseSchema instanceof z.ZodObject)) {
+    return stripUndefined(patch) as WireDoc
+  }
+
+  const shape = baseSchema.shape as Record<string, z.ZodTypeAny>
+  const encoded: WireDoc = {}
+
+  for (const [key, value] of Object.entries(patch)) {
+    const fieldSchema = shape[key]
+    if (fieldSchema) {
+      // Encode this field using its individual schema
+      encoded[key] = z.encode(fieldSchema, value)
+    } else {
+      // Unknown field — pass through as-is (e.g., system fields)
+      encoded[key] = value
+    }
+  }
+
+  return stripUndefined(encoded) as WireDoc
+}
+
+// ---------------------------------------------------------------------------
+// createZodDbWriter
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a codec-aware database writer that wraps a Convex db writer.
+ *
+ * The writer extends the reader — it provides get/query (decoded) plus
+ * insert/patch/delete (encoded).
+ *
+ * Encode pipeline:
+ * - insert: encode.before hook (runtime) -> codec encode -> encode.after hook (wire) -> db.insert
+ * - patch: fetch existing -> encode.before hook (runtime, with existingDoc in ctx) ->
+ *          codec encode per-field -> encode.after hook -> db.patch
+ * - delete: fetch existing -> db.delete (no encode hooks — no data transform needed)
+ *
+ * @param db - A Convex database writer (ctx.db)
+ * @param zodTables - Map of table name -> zodTable entry
+ * @param hooks - Optional DatabaseHooks for decode/encode interception
+ * @param ctx - Optional context passed to hooks (defaults to empty object)
+ * @returns A wrapped database writer with codec-aware read and write operations
+ *
+ * @example
+ * ```ts
+ * const zodDb = createZodDbWriter(ctx.db, { events: Events, users: Users })
+ * await zodDb.insert('events', { title: 'Meeting', startDate: new Date() })
+ * await zodDb.patch(eventId, { startDate: new Date() })
+ * await zodDb.delete(eventId)
+ * const event = await zodDb.get(eventId) // event.startDate is a Date
+ * ```
+ */
+export function createZodDbWriter(
+  db: ConvexDbWriter,
+  zodTables: ZodTableMap,
+  hooks?: DatabaseHooks,
+  ctx?: unknown
+) {
+  const reader = createZodDbReader(db, zodTables, hooks, ctx)
+  const resolvedCtx = ctx ?? {}
+
+  return {
+    // Spread reader methods
+    get: reader.get,
+    query: reader.query.bind(reader),
+    get system() {
+      return reader.system
+    },
+
+    /**
+     * Insert a document with codec encoding.
+     *
+     * Pipeline: encode.before hook -> codec encode -> encode.after hook -> db.insert
+     */
+    async insert(table: string, doc: RuntimeDoc): Promise<any> {
+      const entry = zodTables[table]
+      if (!entry) {
+        throw new Error(
+          `Unknown table "${table}" — not found in zodTables. ` +
+            `Available tables: ${Object.keys(zodTables).join(', ')}`
+        )
+      }
+
+      // Step 1: encode.before hook (runtime format)
+      let runtime: RuntimeDoc | null = doc
+      if (hooks?.encode?.before) {
+        const hookCtx = { ...(resolvedCtx as any), operation: 'insert', table }
+        runtime = (await hooks.encode.before(hookCtx, runtime)) as RuntimeDoc | null
+        if (runtime === null) {
+          throw new Error(`Insert to "${table}" was denied by encode.before hook (returned null).`)
+        }
+      }
+
+      // Step 2: codec encode (runtime -> wire)
+      let wire: WireDoc = encodeFullDoc(entry.schema.base, runtime)
+
+      // Step 3: encode.after hook (wire format)
+      if (hooks?.encode?.after) {
+        const hookCtx = { ...(resolvedCtx as any), operation: 'insert', table }
+        const result = (await hooks.encode.after(hookCtx, wire)) as WireDoc | null
+        if (result === null) {
+          throw new Error(`Insert to "${table}" was denied by encode.after hook (returned null).`)
+        }
+        wire = result
+      }
+
+      // Step 4: db.insert
+      return db.insert(table, wire)
+    },
+
+    /**
+     * Patch a document with per-field codec encoding.
+     *
+     * Pipeline: fetch existing -> encode.before hook (with existingDoc) ->
+     *           codec encode per-field -> encode.after hook -> db.patch
+     */
+    async patch(id: any, patch: RuntimeDoc): Promise<void> {
+      // Fetch existing document to determine table and provide to hooks
+      const existing = await db.get(id)
+      if (existing === null) {
+        throw new Error(`Document not found for patch: ${id}`)
+      }
+
+      // Snapshot the existing doc so hooks see a stable reference
+      // (db.patch may mutate the same object in some implementations)
+      const existingSnapshot = { ...existing }
+
+      // Find the table entry for this document
+      const entry = findTableEntry(existing as WireDoc, zodTables)
+
+      // Step 1: encode.before hook (runtime format, with existingDoc in ctx)
+      let runtime: RuntimeDoc | null = patch
+      if (hooks?.encode?.before) {
+        const hookCtx = {
+          ...(resolvedCtx as any),
+          operation: 'patch',
+          table: entry?.name,
+          existingDoc: existingSnapshot
+        }
+        runtime = (await hooks.encode.before(hookCtx, runtime)) as RuntimeDoc | null
+        if (runtime === null) {
+          throw new Error(`Patch for "${id}" was denied by encode.before hook (returned null).`)
+        }
+      }
+
+      // Step 2: codec encode per-field (runtime -> wire)
+      let wire: WireDoc
+      if (entry) {
+        wire = encodePatchFields(entry.schema.base, runtime)
+      } else {
+        // No matching schema — pass through as-is
+        wire = stripUndefined(runtime) as WireDoc
+      }
+
+      // Step 3: encode.after hook (wire format)
+      if (hooks?.encode?.after) {
+        const hookCtx = {
+          ...(resolvedCtx as any),
+          operation: 'patch',
+          table: entry?.name,
+          existingDoc: existingSnapshot
+        }
+        const result = (await hooks.encode.after(hookCtx, wire)) as WireDoc | null
+        if (result === null) {
+          throw new Error(`Patch for "${id}" was denied by encode.after hook (returned null).`)
+        }
+        wire = result
+      }
+
+      // Step 4: db.patch
+      await db.patch(id, wire)
+    },
+
+    /**
+     * Delete a document. Passes through directly to the underlying db.
+     *
+     * Encode hooks don't apply — there's no data to transform for delete.
+     */
+    async delete(id: any): Promise<void> {
+      await db.delete(id)
     }
   }
 }
