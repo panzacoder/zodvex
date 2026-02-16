@@ -95,8 +95,49 @@ function createComposableBuilder(
 }
 
 /**
- * One-time setup that creates all pre-configured builders.
- * Accepts the schema from defineZodSchema() and the Convex server functions.
+ * One-time setup that creates codec-aware builders for your Convex project.
+ *
+ * Each returned builder automatically wraps `ctx.db` with a codec-aware layer
+ * that decodes reads (wire → runtime, e.g. timestamps → Dates) and encodes
+ * writes (runtime → wire) using your zodTable schemas.
+ *
+ * Builders support fluent composition:
+ * - `.withContext(ctx)` — add custom context (auth, permissions, etc.)
+ * - `.withHooks(hooks)` — add DB-level hooks (validation, logging, etc.)
+ *
+ * Note: `.withContext()` and `.withHooks()` each **replace** (not compose) any
+ * previous value. Use `composeHooks()` to combine multiple hook configs before
+ * passing to `.withHooks()`.
+ *
+ * @param schema - Schema from `defineZodSchema()` containing zodTable refs
+ * @param server - Convex server functions (`query`, `mutation`, `action`, and internal variants)
+ * @returns Pre-configured builders and context customization factories
+ *
+ * @example
+ * ```ts
+ * import { initZodvex, defineZodSchema, zodTable } from 'zodvex/server'
+ * import * as server from './_generated/server'
+ *
+ * const schema = defineZodSchema({ users: Users, events: Events })
+ *
+ * export const { zq, zm, za, zCustomCtx } = initZodvex(schema, server)
+ *
+ * // Basic query — ctx.db auto-decodes
+ * export const getEvent = zq({
+ *   args: { id: zx.id('events') },
+ *   handler: async (ctx, { id }) => ctx.db.get(id), // .startDate is a Date
+ * })
+ *
+ * // With auth context
+ * const authCtx = zCustomCtx(async (ctx) => {
+ *   const user = await getUserOrThrow(ctx)
+ *   return { user }
+ * })
+ * export const authQuery = zq.withContext(authCtx)
+ *
+ * // With auth context + hooks
+ * export const adminQuery = zq.withContext(adminCtx).withHooks(adminHooks)
+ * ```
  */
 export function initZodvex(schema: ZodSchema, server: Server) {
   const zodTables = schema.zodTables
