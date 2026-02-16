@@ -128,7 +128,7 @@ Parallels convex-helpers' `customCtx()` and `customCtxAndArgs()`, but pre-config
 
 ### `zCustomCtx(fn)`
 
-Augments the context with additional properties. The function receives the raw Convex ctx and returns properties to merge.
+Augments the context with additional properties. The function receives the raw Convex ctx and an optional `extra` parameter for definition-level keys (like `required`).
 
 ```typescript
 // Simple auth context
@@ -138,20 +138,42 @@ const authCtx = zCustomCtx(async (ctx) => {
 })
 
 export const authQuery = zq.withContext(authCtx)
+
+// With extra definition-level keys
+const hotpotCtx = zCustomCtx(async (ctx, extra?: { required?: HotpotEntitlement[] }) => {
+  const securityCtx = await resolveContext(ctx)
+  if (extra?.required) assertEntitlements(securityCtx, extra.required)
+  return { securityCtx }
+})
 ```
 
 ### `zCustomCtxWithArgs({ args, input })`
 
-Like `zCustomCtx` but also adds custom args to the function definition. Parallels `customCtxAndArgs` from convex-helpers.
+Like `zCustomCtx` but also adds custom args to the Convex function's arg validator. Parallels `customCtxAndArgs` from convex-helpers. The `extra` parameter is available here too — it's orthogonal to "WithArgs".
 
 ```typescript
-const hotpotCtx = zCustomCtxWithArgs({
-  args: {},
-  input: async (ctx, _args, extra?: { required?: HotpotEntitlement[] }) => {
-    const securityCtx = await resolveContext(ctx)
-    if (extra?.required) assertEntitlements(securityCtx, extra.required)
-    return { securityCtx }
+// Adds sessionId to every function's args
+const sessionCtx = zCustomCtxWithArgs({
+  args: { sessionId: z.string() },
+  input: async (ctx, { sessionId }, extra?) => {
+    const session = await loadSession(ctx, sessionId)
+    return { session }
   },
+})
+```
+
+### ExtraArgs
+
+Both `zCustomCtx` and `zCustomCtxWithArgs` support an optional `extra` parameter on the `input` function. This is separate from "WithArgs" (which adds required args to the function's arg validator). ExtraArgs adds extra keys to the function *definition* object — keys like `required` that configure the customization but aren't Convex function arguments.
+
+The ExtraArgs type is inferred from the `extra` parameter's type annotation. The builder ensures those keys appear on the function definition object:
+
+```typescript
+// The `extra` type flows to the function definition
+export const getPatient = hotpotQuery({
+  args: { patientId: zx.id('patients') },
+  required: ['hotpot:clinic:patients:view'],  // typed from extra
+  handler: async ({ db, securityCtx }, { patientId }) => { ... },
 })
 ```
 
@@ -450,16 +472,13 @@ import schema from './schema'
 import * as server from './_generated/server'
 import { initZodvex, createDatabaseHooks, composeHooks } from 'zodvex/server'
 
-const { zq, zm, zCustomCtxWithArgs } = initZodvex(schema, server)
+const { zq, zm, zCustomCtx } = initZodvex(schema, server)
 
 // Context augmentation — parallels customCtx from convex-helpers
-const hotpotCtx = zCustomCtxWithArgs({
-  args: {},
-  input: async (ctx, _args, extra?: { required?: HotpotEntitlement[] }) => {
-    const securityCtx = await resolveContext(ctx)
-    if (extra?.required) assertEntitlements(securityCtx, extra.required)
-    return { securityCtx }
-  },
+const hotpotCtx = zCustomCtx(async (ctx, extra?: { required?: HotpotEntitlement[] }) => {
+  const securityCtx = await resolveContext(ctx)
+  if (extra?.required) assertEntitlements(securityCtx, extra.required)
+  return { securityCtx }
 })
 
 // DB wrapping hooks — parallels wrapDatabaseReader/Writer from convex-helpers
@@ -585,6 +604,7 @@ zodvex builds on convex-helpers but takes a different approach to make codecs au
 | Initialization | `initZodvex(schema, server)` returns all builders | Zero-config for simple users; one setup call |
 | Builder codecs | `zQueryBuilder(query, schema)` auto-wraps ctx.db | Codecs should be automatic, not manual wiring |
 | Context customization | `zCustomCtx(fn)` / `zCustomCtxWithArgs({args, input})` | Parallels convex-helpers pattern; familiar to Convex developers |
+| ExtraArgs | `extra` param on `input` fn, available on both `zCustomCtx` and `zCustomCtxWithArgs` | Orthogonal to "WithArgs"; inferred from `extra` type annotation |
 | DB hooks | Separate concern from context (parallel to `wrapDatabaseReader`) | Hooks are codec-aware transforms, not context augmentation |
 | Hook factory | `createDatabaseHooks<Ctx>({decode, encode})` | Ctx generic flows to all hooks; typed to augmented context |
 | Hook attachment | `.withHooks()` on the builder, after `.withContext()` | Fluent chain enforces ordering; hooks see augmented ctx type |
@@ -605,4 +625,3 @@ zodvex builds on convex-helpers but takes a different approach to make codecs au
 1. **Action support**: `actionCtx` is a passthrough today (no `ctx.db`). Future: wrap `ctx.runQuery()`/`ctx.runMutation()` for auto-decode of results?
 2. **Client-side React hooks**: `useCodecQuery` or similar — deferred to separate brainstorm.
 3. **Codegen**: `zodToSource()` serializer for client-safe schemas — separate design, relates to hotpot's `_generated/validators.ts` task.
-4. **ExtraArgs**: How does `{ required?: HotpotEntitlement[] }` flow through `zCustomCtxWithArgs` to the function definition? Convex-helpers has this via the `Customization` type.
