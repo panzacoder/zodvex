@@ -1,6 +1,6 @@
 # Codec-Aware Database Infrastructure Design
 
-> **Status**: Draft (codegen + actions resolved)
+> **Status**: Finalized
 > **Date**: 2026-02-15
 > **Context**: zodvex issue #37 revealed that codec support is incomplete — codecs work at the wrapper/validator level but not at the database access or client boundaries. This design generalizes the codec pipeline so it works across all boundaries.
 
@@ -801,6 +801,82 @@ zodvex builds on convex-helpers but takes a different approach to make codecs au
 | Validator registry | `getReturns(fn)` / `getArgs(fn)` with overloaded signatures | Same registry serves client hooks, server actions, and future REST |
 | Action auto-decode | `za` wraps `ctx.runQuery()` etc. with registry lookup | Actions get decoded results automatically, same as queries |
 | Scope | Generic codec infra | zodvex owns codecs; consumers (hotpot) own domain logic (security, audit) |
+
+---
+
+## Validation: Example Project
+
+The `example/` directory replaces the existing standalone `examples/*.ts` files with a real Convex project structure that exercises every feature from this design. It serves as both documentation and integration test target — if the example compiles and its tests pass, the design is implemented correctly.
+
+### Domain
+
+A minimal calendar app with two tables:
+
+| Table | Fields | Codecs Used |
+|-------|--------|-------------|
+| `users` | name (string), email (string), state (stateCode codec) | `stateCode()` — custom `zx.codec()` mapping full state names ↔ 2-letter codes |
+| `events` | title (string), startDate (zx.date), endDate (zx.date, optional), organizerId (zx.id('users')) | `zx.date()`, `zx.id()` |
+
+### Builder Layers
+
+Demonstrates the composition chain at each level:
+
+| Builder | Created via | Exercises |
+|---------|------------|-----------|
+| `zq`, `zm`, `za` | `initZodvex(schema, server)` | Base builders with auto-codec on ctx.db |
+| `authQuery`, `authMutation` | `zq.withContext(authCtx)` | Context augmentation (adds `user` to ctx) |
+| `adminQuery`, `adminMutation` | `zm.withContext(adminCtx).withHooks(adminHooks)` | Full chain: context + DB hooks |
+
+### Custom Codec: `stateCode()`
+
+```typescript
+const stateCode = () => zx.codec(
+  z.string(),       // wire: "CA", "NY", "TX"
+  z.string(),       // runtime: "California", "New York", "Texas"
+  {
+    decode: (code) => STATE_MAP[code] ?? code,
+    encode: (name) => REVERSE_MAP[name] ?? name,
+  }
+)
+```
+
+### Hooks
+
+Two composable hook sets:
+
+- `loggingHooks` — `decode.after.one`: logs read operations (demonstrates post-decode hook)
+- `validationHooks` — `decode.before.one`: checks admin role on ctx (demonstrates pre-decode filtering, returns null to deny)
+- Composed via `composeHooks([validationHooks, loggingHooks])`
+
+### ExtraArgs
+
+`adminCtx` uses `extra` param with `required` roles:
+
+```typescript
+const adminCtx = zCustomCtx(async (ctx, extra?: { required?: string[] }) => {
+  const user = await getUser(ctx)
+  if (extra?.required) assertRoles(user, extra.required)
+  return { user }
+})
+```
+
+### Project Structure
+
+```
+example/
+  convex/
+    _generated/
+      server.ts          # mock Convex server exports
+      dataModel.d.ts     # mock data model types
+    schema.ts            # defineZodSchema + zodTable definitions
+    stateCode.ts         # custom codec
+    setup.ts             # initZodvex + builder composition
+    events.ts            # event query/mutation handlers
+    users.ts             # user handlers (exercises stateCode codec)
+    admin.ts             # admin handlers (exercises hooks + ExtraArgs)
+```
+
+**Supersedes**: `examples/basic-usage.ts` and `examples/queries.ts` (deleted).
 
 ---
 

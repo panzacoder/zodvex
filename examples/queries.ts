@@ -90,7 +90,7 @@ async function getUser(ctx: QueryCtx | MutationCtx) {
 
   const user = await ctx.db
     .query('users')
-    .withIndex('by_token_id', (q) => q.eq('tokenId', identity.subject))
+    .withIndex('by_token_id', q => q.eq('tokenId', identity.subject))
     .first()
 
   return user ?? null
