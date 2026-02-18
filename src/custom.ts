@@ -194,7 +194,7 @@ type ArgsOutput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = 
     ? [z.output<z.ZodObject<ArgsValidator>>]
     : OneArgArray
 
-type Overwrite<T, U> = Omit<T, keyof U> & U
+export type Overwrite<T, U> = Omit<T, keyof U> & U
 
 // Hack to simplify how TypeScript renders object types
 type Expand<ObjectType extends Record<any, any>> = ObjectType extends Record<any, any>

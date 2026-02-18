@@ -1,4 +1,119 @@
-import type { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
+import type {
+  ActionBuilder,
+  FunctionVisibility,
+  GenericActionCtx,
+  GenericDataModel,
+  GenericMutationCtx,
+  GenericQueryCtx,
+  MutationBuilder,
+  QueryBuilder
+} from 'convex/server'
+import type { PropertyValidators } from 'convex/values'
+import type { Customization } from 'convex-helpers/server/customFunctions'
+import type { CustomBuilder, Overwrite } from './custom'
+import type { CodecDatabaseReader, CodecDatabaseWriter } from './db'
+import type { ZodTableMap } from './schema'
+
+/**
+ * A zodvex builder: callable CustomBuilder + .withContext() for composing
+ * user customizations on top of the codec layer.
+ *
+ * .withContext() is NOT chainable — returns a plain CustomBuilder.
+ * To compose multiple customizations, compose them before passing to .withContext().
+ */
+export type ZodvexBuilder<
+  FuncType extends 'query' | 'mutation' | 'action',
+  CodecCtx extends Record<string, any>,
+  InputCtx,
+  Visibility extends FunctionVisibility
+> = CustomBuilder<
+  FuncType,
+  Record<string, never>,
+  CodecCtx,
+  Record<string, never>,
+  InputCtx,
+  Visibility,
+  Record<string, any>
+> & {
+  withContext: <
+    CustomArgsValidator extends PropertyValidators,
+    CustomCtx extends Record<string, any>,
+    CustomMadeArgs extends Record<string, any>,
+    ExtraArgs extends Record<string, any> = Record<string, any>
+  >(
+    customization: Customization<
+      Overwrite<InputCtx, CodecCtx>,
+      CustomArgsValidator,
+      CustomCtx,
+      CustomMadeArgs,
+      ExtraArgs
+    >
+  ) => CustomBuilder<
+    FuncType,
+    CustomArgsValidator,
+    Overwrite<CodecCtx, CustomCtx>,
+    CustomMadeArgs,
+    InputCtx,
+    Visibility,
+    ExtraArgs
+  >
+}
+
+// Overload 1: wrapDb: false — no codec DB wrapping
+export function initZodvex<DM extends GenericDataModel>(
+  schema: { __zodTableMap: ZodTableMap },
+  server: {
+    query: QueryBuilder<DM, 'public'>
+    mutation: MutationBuilder<DM, 'public'>
+    action: ActionBuilder<DM, 'public'>
+    internalQuery: QueryBuilder<DM, 'internal'>
+    internalMutation: MutationBuilder<DM, 'internal'>
+    internalAction: ActionBuilder<DM, 'internal'>
+  },
+  options: { wrapDb: false }
+): {
+  zq: ZodvexBuilder<'query', Record<string, never>, GenericQueryCtx<DM>, 'public'>
+  zm: ZodvexBuilder<'mutation', Record<string, never>, GenericMutationCtx<DM>, 'public'>
+  za: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'public'>
+  ziq: ZodvexBuilder<'query', Record<string, never>, GenericQueryCtx<DM>, 'internal'>
+  zim: ZodvexBuilder<'mutation', Record<string, never>, GenericMutationCtx<DM>, 'internal'>
+  zia: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'internal'>
+}
+
+// Overload 2: wrapDb: true (default) — codec DB wrapping enabled
+export function initZodvex<DM extends GenericDataModel>(
+  schema: { __zodTableMap: ZodTableMap },
+  server: {
+    query: QueryBuilder<DM, 'public'>
+    mutation: MutationBuilder<DM, 'public'>
+    action: ActionBuilder<DM, 'public'>
+    internalQuery: QueryBuilder<DM, 'internal'>
+    internalMutation: MutationBuilder<DM, 'internal'>
+    internalAction: ActionBuilder<DM, 'internal'>
+  },
+  options?: { wrapDb?: true }
+): {
+  zq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM> }, GenericQueryCtx<DM>, 'public'>
+  zm: ZodvexBuilder<'mutation', { db: CodecDatabaseWriter<DM> }, GenericMutationCtx<DM>, 'public'>
+  za: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'public'>
+  ziq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM> }, GenericQueryCtx<DM>, 'internal'>
+  zim: ZodvexBuilder<
+    'mutation',
+    { db: CodecDatabaseWriter<DM> },
+    GenericMutationCtx<DM>,
+    'internal'
+  >
+  zia: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'internal'>
+}
+
+// Implementation (Task 4 will add the body)
+export function initZodvex(
+  _schema: { __zodTableMap: ZodTableMap },
+  _server: any,
+  _options?: { wrapDb?: boolean }
+): any {
+  throw new Error('Not yet implemented')
+}
 
 /**
  * Composes a codec customization with a user customization.
@@ -53,7 +168,7 @@ export function composeCodecAndUser(
 export function createZodvexBuilder(
   rawBuilder: any,
   codecCust: { args: Record<string, never>; input: (ctx: any, args: any, extra?: any) => any },
-  customFn: typeof zCustomQuery | typeof zCustomMutation | typeof zCustomAction
+  customFn: (builder: any, customization: any) => any
 ) {
   const base: any = customFn(rawBuilder as any, codecCust as any)
 
