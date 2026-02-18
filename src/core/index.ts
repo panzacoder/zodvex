@@ -10,6 +10,8 @@
 
 // Codec utilities
 export * from '../codec'
+// Schema types (type-only, no server runtime imports)
+export type { ZodTableMap } from '../schema'
 // ID utilities
 export * from '../ids'
 // Zod → Convex validator mapping
