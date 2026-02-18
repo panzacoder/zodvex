@@ -402,8 +402,10 @@ export function customFnBuilder<
             const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
             // Strip undefined values before returning (Convex rejects explicit undefined)
             const result = stripUndefined(validated)
-            if (added?.hooks?.onSuccess) {
-              await added.hooks.onSuccess({
+            // Support both zodvex (hooks.onSuccess) and convex-helpers (onSuccess) conventions
+            const onSuccess = added?.hooks?.onSuccess ?? added?.onSuccess
+            if (onSuccess) {
+              await onSuccess({
                 ctx,
                 args: parsed.data,
                 result
@@ -413,8 +415,9 @@ export function customFnBuilder<
           }
           // Strip undefined even without returns schema (Convex rejects explicit undefined)
           const result = stripUndefined(ret)
-          if (added?.hooks?.onSuccess) {
-            await added.hooks.onSuccess({ ctx, args: parsed.data, result })
+          const onSuccess2 = added?.hooks?.onSuccess ?? added?.onSuccess
+          if (onSuccess2) {
+            await onSuccess2({ ctx, args: parsed.data, result })
           }
           return result
         }
@@ -460,15 +463,18 @@ export function customFnBuilder<
           const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
           // Strip undefined values before returning (Convex rejects explicit undefined)
           const result = stripUndefined(validated)
-          if (added?.hooks?.onSuccess) {
-            await added.hooks.onSuccess({ ctx, args: allArgs, result })
+          // Support both zodvex (hooks.onSuccess) and convex-helpers (onSuccess) conventions
+          const onSuccess = added?.hooks?.onSuccess ?? added?.onSuccess
+          if (onSuccess) {
+            await onSuccess({ ctx, args: allArgs, result })
           }
           return result
         }
         // Strip undefined even without returns schema (Convex rejects explicit undefined)
         const result = stripUndefined(ret)
-        if (added?.hooks?.onSuccess) {
-          await added.hooks.onSuccess({ ctx, args: allArgs, result })
+        const onSuccess2 = added?.hooks?.onSuccess ?? added?.onSuccess
+        if (onSuccess2) {
+          await onSuccess2({ ctx, args: allArgs, result })
         }
         return result
       }

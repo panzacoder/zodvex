@@ -165,6 +165,8 @@ hotpot (and others) write their own wrappers following Convex's `wrapDatabaseRea
 | `zQueryBuilder` / `zMutationBuilder` / `zActionBuilder` | Fold into `zCustomQuery(builder)` |
 | "Internal flattening" | Solving a problem we don't have — just compose customizations |
 
+> **Migration note:** Removing `CustomizationWithHooks`, `CustomizationHooks`, `CustomizationTransforms`, `CustomizationResult`, `CustomizationInputResult` types, `customCtxWithHooks()` helper, and all transforms logic from `customFnBuilder` requires a migration path review for downstream consumers (hotpot). Until then, `customFnBuilder` checks both `added?.hooks?.onSuccess` (zodvex convention) and `added?.onSuccess` (convex-helpers convention) for backward compatibility.
+
 ---
 
 ## 7. What's Unchanged and Solid
