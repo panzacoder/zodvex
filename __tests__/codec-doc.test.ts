@@ -50,6 +50,11 @@ describe('decodeDoc', () => {
     const withDate = decodeDoc(schema, { name: 'Alice', updatedAt: 1700000000000 })
     expect(withDate.updatedAt).toBeInstanceOf(Date)
   })
+
+  it('throws ZodError for invalid wire data', () => {
+    const schema = z.object({ name: z.string() })
+    expect(() => decodeDoc(schema, { name: 123 })).toThrow()
+  })
 })
 
 describe('encodeDoc', () => {

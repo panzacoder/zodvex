@@ -161,10 +161,22 @@ describe('CodecQueryChain', () => {
     expect(results[0].createdAt).toBeInstanceOf(Date)
   })
 
+  it('limit() returns wrapped chain', async () => {
+    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const results = await chain.limit(1).collect()
+    expect(results[0].createdAt).toBeInstanceOf(Date)
+  })
+
   it('count() passes through without decoding', async () => {
     const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
     const count = await chain.count()
     expect(count).toBe(2)
+  })
+
+  it('propagates ZodError when document fails schema validation', async () => {
+    const badDocs = [{ _id: 'users:1', _creationTime: 100, name: 123, createdAt: 'not-a-number' }]
+    const chain = new CodecQueryChain(createMockQuery(badDocs), userDocSchema)
+    await expect(chain.first()).rejects.toThrow()
   })
 
   it('async iteration decodes each document', async () => {
