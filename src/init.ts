@@ -10,7 +10,10 @@ import type {
 } from 'convex/server'
 import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
+import { NoOp } from 'convex-helpers/server/customFunctions'
 import type { CustomBuilder, Overwrite } from './custom'
+import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
+import { createCodecCustomization } from './customization'
 import type { CodecDatabaseReader, CodecDatabaseWriter } from './db'
 import type { ZodTableMap } from './schema'
 
@@ -106,13 +109,35 @@ export function initZodvex<DM extends GenericDataModel>(
   zia: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'internal'>
 }
 
-// Implementation (Task 4 will add the body)
+// Implementation
 export function initZodvex(
-  _schema: { __zodTableMap: ZodTableMap },
-  _server: any,
-  _options?: { wrapDb?: boolean }
-): any {
-  throw new Error('Not yet implemented')
+  schema: { __zodTableMap: ZodTableMap },
+  server: {
+    query: QueryBuilder<any, 'public'>
+    mutation: MutationBuilder<any, 'public'>
+    action: ActionBuilder<any, 'public'>
+    internalQuery: QueryBuilder<any, 'internal'>
+    internalMutation: MutationBuilder<any, 'internal'>
+    internalAction: ActionBuilder<any, 'internal'>
+  },
+  options?: { wrapDb?: boolean }
+) {
+  const codec = createCodecCustomization(schema.__zodTableMap)
+  const noOp = { args: {} as Record<string, never>, input: NoOp.input }
+  const wrap = options?.wrapDb !== false
+
+  return {
+    zq: createZodvexBuilder(server.query, wrap ? codec.query : noOp, zCustomQuery),
+    zm: createZodvexBuilder(server.mutation, wrap ? codec.mutation : noOp, zCustomMutation),
+    za: createZodvexBuilder(server.action, noOp, zCustomAction),
+    ziq: createZodvexBuilder(server.internalQuery, wrap ? codec.query : noOp, zCustomQuery),
+    zim: createZodvexBuilder(
+      server.internalMutation,
+      wrap ? codec.mutation : noOp,
+      zCustomMutation
+    ),
+    zia: createZodvexBuilder(server.internalAction, noOp, zCustomAction)
+  }
 }
 
 /**

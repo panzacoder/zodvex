@@ -1,6 +1,75 @@
 import { describe, expect, it } from 'bun:test'
+import { z } from 'zod'
 import { zCustomQuery } from '../src/custom'
-import { composeCodecAndUser, createZodvexBuilder } from '../src/init'
+import { composeCodecAndUser, createZodvexBuilder, initZodvex } from '../src/init'
+import type { ZodTableSchemas } from '../src/schema'
+import { zx } from '../src/zx'
+
+// --- Shared test fixtures ---
+
+const userDocSchema = z.object({
+  _id: z.string(),
+  _creationTime: z.number(),
+  name: z.string(),
+  createdAt: zx.date()
+})
+
+const userInsertSchema = z.object({
+  name: z.string(),
+  createdAt: zx.date()
+})
+
+const userSchemas: ZodTableSchemas = {
+  doc: userDocSchema,
+  docArray: z.array(userDocSchema),
+  base: userInsertSchema,
+  insert: userInsertSchema,
+  update: userInsertSchema.partial().extend({ _id: z.string() })
+}
+
+function createMockDbReader(tables: Record<string, any[]>) {
+  return {
+    system: { get: async () => null, query: () => ({}), normalizeId: () => null },
+    normalizeId: (tableName: string, id: string) => (id.startsWith(`${tableName}:`) ? id : null),
+    get: async (id: string) => {
+      for (const docs of Object.values(tables)) {
+        const doc = docs.find((d: any) => d._id === id)
+        if (doc) return doc
+      }
+      return null
+    },
+    query: (tableName: string) => ({
+      fullTableScan: () => ({
+        collect: async () => tables[tableName] ?? []
+      }),
+      collect: async () => tables[tableName] ?? []
+    })
+  }
+}
+
+function createMockDbWriter(tables: Record<string, any[]>) {
+  const reader = createMockDbReader(tables)
+  const calls: { method: string; args: any[] }[] = []
+  return {
+    db: {
+      ...reader,
+      insert: async (table: string, value: any) => {
+        calls.push({ method: 'insert', args: [table, value] })
+        return `${table}:new`
+      },
+      patch: async (...args: any[]) => {
+        calls.push({ method: 'patch', args })
+      },
+      replace: async (...args: any[]) => {
+        calls.push({ method: 'replace', args })
+      },
+      delete: async (...args: any[]) => {
+        calls.push({ method: 'delete', args })
+      }
+    },
+    calls
+  }
+}
 
 describe('composeCodecAndUser', () => {
   // Minimal codec customization mock — wraps ctx.db
@@ -159,5 +228,45 @@ describe('createZodvexBuilder', () => {
       input: async (ctx: any) => ({ ctx: {}, args: {} })
     })
     expect((customized as any).withContext).toBeUndefined()
+  })
+})
+
+describe('initZodvex', () => {
+  const mockSchema = { __zodTableMap: { users: userSchemas } }
+
+  // Mock server object — builders are pass-through functions
+  const mockServer = {
+    query: (fn: any) => fn,
+    mutation: (fn: any) => fn,
+    action: (fn: any) => fn,
+    internalQuery: (fn: any) => fn,
+    internalMutation: (fn: any) => fn,
+    internalAction: (fn: any) => fn
+  }
+
+  it('returns all 6 builders', () => {
+    const result = initZodvex(mockSchema, mockServer as any)
+    expect(result.zq).toBeTypeOf('function')
+    expect(result.zm).toBeTypeOf('function')
+    expect(result.za).toBeTypeOf('function')
+    expect(result.ziq).toBeTypeOf('function')
+    expect(result.zim).toBeTypeOf('function')
+    expect(result.zia).toBeTypeOf('function')
+  })
+
+  it('all builders have .withContext()', () => {
+    const result = initZodvex(mockSchema, mockServer as any)
+    expect(result.zq.withContext).toBeTypeOf('function')
+    expect(result.zm.withContext).toBeTypeOf('function')
+    expect(result.za.withContext).toBeTypeOf('function')
+    expect(result.ziq.withContext).toBeTypeOf('function')
+    expect(result.zim.withContext).toBeTypeOf('function')
+    expect(result.zia.withContext).toBeTypeOf('function')
+  })
+
+  it('accepts wrapDb: false option', () => {
+    const result = initZodvex(mockSchema, mockServer as any, { wrapDb: false })
+    expect(result.zq).toBeTypeOf('function')
+    expect(result.zq.withContext).toBeTypeOf('function')
   })
 })
