@@ -123,11 +123,17 @@ export function initZodvex<DataModel extends GenericDataModel>(
     const composed = {
       args: customization.args ?? {},
       input: async (ctx: any, args: any, extra: any) => {
-        const codecCtx = { ...ctx, db: createZodDbReader(ctx.db, zodTables) }
+        const codecDb = createZodDbReader(ctx.db, zodTables)
+        const codecCtx = { ...ctx, db: codecDb }
         if (customization.input) {
-          return customization.input(codecCtx, args, extra)
+          const result = await customization.input(codecCtx, args, extra)
+          // Ensure codec db is preserved unless consumer explicitly overrides it
+          if (result?.ctx && !('db' in result.ctx)) {
+            result.ctx = { db: codecDb, ...result.ctx }
+          }
+          return result
         }
-        return { ctx: { db: codecCtx.db }, args: {} }
+        return { ctx: { db: codecDb }, args: {} }
       }
     }
     return zCustomQuery(server.query, composed as any)
@@ -137,11 +143,17 @@ export function initZodvex<DataModel extends GenericDataModel>(
     const composed = {
       args: customization.args ?? {},
       input: async (ctx: any, args: any, extra: any) => {
-        const codecCtx = { ...ctx, db: createZodDbWriter(ctx.db, zodTables) }
+        const codecDb = createZodDbWriter(ctx.db, zodTables)
+        const codecCtx = { ...ctx, db: codecDb }
         if (customization.input) {
-          return customization.input(codecCtx, args, extra)
+          const result = await customization.input(codecCtx, args, extra)
+          // Ensure codec db is preserved unless consumer explicitly overrides it
+          if (result?.ctx && !('db' in result.ctx)) {
+            result.ctx = { db: codecDb, ...result.ctx }
+          }
+          return result
         }
-        return { ctx: { db: codecCtx.db }, args: {} }
+        return { ctx: { db: codecDb }, args: {} }
       }
     }
     return zCustomMutation(server.mutation, composed as any)
