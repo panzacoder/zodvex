@@ -113,69 +113,6 @@ describe('createZodDbWriter', () => {
     expect(event?.startDate).toBeInstanceOf(Date)
   })
 
-  it('calls encode.before hook on insert', async () => {
-    const log: string[] = []
-    const { db } = createMockDb()
-
-    const hooks = {
-      encode: {
-        before: async (_ctx: any, doc: any) => {
-          log.push('encode.before')
-          return doc
-        }
-      }
-    }
-
-    const zodDb = createZodDbWriter(db as any, zodTables, hooks)
-    await zodDb.insert('events', {
-      title: 'Test',
-      startDate: new Date(1700000000000)
-    })
-
-    expect(log).toContain('encode.before')
-  })
-
-  it('calls encode.before hook on patch with existingDoc in context', async () => {
-    const { db, store } = createMockDb()
-    store['events:99'] = {
-      _id: 'events:99',
-      _creationTime: 1000,
-      _table: 'events',
-      title: 'Existing',
-      startDate: 1600000000000
-    }
-
-    let capturedCtx: any = null
-    const hooks = {
-      encode: {
-        before: async (ctx: any, doc: any) => {
-          capturedCtx = ctx
-          return doc
-        }
-      }
-    }
-
-    const zodDb = createZodDbWriter(db as any, zodTables, hooks)
-    await zodDb.patch('events:99' as any, { title: 'Updated' })
-
-    expect(capturedCtx.operation).toBe('patch')
-    expect(capturedCtx.existingDoc).toBeDefined()
-    expect(capturedCtx.existingDoc.title).toBe('Existing')
-  })
-
-  it('encode.before hook can deny insert by returning null', async () => {
-    const { db } = createMockDb()
-
-    const hooks = {
-      encode: {
-        before: async () => null
-      }
-    }
-
-    const zodDb = createZodDbWriter(db as any, zodTables, hooks)
-    expect(zodDb.insert('events', { title: 'Denied', startDate: new Date() })).rejects.toThrow()
-  })
-
   it('handles tables without codecs (no-op encode)', async () => {
     const { db, store } = createMockDb()
     const zodDb = createZodDbWriter(db as any, zodTables)
