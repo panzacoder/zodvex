@@ -40,6 +40,22 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
 }
 
 /**
+ * Decodes a wire-format document (from Convex DB) to runtime types.
+ * Runs Zod codec decode transforms (e.g., timestamp → Date via zx.date()).
+ */
+export function decodeDoc<S extends z.ZodTypeAny>(schema: S, wireDoc: unknown): z.output<S> {
+  return schema.parse(wireDoc)
+}
+
+/**
+ * Encodes a runtime document to wire format (for Convex DB writes).
+ * Runs Zod codec encode transforms and strips undefined values.
+ */
+export function encodeDoc<S extends z.ZodTypeAny>(schema: S, runtimeDoc: z.output<S>): z.input<S> {
+  return stripUndefined(z.encode(schema, runtimeDoc))
+}
+
+/**
  * Creates a branded ZodCodec for use with zodvex type inference.
  * Thin wrapper around z.codec() that adds type branding, allowing
  * ConvexValidatorFromZod to extract the wire schema even when the
