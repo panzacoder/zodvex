@@ -11,8 +11,8 @@ Lowest-level building blocks. Standalone functions for consumers building custom
 
 ```typescript
 function decodeDoc<S extends z.ZodTypeAny>(schema: S, wireDoc: unknown): z.output<S>
-function encodeDoc<S extends z.ZodTypeAny>(schema: S, runtimeDoc: unknown): z.input<S>
-function encodePartialDoc<S extends z.ZodTypeAny>(schema: S, partial: unknown): z.input<S>
+function encodeDoc<S extends z.ZodTypeAny>(schema: S, runtimeDoc: z.output<S>): z.input<S>
+function encodePartialDoc<S extends z.ZodTypeAny>(schema: S, partial: Partial<z.output<S>>): Partial<z.input<S>>
 ```
 
 - `decodeDoc` — `schema.parse(wireDoc)` (runs codec decode transforms)
@@ -25,11 +25,19 @@ function encodePartialDoc<S extends z.ZodTypeAny>(schema: S, partial: unknown): 
 
 The DB wrapper needs to look up a table's Zod schema by name at runtime.
 
-### `ZodTableMap`
+### `ZodTableSchemas` / `ZodTableMap`
 
 ```typescript
-type ZodTableMap = Record<string, z.ZodTypeAny>
-// Maps table name → doc schema (with system fields)
+type ZodTableSchemas = {
+  doc: z.ZodTypeAny      // Full doc with system fields (_id, _creationTime) — for decode
+  docArray: z.ZodTypeAny // Array of docs
+  base: z.ZodTypeAny     // User fields only (no system fields)
+  insert: z.ZodTypeAny   // Alias for base — for insert/replace encode
+  update: z.ZodTypeAny   // Partial user fields + _id — for update validation
+}
+
+type ZodTableMap = Record<string, ZodTableSchemas>
+// Maps table name → full zodTable().schema set
 ```
 
 ### `defineZodSchema`
@@ -38,7 +46,7 @@ Wraps Convex's `defineSchema()` and attaches the zodTableMap to the return value
 
 ```typescript
 function defineZodSchema(
-  tables: Record<string, { table: any; schema: { doc: z.ZodTypeAny } }>
+  tables: Record<string, { table: any; schema: ZodTableSchemas }>
 ): ReturnType<typeof defineSchema> & { __zodTableMap: ZodTableMap }
 ```
 
@@ -146,10 +154,10 @@ class CodecDatabaseWriter<DataModel extends GenericDataModel>
   // Reads delegate to reader
   system, get, query, normalizeId → this.reader.*
 
-  // Writes encode before delegating
-  insert(table, value) → encodeDoc if schema exists, then db.insert
-  patch(id/table, value) → encodePartialDoc if schema exists, then db.patch
-  replace(id/table, value) → encodeDoc if schema exists, then db.replace
+  // Writes encode before delegating (using schemas.insert — user fields only)
+  insert(table, value) → encodeDoc(schemas.insert) then db.insert
+  patch(id/table, value) → encodePartialDoc(schemas.insert) then db.patch
+  replace(id/table, value) → encodeDoc(schemas.insert) then db.replace
   delete(id/table) → pass-through (no data to encode)
 }
 ```
@@ -201,7 +209,7 @@ const myQuery = zCustomQuery(query, {
 | Export | Path |
 |---|---|
 | `decodeDoc`, `encodeDoc`, `encodePartialDoc` | `zodvex/core` (client-safe primitives) |
-| `ZodTableMap` type | `zodvex/core` |
+| `ZodTableMap`, `ZodTableSchemas` types | `zodvex/core` |
 | `defineZodSchema` | `zodvex/server` (imports `defineSchema` from convex/server) |
 | `CodecDatabaseReader`, `CodecDatabaseWriter` | `zodvex/server` |
 | `CodecQueryChain` | `zodvex/server` |
