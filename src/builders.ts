@@ -150,32 +150,7 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
 }
 
 /**
- * Creates a custom query builder with context injection from a Convex query builder.
- * Allows you to add custom context (like auth, permissions, etc.) to your queries.
- *
- * @example
- * ```ts
- * import { type QueryCtx, query } from './_generated/server'
- * import { zCustomQueryBuilder, customCtx } from 'zodvex'
- *
- * // Create a builder with auth context
- * export const authQuery = zCustomQueryBuilder(
- *   query,
- *   customCtx(async (ctx: QueryCtx) => {
- *     const user = await getUserOrThrow(ctx)
- *     return { user }
- *   })
- * )
- *
- * // Use it with automatic user injection
- * export const getMyProfile = authQuery({
- *   args: {},
- *   handler: async (ctx) => {
- *     // ctx.user is automatically available
- *     return ctx.db.get(ctx.user._id)
- *   }
- * })
- * ```
+ * @deprecated Use `zCustomQuery` from 'zodvex/server' instead. This is an identical function with a different name.
  */
 export function zCustomQueryBuilder<
   Builder extends (fn: any) => any,
@@ -203,32 +178,7 @@ export function zCustomQueryBuilder<
 }
 
 /**
- * Creates a custom mutation builder with context injection from a Convex mutation builder.
- * Allows you to add custom context (like auth, permissions, etc.) to your mutations.
- *
- * @example
- * ```ts
- * import { type MutationCtx, mutation } from './_generated/server'
- * import { zCustomMutationBuilder, customCtx } from 'zodvex'
- *
- * // Create a builder with auth context
- * export const authMutation = zCustomMutationBuilder(
- *   mutation,
- *   customCtx(async (ctx: MutationCtx) => {
- *     const user = await getUserOrThrow(ctx)
- *     return { user }
- *   })
- * )
- *
- * // Use it with automatic user injection
- * export const updateProfile = authMutation({
- *   args: { name: z.string() },
- *   handler: async (ctx, { name }) => {
- *     // ctx.user is automatically available
- *     await ctx.db.patch(ctx.user._id, { name })
- *   }
- * })
- * ```
+ * @deprecated Use `zCustomMutation` from 'zodvex/server' instead. This is an identical function with a different name.
  */
 export function zCustomMutationBuilder<
   Builder extends (fn: any) => any,
@@ -256,33 +206,7 @@ export function zCustomMutationBuilder<
 }
 
 /**
- * Creates a custom action builder with context injection from a Convex action builder.
- * Allows you to add custom context (like auth, permissions, etc.) to your actions.
- *
- * @example
- * ```ts
- * import { type ActionCtx, action } from './_generated/server'
- * import { zCustomActionBuilder, customCtx } from 'zodvex'
- *
- * // Create a builder with auth context
- * export const authAction = zCustomActionBuilder(
- *   action,
- *   customCtx(async (ctx: ActionCtx) => {
- *     const identity = await ctx.auth.getUserIdentity()
- *     if (!identity) throw new Error('Unauthorized')
- *     return { userId: identity.subject }
- *   })
- * )
- *
- * // Use it with automatic auth injection
- * export const sendEmail = authAction({
- *   args: { to: z.string().email() },
- *   handler: async (ctx, { to }) => {
- *     // ctx.userId is automatically available
- *     await sendEmailService(to, ctx.userId)
- *   }
- * })
- * ```
+ * @deprecated Use `zCustomAction` from 'zodvex/server' instead. This is an identical function with a different name.
  */
 export function zCustomActionBuilder<
   Builder extends (fn: any) => any,

@@ -42,6 +42,11 @@ describe('zodTable schema namespace', () => {
       const Users = zodTable('users', { name: z.string() })
       expect(Users.schema.docArray).toBe(Users.docArray)
     })
+
+    it('exposes the table name via .name property', () => {
+      const Users = zodTable('users', { name: z.string() })
+      expect(Users.name).toBe('users')
+    })
   })
 
   describe('schema.update', () => {
@@ -249,6 +254,17 @@ describe('zodTable schema namespace', () => {
       const result = Shapes.schema.update.parse({ _id: 'shapes:123' as any, kind: 'circle' })
       expect(result._id).toBe('shapes:123')
       expect(result.kind).toBe('circle') // r is now optional
+    })
+
+    it('exposes the table name via .name property (unions)', () => {
+      const Shapes = zodTable(
+        'shapes',
+        z.union([
+          z.object({ kind: z.literal('circle'), r: z.number() }),
+          z.object({ kind: z.literal('rect'), w: z.number() })
+        ])
+      )
+      expect(Shapes.name).toBe('shapes')
     })
   })
 

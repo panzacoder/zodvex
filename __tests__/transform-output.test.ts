@@ -152,9 +152,9 @@ describe('transforms.output hook', () => {
 
     await fn.handler({}, {})
 
-    // transforms.output runs BEFORE validation (to convert internal → wire format)
-    // hooks.onSuccess runs AFTER validation
-    expect(callOrder).toEqual(['handler', 'transforms.output', 'hooks.onSuccess'])
+    // onSuccess runs BEFORE encode (sees runtime types like Date, SensitiveWrapper)
+    // transforms.output runs BEFORE validation (converts internal → wire format)
+    expect(callOrder).toEqual(['handler', 'hooks.onSuccess', 'transforms.output'])
   })
 
   it('works without transforms (backward compatible)', async () => {

@@ -368,6 +368,7 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
   name: TableName,
   shape: Shape
 ): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
+  name: TableName
   shape: Shape
   /** @deprecated Use `schema.doc` instead */
   zDoc: z.ZodObject<
@@ -414,6 +415,7 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
   name: TableName,
   schema: z.ZodObject<Shape>
 ): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
+  name: TableName
   shape: Shape
   /** @deprecated Use `schema.doc` instead */
   zDoc: z.ZodObject<
@@ -460,6 +462,7 @@ export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
   name: TableName,
   schema: Schema
 ): {
+  name: TableName
   table: ReturnType<typeof defineTable>
   tableName: TableName
   validator: ReturnType<typeof zodToConvex<Schema>>
@@ -537,6 +540,7 @@ export function zodTable<
     // zDoc and docArray are deprecated but kept for backwards compatibility
     // TypeScript @deprecated annotations provide compile-time warnings
     return Object.assign(table, {
+      name,
       shape,
       schema,
       zDoc,
@@ -608,6 +612,7 @@ export function zodTable<
     // Attach helpers for union tables
     // Return structure similar to Table() but without fields-based helpers
     return {
+      name,
       table,
       tableName: name,
       validator: convexValidator,
