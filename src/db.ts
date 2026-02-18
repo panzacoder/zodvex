@@ -1,5 +1,6 @@
 import type {
   GenericDatabaseReader,
+  GenericDatabaseWriter,
   GenericDataModel,
   GenericTableInfo,
   PaginationOptions,
@@ -9,7 +10,7 @@ import type {
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import type { z } from 'zod'
-import { decodeDoc } from './codec'
+import { decodeDoc, encodePartialDoc } from './codec'
 import type { ZodTableMap } from './schema'
 
 /**
@@ -166,5 +167,109 @@ export class CodecDatabaseReader<DataModel extends GenericDataModel>
     const innerQuery = this.db.query(tableName)
     if (!schema) return innerQuery
     return new CodecQueryChain(innerQuery, schema)
+  }
+}
+
+/**
+ * Wraps a GenericDatabaseWriter with automatic Zod codec encoding on writes
+ * and decoding on reads. Delegates read operations to a CodecDatabaseReader.
+ */
+export class CodecDatabaseWriter<DataModel extends GenericDataModel>
+  implements GenericDatabaseWriter<DataModel>
+{
+  private reader: CodecDatabaseReader<DataModel>
+  system: GenericDatabaseWriter<DataModel>['system']
+
+  constructor(
+    private db: GenericDatabaseWriter<DataModel>,
+    private tableMap: ZodTableMap
+  ) {
+    this.reader = new CodecDatabaseReader(db, tableMap)
+    this.system = db.system
+  }
+
+  // --- Read methods: delegate to reader ---
+
+  normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
+    tableName: TableName,
+    id: string
+  ): GenericId<TableName> | null {
+    return this.reader.normalizeId(tableName, id)
+  }
+
+  get(idOrTable: any, maybeId?: any): Promise<any> {
+    return this.reader.get(idOrTable, maybeId)
+  }
+
+  query(tableName: any): any {
+    return this.reader.query(tableName)
+  }
+
+  // --- Write methods: encode before delegating ---
+
+  async insert(table: any, value: any): Promise<any> {
+    const schema = this.tableMap[table as string]
+    // Use encodePartialDoc because insert value doesn't have system fields
+    // (_id, _creationTime are added by Convex)
+    const wireValue = schema ? encodePartialDoc(schema, value) : value
+    return this.db.insert(table, wireValue)
+  }
+
+  async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    let tableName: string | null
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      // patch(table, id, value) form
+      tableName = idOrTable
+      id = idOrValue
+      value = maybeValue
+    } else {
+      // patch(id, value) form
+      id = idOrTable
+      value = idOrValue
+      tableName = resolveTableName(this.db, this.tableMap, id)
+    }
+
+    const schema = tableName ? this.tableMap[tableName] : undefined
+    const wireValue = schema ? encodePartialDoc(schema, value) : value
+
+    if (maybeValue !== undefined) {
+      return this.db.patch(idOrTable, id, wireValue)
+    }
+    return this.db.patch(id, wireValue)
+  }
+
+  async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    let tableName: string | null
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      tableName = idOrTable
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+      tableName = resolveTableName(this.db, this.tableMap, id)
+    }
+
+    const schema = tableName ? this.tableMap[tableName] : undefined
+    // Use encodePartialDoc — system fields may be absent
+    const wireValue = schema ? encodePartialDoc(schema, value) : value
+
+    if (maybeValue !== undefined) {
+      return this.db.replace(idOrTable, id, wireValue)
+    }
+    return this.db.replace(id, wireValue)
+  }
+
+  async delete(idOrTable: any, maybeId?: any): Promise<void> {
+    if (maybeId !== undefined) {
+      return this.db.delete(idOrTable, maybeId)
+    }
+    return this.db.delete(idOrTable)
   }
 }

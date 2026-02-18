@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { CodecDatabaseReader, CodecQueryChain } from '../src/db'
+import { CodecDatabaseReader, CodecDatabaseWriter, CodecQueryChain } from '../src/db'
 import { zx } from '../src/zx'
 
 const userDocSchema = z.object({
@@ -227,5 +227,126 @@ describe('CodecDatabaseReader', () => {
   it('system property passes through to inner db', () => {
     const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
     expect(db.system).toBeDefined()
+  })
+})
+
+// Mock DB writer — extends mock reader with write operations
+function createMockDbWriter(tables: Record<string, any[]>) {
+  const calls: { method: string; args: any[] }[] = []
+  const reader = createMockDbReader(tables)
+
+  const mockDb: any = {
+    ...reader,
+    insert: async (table: string, value: any) => {
+      calls.push({ method: 'insert', args: [table, value] })
+      return `${table}:new`
+    },
+    patch: async (...args: any[]) => {
+      calls.push({ method: 'patch', args })
+    },
+    replace: async (...args: any[]) => {
+      calls.push({ method: 'replace', args })
+    },
+    delete: async (...args: any[]) => {
+      calls.push({ method: 'delete', args })
+    }
+  }
+
+  return { db: mockDb, calls }
+}
+
+describe('CodecDatabaseWriter', () => {
+  const tableMap = {
+    users: userDocSchema
+  }
+
+  const tableData = {
+    users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
+  }
+
+  it('insert() encodes runtime values to wire format', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+
+    const id = await db.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000)
+      } as any
+    )
+
+    expect(id).toBe('users:new')
+    expect(calls).toHaveLength(1)
+    expect(calls[0].method).toBe('insert')
+    expect(calls[0].args[0]).toBe('users')
+    expect(calls[0].args[1].createdAt).toBe(1700000000000)
+    expect(calls[0].args[1].name).toBe('Charlie')
+  })
+
+  it('patch(id, value) encodes partial runtime values', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+
+    await db.patch(
+      'users:1' as any,
+      {
+        createdAt: new Date(1800000000000)
+      } as any
+    )
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].method).toBe('patch')
+    expect(calls[0].args[1].createdAt).toBe(1800000000000)
+  })
+
+  it('replace(id, value) encodes full runtime document', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+
+    await db.replace(
+      'users:1' as any,
+      {
+        name: 'Alice Updated',
+        createdAt: new Date(1800000000000)
+      } as any
+    )
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].method).toBe('replace')
+    expect(calls[0].args[1].createdAt).toBe(1800000000000)
+  })
+
+  it('delete() passes through without encoding', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+
+    await db.delete('users:1' as any)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].method).toBe('delete')
+    expect(calls[0].args[0]).toBe('users:1')
+  })
+
+  it('read methods delegate to CodecDatabaseReader', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+
+    const user = await db.get('users:1' as any)
+    expect(user).not.toBeNull()
+    expect(user?.createdAt).toBeInstanceOf(Date)
+
+    const results = await db.query('users' as any).collect()
+    expect(results[0].createdAt).toBeInstanceOf(Date)
+  })
+
+  it('passes through writes for tables not in zodTableMap', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+
+    await db.insert('logs' as any, { message: 'hello' } as any)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].args[1]).toEqual({ message: 'hello' })
   })
 })
