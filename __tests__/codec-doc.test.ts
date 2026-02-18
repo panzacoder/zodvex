@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { decodeDoc, encodeDoc } from '../src/codec'
+import { decodeDoc, encodeDoc, encodePartialDoc } from '../src/codec'
 import { zx } from '../src/zx'
 
 describe('decodeDoc', () => {
@@ -86,5 +86,59 @@ describe('encodeDoc', () => {
     expect(encodeDoc(schema, { deletedAt: new Date(1700000000000) })).toEqual({
       deletedAt: 1700000000000
     })
+  })
+})
+
+describe('encodePartialDoc', () => {
+  it('encodes only the fields present in the partial', () => {
+    const schema = z.object({
+      name: z.string(),
+      age: z.number(),
+      createdAt: zx.date()
+    })
+
+    // Only updating createdAt — name and age are absent
+    const result = encodePartialDoc(schema, { createdAt: new Date(1700000000000) })
+
+    expect(result).toEqual({ createdAt: 1700000000000 })
+    expect('name' in result).toBe(false)
+    expect('age' in result).toBe(false)
+  })
+
+  it('handles mix of plain and codec fields', () => {
+    const schema = z.object({
+      name: z.string(),
+      updatedAt: zx.date()
+    })
+
+    const result = encodePartialDoc(schema, {
+      name: 'Updated Name',
+      updatedAt: new Date(1700000000000)
+    })
+
+    expect(result).toEqual({ name: 'Updated Name', updatedAt: 1700000000000 })
+  })
+
+  it('strips undefined values from partial', () => {
+    const schema = z.object({
+      name: z.string(),
+      nickname: z.string().optional()
+    })
+
+    const result = encodePartialDoc(schema, { name: 'Alice', nickname: undefined })
+
+    expect(result).toEqual({ name: 'Alice' })
+    expect('nickname' in result).toBe(false)
+  })
+
+  it('handles empty partial', () => {
+    const schema = z.object({
+      name: z.string(),
+      age: z.number()
+    })
+
+    const result = encodePartialDoc(schema, {})
+
+    expect(result).toEqual({})
   })
 })

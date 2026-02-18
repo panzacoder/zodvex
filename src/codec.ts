@@ -56,6 +56,22 @@ export function encodeDoc<S extends z.ZodTypeAny>(schema: S, runtimeDoc: z.outpu
 }
 
 /**
+ * Encodes a partial runtime document to wire format (for Convex DB patch operations).
+ * Only encodes the fields present in the partial. Uses schema.partial() + z.encode().
+ */
+export function encodePartialDoc<S extends z.ZodTypeAny>(
+  schema: S,
+  partial: Partial<z.output<S>>
+): Partial<z.input<S>> {
+  if (!(schema instanceof z.ZodObject)) {
+    // For non-object schemas (unions, etc.), fall back to full encode
+    return stripUndefined(z.encode(schema, partial))
+  }
+  const partialSchema = schema.partial()
+  return stripUndefined(z.encode(partialSchema, partial))
+}
+
+/**
  * Creates a branded ZodCodec for use with zodvex type inference.
  * Thin wrapper around z.codec() that adds type branding, allowing
  * ConvexValidatorFromZod to extract the wire schema even when the
