@@ -1,3 +1,5 @@
+import type { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
+
 /**
  * Composes a codec customization with a user customization.
  * Codec input runs first (wraps ctx.db), user input runs second
@@ -36,4 +38,29 @@ export function composeCodecAndUser(
       }
     }
   }
+}
+
+/**
+ * Creates a zodvex-enhanced builder: a CustomBuilder callable with
+ * a .withContext() method for composing user customizations.
+ *
+ * .withContext() is NOT chainable — returns a plain CustomBuilder.
+ * To compose multiple customizations, compose them before passing
+ * to .withContext().
+ *
+ * @internal Exported for testing only -- not part of the public API.
+ */
+export function createZodvexBuilder(
+  rawBuilder: any,
+  codecCust: { args: Record<string, never>; input: (ctx: any, args: any, extra?: any) => any },
+  customFn: typeof zCustomQuery | typeof zCustomMutation | typeof zCustomAction
+) {
+  const base: any = customFn(rawBuilder as any, codecCust as any)
+
+  base.withContext = (userCust: any) => {
+    const composed = composeCodecAndUser(codecCust, userCust)
+    return customFn(rawBuilder as any, composed as any)
+  }
+
+  return base
 }

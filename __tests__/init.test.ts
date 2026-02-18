@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { composeCodecAndUser } from '../src/init'
+import { zCustomQuery } from '../src/custom'
+import { composeCodecAndUser, createZodvexBuilder } from '../src/init'
 
 describe('composeCodecAndUser', () => {
   // Minimal codec customization mock — wraps ctx.db
@@ -120,5 +121,43 @@ describe('composeCodecAndUser', () => {
     const result = await composed.input({}, {})
 
     expect(result.transforms).toBe(transforms)
+  })
+})
+
+describe('createZodvexBuilder', () => {
+  // Mock builder that captures the registered function
+  const mockQueryBuilder = (fn: any) => fn
+
+  const noOp = {
+    args: {} as Record<string, never>,
+    input: async (ctx: any, _args: any, _extra?: any) => ({ ctx: {}, args: {} })
+  }
+
+  it('returns a callable function', () => {
+    const zq = createZodvexBuilder(mockQueryBuilder, noOp, zCustomQuery)
+    expect(zq).toBeTypeOf('function')
+  })
+
+  it('has a .withContext() method', () => {
+    const zq = createZodvexBuilder(mockQueryBuilder, noOp, zCustomQuery)
+    expect(zq.withContext).toBeTypeOf('function')
+  })
+
+  it('.withContext() returns a callable', () => {
+    const zq = createZodvexBuilder(mockQueryBuilder, noOp, zCustomQuery)
+    const customized = zq.withContext({
+      args: {},
+      input: async (ctx: any) => ({ ctx: {}, args: {} })
+    })
+    expect(customized).toBeTypeOf('function')
+  })
+
+  it('.withContext() result does NOT have .withContext() (not chainable)', () => {
+    const zq = createZodvexBuilder(mockQueryBuilder, noOp, zCustomQuery)
+    const customized = zq.withContext({
+      args: {},
+      input: async (ctx: any) => ({ ctx: {}, args: {} })
+    })
+    expect((customized as any).withContext).toBeUndefined()
   })
 })
