@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { CodecQueryChain } from '../src/db'
+import { CodecDatabaseReader, CodecQueryChain } from '../src/db'
 import { zx } from '../src/zx'
 
 const userDocSchema = z.object({
@@ -37,6 +37,32 @@ function createMockQuery(docs: any[]) {
     }
   }
   return mockQuery
+}
+
+// Mock DB reader — simulates GenericDatabaseReader
+function createMockDbReader(tables: Record<string, any[]>) {
+  const mockDb: any = {
+    system: { get: async () => null, query: () => ({}), normalizeId: () => null },
+    normalizeId: (tableName: string, id: string) => {
+      return id.startsWith(`${tableName}:`) ? id : null
+    },
+    get: async (idOrTable: string, maybeId?: string) => {
+      if (maybeId !== undefined) {
+        const docs = tables[idOrTable] ?? []
+        return docs.find((d: any) => d._id === maybeId) ?? null
+      }
+      for (const docs of Object.values(tables)) {
+        const doc = docs.find((d: any) => d._id === idOrTable)
+        if (doc) return doc
+      }
+      return null
+    },
+    query: (tableName: string) => {
+      const docs = tables[tableName] ?? []
+      return createMockQuery(docs)
+    }
+  }
+  return mockDb
 }
 
 describe('CodecQueryChain', () => {
@@ -131,5 +157,75 @@ describe('CodecQueryChain', () => {
 
     expect(results).toHaveLength(2)
     expect(results[0].createdAt).toBeInstanceOf(Date)
+  })
+})
+
+describe('CodecDatabaseReader', () => {
+  const tableMap = {
+    users: userDocSchema
+  }
+
+  const tableData = {
+    users: [
+      { _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 },
+      { _id: 'users:2', _creationTime: 200, name: 'Bob', createdAt: 1700100000000 }
+    ]
+  }
+
+  it('get(id) decodes the document', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const user = await db.get('users:1' as any)
+
+    expect(user).not.toBeNull()
+    expect(user?.name).toBe('Alice')
+    expect(user?.createdAt).toBeInstanceOf(Date)
+  })
+
+  it('get(id) returns null for missing documents', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const user = await db.get('users:missing' as any)
+
+    expect(user).toBeNull()
+  })
+
+  it('get(table, id) decodes the document', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const user = await db.get('users' as any, 'users:1' as any)
+
+    expect(user).not.toBeNull()
+    expect(user?.createdAt).toBeInstanceOf(Date)
+  })
+
+  it('query() returns a CodecQueryChain', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const results = await db.query('users' as any).collect()
+
+    expect(results).toHaveLength(2)
+    expect(results[0].createdAt).toBeInstanceOf(Date)
+  })
+
+  it('passes through for tables not in the zodTableMap', async () => {
+    const db = new CodecDatabaseReader(
+      createMockDbReader({
+        ...tableData,
+        logs: [{ _id: 'logs:1', _creationTime: 100, message: 'hello' }]
+      }),
+      tableMap
+    )
+
+    const results = await db.query('logs' as any).collect()
+    expect(results[0].message).toBe('hello')
+  })
+
+  it('normalizeId passes through to inner db', () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const result = db.normalizeId('users' as any, 'users:1')
+
+    expect(result).toBe('users:1')
+  })
+
+  it('system property passes through to inner db', () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    expect(db.system).toBeDefined()
   })
 })

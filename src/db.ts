@@ -1,11 +1,16 @@
 import type {
+  GenericDatabaseReader,
+  GenericDataModel,
   GenericTableInfo,
   PaginationOptions,
   PaginationResult,
-  QueryInitializer
+  QueryInitializer,
+  TableNamesInDataModel
 } from 'convex/server'
+import type { GenericId } from 'convex/values'
 import type { z } from 'zod'
 import { decodeDoc } from './codec'
+import type { ZodTableMap } from './schema'
 
 /**
  * Wraps a Convex query chain, decoding documents through a Zod schema
@@ -91,5 +96,75 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo>
     for await (const doc of this.inner) {
       yield decodeDoc(this.schema, doc)
     }
+  }
+}
+
+/**
+ * Resolves a table name from a GenericId by iterating the tableMap
+ * and calling normalizeId. Same approach as convex-helpers' WrapReader.
+ */
+function resolveTableName<DataModel extends GenericDataModel>(
+  db: GenericDatabaseReader<DataModel>,
+  tableMap: ZodTableMap,
+  id: GenericId<any>
+): string | null {
+  for (const tableName of Object.keys(tableMap)) {
+    if (db.normalizeId(tableName as any, id as unknown as string)) {
+      return tableName
+    }
+  }
+  return null
+}
+
+/**
+ * Wraps a GenericDatabaseReader with automatic Zod codec decoding on reads.
+ * Documents from tables in the zodTableMap are decoded through their schema.
+ * Tables not in the map pass through without decoding.
+ * System tables always pass through.
+ */
+export class CodecDatabaseReader<DataModel extends GenericDataModel>
+  implements GenericDatabaseReader<DataModel>
+{
+  system: GenericDatabaseReader<DataModel>['system']
+
+  constructor(
+    protected db: GenericDatabaseReader<DataModel>,
+    protected tableMap: ZodTableMap
+  ) {
+    this.system = db.system
+  }
+
+  normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
+    tableName: TableName,
+    id: string
+  ): GenericId<TableName> | null {
+    return this.db.normalizeId(tableName, id)
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    let tableName: string | null
+    let doc: any
+
+    if (maybeId !== undefined) {
+      // get(table, id) form
+      tableName = idOrTable as string
+      doc = await (this.db as any).get(idOrTable, maybeId)
+    } else {
+      // get(id) form
+      doc = await this.db.get(idOrTable)
+      tableName = doc ? resolveTableName(this.db, this.tableMap, idOrTable) : null
+    }
+
+    if (!doc) return null
+
+    const schema = tableName ? this.tableMap[tableName] : undefined
+    return schema ? decodeDoc(schema, doc) : doc
+  }
+
+  query(tableName: any): any {
+    const schema = this.tableMap[tableName as string]
+    const innerQuery = this.db.query(tableName)
+    if (!schema) return innerQuery
+    return new CodecQueryChain(innerQuery, schema)
   }
 }
