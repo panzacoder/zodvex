@@ -92,6 +92,8 @@ We avoid this by composing at the **customization level**, not the builder level
 
 ### `.withContext()` composition
 
+> **Not chainable.** `zq.withContext(a).withContext(b)` will fail because the result is a plain `CustomBuilder` without `.withContext()`. To compose multiple customizations, compose them into one before passing to `.withContext()`.
+
 ```typescript
 zq.withContext = (userCust) => {
   const composed = {
@@ -107,7 +109,11 @@ zq.withContext = (userCust) => {
       // 3. Merge: user ctx additions on top of codec ctx
       return {
         ctx: { ...codecResult.ctx, ...userResult.ctx },
-        args: userResult.args ?? {}
+        args: userResult.args ?? {},
+        // Pass through user's hooks/onSuccess/transforms
+        ...(userResult.hooks && { hooks: userResult.hooks }),
+        ...(userResult.onSuccess && { onSuccess: userResult.onSuccess }),
+        ...(userResult.transforms && { transforms: userResult.transforms }),
       }
     }
   }
@@ -170,7 +176,53 @@ return {
 
 ### `composeCodecAndUser` (internal helper)
 
-Builds a single composed `Customization` from the codec layer and the user's customization. Codec `input` runs first, user `input` sees the codec-wrapped ctx.
+Builds a single composed `Customization` from the codec layer and the user's customization. Codec `input` runs first, user `input` sees the codec-wrapped ctx. Propagates user's `hooks`, `onSuccess`, and `transforms` through the composition.
+
+---
+
+## 4a. `ZodvexBuilder` type
+
+**File:** `src/init.ts`
+
+A `ZodvexBuilder` is a `CustomBuilder` (callable) with an additional `.withContext()` method. Type-level only — the runtime shape is created by `createZodvexBuilder`.
+
+```typescript
+type ZodvexBuilder<
+  FuncType extends 'query' | 'mutation' | 'action',
+  CodecCtx extends Record<string, any>,
+  InputCtx,
+  Visibility extends FunctionVisibility,
+> = CustomBuilder<FuncType, Record<string, never>, CodecCtx, Record<string, never>, InputCtx, Visibility, Record<string, any>>
+  & {
+    withContext: <CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+      customization: Customization<
+        Overwrite<InputCtx, CodecCtx>,   // user sees codec-augmented ctx
+        CustomArgsValidator,
+        CustomCtx,
+        CustomMadeArgs,
+        ExtraArgs
+      >
+    ) => CustomBuilder<
+      FuncType,
+      CustomArgsValidator,
+      Overwrite<CodecCtx, CustomCtx>,   // user ctx patches on top of codec ctx
+      CustomMadeArgs,
+      InputCtx,
+      Visibility,
+      ExtraArgs
+    >
+  }
+```
+
+Key decisions:
+- `.withContext()`'s `Customization` Ctx param = `Overwrite<InputCtx, CodecCtx>` → user's `input` fn gets autocomplete on `ctx.db: CodecDatabaseReader<DM>`
+- Composed `CustomCtx` = `Overwrite<CodecCtx, UserCtx>` → user can override `db` if needed (e.g., hotpot security wrapper)
+- Actions use `CodecCtx = {}` (no `ctx.db`)
+
+`initZodvex` uses overloads to provide precise return types:
+- `wrapDb: true` (default): queries/mutations get `CodecCtx = { db: CodecDatabaseReader<DM> }` / `{ db: CodecDatabaseWriter<DM> }`
+- `wrapDb: false`: all builders get `CodecCtx = {}`
+- `DM extends GenericDataModel` is inferred from `server.query: QueryBuilder<DM, 'public'>`
 
 ---
 
@@ -180,6 +232,8 @@ Builds a single composed `Customization` from the codec layer and the user's cus
 |---|---|---|
 | `createCodecCustomization` | `zodvex/server` | Yes — escape hatch for manual composition |
 | `initZodvex` | `zodvex/server` | Yes — opinionated entrypoint |
+| `ZodvexBuilder` (type) | `zodvex/server` | Yes — for type annotations |
+| `Overwrite` (type) | `zodvex/core`, `zodvex/server` | Yes — general utility type |
 | `createZodvexBuilder` | — | No — internal to `src/init.ts` |
 | `composeCodecAndUser` | — | No — internal to `src/init.ts` |
 
