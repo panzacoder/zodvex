@@ -1,10 +1,10 @@
-# zodvex v2: Remaining Implementation Plan
+# zodvex v2 Remaining Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Complete the v2 redesign by implementing every item from the design doc (`docs/plans/2026-02-17-zodvex-v2-redesign.md`) that is currently missing or broken.
+**Goal:** Complete the v2 redesign by implementing every remaining item from the revised design doc (`docs/plans/2026-02-17-zodvex-v2-redesign.md`): native `onSuccess`, `createCodecCustomization`, `__zodvexMeta`, simplified `initZodvex`, type exports, and composition proof.
 
-**Architecture:** zodvex v2's identity is a codec boundary layer. The core promise is that `customFnBuilder` works with convex-helpers' native `Customization` type — including `onSuccess` — without any zodvex wrapper types. The previous implementation attempt fixed pipeline ordering and DB codecs but missed the bridge between convex-helpers' `onSuccess` convention and zodvex's pipeline, left Tier 2 builders without `{ zodTables }`, and skipped `__zodvexMeta` function decoration.
+**Architecture:** zodvex produces composable builders via `zCustomQuery(builder, customization)`. Consumers compose customizations on top using convex-helpers' `customQuery(zq, consumerCustomization)`. zodvex owns codec correctness; convex-helpers owns customization lifecycle. `createCodecCustomization(zodTables)` is the bridge — a standard `Customization` that wraps `ctx.db` with codec-aware reader/writer.
 
 **Tech Stack:** TypeScript, Zod v4, Bun test runner, convex-helpers
 
@@ -14,7 +14,7 @@
 
 ## Traceability Matrix
 
-Every design doc section mapped to a task in this plan. If an item is already implemented correctly, it's marked "DONE" with no task.
+Every design doc section mapped to a task. Items already implemented correctly are marked "DONE".
 
 | Design Doc Section | Item | Status | Task |
 |---|---|---|---|
@@ -22,65 +22,50 @@ Every design doc section mapped to a task in this plan. If an item is already im
 | | Schema definition (`zodTable`, `defineZodSchema`) | DONE | — |
 | | Zod->Convex validator mapping | DONE | — |
 | | Codec-aware DB wrapper (boundaries 5,6) | DONE | — |
-| | Zod pipeline for function args/returns (boundaries 3,4) | DONE (but onSuccess broken) | Task 1 |
-| | Codegen + validator registry (boundaries 1,2) | NOT DONE | Task 5 |
-| **API Surface / Tier 1** | `initZodvex` returns builders | DONE (returns 9; doc shows 6 — the 3 internal variants are a correct addition) | — |
-| | `zCustomQuery` from initZodvex takes 1 arg (customization only) | DONE | — |
-| | Blessed builder example uses native `onSuccess` | BROKEN — `customFnBuilder` ignores `added.onSuccess` | Task 1 |
-| **API Surface / Tier 2** | `zQueryBuilder(query, { zodTables })` with codec-aware DB | NOT DONE — no `{ zodTables }` parameter | Task 3 |
-| | `zCustomQueryBuilder(query, customization, { zodTables })` | NOT DONE | Task 3 |
-| **API Surface / Tier 3** | `zQuery(query, { args, returns, handler })` config-object API | NOT DONE — still positional `(query, args, handler, opts)` | Task 4 |
+| | Zod pipeline for function args/returns (boundaries 3,4) | DONE (but `onSuccess` only fires via deprecated `hooks` path) | Task 1 |
+| | `__zodvexMeta` function decoration | NOT DONE | Task 3 |
+| | Codegen + validator registry (boundaries 1,2) | NOT DONE (future — out of scope for this plan) | — |
+| **API Surface** | `zCustomQuery(builder, customization?)` | DONE (but `onSuccess` broken) | Task 1 |
+| | `createCodecCustomization(zodTables)` | NOT DONE | Task 2 |
+| | `initZodvex` returns short names `zq, zm, za, ziq, zim, zia` | NOT DONE — currently returns 9 items with long names | Task 5 |
 | **Pipeline Design** | Steps 1-4, 6-8 (validation, handler, encode, strip) | DONE | — |
-| | Step 5: `onSuccess` runs before encode | Ordering DONE, but only `hooks.onSuccess` path works | Task 1 |
-| | `customFnBuilder` accepts convex-helpers' `Customization` directly | Type accepts it, but `onSuccess` dropped | Task 1 |
+| | Step 5: `onSuccess` from native convex-helpers `Customization` | NOT DONE — only checks `added?.hooks?.onSuccess` | Task 1 |
+| | `customFnBuilder` accepts convex-helpers' `Customization` directly | Type accepts it, but `onSuccess` from `input()` return is dropped | Task 1 |
 | **Pipeline / What's eliminated** | `transforms.input` deprecated with runtime warning | DONE (once-per-process) | — |
 | | `transforms.output` deprecated with runtime warning | DONE (once-per-process) | — |
-| | `CustomizationWithHooks` type eliminated | NOT DONE — still in `customFnBuilder` union | Task 2 |
-| | `customCtxWithHooks()` deprecated | DONE (`@deprecated` JSDoc) | — |
+| | `CustomizationWithHooks` removed from `customFnBuilder` internal signature | NOT DONE — still in the union | Task 6 |
 | **Database Codec Layer** | `createZodDbReader` / `createZodDbWriter` | DONE | — |
+| | `createCodecCustomization(zodTables)` export | NOT DONE | Task 2 |
 | | `decodeDoc` / `encodeDoc` escape hatches | DONE | — |
 | | `RuntimeDoc` / `WireDoc` types exported | DONE | — |
-| | `CodecDatabaseReader` / `CodecDatabaseWriter` named types | NOT DONE | Task 3 |
-| **Database / What's removed** | `createDatabaseHooks`, `composeHooks`, `DatabaseHooks` | DONE (removed) | — |
-| | `src/db/hooks.ts` public API | DONE (file removed) | — |
+| | `CodecDatabaseReader` / `CodecDatabaseWriter` named types | NOT DONE | Task 2 |
 | **Schema, Codecs & Codegen** | Schema definition, codec primitives | DONE | — |
-| | `__zodvexMeta` function decoration | NOT DONE | Task 5 |
-| | Codegen: validator registry (`_generated/zodvex/`) | NOT DONE | Task 5 |
-| | Open item: client-safe model definitions | EXPLORE during Task 5 | Task 5 |
-| **Migration / What gets deprecated** | `zCustomQueryBuilder` -> `zCustomQuery` | DONE (`@deprecated`) | — |
-| | `zCustomMutationBuilder` -> `zCustomMutation` | DONE (`@deprecated`) | — |
-| | `zCustomActionBuilder` -> `zCustomAction` | DONE (`@deprecated`) | — |
-| | `customCtxWithHooks()` -> `customCtx()` | DONE (`@deprecated`) | — |
-| | `zCustomCtx()` -> `customCtx()` | N/A — never existed | — |
-| | `zCustomCtxWithArgs()` -> `customCtxAndArgs()` | N/A — never existed | — |
-| **Migration / What gets removed** | `CustomizationWithHooks` type | NOT DONE — still exported and used | Task 2 |
-| | `CustomizationHooks` type | NOT DONE — still exported and used | Task 2 |
-| | `CustomizationTransforms` type | NOT DONE — still exported and used | Task 2 |
-| | `CustomizationResult` type | NOT DONE — still exported, no `@deprecated` | Task 2 |
-| | `CustomizationInputResult` type | NOT DONE — still exported, no `@deprecated` | Task 2 |
-| | `buildHandler()` | DONE (removed/never existed) | — |
-| **De-risking / Priority 1** | `onSuccess` sees runtime types (Date) | Test exists but uses deprecated path | Task 1 |
-| | `onSuccess` sees SensitiveWrapper instances | Test exists but uses deprecated path | Task 1 |
-| | `onSuccess` has closure access | Test exists but uses deprecated path | Task 1 |
-| **De-risking / Priority 2** | DB reads return runtime types | DONE | — |
-| | DB writes accept runtime types | DONE | — |
-| | Consumer wrapper composes on codec db | DONE | — |
-| **De-risking / Priority 3** | Decode cost benchmark (<25ms for 1000 docs) | DONE | — |
-| **De-risking / Priority 4** | Full blessed-builder flow integration test | Test exists but uses deprecated `hooks.onSuccess` path | Task 1 |
-| **Post-migration** | Evaluate `zodvex/transform` package | NOT DONE | Task 6 |
+| | `__zodvexMeta` function decoration | NOT DONE | Task 3 |
+| | Codegen CLI tool | NOT DONE (future — out of scope) | — |
+| **De-risking / Priority 1** | Composition proof: `customQuery(zq, cust)` works | NOT DONE | Task 4 |
+| | Multi-layer composition | NOT DONE | Task 4 |
+| **De-risking / Priority 2** | `onSuccess` sees runtime types (direct path) | Test exists but uses deprecated `hooks` path | Task 1 |
+| | `onSuccess` sees wire types (composed path) — documented trade-off | NOT DONE | Task 4 |
+| **De-risking / Priority 3** | DB codec benchmark (<25ms for 1000 docs) | DONE | — |
+| **De-risking / Priority 5** | Full blessed-builder integration test | Test exists but uses deprecated `hooks.onSuccess` | Task 6 |
+| **Migration / Deprecated** | `zCustomQueryBuilder` → `zCustomQuery` | DONE (`@deprecated`) | — |
+| | `customCtxWithHooks()` → `customCtx()` | DONE (`@deprecated`) | — |
+| **Migration / Removed** | `CustomizationWithHooks` from `customFnBuilder` signature | NOT DONE | Task 6 |
+| | `CustomizationResult` needs `@deprecated` | NOT DONE | Task 6 |
+| | `CustomizationInputResult` needs `@deprecated` | NOT DONE | Task 6 |
+| **Post-migration** | Evaluate `zodvex/transform` package | NOT DONE | Task 7 |
 
 ---
 
 ## Task 1: Wire up native `onSuccess` in `customFnBuilder`
 
-This is the single most important task. The design doc says zodvex accepts convex-helpers' `Customization` directly. convex-helpers' `input()` returns `{ ctx, args, onSuccess? }` — top-level `onSuccess`. zodvex's `customFnBuilder` currently only checks `added?.hooks?.onSuccess` (the deprecated path). This task fixes that and proves it with tests that use the **native convex-helpers convention**.
+This is the critical bug fix. convex-helpers' `Customization.input()` returns `{ ctx, args, onSuccess? }` — with `onSuccess` at top level. zodvex's `customFnBuilder` currently only checks `added?.hooks?.onSuccess` (the deprecated zodvex path, lines 379 and 443 of `src/custom.ts`). It ignores the native `added.onSuccess`.
 
 **Reference:** convex-helpers' `customFunctions.js` lines 266, 284 check `added.onSuccess`. convex-helpers' `Customization` type (`customFunctions.d.ts` lines 55-71) defines `onSuccess` as a top-level property of the `input()` return.
 
 **Files:**
-- Modify: `src/custom.ts` (lines 374-385, 439-449 — the two onSuccess check sites)
 - Create: `__tests__/native-onSuccess.test.ts`
-- Modify: `__tests__/integration/codec-pipeline.test.ts` (update integration test to use native path)
+- Modify: `src/custom.ts:379,443` (the two onSuccess check sites)
 
 ### Checkpoint: show me `__tests__/native-onSuccess.test.ts` and the diff to `src/custom.ts` before committing.
 
@@ -94,7 +79,7 @@ import { z } from 'zod'
 import { customFnBuilder } from '../src/custom'
 import { zx } from '../src/zx'
 
-// Minimal builder stub that mimics Convex builder
+// Minimal builder stub that mimics Convex builder behavior
 function makeBuilder() {
   return function builder(config: {
     args?: any
@@ -110,7 +95,7 @@ describe('Native onSuccess (convex-helpers Customization convention)', () => {
     const builder = makeBuilder()
     let onSuccessResult: any = null
 
-    // This is the convex-helpers native shape — onSuccess at top level, NOT nested in hooks
+    // convex-helpers native shape: onSuccess at top level, NOT nested in hooks
     const customization = {
       args: {},
       input: async (_ctx: any) => ({
@@ -159,7 +144,6 @@ describe('Native onSuccess (convex-helpers Customization convention)', () => {
     const myBuilder = customFnBuilder(builder as any, customization as any)
 
     const fn = myBuilder({
-      // No args schema
       handler: async () => ({ name: 'test' })
     }) as any
 
@@ -169,42 +153,9 @@ describe('Native onSuccess (convex-helpers Customization convention)', () => {
     expect(onSuccessResult.name).toBe('test')
   })
 
-  it('onSuccess sees runtime types before Zod encode (SensitiveWrapper)', async () => {
+  it('onSuccess sees runtime types before Zod encode (Date)', async () => {
     const builder = makeBuilder()
     let onSuccessResult: any = null
-
-    const PRIVATE_VALUES = new WeakMap<any, unknown>()
-
-    class SensitiveWrapper {
-      public readonly status: 'full' | 'hidden'
-      constructor(value: unknown, status: 'full' | 'hidden') {
-        PRIVATE_VALUES.set(this, value)
-        this.status = status
-      }
-      static full(value: unknown) { return new SensitiveWrapper(value, 'full') }
-      expose() {
-        if (this.status === 'hidden') throw new Error('Cannot expose hidden')
-        return PRIVATE_VALUES.get(this)
-      }
-      toWire() {
-        return {
-          value: this.status === 'full' ? PRIVATE_VALUES.get(this) : null,
-          status: this.status
-        }
-      }
-    }
-
-    const sensitiveString = zx.codec(
-      z.object({ value: z.string().nullable(), status: z.enum(['full', 'hidden']) }),
-      z.custom<SensitiveWrapper>((val) => val instanceof SensitiveWrapper),
-      {
-        decode: (wire: any) =>
-          wire.status === 'hidden'
-            ? new SensitiveWrapper(null, 'hidden')
-            : SensitiveWrapper.full(wire.value),
-        encode: (runtime: SensitiveWrapper) => runtime.toWire()
-      }
-    )
 
     const customization = {
       args: {},
@@ -220,22 +171,18 @@ describe('Native onSuccess (convex-helpers Customization convention)', () => {
     const myBuilder = customFnBuilder(builder as any, customization as any)
 
     const fn = myBuilder({
-      args: {},
-      returns: z.object({ email: sensitiveString }),
-      handler: async () => {
-        return { email: SensitiveWrapper.full('user@example.com') }
-      }
+      args: { when: zx.date() },
+      returns: z.object({ when: zx.date() }),
+      handler: async (_ctx: any, args: any) => ({ when: args.when })
     }) as any
 
-    const wireResult = await fn({}, {})
+    const timestamp = 1700000000000
+    const wireResult = await fn({}, { when: timestamp })
 
-    // onSuccess sees SensitiveWrapper instance
-    expect(onSuccessResult.email).toBeInstanceOf(SensitiveWrapper)
-    expect(onSuccessResult.email.expose()).toBe('user@example.com')
-
-    // Wire result is plain object (encoded)
-    expect(wireResult.email).toEqual({ value: 'user@example.com', status: 'full' })
-    expect(wireResult.email).not.toBeInstanceOf(SensitiveWrapper)
+    // onSuccess sees Date (runtime type)
+    expect(onSuccessResult.when).toBeInstanceOf(Date)
+    // Wire result is timestamp (encoded)
+    expect(typeof wireResult.when).toBe('number')
   })
 
   it('onSuccess has closure access to resources created in input()', async () => {
@@ -336,19 +283,44 @@ describe('Native onSuccess (convex-helpers Customization convention)', () => {
     expect(onSuccessResult).not.toBeNull()
     expect(onSuccessResult.name).toBe('test')
   })
+
+  it('native onSuccess takes precedence over deprecated hooks.onSuccess', async () => {
+    const builder = makeBuilder()
+    let nativeFired = false
+    let deprecatedFired = false
+
+    const customization = {
+      args: {},
+      input: async () => ({
+        ctx: {},
+        args: {},
+        onSuccess: () => { nativeFired = true },
+        hooks: {
+          onSuccess: () => { deprecatedFired = true }
+        }
+      })
+    }
+
+    const myBuilder = customFnBuilder(builder as any, customization as any)
+    const fn = myBuilder({ handler: async () => 'ok' }) as any
+    await fn({}, {})
+
+    expect(nativeFired).toBe(true)
+    expect(deprecatedFired).toBe(false)
+  })
 })
 ```
 
 **Step 2: Run the tests — verify they fail**
 
 Run: `bun test __tests__/native-onSuccess.test.ts`
-Expected: The native `onSuccess` tests FAIL (onSuccessResult is null). The deprecated `hooks.onSuccess` test PASSES.
+Expected: Native `onSuccess` tests FAIL (onSuccessResult is null). The deprecated `hooks.onSuccess` test PASSES.
 
 **Step 3: Fix `customFnBuilder` to handle native `onSuccess`**
 
-In `src/custom.ts`, find the two `onSuccess` check sites. Each needs to check BOTH `added?.onSuccess` (native convex-helpers) and `added?.hooks?.onSuccess` (deprecated zodvex path).
+In `src/custom.ts`, find the two `onSuccess` check sites. Each needs to check BOTH `added?.onSuccess` (native convex-helpers) and `added?.hooks?.onSuccess` (deprecated). Native takes precedence.
 
-**With-args path** (around line 378):
+**With-args path** (line 379 of `src/custom.ts`):
 
 Replace:
 ```typescript
@@ -365,7 +337,7 @@ Replace:
 With:
 ```typescript
           // onSuccess MUST run before encode — sees runtime types (Date, SensitiveWrapper)
-          // Check native convex-helpers path (added.onSuccess) first, then deprecated path
+          // Native convex-helpers path (added.onSuccess) takes precedence over deprecated hooks path
           const onSuccess = added?.onSuccess ?? added?.hooks?.onSuccess
           if (onSuccess) {
             await onSuccess({
@@ -376,7 +348,7 @@ With:
           }
 ```
 
-**No-args path** (around line 443):
+**No-args path** (line 443 of `src/custom.ts`):
 
 Replace:
 ```typescript
@@ -406,184 +378,61 @@ With:
 **Step 4: Run the native onSuccess tests — verify they pass**
 
 Run: `bun test __tests__/native-onSuccess.test.ts`
-Expected: ALL PASS — both native and deprecated paths work.
-
-**Step 5: Update the integration test to use native `onSuccess`**
-
-In `__tests__/integration/codec-pipeline.test.ts`, find the "blessed builder with onSuccess audit" test (around line 282-309). Change it from the deprecated `hooks.onSuccess` path to the native convex-helpers path.
-
-Replace the return object from `input()`:
-```typescript
-        return {
-          ctx: { user, db: secureDb },
-          args: {},
-          hooks: {
-            onSuccess: ({ result }: any) => {
-              auditLog.push({ userId: user.id, action: 'read', result })
-            }
-          }
-        }
-```
-
-With the native convex-helpers shape:
-```typescript
-        return {
-          ctx: { user, db: secureDb },
-          args: {},
-          onSuccess: ({ result }: any) => {
-            auditLog.push({ userId: user.id, action: 'read', result })
-          }
-        }
-```
-
-**Step 6: Run the integration test — verify it passes**
-
-Run: `bun test __tests__/integration/codec-pipeline.test.ts`
-Expected: PASS — the integration test now uses the native path and still works.
-
-**Step 7: Run the full test suite**
-
-Run: `bun test`
-Expected: All pass. The existing `hooks.onSuccess` tests in `__tests__/pipeline-ordering.test.ts` should still pass (backward compat).
-
-**Step 8: Commit**
-
-```bash
-git add __tests__/native-onSuccess.test.ts src/custom.ts __tests__/integration/codec-pipeline.test.ts
-git commit -m "fix: wire up native convex-helpers onSuccess in customFnBuilder
-
-customFnBuilder now checks added.onSuccess (convex-helpers' native
-Customization convention) in addition to added?.hooks?.onSuccess
-(deprecated zodvex path). This is the core promise of v2: standard
-Customization from convex-helpers works directly."
-```
-
----
-
-## Task 2: Remove deprecated zodvex wrapper types from `customFnBuilder`
-
-With native `onSuccess` working (Task 1), the deprecated `CustomizationWithHooks` type and its supporting types are no longer needed in `customFnBuilder`'s union. This task removes them from the internal signature while keeping the deprecated exports for backward compat.
-
-**Files:**
-- Modify: `src/custom.ts`
-- Modify: `__tests__/exports.test.ts`
-
-### Checkpoint: show me the diff to `src/custom.ts` before committing.
-
-**Step 1: Remove `CustomizationWithHooks` from `customFnBuilder` signature**
-
-In `src/custom.ts`, find the `customFnBuilder` function signature (around line 286-288):
-
-Replace:
-```typescript
-  customization:
-    | Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
-    | CustomizationWithHooks<Ctx, CustomCtx, CustomMadeArgs, ExtraArgs>
-```
-
-With:
-```typescript
-  customization: Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
-```
-
-**Step 2: Remove the `hooks` check from the deprecated transform paths**
-
-The `added?.hooks?.onSuccess` fallback from Task 1 will still fire if someone passes `hooks` inside their `input()` return (since `??` falls through to it). No code change needed — the fallback is forward-compatible.
-
-However, check if the `added?.transforms?.input` and `added?.transforms?.output` checks still compile. These properties aren't on convex-helpers' `Customization` type, but they're accessed via `any` casts in the handler. They should still work at runtime for consumers who haven't migrated yet.
-
-**Step 3: Add `@deprecated` to `CustomizationResult` and `CustomizationInputResult`**
-
-These two types are missing `@deprecated` annotations. Add them:
-
-```typescript
-/**
- * @deprecated Use convex-helpers' `Customization` type directly.
- * The `hooks` and `transforms` properties are no longer needed.
- */
-export type CustomizationResult<...> = { ... }
-
-/**
- * @deprecated Use convex-helpers' `Customization` type directly.
- */
-export type CustomizationInputResult<...> = { ... }
-```
-
-**Step 4: Update exports test**
-
-In `__tests__/exports.test.ts`, update the "does NOT export removed symbols" test to verify the types are still accessible (they're deprecated, not removed — removal happens in a future major version):
-
-No change needed if the test already doesn't check for these types. Just verify the existing tests still pass.
+Expected: ALL 7 PASS
 
 **Step 5: Run the full test suite**
 
 Run: `bun test`
-Expected: All pass.
+Expected: All pass. Existing `hooks.onSuccess` tests in `__tests__/pipeline-ordering.test.ts` still pass (backward compat).
 
-**Step 6: Run type checking**
-
-Run: `bun run type-check`
-Expected: Clean. If any internal code references `CustomizationWithHooks` in type positions that break, fix those usages.
-
-**Step 7: Commit**
+**Step 6: Commit**
 
 ```bash
-git add src/custom.ts __tests__/exports.test.ts
-git commit -m "refactor: remove CustomizationWithHooks from customFnBuilder signature
+git add __tests__/native-onSuccess.test.ts src/custom.ts
+git commit -m "fix: wire up native convex-helpers onSuccess in customFnBuilder
 
-customFnBuilder now accepts only convex-helpers' Customization type.
-The deprecated types (CustomizationWithHooks, CustomizationHooks, etc.)
-remain exported for backward compat but are no longer in the internal
-function signature."
+customFnBuilder now checks added.onSuccess (convex-helpers' native
+Customization convention) in addition to added?.hooks?.onSuccess
+(deprecated zodvex path). Native takes precedence when both are present.
+This is the core promise of v2: standard Customization from
+convex-helpers works directly."
 ```
 
 ---
 
-## Task 3: Add `{ zodTables }` to Tier 2 builders + export `CodecDatabaseReader`/`Writer` types
+## Task 2: Create `createCodecCustomization` + `CodecDatabaseReader`/`Writer` types
 
-The design doc shows Tier 2 builders accepting an optional `{ zodTables }` parameter for codec-aware DB wrapping without `initZodvex`. This task also adds the named `CodecDatabaseReader`/`CodecDatabaseWriter` types from the design doc's export table.
+The design doc lists `createCodecCustomization(zodTables)` as a primary export — a standard convex-helpers `Customization` that wraps `ctx.db` with codec-aware reader/writer. This is currently inlined inside `initZodvex` (lines 89-103 of `src/init.ts`) but not available as a standalone export.
+
+This task also adds the named `CodecDatabaseReader` / `CodecDatabaseWriter` types and exports `ZodTableMap`.
 
 **Files:**
-- Modify: `src/builders.ts` (add `{ zodTables }` option to `zQueryBuilder`, `zMutationBuilder`)
-- Modify: `src/db/wrapper.ts` (export `CodecDatabaseReader`/`CodecDatabaseWriter` types)
-- Modify: `src/db/index.ts` (verify re-exports)
-- Create: `__tests__/builders-codec.test.ts`
-- Modify: `__tests__/exports.test.ts`
+- Create: `__tests__/db/codec-customization.test.ts`
+- Modify: `src/db/wrapper.ts:19` (export `ZodTableMap`, add `createCodecCustomization`, add type aliases)
+- Modify: `__tests__/exports.test.ts` (add export verification)
 
-### Checkpoint: show me the new test file and the `builders.ts` diff before committing.
+### Checkpoint: show me the test file and `wrapper.ts` diff before committing.
 
-**Step 1: Write failing tests for Tier 2 `{ zodTables }` option**
+**Step 1: Write failing tests**
 
-Create `__tests__/builders-codec.test.ts`:
+Create `__tests__/db/codec-customization.test.ts`:
 
 ```typescript
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { zQueryBuilder, zMutationBuilder } from '../src/builders'
-import { zodTable } from '../src/tables'
-import { zx } from '../src/zx'
+import { createCodecCustomization } from '../../src/db/wrapper'
+import { zodTable } from '../../src/tables'
+import { zx } from '../../src/zx'
 
 const Events = zodTable('events', {
   title: z.string(),
-  startDate: zx.date()
+  startDate: zx.date(),
+  endDate: zx.date().optional()
 })
 
 const zodTables = { events: Events }
 
-// Mock Convex builder
-function makeQueryBuilder() {
-  return function builder(config: any) {
-    return async (ctx: any, args: any) => config.handler(ctx, args)
-  }
-}
-
-function makeMutationBuilder() {
-  return function builder(config: any) {
-    return async (ctx: any, args: any) => config.handler(ctx, args)
-  }
-}
-
-// Mock Convex db
+// Mock Convex db (writer interface)
 function createMockDb() {
   const store: Record<string, any> = {}
   return {
@@ -617,132 +466,100 @@ function createMockDb() {
   }
 }
 
-describe('Tier 2 builders with { zodTables }', () => {
-  it('zQueryBuilder with zodTables wraps ctx.db for codec-aware reads', async () => {
-    const zq = zQueryBuilder(makeQueryBuilder() as any, { zodTables })
+describe('createCodecCustomization', () => {
+  it('returns a standard Customization object with args and input', () => {
+    const cust = createCodecCustomization(zodTables)
+    expect(cust.args).toEqual({})
+    expect(cust.input).toBeInstanceOf(Function)
+  })
 
-    const getEvent = zq({
-      args: { id: z.string() },
-      handler: async (ctx: any, { id }: any) => {
-        return ctx.db.get(id)
-      }
-    })
-
+  it('input() wraps ctx.db with codec-aware writer', async () => {
+    const cust = createCodecCustomization(zodTables)
     const mockDb = createMockDb()
-    mockDb.store['events:1'] = {
-      _id: 'events:1',
+
+    // Seed a wire-format doc
+    mockDb.store['events:0'] = {
+      _id: 'events:0',
       _creationTime: 1000,
       _table: 'events',
       title: 'Meeting',
       startDate: 1700000000000
     }
 
-    const result = await (getEvent as any)({ db: mockDb }, { id: 'events:1' })
+    const result = await cust.input!({ db: mockDb } as any, {} as any, {} as any)
 
-    expect(result).not.toBeNull()
-    expect(result.startDate).toBeInstanceOf(Date)
-    expect(result.startDate.getTime()).toBe(1700000000000)
+    // ctx.db should be codec-wrapped
+    const doc = await result.ctx.db.get('events:0')
+    expect(doc.startDate).toBeInstanceOf(Date)
+    expect(doc.startDate.getTime()).toBe(1700000000000)
   })
 
-  it('zQueryBuilder WITHOUT zodTables does NOT wrap ctx.db', async () => {
-    const zq = zQueryBuilder(makeQueryBuilder() as any)
-
-    const getEvent = zq({
-      args: { id: z.string() },
-      handler: async (ctx: any, { id }: any) => {
-        return ctx.db.get(id)
-      }
-    })
-
-    const mockDb = createMockDb()
-    mockDb.store['events:1'] = {
-      _id: 'events:1',
-      _creationTime: 1000,
-      _table: 'events',
-      title: 'Meeting',
-      startDate: 1700000000000
-    }
-
-    const result = await (getEvent as any)({ db: mockDb }, { id: 'events:1' })
-
-    // No codec wrapping — raw Convex behavior
-    expect(result).not.toBeNull()
-    expect(typeof result.startDate).toBe('number')
-  })
-
-  it('zMutationBuilder with zodTables wraps ctx.db for codec-aware writes', async () => {
-    const zm = zMutationBuilder(makeMutationBuilder() as any, { zodTables })
-
-    const createEvent = zm({
-      args: { title: z.string(), startDate: zx.date() },
-      handler: async (ctx: any, args: any) => {
-        // args.startDate is a Date after Zod parse
-        expect(args.startDate).toBeInstanceOf(Date)
-        return ctx.db.insert('events', args)
-      }
-    })
-
+  it('codec-wrapped db encodes writes (insert)', async () => {
+    const cust = createCodecCustomization(zodTables)
     const mockDb = createMockDb()
 
-    const id = await (createEvent as any)(
-      { db: mockDb },
-      { title: 'Meeting', startDate: 1700000000000 }
-    )
+    const result = await cust.input!({ db: mockDb } as any, {} as any, {} as any)
+
+    const id = await result.ctx.db.insert('events', {
+      title: 'New Event',
+      startDate: new Date(1700000000000)
+    })
 
     // Verify wire format in store
     const stored = mockDb.store[id]
-    expect(stored.title).toBe('Meeting')
-    expect(typeof stored.startDate).toBe('number') // encoded back
+    expect(stored.title).toBe('New Event')
+    expect(typeof stored.startDate).toBe('number')
+    expect(stored.startDate).toBe(1700000000000)
+  })
+
+  it('codec-wrapped db encodes writes (patch)', async () => {
+    const cust = createCodecCustomization(zodTables)
+    const mockDb = createMockDb()
+
+    mockDb.store['events:0'] = {
+      _id: 'events:0',
+      _creationTime: 1000,
+      _table: 'events',
+      title: 'Old',
+      startDate: 1700000000000
+    }
+
+    const result = await cust.input!({ db: mockDb } as any, {} as any, {} as any)
+
+    await result.ctx.db.patch('events:0', {
+      startDate: new Date(1800000000000)
+    })
+
+    expect(typeof mockDb.store['events:0'].startDate).toBe('number')
+    expect(mockDb.store['events:0'].startDate).toBe(1800000000000)
+  })
+
+  it('does NOT return onSuccess (codec customization has no side effects)', () => {
+    const cust = createCodecCustomization(zodTables)
+    // input() should not return onSuccess — codec wrapping is pure
+    // (onSuccess belongs in consumer's customization, not codec layer)
+    expect(cust).not.toHaveProperty('onSuccess')
   })
 })
 ```
 
 **Step 2: Run tests — verify they fail**
 
-Run: `bun test __tests__/builders-codec.test.ts`
-Expected: FAIL — `zQueryBuilder` doesn't accept a second argument.
+Run: `bun test __tests__/db/codec-customization.test.ts`
+Expected: FAIL — `createCodecCustomization` is not exported from `src/db/wrapper`.
 
-**Step 3: Add `{ zodTables }` option to `zQueryBuilder`**
+**Step 3: Implement `createCodecCustomization` + types**
 
-In `src/builders.ts`, update `zQueryBuilder` to accept an optional second argument:
+In `src/db/wrapper.ts`, make these changes:
+
+1. Export `ZodTableMap` (line 19, change from `type` to `export type`):
 
 ```typescript
-export function zQueryBuilder<Builder extends (fn: any) => any>(
-  builder: Builder,
-  options?: { zodTables?: ZodTableMap }
-) {
-  return <...>(config: { ... }) => {
-    if (options?.zodTables) {
-      // Wrap handler to inject codec-aware db
-      const innerHandler = config.handler
-      const wrappedHandler = async (ctx: any, args: any) => {
-        const codecDb = createZodDbReader(ctx.db, options.zodTables!)
-        return innerHandler({ ...ctx, db: codecDb }, args)
-      }
-      return zQuery(builder, config.args ?? ({} as any), wrappedHandler, {
-        returns: config.returns
-      }) as any
-    }
-    return zQuery(builder, config.args ?? ({} as any), config.handler, {
-      returns: config.returns
-    }) as any
-  }
-}
+/** Map of table name -> zodTable entry. */
+export type ZodTableMap = Record<string, ZodTableEntry>
 ```
 
-Do the same for `zMutationBuilder` (use `createZodDbWriter`) and `zActionBuilder` (no DB wrapping — actions don't have `ctx.db`).
-
-Add the necessary imports at the top of `builders.ts`:
-```typescript
-import { createZodDbReader, createZodDbWriter } from './db/wrapper'
-import type { ZodTableMap } from './db/wrapper'  // you'll need to export this type
-```
-
-Note: `ZodTableMap` is currently a file-local type in `wrapper.ts`. Export it.
-
-**Step 4: Export `CodecDatabaseReader` / `CodecDatabaseWriter` types**
-
-In `src/db/wrapper.ts`, add these named types based on the return types of the factory functions:
+2. Add `CodecDatabaseReader` / `CodecDatabaseWriter` types after the factory functions:
 
 ```typescript
 /** Type of the codec-aware database reader returned by createZodDbReader. */
@@ -752,208 +569,84 @@ export type CodecDatabaseReader = ReturnType<typeof createZodDbReader>
 export type CodecDatabaseWriter = ReturnType<typeof createZodDbWriter>
 ```
 
-**Step 5: Update exports test**
-
-In `__tests__/exports.test.ts`, in the `zodvex/server exports` describe block, update the DB codec primitives test:
+3. Add `createCodecCustomization` at the end of the file:
 
 ```typescript
-it('exports DB codec primitives and types', async () => {
-  const { decodeDoc, encodeDoc, createZodDbReader, createZodDbWriter } = await import(
-    '../src/server'
-  )
-  expect(decodeDoc).toBeDefined()
-  expect(encodeDoc).toBeDefined()
-  expect(createZodDbReader).toBeDefined()
-  expect(createZodDbWriter).toBeDefined()
-  // CodecDatabaseReader, CodecDatabaseWriter, RuntimeDoc, WireDoc are type-only exports
-  // verified by bun run type-check
+/**
+ * Creates a standard convex-helpers Customization that wraps ctx.db
+ * with a codec-aware writer (which extends reader).
+ *
+ * This is the primary way to get codec-aware DB operations. Pass it
+ * to zCustomQuery/zCustomMutation, or use it via initZodvex which
+ * calls this internally.
+ *
+ * @param zodTables - Map of table name -> zodTable entry
+ * @returns A Customization object with args: {} and input that wraps ctx.db
+ *
+ * @example
+ * ```ts
+ * const codecCust = createCodecCustomization(schema.zodTables)
+ * const zq = zCustomQuery(server.query, codecCust)
+ * ```
+ */
+export function createCodecCustomization(zodTables: ZodTableMap) {
+  return {
+    args: {},
+    input: async (ctx: any) => ({
+      ctx: { db: createZodDbWriter(ctx.db, zodTables) },
+      args: {}
+    })
+  }
+}
+```
+
+**Step 4: Update exports test**
+
+In `__tests__/exports.test.ts`, update the `zodvex/server exports` describe block. Add to the DB codec primitives test:
+
+```typescript
+it('exports createCodecCustomization', async () => {
+  const { createCodecCustomization } = await import('../src/server')
+  expect(createCodecCustomization).toBeDefined()
 })
 ```
 
-**Step 6: Run tests — verify they pass**
+**Step 5: Run tests — verify they pass**
 
-Run: `bun test __tests__/builders-codec.test.ts`
-Expected: PASS
+Run: `bun test __tests__/db/codec-customization.test.ts`
+Expected: ALL PASS
 
-**Step 7: Run the full test suite + type check**
+**Step 6: Run the full test suite + type check**
 
 Run: `bun test && bun run type-check`
 Expected: All pass.
 
-**Step 8: Commit**
+**Step 7: Commit**
 
 ```bash
-git add src/builders.ts src/db/wrapper.ts __tests__/builders-codec.test.ts __tests__/exports.test.ts
-git commit -m "feat: add { zodTables } option to Tier 2 builders + CodecDatabaseReader/Writer types
+git add src/db/wrapper.ts __tests__/db/codec-customization.test.ts __tests__/exports.test.ts
+git commit -m "feat: add createCodecCustomization + CodecDatabaseReader/Writer types
 
-zQueryBuilder and zMutationBuilder now accept an optional { zodTables }
-parameter for codec-aware DB wrapping without initZodvex. Also exports
-CodecDatabaseReader and CodecDatabaseWriter named types."
+createCodecCustomization(zodTables) returns a standard convex-helpers
+Customization that wraps ctx.db with codec-aware writer. This is the
+primary bridge between zodvex's codec layer and convex-helpers'
+composition model. Also exports CodecDatabaseReader, CodecDatabaseWriter,
+and ZodTableMap types."
 ```
 
 ---
 
-## Task 4: Align Tier 3 raw wrapper API with design doc
+## Task 3: `__zodvexMeta` function decoration
 
-The design doc shows `zQuery(query, { args, returns, handler })` — a config-object API. The current implementation uses `zQuery(query, args, handler, { returns })` — a positional API. This task adds the config-object overload while keeping the positional API for backward compat.
-
-**Files:**
-- Modify: `src/wrappers.ts`
-- Create: `__tests__/wrappers-config-api.test.ts`
-
-### Checkpoint: show me the test file and `wrappers.ts` changes before committing.
-
-**Step 1: Write failing tests for config-object API**
-
-Create `__tests__/wrappers-config-api.test.ts`:
-
-```typescript
-import { describe, expect, it } from 'bun:test'
-import { z } from 'zod'
-import { zQuery, zMutation, zAction } from '../src/wrappers'
-import { zx } from '../src/zx'
-
-function makeBuilder() {
-  return function builder(config: any) {
-    return async (ctx: any, args: any) => config.handler(ctx, args)
-  }
-}
-
-describe('Tier 3 config-object API: zQuery(builder, { args, returns, handler })', () => {
-  it('zQuery accepts config object with args, returns, handler', async () => {
-    const query = makeBuilder()
-
-    const getEvent = zQuery(query as any, {
-      args: { when: zx.date() },
-      returns: z.object({ when: zx.date() }),
-      handler: async (_ctx: any, { when }: any) => {
-        expect(when).toBeInstanceOf(Date)
-        return { when }
-      }
-    })
-
-    const timestamp = new Date('2025-06-15T00:00:00Z').getTime()
-    const result = await (getEvent as any)({}, { when: timestamp })
-
-    // Returns are encoded (Date -> timestamp)
-    expect(typeof result.when).toBe('number')
-    expect(result.when).toBe(timestamp)
-  })
-
-  it('zQuery config object works without returns', async () => {
-    const query = makeBuilder()
-
-    const getEvent = zQuery(query as any, {
-      args: { name: z.string() },
-      handler: async (_ctx: any, { name }: any) => ({ name })
-    })
-
-    const result = await (getEvent as any)({}, { name: 'test' })
-    expect(result.name).toBe('test')
-  })
-
-  it('zMutation accepts config object', async () => {
-    const mutation = makeBuilder()
-
-    const create = zMutation(mutation as any, {
-      args: { name: z.string() },
-      handler: async (_ctx: any, { name }: any) => ({ created: name })
-    })
-
-    const result = await (create as any)({}, { name: 'test' })
-    expect(result.created).toBe('test')
-  })
-
-  it('zAction accepts config object', async () => {
-    const action = makeBuilder()
-
-    const doThing = zAction(action as any, {
-      args: { input: z.string() },
-      handler: async (_ctx: any, { input }: any) => ({ output: input })
-    })
-
-    const result = await (doThing as any)({}, { input: 'test' })
-    expect(result.output).toBe('test')
-  })
-
-  it('positional API still works (backward compat)', async () => {
-    const query = makeBuilder()
-
-    const getEvent = zQuery(query as any, { name: z.string() }, async (_ctx: any, { name }: any) => {
-      return { name }
-    })
-
-    const result = await (getEvent as any)({}, { name: 'test' })
-    expect(result.name).toBe('test')
-  })
-})
-```
-
-**Step 2: Run the tests — verify they fail**
-
-Run: `bun test __tests__/wrappers-config-api.test.ts`
-Expected: FAIL — `zQuery` doesn't accept a config object as second arg.
-
-**Step 3: Add config-object overload to `zQuery`**
-
-In `src/wrappers.ts`, add an overload that detects when the second argument is a config object (has a `handler` property) vs. a Zod schema / shape:
-
-```typescript
-export function zQuery<...>(
-  query: Builder,
-  inputOrConfig: A | { args?: A; returns?: R; handler: (...) => any; skipConvexValidation?: boolean },
-  handler?: (...) => any,
-  options?: { returns?: R }
-) {
-  // Detect config-object form
-  if (inputOrConfig && typeof inputOrConfig === 'object' && 'handler' in inputOrConfig
-      && !(inputOrConfig instanceof z.ZodType)) {
-    const config = inputOrConfig as any
-    return zQuery(query, config.args ?? ({} as any), config.handler, {
-      returns: config.returns
-    })
-  }
-
-  // Existing positional implementation...
-}
-```
-
-Apply the same pattern to `zMutation` and `zAction`.
-
-**Step 4: Run the tests — verify they pass**
-
-Run: `bun test __tests__/wrappers-config-api.test.ts`
-Expected: ALL PASS
-
-**Step 5: Run the full test suite**
-
-Run: `bun test`
-Expected: All pass — no regressions on existing positional API usage.
-
-**Step 6: Commit**
-
-```bash
-git add src/wrappers.ts __tests__/wrappers-config-api.test.ts
-git commit -m "feat: add config-object overload to Tier 3 wrappers
-
-zQuery, zMutation, zAction now accept zQuery(builder, { args, returns,
-handler }) in addition to the existing positional API. Matches the
-design doc's Tier 3 API surface."
-```
-
----
-
-## Task 5: `__zodvexMeta` function decoration + codegen foundation
-
-The design doc specifies that builders from `initZodvex` attach `__zodvexMeta` to function exports for codegen discovery. This task implements the decoration and explores the client-safe model definition open item. The actual codegen CLI tool is NOT implemented here — just the metadata attachment that codegen would consume.
+The design doc specifies that builders attach `__zodvexMeta` to function exports for codegen discovery. `customFnBuilder` needs to decorate the function returned by `builder({...})` with `{ zodArgs, zodReturns }`.
 
 **Files:**
-- Modify: `src/custom.ts` (attach `__zodvexMeta` in `customFnBuilder`)
 - Create: `__tests__/zodvex-meta.test.ts`
+- Modify: `src/custom.ts:334,409` (the two `return builder({...})` sites)
 
 ### Checkpoint: show me the test file and `custom.ts` diff before committing.
 
-**Step 1: Write failing tests for `__zodvexMeta`**
+**Step 1: Write failing tests**
 
 Create `__tests__/zodvex-meta.test.ts`:
 
@@ -970,15 +663,15 @@ function makeBuilder() {
   }
 }
 
+const noOpCustomization = {
+  args: {},
+  input: async () => ({ ctx: {}, args: {} })
+}
+
 describe('__zodvexMeta function decoration', () => {
   it('attaches zodArgs and zodReturns to the returned function', () => {
     const builder = makeBuilder()
-    const customization = {
-      args: {},
-      input: async () => ({ ctx: {}, args: {} })
-    }
-
-    const myBuilder = customFnBuilder(builder as any, customization as any)
+    const myBuilder = customFnBuilder(builder as any, noOpCustomization as any)
 
     const argsSchema = { id: z.string(), when: zx.date() }
     const returnsSchema = z.object({ name: z.string(), when: zx.date() })
@@ -996,12 +689,7 @@ describe('__zodvexMeta function decoration', () => {
 
   it('attaches metadata even without returns schema', () => {
     const builder = makeBuilder()
-    const customization = {
-      args: {},
-      input: async () => ({ ctx: {}, args: {} })
-    }
-
-    const myBuilder = customFnBuilder(builder as any, customization as any)
+    const myBuilder = customFnBuilder(builder as any, noOpCustomization as any)
 
     const argsSchema = { name: z.string() }
 
@@ -1015,14 +703,25 @@ describe('__zodvexMeta function decoration', () => {
     expect(fn.__zodvexMeta.zodReturns).toBeUndefined()
   })
 
-  it('attaches metadata for functions without args', () => {
+  it('attaches metadata for functions without args (no-args path)', () => {
     const builder = makeBuilder()
-    const customization = {
-      args: {},
-      input: async () => ({ ctx: {}, args: {} })
-    }
+    const myBuilder = customFnBuilder(builder as any, noOpCustomization as any)
 
-    const myBuilder = customFnBuilder(builder as any, customization as any)
+    const returnsSchema = z.object({ name: z.string() })
+
+    const fn = myBuilder({
+      returns: returnsSchema,
+      handler: async () => ({ name: 'hello' })
+    }) as any
+
+    expect(fn.__zodvexMeta).toBeDefined()
+    expect(fn.__zodvexMeta.zodArgs).toBeUndefined()
+    expect(fn.__zodvexMeta.zodReturns).toBe(returnsSchema)
+  })
+
+  it('attaches metadata for functions with no args and no returns', () => {
+    const builder = makeBuilder()
+    const myBuilder = customFnBuilder(builder as any, noOpCustomization as any)
 
     const fn = myBuilder({
       handler: async () => 'hello'
@@ -1031,6 +730,22 @@ describe('__zodvexMeta function decoration', () => {
     expect(fn.__zodvexMeta).toBeDefined()
     expect(fn.__zodvexMeta.zodArgs).toBeUndefined()
     expect(fn.__zodvexMeta.zodReturns).toBeUndefined()
+  })
+
+  it('preserves the original args shape (not ZodObject)', () => {
+    const builder = makeBuilder()
+    const myBuilder = customFnBuilder(builder as any, noOpCustomization as any)
+
+    // Raw shape object (most common usage)
+    const argsShape = { id: z.string(), when: zx.date() }
+
+    const fn = myBuilder({
+      args: argsShape,
+      handler: async (_ctx: any, args: any) => args
+    }) as any
+
+    // zodArgs should be the raw shape, not a ZodObject wrapper
+    expect(fn.__zodvexMeta.zodArgs).toBe(argsShape)
   })
 })
 ```
@@ -1042,24 +757,50 @@ Expected: FAIL — `fn.__zodvexMeta` is undefined.
 
 **Step 3: Attach `__zodvexMeta` in `customFnBuilder`**
 
-In `src/custom.ts`, in the `customBuilder` function (inside `customFnBuilder`), after the two `return builder(...)` calls, attach the metadata. The challenge is that `builder(...)` returns the Convex registration, which is what gets exported. We need to attach `__zodvexMeta` to that return value.
+In `src/custom.ts`, modify the `customBuilder` function (inside `customFnBuilder`). There are two code paths that call `builder({...})` — one for with-args (line 334) and one for no-args (line 409).
 
-Find the two `return builder({...})` sites (with-args and no-args paths). Wrap each:
+**With-args path** (line 334 of `src/custom.ts`):
+
+Replace:
+```typescript
+      return builder({
+        args: convexArgs,
+        ...returnValidator,
+        handler: async (ctx: Ctx, allArgs: any) => {
+```
+
+With:
+```typescript
+      const registered = builder({
+        args: convexArgs,
+        ...returnValidator,
+        handler: async (ctx: Ctx, allArgs: any) => {
+```
+
+And at the end of this `if (args) { ... }` block (before the closing `}`), instead of the implicit return from `return builder({...})`, add:
 
 ```typescript
-    // With-args path:
-    if (args) {
-      // ... existing validation ...
-      const registered = builder({ ... })
+      // ... handler implementation unchanged ...
+      })
       ;(registered as any).__zodvexMeta = {
         zodArgs: fn.args,
         zodReturns: fn.returns
       }
       return registered
-    }
+```
 
-    // No-args path:
-    const registered = builder({ ... })
+**No-args path** (line 409 of `src/custom.ts`):
+
+Same pattern:
+
+```typescript
+    const registered = builder({
+      args: inputArgs,
+      ...returnValidator,
+      handler: async (ctx: Ctx, allArgs: any) => {
+        // ... unchanged ...
+      }
+    })
     ;(registered as any).__zodvexMeta = {
       zodArgs: undefined,
       zodReturns: fn.returns
@@ -1067,71 +808,719 @@ Find the two `return builder({...})` sites (with-args and no-args paths). Wrap e
     return registered
 ```
 
-Note: `fn.args` here is the original args validator from the consumer (the Zod schema, not the converted Convex validator). `fn.returns` is the original returns validator (may be undefined).
+**Important:** `fn.args` is the original args from the consumer config (the raw Zod shape or ZodObject, before conversion to Convex validators). `fn.returns` is the original returns Zod schema (may be undefined). These are captured at the top of `customBuilder` on line 294: `const { args, handler = fn, returns: maybeObject, ...extra } = fn`.
+
+Note: Use `fn.args` (the original input), NOT the computed `argsSchema` (which is always a ZodObject). The consumer may have passed a raw shape like `{ id: z.string() }`, and codegen needs the original form.
 
 **Step 4: Run the tests — verify they pass**
 
 Run: `bun test __tests__/zodvex-meta.test.ts`
-Expected: ALL PASS
+Expected: ALL 5 PASS
 
-**Step 5: Explore client-safe model definitions**
+**Step 5: Run the full test suite**
 
-This is the design doc's open item. `zodTable()` calls `defineTable()` which is server-only, making model files non-importable from client code. Read `src/tables.ts` and document findings:
-
-1. Can `zodTable` be split into a client-safe part (Zod schema capture) and a server-only part (`defineTable` call)?
-2. Would `defineZodModel()` (captures Zod schema without `defineTable()`) be a useful primitive?
-3. What would the codegen input look like if model files are importable from client code?
-
-Write findings as a brief comment block at the bottom of this plan file (not a separate doc).
-
-**Step 6: Run the full test suite + type check**
-
-Run: `bun test && bun run type-check`
+Run: `bun test`
 Expected: All pass.
 
-**Step 7: Commit**
+**Step 6: Commit**
 
 ```bash
-git add src/custom.ts __tests__/zodvex-meta.test.ts
+git add __tests__/zodvex-meta.test.ts src/custom.ts
 git commit -m "feat: attach __zodvexMeta to functions built by customFnBuilder
 
 Decorated functions carry { zodArgs, zodReturns } metadata for codegen
-discovery. The actual codegen CLI tool is future work — this lays the
-foundation by ensuring metadata is available on every function built
-through the zodvex pipeline."
+discovery. zodArgs is the original consumer-provided shape (not the
+ZodObject wrapper). zodReturns is the Zod schema for return validation.
+Both may be undefined when not provided."
 ```
 
 ---
 
-## Task 6: Evaluate `zodvex/transform` package + final verification
+## Task 4: Composition proof tests
 
-The design doc says to evaluate whether `zodvex/transform` still provides value after the redesign. This task does that evaluation and runs final verification.
+This is the de-risking priority 1 from the design doc. If `customQuery(zq, customization)` doesn't compose correctly, the entire architecture falls apart. These tests also verify the `onSuccess` ordering trade-off.
+
+**Important context:** convex-helpers' `customQuery` is not importable in unit tests (it requires real Convex server types). Instead, we simulate the composition pattern by manually chaining: call the outer `input()` to augment ctx, then pass augmented ctx to the inner builder. This tests the same code paths without a Convex runtime.
 
 **Files:**
-- Read: `src/transform/index.ts` (understand what it exports)
-- Modify: `__tests__/exports.test.ts` (update tier labels to match design doc, if needed)
+- Create: `__tests__/composition-proof.test.ts`
 
-### Checkpoint: show me the evaluation results before any changes.
+### Checkpoint: show me the test file before committing.
 
-**Step 1: Evaluate `zodvex/transform`**
+**Step 1: Write composition proof tests**
 
-Read `src/transform/index.ts` and all files it imports. Answer:
-1. What does it export? (`transformBySchema`, `walkSchema`, etc.)
-2. Is any of this used by zodvex's core pipeline? (codecs, customFnBuilder, initZodvex)
-3. Is any of this used by consumers? (grep for imports in test files)
-4. Can it be replaced by Zod v4's native `z.encode` / `z.decode`?
+Create `__tests__/composition-proof.test.ts`:
 
-Document findings as a comment in the commit message. If the evaluation shows it should be removed, do so. If it should stay, note why.
+```typescript
+import { describe, expect, it } from 'bun:test'
+import { z } from 'zod'
+import { customFnBuilder } from '../src/custom'
+import { createCodecCustomization } from '../src/db/wrapper'
+import { zodTable } from '../src/tables'
+import { zx } from '../src/zx'
 
-**Step 2: Fix exports test tier labels**
+// --- Test fixtures ---
 
-In `__tests__/exports.test.ts`, the test names say "Tier 2 builders" for `zCustomQuery` etc. and "Tier 3 builders" for `zQueryBuilder` etc. The design doc defines:
-- Tier 2 = `zQueryBuilder`, `zCustomQueryBuilder` (standalone builders)
-- Tier 3 = raw `zQuery` wrappers
+const Events = zodTable('events', {
+  title: z.string(),
+  startDate: zx.date(),
+  endDate: zx.date().optional()
+})
 
-Update the test names to match the design doc's tier classification.
+const zodTables = { events: Events }
 
-**Step 3: Run final verification**
+function createMockDb() {
+  const store: Record<string, any> = {}
+  return {
+    store,
+    get: async (id: string) => store[id] ?? null,
+    query: (table: string) => {
+      const docs = Object.values(store).filter((d: any) => d._table === table)
+      let chain: any
+      chain = {
+        withIndex: () => chain,
+        filter: () => chain,
+        order: () => chain,
+        collect: async () => docs,
+        first: async () => docs[0] ?? null,
+        unique: async () => null,
+        take: async (n: number) => docs.slice(0, n)
+      }
+      return chain
+    },
+    insert: async (table: string, doc: any) => {
+      const id = `${table}:${Object.keys(store).length}`
+      store[id] = { _id: id, _creationTime: Date.now(), _table: table, ...doc }
+      return id
+    },
+    patch: async (id: string, patch: any) => {
+      store[id] = { ...store[id], ...patch }
+    },
+    delete: async (id: string) => {
+      delete store[id]
+    }
+  }
+}
+
+// Minimal builder stub
+function makeBuilder() {
+  return function builder(config: any) {
+    return async (ctx: any, args: any) => config.handler(ctx, args)
+  }
+}
+
+// --- Composition simulation ---
+// In production: customQuery(zq, customization)
+// In test: we simulate by manually calling the composition chain.
+// This produces the same runtime behavior.
+
+/**
+ * Simulate convex-helpers' customQuery(innerBuilder, outerCustomization).
+ *
+ * convex-helpers' customQuery wraps the inner builder so that:
+ * 1. The outer customization's input() runs first, augmenting ctx
+ * 2. The inner builder's handler runs with augmented ctx
+ * 3. The outer customization's onSuccess runs after the inner handler returns
+ *
+ * The key detail: the inner builder's handler includes zodvex's encode step.
+ * So onSuccess from the OUTER layer sees ENCODED (wire) types.
+ */
+function simulateCustomQuery(
+  innerBuilder: (config: any) => any,
+  outerCustomization: { args?: any; input?: (ctx: any, args: any, extra: any) => any }
+) {
+  return function composedBuilder(config: any) {
+    return async (ctx: any, args: any) => {
+      // Step 1: outer customization augments ctx
+      const added = outerCustomization.input
+        ? await outerCustomization.input(ctx, {}, {})
+        : { ctx: {}, args: {} }
+
+      const augmentedCtx = { ...ctx, ...(added?.ctx ?? {}) }
+
+      // Step 2: inner builder's handler runs (includes zodvex encode)
+      const innerFn = innerBuilder(config)
+      const result = await innerFn(augmentedCtx, args)
+
+      // Step 3: outer onSuccess runs AFTER inner handler (sees wire types)
+      if (added?.onSuccess) {
+        await added.onSuccess({ ctx: augmentedCtx, args, result })
+      }
+
+      return result
+    }
+  }
+}
+
+describe('Composition proof: customQuery(zq, customization)', () => {
+  it('codec customization wraps ctx.db — reads decode wire→runtime', async () => {
+    const codecCust = createCodecCustomization(zodTables)
+    const mockDb = createMockDb()
+
+    mockDb.store['events:0'] = {
+      _id: 'events:0',
+      _creationTime: 1000,
+      _table: 'events',
+      title: 'Meeting',
+      startDate: 1700000000000
+    }
+
+    // zq = zCustomQuery(builder, codecCust)
+    const zq = customFnBuilder(makeBuilder() as any, codecCust as any)
+
+    const getEvent = zq({
+      args: { id: z.string() },
+      handler: async (ctx: any, { id }: any) => ctx.db.get(id)
+    }) as any
+
+    const result = await getEvent({ db: mockDb }, { id: 'events:0' })
+
+    // No returns schema → no encode → runtime types returned
+    expect(result.startDate).toBeInstanceOf(Date)
+    expect(result.startDate.getTime()).toBe(1700000000000)
+  })
+
+  it('onSuccess from DIRECT customization sees runtime types (Date)', async () => {
+    let onSuccessResult: any = null
+
+    // Direct path: zCustomQuery(builder, customizationWithOnSuccess)
+    const directCust = {
+      args: {},
+      input: async (ctx: any) => ({
+        ctx: {},
+        args: {},
+        onSuccess: ({ result }: any) => {
+          onSuccessResult = result
+        }
+      })
+    }
+
+    const zq = customFnBuilder(makeBuilder() as any, directCust as any)
+
+    const fn = zq({
+      args: { when: zx.date() },
+      returns: z.object({ when: zx.date() }),
+      handler: async (_ctx: any, args: any) => ({ when: args.when })
+    }) as any
+
+    const wireResult = await fn({}, { when: 1700000000000 })
+
+    // Direct path: onSuccess sees runtime types (Date)
+    expect(onSuccessResult.when).toBeInstanceOf(Date)
+    // Wire result is encoded (timestamp)
+    expect(typeof wireResult.when).toBe('number')
+  })
+
+  it('onSuccess from COMPOSED customization sees wire types (documented trade-off)', async () => {
+    let outerOnSuccessResult: any = null
+
+    const codecCust = createCodecCustomization(zodTables)
+
+    // Inner builder: zq = zCustomQuery(builder, codecCust)
+    const zq = (config: any) => customFnBuilder(makeBuilder() as any, codecCust as any)(config)
+
+    // Outer customization with onSuccess
+    const outerCust = {
+      args: {},
+      input: async (ctx: any) => ({
+        ctx: { user: { id: 'u1' } },
+        args: {},
+        onSuccess: ({ result }: any) => {
+          outerOnSuccessResult = result
+        }
+      })
+    }
+
+    // Simulate: customQuery(zq, outerCust)
+    const composedBuilder = simulateCustomQuery(
+      (config: any) => zq(config),
+      outerCust
+    )
+
+    const fn = composedBuilder({
+      args: { when: zx.date() },
+      returns: z.object({ when: zx.date() }),
+      handler: async (_ctx: any, args: any) => ({ when: args.when })
+    })
+
+    const mockDb = createMockDb()
+    const wireResult = await fn({ db: mockDb }, { when: 1700000000000 })
+
+    // COMPOSED path: onSuccess sees WIRE types (encoded by zodvex before returning)
+    // This is the documented trade-off from the design doc
+    expect(typeof outerOnSuccessResult.when).toBe('number')
+    expect(outerOnSuccessResult.when).toBe(1700000000000)
+
+    // Wire result is also encoded
+    expect(typeof wireResult.when).toBe('number')
+  })
+
+  it('multi-layer composition: codec → auth → security', async () => {
+    const codecCust = createCodecCustomization(zodTables)
+    const mockDb = createMockDb()
+
+    mockDb.store['events:0'] = {
+      _id: 'events:0',
+      _creationTime: 1000,
+      _table: 'events',
+      title: 'Meeting',
+      startDate: 1700000000000
+    }
+
+    // Layer 1: codec (zodvex)
+    const zq = customFnBuilder(makeBuilder() as any, codecCust as any)
+
+    // Layer 2: auth (consumer) — simulated composition
+    const authCust = {
+      args: {},
+      input: async (ctx: any) => ({
+        ctx: { user: { id: 'user-1', role: 'doctor' } },
+        args: {}
+      })
+    }
+
+    // Layer 3: security (consumer) — simulated composition
+    const securityCust = {
+      args: {},
+      input: async (ctx: any) => {
+        // Wraps the existing (codec-aware) db with security check
+        const secureDb = {
+          ...ctx.db,
+          get: async (id: any) => {
+            const doc = await ctx.db.get(id)
+            if (!doc) return null
+            // Simple RLS: only doctor role can read
+            if (ctx.user?.role !== 'doctor') return null
+            return doc
+          }
+        }
+        return { ctx: { db: secureDb }, args: {} }
+      }
+    }
+
+    // Build: security(auth(zq(handler)))
+    const authQuery = simulateCustomQuery(
+      (config: any) => zq(config) as any,
+      authCust
+    )
+    const secureQuery = simulateCustomQuery(
+      (config: any) => authQuery(config),
+      securityCust
+    )
+
+    const fn = secureQuery({
+      args: { id: z.string() },
+      handler: async (ctx: any, { id }: any) => ctx.db.get(id)
+    })
+
+    const result = await fn({ db: mockDb }, { id: 'events:0' })
+
+    // Multi-layer: codec decoded, auth added user, security filtered
+    expect(result).not.toBeNull()
+    expect(result.startDate).toBeInstanceOf(Date)
+  })
+
+  it('args:{} from customization does not interfere with zodvex args', async () => {
+    // This verifies the key constraint: customQuery(zq, cust) works
+    // when cust.args is {} (no custom args from customization layer)
+    const codecCust = createCodecCustomization(zodTables)
+    const mockDb = createMockDb()
+
+    const zq = customFnBuilder(makeBuilder() as any, codecCust as any)
+
+    const fn = zq({
+      args: { title: z.string(), when: zx.date() },
+      returns: z.object({ title: z.string(), when: zx.date() }),
+      handler: async (_ctx: any, args: any) => ({
+        title: args.title,
+        when: args.when
+      })
+    }) as any
+
+    const ts = 1700000000000
+    const result = await fn({ db: mockDb }, { title: 'Test', when: ts })
+
+    // Args parsed through Zod (timestamp → Date in handler)
+    // Returns encoded through Zod (Date → timestamp in wire result)
+    expect(typeof result.when).toBe('number')
+    expect(result.when).toBe(ts)
+    expect(result.title).toBe('Test')
+  })
+})
+```
+
+**Step 2: Run composition proof tests**
+
+Run: `bun test __tests__/composition-proof.test.ts`
+Expected: ALL 5 PASS (depends on Task 1 and Task 2 being complete)
+
+**Step 3: Run full test suite**
+
+Run: `bun test`
+Expected: All pass.
+
+**Step 4: Commit**
+
+```bash
+git add __tests__/composition-proof.test.ts
+git commit -m "test: composition proof — customQuery(zq, cust) composes correctly
+
+Proves the v2 architecture's core claim: zodvex builders compose with
+convex-helpers' customQuery. Tests cover:
+- Codec customization wraps ctx.db (reads decode)
+- Direct onSuccess sees runtime types
+- Composed onSuccess sees wire types (documented trade-off)
+- Multi-layer composition (codec → auth → security)
+- Empty args from customization doesn't interfere with Zod args"
+```
+
+---
+
+## Task 5: Simplify `initZodvex`
+
+The design doc says `initZodvex` returns `{ zq, zm, za, ziq, zim, zia }` — 6 builders with short names. The current implementation returns 9 items with long names and includes `makeZCustomQuery`/`makeZCustomMutation`/`makeZCustomAction` factory functions that are replaced by convex-helpers' `customQuery(zq, ...)` composition.
+
+This is a breaking change (v2 major version bump).
+
+**Files:**
+- Create: `__tests__/init-v2.test.ts`
+- Modify: `src/init.ts`
+- Modify: `__tests__/init.test.ts` (update for new API)
+
+### Checkpoint: show me the test file and `init.ts` diff before committing.
+
+**Step 1: Write tests for new `initZodvex` API**
+
+Create `__tests__/init-v2.test.ts`:
+
+```typescript
+import { describe, expect, it } from 'bun:test'
+import { z } from 'zod'
+import { initZodvex } from '../src/init'
+import { defineZodSchema } from '../src/schema'
+import { zodTable } from '../src/tables'
+import { zx } from '../src/zx'
+
+const Events = zodTable('events', {
+  title: z.string(),
+  startDate: zx.date()
+})
+
+const Users = zodTable('users', {
+  name: z.string(),
+  email: z.string()
+})
+
+const schema = defineZodSchema({ events: Events, users: Users })
+
+// Mock server
+const server = {
+  query: (config: any) => config,
+  mutation: (config: any) => config,
+  action: (config: any) => config,
+  internalQuery: (config: any) => config,
+  internalMutation: (config: any) => config,
+  internalAction: (config: any) => config
+}
+
+describe('initZodvex v2 — short names', () => {
+  it('returns exactly zq, zm, za, ziq, zim, zia', () => {
+    const result = initZodvex(schema, server as any)
+    expect(result.zq).toBeDefined()
+    expect(result.zm).toBeDefined()
+    expect(result.za).toBeDefined()
+    expect(result.ziq).toBeDefined()
+    expect(result.zim).toBeDefined()
+    expect(result.zia).toBeDefined()
+
+    // Should be exactly 6 keys
+    expect(Object.keys(result)).toHaveLength(6)
+  })
+
+  it('does NOT return long names or factory functions', () => {
+    const result = initZodvex(schema, server as any) as any
+    expect(result.zQuery).toBeUndefined()
+    expect(result.zMutation).toBeUndefined()
+    expect(result.zAction).toBeUndefined()
+    expect(result.zInternalQuery).toBeUndefined()
+    expect(result.zInternalMutation).toBeUndefined()
+    expect(result.zInternalAction).toBeUndefined()
+    expect(result.zCustomQuery).toBeUndefined()
+    expect(result.zCustomMutation).toBeUndefined()
+    expect(result.zCustomAction).toBeUndefined()
+  })
+
+  it('zq produces a working codec-aware builder', () => {
+    const { zq } = initZodvex(schema, server as any)
+    const fn = zq({
+      args: { title: z.string() },
+      handler: async (_ctx: any, { title }: any) => title
+    })
+    expect(fn).toBeDefined()
+  })
+
+  it('za produces a builder without DB wrapping', () => {
+    const { za } = initZodvex(schema, server as any)
+    const fn = za({
+      args: { input: z.string() },
+      handler: async (_ctx: any, { input }: any) => input
+    })
+    expect(fn).toBeDefined()
+  })
+})
+```
+
+**Step 2: Run tests — verify they fail**
+
+Run: `bun test __tests__/init-v2.test.ts`
+Expected: FAIL — `result.zq` is undefined (current returns `zQuery`).
+
+**Step 3: Rewrite `initZodvex`**
+
+Replace the entire implementation in `src/init.ts` with:
+
+```typescript
+import type {
+  ActionBuilder,
+  FunctionVisibility,
+  GenericDataModel,
+  MutationBuilder,
+  QueryBuilder
+} from 'convex/server'
+import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
+import { createCodecCustomization } from './db/wrapper'
+
+type ZodTables = Record<string, { name: string; table: any; schema: { doc: any; base: any } }>
+
+type ZodSchema = {
+  tables: Record<string, any>
+  zodTables: ZodTables
+}
+
+type Server<DataModel extends GenericDataModel> = {
+  query: QueryBuilder<DataModel, 'public'>
+  internalQuery: QueryBuilder<DataModel, 'internal'>
+  mutation: MutationBuilder<DataModel, 'public'>
+  internalMutation: MutationBuilder<DataModel, 'internal'>
+  action: ActionBuilder<DataModel, 'public'>
+  internalAction: ActionBuilder<DataModel, 'internal'>
+}
+
+/** NoOp customization for actions (no ctx.db wrapping). */
+const actionNoOp = {
+  args: {},
+  input: async () => ({ ctx: {}, args: {} })
+}
+
+/**
+ * One-time setup that creates codec-aware builders for your Convex project.
+ *
+ * Returns pre-configured builders with short names. Each query/mutation builder
+ * automatically wraps `ctx.db` with codec-aware read/write using your zodTable
+ * schemas. Action builders do NOT wrap ctx.db (actions have no DB in Convex).
+ *
+ * For "blessed builders" (auth, security, etc.), compose with convex-helpers:
+ * ```ts
+ * import { customQuery } from 'convex-helpers/server/customFunctions'
+ * const hotpotQuery = customQuery(zq, hotpotCustomization)
+ * ```
+ *
+ * @param schema - Schema from `defineZodSchema()` containing zodTable refs
+ * @param server - Convex server functions (`query`, `mutation`, `action`, and internal variants)
+ * @returns `{ zq, zm, za, ziq, zim, zia }` — codec-aware builders
+ *
+ * @example
+ * ```ts
+ * const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, server)
+ *
+ * export const getEvent = zq({
+ *   args: { id: zx.id('events') },
+ *   returns: Events.schema.doc.nullable(),
+ *   handler: async (ctx, { id }) => ctx.db.get(id),
+ * })
+ * ```
+ */
+export function initZodvex<DataModel extends GenericDataModel>(
+  schema: ZodSchema,
+  server: Server<DataModel>
+) {
+  const codecCust = createCodecCustomization(schema.zodTables)
+
+  return {
+    zq: zCustomQuery(server.query, codecCust as any),
+    zm: zCustomMutation(server.mutation, codecCust as any),
+    za: zCustomAction(server.action, actionNoOp as any),
+    ziq: zCustomQuery(server.internalQuery, codecCust as any),
+    zim: zCustomMutation(server.internalMutation, codecCust as any),
+    zia: zCustomAction(server.internalAction, actionNoOp as any)
+  }
+}
+```
+
+**Step 4: Update existing `__tests__/init.test.ts`**
+
+The existing test file references the old API (`result.zQuery`, `result.zCustomQuery`, etc.). Update all references to use the new short names (`result.zq`, `result.zm`, etc.). Remove tests for the factory functions (`makeZCustomQuery`, etc.) since those are eliminated.
+
+Key changes:
+- `result.zQuery` → `result.zq`
+- `result.zMutation` → `result.zm`
+- `result.zAction` → `result.za`
+- `result.zInternalQuery` → `result.ziq`
+- `result.zInternalMutation` → `result.zim`
+- `result.zInternalAction` → `result.zia`
+- Remove tests for `result.zCustomQuery` (factory function — eliminated)
+- Remove tests for `result.zCustomMutation` (factory function — eliminated)
+- Remove tests for `result.zCustomAction` (factory function — eliminated)
+
+**Step 5: Update any integration tests that use `initZodvex` return values**
+
+Search for usages: `grep -rn "initZodvex" __tests__/`. Update each to use short names.
+
+Known files:
+- `__tests__/integration/codec-pipeline.test.ts` — uses `const { zCustomQuery } = initZodvex(...)`. Change to destructure `zq` and use `zq` directly (since `zCustomQuery` was the factory function, now eliminated). For the blessed builder pattern, the test should compose manually instead of using the factory.
+
+**Step 6: Run tests — verify they pass**
+
+Run: `bun test __tests__/init-v2.test.ts && bun test __tests__/init.test.ts`
+Expected: ALL PASS
+
+**Step 7: Run full test suite + type check**
+
+Run: `bun test && bun run type-check`
+Expected: All pass.
+
+**Step 8: Commit**
+
+```bash
+git add src/init.ts __tests__/init.test.ts __tests__/init-v2.test.ts __tests__/integration/codec-pipeline.test.ts
+git commit -m "feat: simplify initZodvex — return short names, remove factory functions
+
+initZodvex now returns { zq, zm, za, ziq, zim, zia } — 6 builders with
+short names. Factory functions (makeZCustomQuery etc.) are removed.
+For blessed builders, compose with convex-helpers' customQuery:
+  const hotpotQuery = customQuery(zq, hotpotCustomization)
+
+Uses createCodecCustomization internally instead of inline codec wrapping.
+
+BREAKING: initZodvex return shape changed (v2 major version bump)."
+```
+
+---
+
+## Task 6: Type cleanup + integration test update
+
+Remove `CustomizationWithHooks` from `customFnBuilder`'s internal signature. Add `@deprecated` JSDoc to `CustomizationResult` and `CustomizationInputResult`. Update the integration test to use native `onSuccess` instead of deprecated `hooks.onSuccess`.
+
+**Files:**
+- Modify: `src/custom.ts:286-288` (remove `CustomizationWithHooks` from union)
+- Modify: `src/custom.ts:53,71` (add `@deprecated` to types)
+- Modify: `__tests__/integration/codec-pipeline.test.ts:299-307` (native `onSuccess`)
+- Modify: `__tests__/exports.test.ts` (update assertions)
+
+### Checkpoint: show me the `custom.ts` diff and integration test diff before committing.
+
+**Step 1: Remove `CustomizationWithHooks` from `customFnBuilder` signature**
+
+In `src/custom.ts`, lines 286-288:
+
+Replace:
+```typescript
+  customization:
+    | Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
+    | CustomizationWithHooks<Ctx, CustomCtx, CustomMadeArgs, ExtraArgs>
+```
+
+With:
+```typescript
+  customization: Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
+```
+
+**Step 2: Add `@deprecated` to `CustomizationResult` and `CustomizationInputResult`**
+
+In `src/custom.ts`, line 49 (before `CustomizationResult`):
+
+Add:
+```typescript
+/**
+ * @deprecated Use convex-helpers' `Customization` type directly.
+ * The `hooks` and `transforms` properties are no longer needed.
+ */
+```
+
+In `src/custom.ts`, line 67 (before `CustomizationInputResult`):
+
+Add:
+```typescript
+/**
+ * @deprecated Use convex-helpers' `Customization` type directly.
+ */
+```
+
+**Step 3: Update the integration test to use native `onSuccess`**
+
+In `__tests__/integration/codec-pipeline.test.ts`, find the blessed builder test (around line 299-307). This currently uses `hooks: { onSuccess: ... }`. Change to native `onSuccess`.
+
+Replace:
+```typescript
+        return {
+          ctx: { user, db: secureDb },
+          args: {},
+          hooks: {
+            onSuccess: ({ result }: any) => {
+              auditLog.push({ userId: user.id, action: 'read', result })
+            }
+          }
+        }
+```
+
+With:
+```typescript
+        return {
+          ctx: { user, db: secureDb },
+          args: {},
+          onSuccess: ({ result }: any) => {
+            auditLog.push({ userId: user.id, action: 'read', result })
+          }
+        }
+```
+
+**Step 4: Verify the `customFnBuilder` still works with deprecated types at runtime**
+
+Even though `CustomizationWithHooks` is removed from the TypeScript signature, consumers may still pass objects with `hooks` and `transforms` at runtime (via `as any` casts or JavaScript). The runtime code still checks `added?.hooks?.onSuccess` and `added?.transforms?.input` etc., so it works. No runtime change needed.
+
+**Step 5: Run the full test suite + type check + lint**
+
+Run: `bun test && bun run type-check && bun run lint`
+
+If type-check fails because internal code references `CustomizationWithHooks` in type positions, fix those usages. The type is still exported (deprecated, not removed), so external consumers can still import it.
+
+Expected: All pass.
+
+**Step 6: Commit**
+
+```bash
+git add src/custom.ts __tests__/integration/codec-pipeline.test.ts __tests__/exports.test.ts
+git commit -m "refactor: remove CustomizationWithHooks from internal signature, deprecate result types
+
+customFnBuilder now accepts only convex-helpers' Customization type.
+CustomizationResult and CustomizationInputResult marked @deprecated.
+Integration test updated to use native onSuccess instead of deprecated
+hooks.onSuccess path."
+```
+
+---
+
+## Task 7: Final verification + `zodvex/transform` evaluation
+
+Run the full verification suite and evaluate whether `zodvex/transform` still provides value.
+
+**Files:**
+- Read: `src/transform/index.ts` (understand exports)
+- No files modified unless evaluation warrants removal
+
+### Checkpoint: show me the evaluation results and test output before committing.
+
+**Step 1: Run full verification**
 
 ```bash
 bun test
@@ -1142,52 +1531,68 @@ bun run build
 
 Expected: All clean.
 
-**Step 4: Count test cases and verify coverage**
+**Step 2: Count test cases**
 
-Run: `bun test`
-Note the total test count. It should be notably higher than before (was 433).
+Run: `bun test 2>&1 | tail -5`
+Note the total. Should be 440+ (was 433 before this plan).
 
-**Step 5: Grep for deprecated warnings**
+**Step 3: Verify deprecation warnings fire at most once**
 
-```bash
-bun test 2>&1 | grep -c "deprecated"
-```
+Run: `bun test 2>&1 | grep -c "deprecated"`
+Expected: Each deprecated warning appears at most once per test file.
 
-Each deprecated warning should appear at most once (once-per-process guards from the earlier remediation).
+**Step 4: Evaluate `zodvex/transform`**
 
-**Step 6: Commit**
+Read `src/transform/index.ts` and answer:
+1. What does it export? (`transformBySchema`, `walkSchema`, etc.)
+2. Is it used by zodvex's core pipeline? (codecs, customFnBuilder, initZodvex)
+3. Is it used by consumers? (check test imports)
+4. Can it be replaced by Zod v4's native `z.encode` / `z.decode`?
+
+Document findings in the commit message. The most likely outcome: `transformBySchema` and `walkSchema` were the original codec pipeline before we adopted `z.encode`/`z.decode`. They're still exported from `zodvex/core` for consumers who use them directly, but zodvex's internal pipeline no longer depends on them.
+
+**Recommendation:** Keep them exported (removing would be a breaking change), but add `@deprecated` JSDoc pointing consumers to `z.encode`/`z.decode`. Mark as candidates for removal in the next major version.
+
+**Step 5: If deprecation annotations needed, add them**
+
+Add `@deprecated` JSDoc to `transformBySchema` and `walkSchema` in `src/transform/index.ts` (or wherever they're defined). Update export comments.
+
+**Step 6: Final commit**
 
 ```bash
 git add -A
-git commit -m "chore: evaluate zodvex/transform, fix tier labels, final verification
+git commit -m "chore: final verification + zodvex/transform evaluation
 
-[Include transform evaluation findings here]"
+Full suite passes (N tests). Type-check, lint, build all clean.
+
+zodvex/transform evaluation: transformBySchema and walkSchema were the
+pre-v2 codec pipeline. They're superseded by Zod v4's native z.encode/
+z.decode which zodvex now uses internally. Keeping them exported for
+backward compat, marked @deprecated."
 ```
-
----
-
-## Client-Safe Model Definitions (Exploration Notes)
-
-_This section is populated during Task 5, Step 5. Leave blank until then._
 
 ---
 
 ## Verification Checklist
 
-After all tasks are complete, verify every item:
+After all tasks are complete, every item must be verified:
 
 - [ ] `customFnBuilder` handles `added.onSuccess` (native convex-helpers path)
 - [ ] `customFnBuilder` handles `added?.hooks?.onSuccess` (backward compat)
-- [ ] Integration test uses native `onSuccess`, not deprecated `hooks.onSuccess`
-- [ ] `CustomizationWithHooks` removed from `customFnBuilder` union signature
-- [ ] All deprecated types have `@deprecated` JSDoc
-- [ ] `zQueryBuilder(builder, { zodTables })` wraps `ctx.db` with codec awareness
-- [ ] `zMutationBuilder(builder, { zodTables })` wraps `ctx.db` with codec awareness
-- [ ] `CodecDatabaseReader` / `CodecDatabaseWriter` types exported from `zodvex/server`
-- [ ] `zQuery(builder, { args, returns, handler })` config-object API works
-- [ ] Positional `zQuery(builder, args, handler, { returns })` still works
+- [ ] Native `onSuccess` takes precedence when both are present
+- [ ] `createCodecCustomization(zodTables)` exported and functional
+- [ ] `CodecDatabaseReader` / `CodecDatabaseWriter` types exported
+- [ ] `ZodTableMap` type exported
 - [ ] `fn.__zodvexMeta` attached by `customFnBuilder` with `{ zodArgs, zodReturns }`
-- [ ] `zodvex/transform` package evaluated and decision documented
+- [ ] `initZodvex` returns `{ zq, zm, za, ziq, zim, zia }` (6 keys, short names)
+- [ ] `initZodvex` does NOT return factory functions
+- [ ] `CustomizationWithHooks` removed from `customFnBuilder` signature
+- [ ] `CustomizationResult` has `@deprecated` JSDoc
+- [ ] `CustomizationInputResult` has `@deprecated` JSDoc
+- [ ] Integration test uses native `onSuccess`, not deprecated `hooks.onSuccess`
+- [ ] Composition proof: `customQuery(zq, cust)` works (5 tests)
+- [ ] onSuccess ordering: direct sees runtime types, composed sees wire types
+- [ ] `zodvex/transform` evaluated and documented
 - [ ] All tests pass (`bun test`)
 - [ ] Type checking passes (`bun run type-check`)
 - [ ] Linting passes (`bun run lint`)
