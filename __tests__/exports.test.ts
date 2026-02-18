@@ -100,6 +100,16 @@ describe('zodvex/server exports', () => {
     expect(defineZodSchema).toBeDefined()
   })
 
+  it('exports initZodvex', async () => {
+    const { initZodvex } = await import('../src/server')
+    expect(initZodvex).toBeDefined()
+  })
+
+  it('exports createCodecCustomization', async () => {
+    const { createCodecCustomization } = await import('../src/server')
+    expect(createCodecCustomization).toBeDefined()
+  })
+
   it('exports DB wrapper classes and factories', async () => {
     const {
       CodecDatabaseReader,
@@ -140,5 +150,7 @@ describe('zodvex (root) exports', () => {
     expect(zodvex.defineZodSchema).toBeDefined()
     expect(zodvex.createZodDbReader).toBeDefined()
     expect(zodvex.createZodDbWriter).toBeDefined()
+    expect(zodvex.initZodvex).toBeDefined()
+    expect(zodvex.createCodecCustomization).toBeDefined()
   })
 })

@@ -139,7 +139,9 @@ describe('composeCodecAndUser', () => {
   })
 
   it('propagates user hooks.onSuccess through composition', async () => {
-    const onSuccessFn = () => {}
+    const onSuccessFn = () => {
+      /* noop */
+    }
     const userCust = {
       args: {},
       input: async () => ({
@@ -156,7 +158,9 @@ describe('composeCodecAndUser', () => {
   })
 
   it('propagates user top-level onSuccess (convex-helpers convention)', async () => {
-    const onSuccessFn = () => {}
+    const onSuccessFn = () => {
+      /* noop */
+    }
     const userCust = {
       args: {},
       input: async () => ({

@@ -16,8 +16,12 @@ export { customCtx } from 'convex-helpers/server/customFunctions'
 export * from '../builders'
 // Custom function utilities (customCtxWithHooks, zCustomQuery, etc.)
 export * from '../custom'
+// Codec customization (manual composition escape hatch)
+export { createCodecCustomization } from '../customization'
 // Database wrappers (CodecDatabaseReader, CodecDatabaseWriter, etc.)
 export * from '../db'
+// One-time setup + types
+export { initZodvex, type ZodvexBuilder } from '../init'
 // Schema definition (defineZodSchema)
 export * from '../schema'
 // Table creation and helpers
