@@ -2,74 +2,12 @@ import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { zCustomQuery } from '../src/custom'
 import { composeCodecAndUser, createZodvexBuilder, initZodvex } from '../src/init'
-import type { ZodTableSchemas } from '../src/schema'
-import { zx } from '../src/zx'
-
-// --- Shared test fixtures ---
-
-const userDocSchema = z.object({
-  _id: z.string(),
-  _creationTime: z.number(),
-  name: z.string(),
-  createdAt: zx.date()
-})
-
-const userInsertSchema = z.object({
-  name: z.string(),
-  createdAt: zx.date()
-})
-
-const userSchemas: ZodTableSchemas = {
-  doc: userDocSchema,
-  docArray: z.array(userDocSchema),
-  base: userInsertSchema,
-  insert: userInsertSchema,
-  update: userInsertSchema.partial().extend({ _id: z.string() })
-}
-
-function createMockDbReader(tables: Record<string, any[]>) {
-  return {
-    system: { get: async () => null, query: () => ({}), normalizeId: () => null },
-    normalizeId: (tableName: string, id: string) => (id.startsWith(`${tableName}:`) ? id : null),
-    get: async (id: string) => {
-      for (const docs of Object.values(tables)) {
-        const doc = docs.find((d: any) => d._id === id)
-        if (doc) return doc
-      }
-      return null
-    },
-    query: (tableName: string) => ({
-      fullTableScan: () => ({
-        collect: async () => tables[tableName] ?? []
-      }),
-      collect: async () => tables[tableName] ?? []
-    })
-  }
-}
-
-function createMockDbWriter(tables: Record<string, any[]>) {
-  const reader = createMockDbReader(tables)
-  const calls: { method: string; args: any[] }[] = []
-  return {
-    db: {
-      ...reader,
-      insert: async (table: string, value: any) => {
-        calls.push({ method: 'insert', args: [table, value] })
-        return `${table}:new`
-      },
-      patch: async (...args: any[]) => {
-        calls.push({ method: 'patch', args })
-      },
-      replace: async (...args: any[]) => {
-        calls.push({ method: 'replace', args })
-      },
-      delete: async (...args: any[]) => {
-        calls.push({ method: 'delete', args })
-      }
-    },
-    calls
-  }
-}
+import {
+  createMockDbReader,
+  createMockDbWriter,
+  userSchemas,
+  userTableData
+} from './fixtures/mock-db'
 
 describe('composeCodecAndUser', () => {
   // Minimal codec customization mock — wraps ctx.db
@@ -276,10 +214,6 @@ describe('initZodvex', () => {
 })
 
 describe('initZodvex integration', () => {
-  const tableData = {
-    users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
-  }
-
   const mockSchema = { __zodTableMap: { users: userSchemas } }
   const mockServer = {
     query: (fn: any) => fn,
@@ -302,7 +236,7 @@ describe('initZodvex integration', () => {
       }
     })
 
-    const rawCtx = { db: createMockDbReader(tableData) }
+    const rawCtx = { db: createMockDbReader(userTableData) }
     const result = await fn.handler(rawCtx, { id: 'users:1' })
 
     // Should be decoded (Date, not timestamp)
@@ -319,7 +253,7 @@ describe('initZodvex integration', () => {
       }
     })
 
-    const rawCtx = { db: createMockDbReader(tableData) }
+    const rawCtx = { db: createMockDbReader(userTableData) }
     const result = await fn.handler(rawCtx, {})
 
     expect(result[0].createdAt).toBeInstanceOf(Date)
@@ -328,7 +262,7 @@ describe('initZodvex integration', () => {
   it('zm base callable: ctx.db.insert() encodes runtime values', async () => {
     const { zm } = initZodvex(mockSchema, mockServer as any)
 
-    const { db, calls } = createMockDbWriter(tableData)
+    const { db, calls } = createMockDbWriter(userTableData)
 
     const fn = zm({
       args: { name: z.string(), date: z.number() },
@@ -362,7 +296,7 @@ describe('initZodvex integration', () => {
       }
     })
 
-    const rawCtx = { db: createMockDbReader(tableData) }
+    const rawCtx = { db: createMockDbReader(userTableData) }
     const result = await fn.handler(rawCtx, { id: 'users:1' })
 
     // Codec wrapping works
@@ -425,17 +359,13 @@ describe('initZodvex integration', () => {
       handler: async (ctx: any) => ctx.session
     })
 
-    const rawCtx = { db: createMockDbReader(tableData) }
+    const rawCtx = { db: createMockDbReader(userTableData) }
     const result = await fn.handler(rawCtx, { token: 'abc123' })
     expect(result).toBe('session-abc123')
   })
 })
 
 describe('initZodvex with wrapDb: false', () => {
-  const tableData = {
-    users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
-  }
-
   const mockSchema = { __zodTableMap: { users: userSchemas } }
   const mockServer = {
     query: (fn: any) => fn,
@@ -456,7 +386,7 @@ describe('initZodvex with wrapDb: false', () => {
       }
     })
 
-    const rawCtx = { db: createMockDbReader(tableData) }
+    const rawCtx = { db: createMockDbReader(userTableData) }
     const result = await fn.handler(rawCtx, { id: 'users:1' })
 
     // Should be RAW (timestamp, not Date) because no codec wrapping
@@ -482,7 +412,7 @@ describe('initZodvex with wrapDb: false', () => {
       }
     })
 
-    const rawCtx = { db: createMockDbReader(tableData) }
+    const rawCtx = { db: createMockDbReader(userTableData) }
     const result = await fn.handler(rawCtx, { id: 'users:1' })
 
     // No codec wrapping — raw timestamp
