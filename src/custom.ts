@@ -24,7 +24,7 @@ import {
 } from './utils'
 
 /**
- * Hooks for observing the function execution (side effects, no return value).
+ * @deprecated Use `onSuccess` in convex-helpers' `Customization` type instead.
  */
 export type CustomizationHooks = {
   /** Called after successful execution with access to ctx, args, and result */
@@ -36,7 +36,8 @@ export type CustomizationHooks = {
 }
 
 /**
- * Transforms for modifying data in the function flow.
+ * @deprecated Transforms are no longer needed. Use `onSuccess` for output observation
+ * and consumer logic in `customCtx` for input transformation.
  */
 export type CustomizationTransforms = {
   /** Transform args after validation but before handler receives them */
@@ -78,11 +79,7 @@ export type CustomizationInputResult<
 }
 
 /**
- * Customization type that supports hooks and transforms.
- * This extends convex-helpers' Customization pattern to include
- * hooks (side effects) and transforms (data modifications).
- *
- * Use customCtxWithHooks() to create instances of this type.
+ * @deprecated Use `Customization` from 'convex-helpers/server/customFunctions' instead.
  */
 export type CustomizationWithHooks<
   InCtx extends Record<string, any>,
@@ -101,30 +98,9 @@ export type CustomizationWithHooks<
 }
 
 /**
- * A helper for defining a Customization with full support for hooks and transforms.
- * Use this instead of customCtx when you need onSuccess, transforms.input, transforms.output, etc.
- *
- * @example
- * ```ts
- * const secureMutation = zCustomMutationBuilder(
- *   mutation,
- *   customCtxWithHooks(async (ctx: MutationCtx) => {
- *     const securityCtx = await getSecurityContext(ctx)
- *     return {
- *       ctx: { securityCtx },
- *       hooks: {
- *         onSuccess: ({ result }) => console.log('Mutation returned:', result),
- *       },
- *       transforms: {
- *         // Transform incoming args (e.g., wire format → runtime objects)
- *         input: (args, schema) => transformIncomingArgs(args, securityCtx),
- *         // Transform outgoing result (e.g., runtime objects → wire format)
- *         output: (result, schema) => transformOutgoingResult(result, securityCtx),
- *       },
- *     }
- *   })
- * )
- * ```
+ * @deprecated Use `customCtx` from 'convex-helpers/server/customFunctions' instead.
+ * With the pipeline ordering fix, `onSuccess` in convex-helpers' `Customization` type
+ * now correctly sees runtime types (Date, SensitiveWrapper) before Zod encoding.
  */
 export function customCtxWithHooks<
   InCtx extends Record<string, any>,
@@ -382,6 +358,9 @@ export function customFnBuilder<
 
           // Apply input transform if provided (after validation, before handler)
           if (added?.transforms?.input) {
+            console.warn(
+              '[zodvex] transforms.input is deprecated. Transform args in your customCtx input() function instead.'
+            )
             finalArgs = (await added.transforms.input(finalArgs, argsSchema)) as Record<
               string,
               unknown
@@ -401,11 +380,12 @@ export function customFnBuilder<
 
           // Always run Zod return validation when returns schema is provided
           if (returns) {
-            // Apply output transform BEFORE validation (converts internal format → wire format)
-            // This allows class instances (e.g., SensitiveField) to be converted to plain objects
-            // before validation processes them
             const preTransformed = added?.transforms?.output
-              ? await added.transforms.output(ret, returns as z.ZodTypeAny)
+              ? (console.warn(
+                  '[zodvex] transforms.output is deprecated. Use onSuccess in your Customization instead. ' +
+                    'onSuccess now correctly sees runtime types (Date, SensitiveWrapper) before Zod encoding.'
+                ),
+                await added.transforms.output(ret, returns as z.ZodTypeAny))
               : ret
 
             // Validate and encode using z.encode (Zod handles codecs natively)
@@ -434,8 +414,10 @@ export function customFnBuilder<
         let finalArgs = { ...baseArgs, ...addedArgs }
 
         // Apply input transform if provided (even without args schema)
-        // Note: schema is z.unknown() in no-args path, transform should handle this
         if (added?.transforms?.input) {
+          console.warn(
+            '[zodvex] transforms.input is deprecated. Transform args in your customCtx input() function instead.'
+          )
           finalArgs = (await added.transforms.input(finalArgs, z.unknown())) as Record<
             string,
             unknown
@@ -454,11 +436,12 @@ export function customFnBuilder<
         }
 
         if (returns) {
-          // Apply output transform BEFORE validation (converts internal format → wire format)
-          // This allows class instances (e.g., SensitiveField) to be converted to plain objects
-          // before validation processes them
           const preTransformed = added?.transforms?.output
-            ? await added.transforms.output(ret, returns as z.ZodTypeAny)
+            ? (console.warn(
+                '[zodvex] transforms.output is deprecated. Use onSuccess in your Customization instead. ' +
+                  'onSuccess now correctly sees runtime types (Date, SensitiveWrapper) before Zod encoding.'
+              ),
+              await added.transforms.output(ret, returns as z.ZodTypeAny))
             : ret
 
           // Validate and encode using z.encode (Zod handles codecs natively)

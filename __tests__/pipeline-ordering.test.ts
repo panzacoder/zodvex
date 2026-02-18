@@ -95,7 +95,11 @@ describe('Pipeline ordering: onSuccess sees runtime types', () => {
       input: async () => ({
         ctx: {},
         args: {},
-        hooks: { onSuccess: () => {} }
+        hooks: {
+          onSuccess: () => {
+            /* noop */
+          }
+        }
       })
     }
 

@@ -18,7 +18,7 @@ export * from '../builders'
 export * from '../custom'
 // DB primitives (decodeDoc, encodeDoc)
 export * from '../db'
-// One-time setup (initZodvex, zCustomCtx, zCustomCtxWithArgs)
+// One-time setup (initZodvex)
 export * from '../init'
 // Schema definition utilities (defineZodSchema)
 export * from '../schema'
