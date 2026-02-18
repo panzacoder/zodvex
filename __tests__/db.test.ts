@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { CodecDatabaseReader, CodecDatabaseWriter, CodecQueryChain } from '../src/db'
+import {
+  CodecDatabaseReader,
+  CodecDatabaseWriter,
+  CodecQueryChain,
+  createZodDbReader,
+  createZodDbWriter
+} from '../src/db'
 import { zx } from '../src/zx'
 
 const userDocSchema = z.object({
@@ -348,5 +354,42 @@ describe('CodecDatabaseWriter', () => {
 
     expect(calls).toHaveLength(1)
     expect(calls[0].args[1]).toEqual({ message: 'hello' })
+  })
+})
+
+describe('createZodDbReader', () => {
+  const tableData = {
+    users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
+  }
+
+  it('creates a CodecDatabaseReader from schema with __zodTableMap', async () => {
+    const schema = { __zodTableMap: { users: userDocSchema } }
+    const db = createZodDbReader(createMockDbReader(tableData) as any, schema)
+
+    const user = await db.get('users:1' as any)
+    expect(user).not.toBeNull()
+    expect(user?.createdAt).toBeInstanceOf(Date)
+  })
+})
+
+describe('createZodDbWriter', () => {
+  const tableData = {
+    users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
+  }
+
+  it('creates a CodecDatabaseWriter from schema with __zodTableMap', async () => {
+    const schema = { __zodTableMap: { users: userDocSchema } }
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = createZodDbWriter(mockDb as any, schema)
+
+    await db.insert(
+      'users' as any,
+      {
+        name: 'New',
+        createdAt: new Date(1700000000000)
+      } as any
+    )
+
+    expect(calls[0].args[1].createdAt).toBe(1700000000000)
   })
 })

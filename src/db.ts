@@ -273,3 +273,25 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
     return this.db.delete(idOrTable)
   }
 }
+
+/**
+ * Creates a CodecDatabaseReader from a Convex DatabaseReader and a schema
+ * with __zodTableMap (as returned by defineZodSchema).
+ */
+export function createZodDbReader<DataModel extends GenericDataModel>(
+  db: GenericDatabaseReader<DataModel>,
+  schema: { __zodTableMap: ZodTableMap }
+): CodecDatabaseReader<DataModel> {
+  return new CodecDatabaseReader(db, schema.__zodTableMap)
+}
+
+/**
+ * Creates a CodecDatabaseWriter from a Convex DatabaseWriter and a schema
+ * with __zodTableMap (as returned by defineZodSchema).
+ */
+export function createZodDbWriter<DataModel extends GenericDataModel>(
+  db: GenericDatabaseWriter<DataModel>,
+  schema: { __zodTableMap: ZodTableMap }
+): CodecDatabaseWriter<DataModel> {
+  return new CodecDatabaseWriter(db, schema.__zodTableMap)
+}
