@@ -5,7 +5,7 @@
 **Branch:** `fix/codec-issues`
 **Context:** Full API redesign based on audit of builder/wrapper layers, hotpot consumer analysis, and alignment with Convex's "blessed functions" philosophy.
 **Prerequisite reading:** `docs/decisions/2026-02-17-runtime-only-middleware.md`
-**Revision note:** Revised to align with convex-helpers' composition model. zodvex owns codec correctness; convex-helpers owns customization lifecycle (onSuccess, ctx augmentation, builder chaining).
+**Revision note:** Revised to use `zCustomQuery`-based composition with internal flattening. zodvex owns codec correctness AND composition (via flattening). Separate reader/writer customizations preserve Convex's type-safety boundary.
 
 ---
 
@@ -32,32 +32,50 @@ Each `<->` is bidirectional (encode going right, decode going left). zodvex owns
 
 ### What zodvex does NOT own
 
-- Context customization — convex-helpers' `customCtx`
+- Context customization logic — convex-helpers' `customCtx` (zodvex composes customizations but doesn't define them)
 - Authorization / security — hotpot (or the consumer)
-- Function-level side effects — convex-helpers' `onSuccess`
-- Customization lifecycle (input, onSuccess, builder chaining) — convex-helpers
 - DB-level middleware / interception — consumer wrapper functions (Convex's `wrapDatabaseReader` pattern)
 
 ### Relationships
 
-- **convex-helpers:** zodvex produces builders that are composable with convex-helpers' `customQuery`. Consumers chain customizations using convex-helpers' native composition model. zodvex never re-implements convex-helpers' customization lifecycle.
-- **hotpot:** Primary consumer. Uses `customQuery(zq, hotpotCustomization)` to build "blessed builders".
+- **convex-helpers:** zodvex uses convex-helpers' `Customization` type as the interface for context augmentation. Consumers define customizations using convex-helpers' patterns (`customCtx`, raw `{ args, input }` objects). zodvex composes these customizations internally via flattening.
+- **hotpot:** Primary consumer. Uses `zCustomQuery(zq, hotpotCustomization)` to build "blessed builders".
 - **App developers:** Use hotpot's blessed builders. See `{ args, handler, returns }` — identical to vanilla Convex.
 
-### Key principle: composability
+### Key principle: composability via `zCustomQuery`
 
-zodvex builders produce output that convex-helpers' `customQuery` can wrap. This means:
+zodvex builders compose with `zCustomQuery` — consumers layer customizations using zodvex's own builder, preserving Zod validation at every level:
 
 ```typescript
 // zodvex produces a codec-aware builder
 const zq = zCustomQuery(query, codecCustomization)
 
-// convex-helpers chains customizations on top — standard composition
-const layer1 = customQuery(zq, auditCustomization)
-const layer2 = customQuery(layer1, securityCustomization)
+// Layer customizations using zCustomQuery — Zod validators at every level
+const hotpotQuery = zCustomQuery(zq, {
+  args: { sessionId: zx.id("sessions") },  // Zod, not v.id()
+  input: async (ctx, { sessionId }) => { ... }
+})
 ```
 
-zodvex never handles `onSuccess`, never manages customization lifecycle, never re-implements builder chaining. That's convex-helpers' job.
+**Why `zCustomQuery`, not convex-helpers' `customQuery`:** Using zodvex's `zCustomQuery` means consumers can use Zod validators for custom args at every composition layer. convex-helpers' `customQuery` would require Convex validators (`v.id()`, `v.string()`) for any args added by the customization — breaking the Zod-everywhere contract.
+
+### Internal flattening
+
+When `zCustomQuery(zq, hotpotCustomization)` is called and `zq` is itself a zodvex builder, `customFnBuilder` **flattens** rather than nesting:
+
+```
+zCustomQuery(zq, hotpotCust)
+  ↓ detects zq.__zodvexBuilder
+  ↓ unwraps: zq was customFnBuilder(server.query, codecCust)
+  ↓ composes: customFnBuilder(server.query, compose(codecCust, hotpotCust))
+```
+
+Only ONE layer of Zod-to-Convex conversion. Only ONE Zod parse. Customizations chain: codec wraps `ctx.db` first, then hotpot adds user/security on the codec-wrapped ctx. This is critical because nested `customFnBuilder` calls would double-convert args (Zod→Convex in the outer layer, then passed as Convex validators to the inner layer which tries to treat them as Zod schemas — which fails).
+
+The builder stores its internals for composition:
+- `customBuilder.__zodvexBuilder = true`
+- `customBuilder.__zodvexInnerBuilder = builder` (the raw Convex builder, recursively unwrapped)
+- `customBuilder.__zodvexCustomization = customization`
 
 ---
 
@@ -76,20 +94,22 @@ import { createCodecCustomization } from 'zodvex/server'
 - Parses args through Zod (applies codecs: timestamp → Date)
 - Encodes returns through Zod (applies codecs: Date → timestamp)
 - When passed a `customization`, runs `customization.input()` to augment ctx (e.g., codec DB)
-- Returns a builder whose output is composable with convex-helpers' `customQuery`
+- **Composable:** When `builder` is itself a zodvex builder, internally flattens (see "Internal flattening" above)
+- Returns a builder that can itself be passed as `builder` to another `zCustomQuery` call
 
-**`createCodecCustomization(zodTables)`** — Returns a standard convex-helpers `Customization` that wraps `ctx.db` with codec-aware reader/writer.
-- For queries: wraps with `createZodDbReader` (decode on read)
-- For mutations: wraps with `createZodDbWriter` (decode on read, encode on write)
-- This is a plain `Customization` — no zodvex-specific types
+**`createCodecCustomization(zodTables)`** — Returns codec-aware `Customization` objects for queries and mutations.
+- Returns `{ query: Customization, mutation: Customization }`
+- `query`: wraps `ctx.db` with `createZodDbReader` — read-only (decode on read)
+- `mutation`: wraps `ctx.db` with `createZodDbWriter` — read + write (decode on read, encode on write)
+- Separate customizations preserve Convex's type-safety: query handlers see `CodecDatabaseReader` (no `insert`/`patch`/`delete`), mutation handlers see `CodecDatabaseWriter`
 
 ### Usage patterns
 
 **Pattern 1: Direct — codec-aware builder**
 
 ```typescript
-const codecCust = createCodecCustomization(zodTables)
-const zq = zCustomQuery(query, codecCust)
+const codec = createCodecCustomization(zodTables)
+const zq = zCustomQuery(query, codec.query)
 
 export const getEvent = zq({
   args: { eventId: zx.id("events") },
@@ -100,16 +120,14 @@ export const getEvent = zq({
 })
 ```
 
-**Pattern 2: Blessed builder — compose with convex-helpers**
+**Pattern 2: Blessed builder — compose with `zCustomQuery`**
 
 ```typescript
-import { customQuery, customCtx } from 'convex-helpers/server/customFunctions'
+const codec = createCodecCustomization(zodTables)
+const zq = zCustomQuery(query, codec.query)
 
-const codecCust = createCodecCustomization(zodTables)
-const zq = zCustomQuery(query, codecCust)
-
-// convex-helpers chains customization on top — standard pattern
-const hotpotQuery = customQuery(zq, {
+// Layer hotpot customization using zCustomQuery — Zod args throughout
+const hotpotQuery = zCustomQuery(zq, {
   args: {},
   input: async (ctx) => {
     const user = await getUser(ctx)
@@ -122,7 +140,7 @@ const hotpotQuery = customQuery(zq, {
   },
 })
 
-// App developers use the blessed builder
+// App developers use the blessed builder — identical to vanilla Convex
 export const getPatient = hotpotQuery({
   args: { patientId: zx.id("patients") },
   returns: Patients.schema.doc.nullable(),
@@ -132,13 +150,33 @@ export const getPatient = hotpotQuery({
 })
 ```
 
-**Pattern 3: Multi-layer composition**
+**Pattern 3: Blessed builder with custom args (Zod at every level)**
 
 ```typescript
-// Each layer is independent and composable
-const zq = zCustomQuery(query, codecCust)
-const auditQuery = customQuery(zq, auditCustomization)
-const hotpotQuery = customQuery(auditQuery, securityCustomization)
+// hotpot adds a sessionId arg — uses Zod, not Convex validators
+const hotpotQuery = zCustomQuery(zq, {
+  args: { sessionId: zx.id("sessions") },  // Zod validator!
+  input: async (ctx, { sessionId }) => {
+    const session = await ctx.db.get(sessionId)
+    const user = await getUser(ctx, session)
+    return { ctx: { user, session }, args: {} }
+  },
+})
+
+// App developers only see their own args
+export const getPatient = hotpotQuery({
+  args: { patientId: zx.id("patients") },
+  handler: async (ctx, { patientId }) => ctx.db.get(patientId),
+})
+```
+
+**Pattern 4: Multi-layer composition**
+
+```typescript
+// Each layer is independent and composable via zCustomQuery
+const zq = zCustomQuery(query, codec.query)
+const auditQuery = zCustomQuery(zq, auditCustomization)
+const hotpotQuery = zCustomQuery(auditQuery, securityCustomization)
 ```
 
 ### `initZodvex` — convenience binding
@@ -152,12 +190,12 @@ const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, server)
 Pre-binds `createCodecCustomization(schema.zodTables)` + `server.query`/etc. into ready-to-use builders. Equivalent to:
 
 ```typescript
-const codecCust = createCodecCustomization(schema.zodTables)
-const zq = zCustomQuery(server.query, codecCust)
-const zm = zCustomMutation(server.mutation, codecCust)
+const codec = createCodecCustomization(schema.zodTables)
+const zq = zCustomQuery(server.query, codec.query)      // codec-aware reader
+const zm = zCustomMutation(server.mutation, codec.mutation)  // codec-aware writer
 const za = zCustomAction(server.action)  // no DB in actions
-const ziq = zCustomQuery(server.internalQuery, codecCust)
-const zim = zCustomMutation(server.internalMutation, codecCust)
+const ziq = zCustomQuery(server.internalQuery, codec.query)
+const zim = zCustomMutation(server.internalMutation, codec.mutation)
 const zia = zCustomAction(server.internalAction)
 ```
 
@@ -174,33 +212,16 @@ export const getEvent = zq({
 **Blessed builders:**
 
 ```typescript
-const hotpotQuery = customQuery(zq, hotpotCustomization)
+const hotpotQuery = zCustomQuery(zq, hotpotCustomization)
 ```
 
-### Composability constraint
-
-`customQuery(zq, customization)` works when `customization.args` is `{}` (no custom args from the customization layer). This is the common case — most customizations only add ctx properties (user, db, etc.), not extra args.
-
-When a customization needs custom args (e.g., `{ sessionId: v.id("sessions") }`), convex-helpers' `addFieldsToValidator` will try to merge Convex validators with the Zod schemas from the inner builder. This does not work. For this case, use `zCustomQuery` directly with the customization:
-
-```typescript
-// Custom args from customization — use zCustomQuery directly
-const sessionQuery = zCustomQuery(query, {
-  args: { sessionId: v.id("sessions") },  // Convex validator
-  input: async (ctx, { sessionId }) => {
-    const session = await ctx.db.get(sessionId)
-    return { ctx: { session }, args: {} }
-  },
-})
-```
-
-This is a known limitation documented here so consumers don't hit it by surprise.
+No composability constraints — `zCustomQuery(zq, ...)` works with any args (Zod validators at every level) thanks to internal flattening.
 
 ---
 
 ## Pipeline Design
 
-zodvex owns steps 1, 3, 6, 7. convex-helpers owns steps 2 and 5 (when the consumer chains with `customQuery`).
+zodvex owns all pipeline steps. With internal flattening, there is only ONE `customFnBuilder` layer regardless of how many `zCustomQuery` calls are composed.
 
 ### Function pipeline (boundaries 3,4)
 
@@ -212,10 +233,10 @@ CLIENT REQUEST
    zodToConvexFields(argsSchema) -> Convex args     [zodvex]
    zodToConvex(returnsSchema) -> Convex returns      [zodvex]
   |
-2. customization.input(ctx, customArgs, extra)    [convex-helpers or zodvex codec]
+2. Composed customization.input() chain           [zodvex]
+   Codec layer: ctx.db wrapped with reader/writer
+   Consumer layers: ctx augmented with user, security, etc.
    -> { ctx, args, onSuccess? }
-   Codec customization: ctx.db is now codec-aware
-   Consumer customization: ctx augmented with user, security, etc.
   |
 3. Zod args parse: argsSchema.safeParse(args)     [zodvex]
    Codecs decode: timestamp -> Date, etc.            (boundary 3: wire -> runtime)
@@ -224,9 +245,9 @@ CLIENT REQUEST
    ctx.db reads return runtime types
    ctx.db writes accept runtime types
   |
-5. onSuccess({ ctx, args, result })               [convex-helpers]
+5. onSuccess({ ctx, args, result })               [zodvex]
    Sees runtime types: Date, SensitiveWrapper
-   Runs here, before step 6
+   Always runs before encode (guaranteed by architecture)
   |
 6. Zod return encode: z.encode(returns, result)   [zodvex]
    Codecs encode: Date -> timestamp, etc.            (boundary 4: runtime -> wire)
@@ -238,65 +259,25 @@ CLIENT REQUEST
 
 ### Key invariant
 
-`onSuccess` (step 5) runs before Zod encode (step 6). This is guaranteed by the architecture: convex-helpers runs `onSuccess` after the inner handler returns but before passing the result back. zodvex's Zod encode happens inside the inner handler's return path. So the sequence is always: zodvex handler encodes → returns to convex-helpers → convex-helpers has already run onSuccess before reaching zodvex's encode.
+`onSuccess` (step 5) **always** runs before Zod encode (step 6). This is guaranteed by internal flattening: regardless of how many `zCustomQuery(zq, ...)` layers are composed, they flatten to a single `customFnBuilder` call. The outermost customization's `onSuccess` is captured during the composed `input()` chain and runs before encode.
 
-**Wait — that's wrong.** Let me trace more carefully:
-
-When composed as `customQuery(zq, customization)`:
-1. convex-helpers' outer handler runs `customization.input()` → gets `{ ctx, args, onSuccess }`
-2. Calls inner handler (zodvex's `zq`) with augmented ctx
-3. zodvex's handler: parses args through Zod, runs user handler, **encodes returns through Zod**
-4. zodvex returns encoded wire result to convex-helpers
-5. convex-helpers runs `onSuccess({ result })` — but result is already encoded!
-
-**This means `onSuccess` sees wire types, not runtime types.** The encode happens inside zodvex's handler, before convex-helpers runs `onSuccess`.
-
-### Solving the onSuccess ordering problem
-
-There are two approaches:
-
-**Option A: zodvex's `customFnBuilder` handles `onSuccess` from the codec customization's `input()` return.**
-
-zodvex's internal `customFnBuilder` checks for `added.onSuccess` (the convex-helpers convention) and runs it before Zod encode. This is a small, focused piece of convex-helpers' lifecycle that zodvex must replicate to maintain the key invariant. zodvex does NOT re-implement the full customization lifecycle — just the `onSuccess` timing.
-
-When composed as `customQuery(zq, hotpotCustomization)`:
-- The codec customization (inside `zq`) has no `onSuccess` — it just wraps ctx.db
-- The consumer's customization (in `customQuery`) returns `onSuccess`
-- convex-helpers runs `onSuccess` after zodvex's handler returns — **sees wire types**
-
-So `onSuccess` from the outer `customQuery` layer sees wire types. But `onSuccess` from a customization passed directly to `zCustomQuery` sees runtime types (because zodvex handles it before encode).
-
-**This is a documented trade-off:**
-- Direct `zCustomQuery(query, customizationWithOnSuccess)` → onSuccess sees runtime types ✓
-- Composed `customQuery(zq, customizationWithOnSuccess)` → onSuccess sees wire types ✗
-
-**Option B: zodvex does NOT encode returns — let Convex handle it.**
-
-If zodvex skips the `z.encode` step and relies on Convex's own return validator (generated by `zodToConvex` at construction time), then the handler returns runtime types. convex-helpers' `onSuccess` sees runtime types. Convex's validator layer encodes.
-
-But Convex's validator doesn't know about Zod codecs — it only knows about `v.number()`, `v.string()`, etc. A `Date` returned from the handler would fail Convex's `v.float64()` validator. So zodvex MUST encode returns.
-
-**Resolution: Option A.** zodvex's `customFnBuilder` handles `onSuccess` from its direct customization's `input()` return, running it before Zod encode. For the composed case (`customQuery(zq, outerCustomization)`), the outer `onSuccess` sees wire types. This is acceptable because:
-
-1. The hotpot pattern puts `onSuccess` in the **direct** customization to `zCustomQuery`, not in an outer `customQuery` layer
-2. If a consumer needs `onSuccess` to see runtime types, they pass it directly to `zCustomQuery`
-3. The outer `customQuery` layer is for auth/security context — `onSuccess` is less common there
+**No trade-off, no special cases.** The previous design had a "direct vs composed" onSuccess ordering problem because it used convex-helpers' `customQuery` for composition (which runs onSuccess after zodvex's encode). Internal flattening eliminates this entirely.
 
 ### What zodvex's `customFnBuilder` handles
 
 - Zod-to-Convex validator conversion (construction time)
-- `customization.input()` execution (to augment ctx with codec DB)
-- `onSuccess` from `customization.input()` return — before Zod encode
+- Composed `customization.input()` chain (flattened from all layers)
+- `onSuccess` from the composed customization — before Zod encode
 - Zod args parse
 - Zod returns encode
 - `stripUndefined`
 - `__zodvexMeta` decoration
+- **Builder composition detection** — when `builder` arg is a zodvex builder, flatten instead of nest
 
 ### What zodvex's `customFnBuilder` does NOT handle
 
-- Builder chaining / composition (convex-helpers' `customQuery`)
 - Transforms (eliminated)
-- Hooks (eliminated — `onSuccess` is the convex-helpers convention, handled as above)
+- Hooks (eliminated — `onSuccess` is native convex-helpers convention)
 - `CustomizationWithHooks` (eliminated)
 
 ### DB pipeline (boundaries 5,6)
@@ -325,21 +306,35 @@ ctx.db.insert("table", runtimeDoc) or ctx.db.patch(id, runtimePatch)
 
 ### `createCodecCustomization(zodTables)`
 
-Returns a standard convex-helpers `Customization` object:
+Returns separate customizations for queries (reader) and mutations (writer), preserving Convex's type-safety boundary:
 
 ```typescript
-function createCodecCustomization(zodTables: ZodTableMap): Customization {
+function createCodecCustomization(zodTables: ZodTableMap) {
   return {
-    args: {},
-    input: async (ctx) => ({
-      ctx: { db: createZodDbWriter(ctx.db, zodTables) },
-      args: {}
-    })
+    query: {
+      args: {},
+      input: async (ctx: any) => ({
+        ctx: { db: createZodDbReader(ctx.db, zodTables) },
+        args: {}
+      })
+    },
+    mutation: {
+      args: {},
+      input: async (ctx: any) => ({
+        ctx: { db: createZodDbWriter(ctx.db, zodTables) },
+        args: {}
+      })
+    }
   }
 }
 ```
 
-Note: Uses `createZodDbWriter` (not reader) because it extends reader with insert/patch/delete. For query-only builders, the extra write methods are harmless — they're never called.
+**Why separate reader/writer:**
+- Convex types `ctx.db` as `DatabaseReader` for queries and `DatabaseWriter` for mutations
+- `DatabaseWriter extends DatabaseReader` — adds `insert()`, `patch()`, `replace()`, `delete()`
+- TypeScript AND runtime enforce this boundary — calling `.insert()` on a query's db fails both at compile time and at runtime
+- If we used Writer for queries, TypeScript would allow `ctx.db.insert()` in a query handler — misleading autocomplete and no compile-time guard. At runtime it would produce a confusing error from the underlying Convex reader (which doesn't implement write methods)
+- Separate customizations preserve this: query handlers see `CodecDatabaseReader` (no write methods), mutation handlers see `CodecDatabaseWriter`
 
 ### Consumer DB wrappers (Convex's pattern)
 
@@ -347,7 +342,11 @@ Consumers who need DB-level interception (security, transforms) write their own 
 
 ```typescript
 // hotpot's code, not zodvex's
-function createSecureReader({ user }, db, rules) {
+function createSecureReader(
+  { user }: { user: User },
+  db: CodecDatabaseReader,   // typed! consumer knows the interface
+  rules: SecurityRules
+): CodecDatabaseReader {
   return {
     get: async (id) => {
       const doc = await db.get(id)      // runtime types (codec-aware)
@@ -355,25 +354,31 @@ function createSecureReader({ user }, db, rules) {
       return applyFLS(doc, user, rules)  // SensitiveWrapper.hidden() etc.
     },
     query: (table) => { /* wrap query chain similarly */ },
+    get system() { return db.system }
   }
 }
 
-// Composed with convex-helpers
-const hotpotQuery = customQuery(zq, customCtx(async (ctx) => {
-  const user = await getUser(ctx)
-  const db = createSecureReader({ user }, ctx.db, securityRules)
-  return { user, db }
-}))
+// Composed with zCustomQuery — Zod at every level
+const hotpotQuery = zCustomQuery(zq, {
+  args: {},
+  input: async (ctx) => {
+    const user = await getUser(ctx)
+    const db = createSecureReader({ user }, ctx.db, securityRules)
+    return { ctx: { user, db }, args: {} }
+  }
+})
 ```
 
 ### What zodvex provides
 
 | Export | Purpose |
 |---|---|
-| `createCodecCustomization(zodTables)` | Standard `Customization` for codec DB wrapping |
+| `createCodecCustomization(zodTables)` | Returns `{ query, mutation }` customizations |
 | `createZodDbReader(db, zodTables)` | Manual reader wrapping (escape hatch) |
 | `createZodDbWriter(db, zodTables)` | Manual writer wrapping (escape hatch) |
-| `CodecDatabaseReader` / `CodecDatabaseWriter` types | Interface for the codec-wrapped db |
+| `CodecDatabaseReader` type | Interface for codec-wrapped reader (queries) |
+| `CodecDatabaseWriter` type | Interface for codec-wrapped writer (mutations, extends reader) |
+| `ZodTableMap` type | Map of table name → zodTable entry |
 | `RuntimeDoc` / `WireDoc` types | Type for decoded/encoded documents |
 | `decodeDoc(schema, wireDoc)` / `encodeDoc(schema, runtimeDoc)` | Primitive escape hatches |
 
@@ -473,7 +478,7 @@ No `zodvex/v2` namespace. API evolves in place.
 - `zx.date()`, `zx.id()`, `zx.codec()` — unchanged
 - `zodToConvex`, `zodToConvexFields` — unchanged
 - `decodeDoc()`, `encodeDoc()` — unchanged
-- `zCustomQuery`, `zCustomMutation`, `zCustomAction` — improved (composable with convex-helpers' `customQuery`)
+- `zCustomQuery`, `zCustomMutation`, `zCustomAction` — improved (composable via `zCustomQuery(zq, ...)` with internal flattening)
 - `initZodvex()` — improved (returns short names `zq`, `zm`, `za`, `ziq`, `zim`, `zia`)
 
 ### What's new
@@ -516,8 +521,8 @@ No `zodvex/v2` namespace. API evolves in place.
 
 | Current usage | Migration |
 |---|---|
-| `zCustomQueryBuilder(query, customization)` | `zCustomQuery(query, codecCust)` + `customQuery(zq, hotpotCustomization)` |
-| `transforms.output` for audit logging | `onSuccess` in customization passed to `zCustomQuery` or `customQuery` |
+| `zCustomQueryBuilder(query, customization)` | `zCustomQuery(query, codec.query)` + `zCustomQuery(zq, hotpotCustomization)` |
+| `transforms.output` for audit logging | `onSuccess` in customization passed to `zCustomQuery` |
 | `createSecureReader` wrapping raw `ctx.db` | Same pattern — `ctx.db` is now codec-aware via `createCodecCustomization` |
 | `zx.codec()` for SensitiveField | Unchanged |
 
@@ -531,17 +536,18 @@ After migration is complete, evaluate whether the `zodvex/transform` package exp
 
 ### Priority 1: Composition proof
 
-This is the foundation. If `customQuery(zq, customization)` doesn't compose correctly, the entire architecture falls apart.
+This is the foundation. If `zCustomQuery(zq, customization)` doesn't compose correctly with internal flattening, the entire architecture falls apart.
 
-1. **`customQuery(zq, customization)` produces working blessed builders** — args are Zod schemas, returns are Zod schemas, everything validates and encodes correctly
-2. **Multi-layer composition works** — `customQuery(customQuery(zq, layer1), layer2)` chains correctly
-3. **`onSuccess` sees runtime types when passed directly to `zCustomQuery`** — the key invariant holds for the direct path
+1. **`zCustomQuery(zq, customization)` produces working blessed builders** — args are Zod schemas at every level, validates and encodes correctly
+2. **Multi-layer composition works** — `zCustomQuery(zCustomQuery(zq, layer1), layer2)` chains correctly via recursive flattening
+3. **Custom args from outer layer work** — `zCustomQuery(zq, { args: { sessionId: zx.id("sessions") }, ... })` merges args correctly
+4. **Internal flattening is transparent** — flattened builder behaves identically to a non-composed builder
 
 ### Priority 2: onSuccess ordering verification
 
-4. **Direct path: `zCustomQuery(query, customizationWithOnSuccess)`** — onSuccess sees Date, SensitiveWrapper (runtime types)
-5. **Composed path: `customQuery(zq, customizationWithOnSuccess)`** — onSuccess sees timestamps, wire objects (encoded types) — this is the documented trade-off
-6. **onSuccess has closure access** — resources created in `input()` are accessible in `onSuccess` callback
+5. **`onSuccess` always sees runtime types** — Date, SensitiveWrapper (guaranteed by flattening — no trade-off)
+6. **`onSuccess` has closure access** — resources created in `input()` are accessible in `onSuccess` callback
+7. **Composed `onSuccess` fires from the outermost customization** — customization chain picks up the last `onSuccess`
 
 ### Priority 3: DB codec layer
 
@@ -555,7 +561,7 @@ This is the foundation. If `customQuery(zq, customization)` doesn't compose corr
 
 ### Priority 5: Integration
 
-11. **Full blessed-builder flow** — `initZodvex` → `customQuery(zq, hotpotCustomization)` → handler reads/writes → `onSuccess` audits → wire result to client
+11. **Full blessed-builder flow** — `initZodvex` → `zCustomQuery(zq, hotpotCustomization)` → handler reads/writes → `onSuccess` audits → wire result to client
 
 ---
 
@@ -564,11 +570,13 @@ This is the foundation. If `customQuery(zq, customization)` doesn't compose corr
 | Decision | Choice | Rationale |
 |---|---|---|
 | Identity | Codec boundary layer | Not a general Zod wrapper; convex-helpers covers basics |
-| Customization lifecycle | convex-helpers owns it | zodvex never re-implements builder chaining, onSuccess timing, etc. |
+| Composition model | `zCustomQuery(zq, customization)` with internal flattening | Zod validators at every level; no double Zod-to-Convex conversion |
+| Internal flattening | `customFnBuilder` detects zodvex builders, composes customizations | Avoids nested builder problem; single Zod parse + single conversion |
 | Customization type | convex-helpers' `Customization` directly | No zodvex wrapper type needed |
-| Composition model | `customQuery(zq, customization)` | zodvex builders are composable with convex-helpers' `customQuery` |
-| onSuccess handling | zodvex handles it for direct customization only | Direct path sees runtime types; composed path sees wire types (documented trade-off) |
-| `customFnBuilder` | Internal only — not a public API | Workhorse for Zod validation; consumers never see it |
+| onSuccess handling | Always sees runtime types | Flattening guarantees onSuccess runs before encode — no trade-off |
+| `createCodecCustomization` | Returns `{ query, mutation }` | Preserves Convex's `DatabaseReader`/`DatabaseWriter` type boundary |
+| `CodecDatabaseReader`/`Writer` | Separate named types | Query handlers get reader (no write methods), mutation handlers get writer |
+| `customFnBuilder` | Internal only — not a public API | Workhorse for Zod validation + composition; consumers never see it |
 | DB middleware API | None (consumer wrapper functions) | Follows Convex's `wrapDatabaseReader` pattern |
 | DB middleware data | Runtime types only | See `docs/decisions/2026-02-17-runtime-only-middleware.md` |
 | `initZodvex` return names | Short names: `zq`, `zm`, `za`, `ziq`, `zim`, `zia` | Ergonomic; avoids collision with export-level names |
@@ -577,4 +585,4 @@ This is the foundation. If `customQuery(zq, customization)` doesn't compose corr
 | Codegen | Direct schema references + `__zodvexMeta` | No `zodToSource()` for custom codecs |
 | Client-safe models | Open item | `zodTable()` depends on server-only `defineTable()` |
 | `zodvex/transform` | Evaluate post-migration | May not be needed after redesign |
-| Convex philosophy | "Blessed functions" via composition | `customQuery(zq, customization)` — each layer is independent |
+| Convex philosophy | "Blessed functions" via composition | `zCustomQuery(zq, customization)` — each layer is independent |
