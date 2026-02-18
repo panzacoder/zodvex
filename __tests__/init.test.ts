@@ -426,3 +426,64 @@ describe('initZodvex integration', () => {
     expect(result).toBe('session-abc123')
   })
 })
+
+describe('initZodvex with wrapDb: false', () => {
+  const tableData = {
+    users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
+  }
+
+  const mockSchema = { __zodTableMap: { users: userSchemas } }
+  const mockServer = {
+    query: (fn: any) => fn,
+    mutation: (fn: any) => fn,
+    action: (fn: any) => fn,
+    internalQuery: (fn: any) => fn,
+    internalMutation: (fn: any) => fn,
+    internalAction: (fn: any) => fn
+  }
+
+  it('handler receives raw ctx.db (no codec wrapping)', async () => {
+    const { zq } = initZodvex(mockSchema, mockServer as any, { wrapDb: false })
+
+    const fn = zq({
+      args: { id: z.string() },
+      handler: async (ctx: any, { id }: any) => {
+        return ctx.db.get(id)
+      }
+    })
+
+    const rawCtx = { db: createMockDbReader(tableData) }
+    const result = await fn.handler(rawCtx, { id: 'users:1' })
+
+    // Should be RAW (timestamp, not Date) because no codec wrapping
+    expect(result.createdAt).toBe(1700000000000)
+  })
+
+  it('wrapDb: false + .withContext(): no codec, user ctx works', async () => {
+    const { zq } = initZodvex(mockSchema, mockServer as any, { wrapDb: false })
+
+    const authQuery = zq.withContext({
+      args: {},
+      input: async (ctx: any) => ({
+        ctx: { user: 'AuthUser' },
+        args: {}
+      })
+    })
+
+    const fn = authQuery({
+      args: { id: z.string() },
+      handler: async (ctx: any, { id }: any) => {
+        const doc = await ctx.db.get(id)
+        return { doc, user: ctx.user }
+      }
+    })
+
+    const rawCtx = { db: createMockDbReader(tableData) }
+    const result = await fn.handler(rawCtx, { id: 'users:1' })
+
+    // No codec wrapping — raw timestamp
+    expect(result.doc.createdAt).toBe(1700000000000)
+    // User customization still works
+    expect(result.user).toBe('AuthUser')
+  })
+})
