@@ -16,5 +16,7 @@ export { customCtx } from 'convex-helpers/server/customFunctions'
 export * from '../builders'
 // Custom function utilities (customCtxWithHooks, zCustomQuery, etc.)
 export * from '../custom'
+// Schema definition (defineZodSchema)
+export * from '../schema'
 // Table creation and helpers
 export * from '../tables'
