@@ -5,7 +5,8 @@ import type {
   MutationBuilder,
   QueryBuilder
 } from 'convex/server'
-import type { DatabaseHooks } from './db/hooks'
+import type { Customization } from 'convex-helpers/server/customFunctions'
+import { customFnBuilder, zCustomAction, zCustomMutation, zCustomQuery } from './custom'
 import { createZodDbReader, createZodDbWriter } from './db/wrapper'
 
 type ZodTables = Record<string, { name: string; table: any; schema: { doc: any; base: any } }>
@@ -24,188 +25,56 @@ type Server<DataModel extends GenericDataModel> = {
   internalAction: ActionBuilder<DataModel, 'internal'>
 }
 
-type CustomCtxFn<ExtraArgs = any> = (
-  ctx: any,
-  extra?: ExtraArgs
-) => Promise<Record<string, any>> | Record<string, any>
-
-type CustomCtxWithArgsFn<ExtraArgs = any> = {
-  args: Record<string, any>
-  input: (
-    ctx: any,
-    args: any,
-    extra?: ExtraArgs
-  ) => Promise<Record<string, any>> | Record<string, any>
-}
-
-/** Action builder — context composition only, no DB wrapping or hooks. */
-type ZodvexActionBuilder = {
-  (config: any): any
-  withContext: (customization: any) => ZodvexActionBuilder
-}
-
-/** DB-aware builder for queries and mutations — supports .withContext() and .withHooks(). */
-type DbBuilder = {
-  (config: any): any
-  withContext: (customization: any) => DbBuilder
-  withHooks: (hooks: DatabaseHooks) => DbBuilder
-}
-
-type DbWrapFn = (ctx: any, hooks: DatabaseHooks | undefined) => any
-
-/**
- * Shared handler wrapping logic. Applies custom context and optional DB wrapping.
- *
- * Uses `any` internally — type safety is enforced by the public factory function
- * signatures, matching the convex-helpers `customFnBuilder` pattern.
- */
-function buildHandler(
-  baseBuilder: any,
-  customCtxFn: CustomCtxFn | null | undefined,
-  wrapDb: DbWrapFn | null,
-  hooks: DatabaseHooks | null | undefined,
-  config: any
-) {
-  const { args, handler, returns, ...extra } = config
-
-  return baseBuilder({
-    args,
-    returns,
-    handler: async (ctx: any, parsedArgs: any) => {
-      let augmentedCtx = ctx
-
-      if (customCtxFn) {
-        const added = await customCtxFn(ctx, extra)
-        augmentedCtx = { ...ctx, ...added }
-      }
-
-      if (wrapDb) {
-        augmentedCtx = {
-          ...augmentedCtx,
-          db: wrapDb(augmentedCtx, hooks ?? undefined)
-        }
-      }
-
-      return handler(augmentedCtx, parsedArgs)
-    }
-  })
-}
-
-/** Creates a codec-aware query builder with .withContext() and .withHooks(). */
-function createQueryBuilder<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility
->(
-  baseBuilder: QueryBuilder<DataModel, Visibility>,
-  zodTables: ZodTables,
-  customCtxFn?: CustomCtxFn | null,
-  hooks?: DatabaseHooks | null
-): DbBuilder {
-  const wrapDb: DbWrapFn = (ctx, h) => createZodDbReader(ctx.db, zodTables, h, ctx)
-
-  const builder = function (config: any) {
-    return buildHandler(baseBuilder, customCtxFn, wrapDb, hooks, config)
-  } as DbBuilder
-
-  builder.withContext = (customization: any) =>
-    createQueryBuilder(baseBuilder, zodTables, customization._fn ?? customization, hooks)
-
-  builder.withHooks = (newHooks: DatabaseHooks) =>
-    createQueryBuilder(baseBuilder, zodTables, customCtxFn, newHooks)
-
-  return builder
-}
-
-/** Creates a codec-aware mutation builder with .withContext() and .withHooks(). */
-function createMutationBuilder<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility
->(
-  baseBuilder: MutationBuilder<DataModel, Visibility>,
-  zodTables: ZodTables,
-  customCtxFn?: CustomCtxFn | null,
-  hooks?: DatabaseHooks | null
-): DbBuilder {
-  const wrapDb: DbWrapFn = (ctx, h) => createZodDbWriter(ctx.db, zodTables, h, ctx)
-
-  const builder = function (config: any) {
-    return buildHandler(baseBuilder, customCtxFn, wrapDb, hooks, config)
-  } as DbBuilder
-
-  builder.withContext = (customization: any) =>
-    createMutationBuilder(baseBuilder, zodTables, customization._fn ?? customization, hooks)
-
-  builder.withHooks = (newHooks: DatabaseHooks) =>
-    createMutationBuilder(baseBuilder, zodTables, customCtxFn, newHooks)
-
-  return builder
-}
-
-/** Creates an action builder with .withContext() only — actions have no ctx.db. */
-function createActionBuilder<
-  DataModel extends GenericDataModel,
-  Visibility extends FunctionVisibility
->(
-  baseBuilder: ActionBuilder<DataModel, Visibility>,
-  zodTables: ZodTables,
-  customCtxFn?: CustomCtxFn | null
-): ZodvexActionBuilder {
-  const builder = function (config: any) {
-    return buildHandler(baseBuilder, customCtxFn, null, null, config)
-  } as ZodvexActionBuilder
-
-  builder.withContext = (customization: any) =>
-    createActionBuilder(baseBuilder, zodTables, customization._fn ?? customization)
-
-  return builder
+/** NoOp customization for actions (no ctx.db wrapping). */
+const actionNoOp = {
+  args: {},
+  input: async () => ({ ctx: {}, args: {} })
 }
 
 /**
  * One-time setup that creates codec-aware builders for your Convex project.
  *
- * Each returned builder automatically wraps `ctx.db` with a codec-aware layer
- * that decodes reads (wire → runtime, e.g. timestamps → Dates) and encodes
- * writes (runtime → wire) using your zodTable schemas.
+ * Each returned query/mutation builder automatically wraps `ctx.db` with a
+ * codec-aware layer that decodes reads (wire -> runtime, e.g. timestamps -> Dates)
+ * and encodes writes (runtime -> wire) using your zodTable schemas.
  *
- * Builders support fluent composition:
- * - `.withContext(ctx)` — add custom context (auth, permissions, etc.) — all builders
- * - `.withHooks(hooks)` — add DB-level hooks (validation, logging, etc.) — query/mutation only
+ * All builders include full Zod validation: args parsing, returns encoding,
+ * Zod -> Convex validator conversion, and `stripUndefined`.
  *
- * Action builders (`za`, `zia`) do not have `ctx.db` or `.withHooks()` since
- * Convex actions don't have database access.
- *
- * Note: `.withContext()` and `.withHooks()` each **replace** (not compose) any
- * previous value. Use `composeHooks()` to combine multiple hook configs before
- * passing to `.withHooks()`.
+ * Action builders do NOT wrap ctx.db (actions have no database access in Convex).
  *
  * @param schema - Schema from `defineZodSchema()` containing zodTable refs
  * @param server - Convex server functions (`query`, `mutation`, `action`, and internal variants)
- * @returns Pre-configured builders and context customization factories
+ * @returns Pre-configured builders and blessed-builder factories
  *
  * @example
  * ```ts
  * import { initZodvex, defineZodSchema, zodTable } from 'zodvex/server'
+ * import { customCtx } from 'convex-helpers/server/customFunctions'
  * import * as server from './_generated/server'
  *
  * const schema = defineZodSchema({ users: Users, events: Events })
  *
- * export const { zq, zm, za, zCustomCtx } = initZodvex(schema, server)
+ * export const {
+ *   zQuery, zMutation, zAction,
+ *   zCustomQuery, zCustomMutation, zCustomAction,
+ * } = initZodvex(schema, server)
  *
  * // Basic query — ctx.db auto-decodes
- * export const getEvent = zq({
+ * export const getEvent = zQuery({
  *   args: { id: zx.id('events') },
- *   handler: async (ctx, { id }) => ctx.db.get(id), // .startDate is a Date
+ *   returns: Events.schema.doc.nullable(),
+ *   handler: async (ctx, { id }) => ctx.db.get(id),
  * })
  *
- * // With auth context
- * const authCtx = zCustomCtx(async (ctx) => {
- *   const user = await getUserOrThrow(ctx)
- *   return { user }
- * })
- * export const authQuery = zq.withContext(authCtx)
- *
- * // With auth context + hooks
- * export const adminQuery = zq.withContext(adminCtx).withHooks(adminHooks)
+ * // Blessed builder with auth context
+ * const hotpotQuery = zCustomQuery(
+ *   customCtx(async (ctx) => {
+ *     const user = await getUser(ctx)
+ *     const db = createSecureReader({ user }, ctx.db, securityRules)
+ *     return { user, db }
+ *   })
+ * )
  * ```
  */
 export function initZodvex<DataModel extends GenericDataModel>(
@@ -214,36 +83,83 @@ export function initZodvex<DataModel extends GenericDataModel>(
 ) {
   const zodTables = schema.zodTables
 
-  const zq = createQueryBuilder(server.query, zodTables)
-  const zm = createMutationBuilder(server.mutation, zodTables)
-  const za = createActionBuilder(server.action, zodTables)
-  const ziq = createQueryBuilder(server.internalQuery, zodTables)
-  const zim = createMutationBuilder(server.internalMutation, zodTables)
-  const zia = createActionBuilder(server.internalAction, zodTables)
+  // --- Codec customizations ---
+  // Wraps ctx.db with codec-aware reader (queries) or writer (mutations).
 
-  /**
-   * Context customization factory -- parallels convex-helpers' customCtx.
-   * Returns a customization object compatible with .withContext().
-   */
-  function zCustomCtx<ExtraArgs = any>(fn: CustomCtxFn<ExtraArgs>) {
-    return { _fn: fn }
+  const codecQueryCustomization = {
+    args: {},
+    input: async (ctx: any) => ({
+      ctx: { db: createZodDbReader(ctx.db, zodTables) },
+      args: {}
+    })
   }
 
-  /**
-   * Context customization with custom args -- parallels customCtxAndArgs.
-   */
-  function zCustomCtxWithArgs<ExtraArgs = any>(config: CustomCtxWithArgsFn<ExtraArgs>) {
-    return { _fn: config.input, _args: config.args }
+  const codecMutationCustomization = {
+    args: {},
+    input: async (ctx: any) => ({
+      ctx: { db: createZodDbWriter(ctx.db, zodTables) },
+      args: {}
+    })
+  }
+
+  // --- Base builders (codec-aware, Zod-validated) ---
+
+  const zQuery = zCustomQuery(server.query, codecQueryCustomization as any)
+  const zMutation = zCustomMutation(server.mutation, codecMutationCustomization as any)
+  const zAction = zCustomAction(server.action, actionNoOp as any)
+  const zInternalQuery = zCustomQuery(server.internalQuery, codecQueryCustomization as any)
+  const zInternalMutation = zCustomMutation(
+    server.internalMutation,
+    codecMutationCustomization as any
+  )
+  const zInternalAction = zCustomAction(server.internalAction, actionNoOp as any)
+
+  // --- Blessed builder factories ---
+  // Pre-bind schema so consumers just pass their customization.
+  // The consumer's customization composes ON TOP of the codec customization.
+  // Their ctx.db is already codec-aware by the time their input() runs.
+
+  function makeZCustomQuery(customization: Customization<any, any, any, any, any>) {
+    const composed = {
+      args: customization.args ?? {},
+      input: async (ctx: any, args: any, extra: any) => {
+        const codecCtx = { ...ctx, db: createZodDbReader(ctx.db, zodTables) }
+        if (customization.input) {
+          return customization.input(codecCtx, args, extra)
+        }
+        return { ctx: { db: codecCtx.db }, args: {} }
+      }
+    }
+    return zCustomQuery(server.query, composed as any)
+  }
+
+  function makeZCustomMutation(customization: Customization<any, any, any, any, any>) {
+    const composed = {
+      args: customization.args ?? {},
+      input: async (ctx: any, args: any, extra: any) => {
+        const codecCtx = { ...ctx, db: createZodDbWriter(ctx.db, zodTables) }
+        if (customization.input) {
+          return customization.input(codecCtx, args, extra)
+        }
+        return { ctx: { db: codecCtx.db }, args: {} }
+      }
+    }
+    return zCustomMutation(server.mutation, composed as any)
+  }
+
+  function makeZCustomAction(customization: Customization<any, any, any, any, any>) {
+    return zCustomAction(server.action, customization)
   }
 
   return {
-    zq,
-    zm,
-    za,
-    ziq,
-    zim,
-    zia,
-    zCustomCtx,
-    zCustomCtxWithArgs
+    zQuery,
+    zMutation,
+    zAction,
+    zInternalQuery,
+    zInternalMutation,
+    zInternalAction,
+    zCustomQuery: makeZCustomQuery,
+    zCustomMutation: makeZCustomMutation,
+    zCustomAction: makeZCustomAction
   }
 }

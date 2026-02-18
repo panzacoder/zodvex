@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
+import { customCtx } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
-import { composeHooks, createDatabaseHooks } from '../../src/db/hooks'
 import { initZodvex } from '../../src/init'
 import { defineZodSchema } from '../../src/schema'
 import { zodTable } from '../../src/tables'
@@ -78,7 +78,6 @@ function createMockDb() {
 // Mock server that passes handler through but injects mock db
 function createMockServer(db: any) {
   const wrapper = (fn: any) => {
-    // Return the handler with ctx.db injected
     return {
       ...fn,
       _handler: fn.handler,
@@ -98,7 +97,6 @@ function createMockServer(db: any) {
 describe('Full codec pipeline integration', () => {
   it('decodes zx.date() on read through initZodvex builder', async () => {
     const db = createMockDb()
-    // Seed wire-format data
     db.store['events:1'] = {
       _id: 'events:1',
       _creationTime: 1000,
@@ -109,13 +107,12 @@ describe('Full codec pipeline integration', () => {
     }
 
     const server = createMockServer(db)
-    const { zq } = initZodvex(schema, server as any)
+    const { zQuery } = initZodvex(schema, server as any)
 
-    const getEvent = zq({
+    const getEvent = zQuery({
       args: { eventId: zx.id('events') },
       handler: async (ctx: any, { eventId }: any) => {
         const event = await ctx.db.get(eventId)
-        // Should be decoded: Date, not number
         expect(event.startDate).toBeInstanceOf(Date)
         expect(event.startDate.getTime()).toBe(1700000000000)
         return event
@@ -128,9 +125,9 @@ describe('Full codec pipeline integration', () => {
   it('encodes stateCode() on write through initZodvex builder', async () => {
     const db = createMockDb()
     const server = createMockServer(db)
-    const { zm } = initZodvex(schema, server as any)
+    const { zMutation } = initZodvex(schema, server as any)
 
-    const createUser = zm({
+    const createUser = zMutation({
       args: { name: z.string(), email: z.string(), state: stateCode() },
       handler: async (ctx: any, args: any) => {
         return ctx.db.insert('users', args)
@@ -147,7 +144,7 @@ describe('Full codec pipeline integration', () => {
     expect(db.store[id].state).toBe('CA')
   })
 
-  it('hooks compose correctly: validation then logging', async () => {
+  it('blessed builder with customCtx receives codec-aware ctx.db', async () => {
     const log: string[] = []
     const db = createMockDb()
     db.store['users:1'] = {
@@ -160,37 +157,31 @@ describe('Full codec pipeline integration', () => {
     }
 
     const server = createMockServer(db)
-    const { zq, zCustomCtx } = initZodvex(schema, server as any)
+    const { zCustomQuery } = initZodvex(schema, server as any)
 
-    const adminCtx = zCustomCtx(async () => ({
-      user: { name: 'Admin', role: 'admin' }
-    }))
+    const adminQuery = zCustomQuery(
+      customCtx(async (ctx: any) => {
+        log.push('auth')
+        const user = { name: 'Admin', role: 'admin' }
 
-    const validationHooks = createDatabaseHooks<any>({
-      decode: {
-        before: {
-          one: async (ctx: any, doc: any) => {
-            log.push('validation')
-            if (ctx.user.role !== 'admin') return null
-            return doc
+        // Wrap codec-aware db with security
+        const secureDb = {
+          ...ctx.db,
+          query: (table: string) => {
+            const chain = ctx.db.query(table)
+            return {
+              ...chain,
+              collect: async () => {
+                const docs = await chain.collect()
+                log.push('security-filter')
+                return docs.filter(() => user.role === 'admin')
+              }
+            }
           }
         }
-      }
-    })
-
-    const loggingHooks = createDatabaseHooks<any>({
-      decode: {
-        after: {
-          one: async (ctx: any, doc: any) => {
-            log.push('logging')
-            return doc
-          }
-        }
-      }
-    })
-
-    const composed = composeHooks([validationHooks, loggingHooks])
-    const adminQuery = zq.withContext(adminCtx).withHooks(composed)
+        return { user, db: secureDb }
+      })
+    )
 
     const listUsers = adminQuery({
       args: {},
@@ -199,7 +190,11 @@ describe('Full codec pipeline integration', () => {
       }
     })
 
-    await listUsers._invoke({})
-    expect(log).toEqual(['validation', 'logging'])
+    const result = await listUsers._invoke({})
+    expect(log).toContain('auth')
+    expect(log).toContain('security-filter')
+    expect(result).toHaveLength(1)
+    // Verify codec decoding happened (state should be decoded by codec layer)
+    expect(result[0].state).toBe('California')
   })
 })
