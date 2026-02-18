@@ -10,8 +10,6 @@
 
 // Codec utilities
 export * from '../codec'
-// Schema types (type-only, no server runtime imports)
-export type { ZodTableMap } from '../schema'
 // ID utilities
 export * from '../ids'
 // Zod → Convex validator mapping
@@ -20,12 +18,12 @@ export * from '../mapping'
 export * from '../registry'
 // Result types
 export * from '../results'
+// Schema types (type-only, no server runtime imports)
+export type { ZodTableMap, ZodTableSchemas } from '../schema'
 // Transform utilities
 export * from '../transform'
-
 // Types (server imports are type-only and erased at compile time)
 export * from '../types'
-
 // Utilities (no server imports)
 export * from '../utils'
 // Zod extensions for Convex
