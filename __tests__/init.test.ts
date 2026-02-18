@@ -17,95 +17,82 @@ const Users = zodTable('users', {
 
 const schema = defineZodSchema({ events: Events, users: Users })
 
-// Mock server
+// Mock server — returns the config object (mimics Convex builder passing through)
 const server = {
-  query: (fn: any) => fn,
-  mutation: (fn: any) => fn,
-  action: (fn: any) => fn,
-  internalQuery: (fn: any) => fn,
-  internalMutation: (fn: any) => fn,
-  internalAction: (fn: any) => fn
+  query: (config: any) => config,
+  mutation: (config: any) => config,
+  action: (config: any) => config,
+  internalQuery: (config: any) => config,
+  internalMutation: (config: any) => config,
+  internalAction: (config: any) => config
 }
 
 describe('initZodvex', () => {
-  it('returns builders: zq, zm, za, ziq, zim, zia', () => {
+  it('returns all expected builders', () => {
     const result = initZodvex(schema, server as any)
-    expect(result.zq).toBeDefined()
-    expect(result.zm).toBeDefined()
-    expect(result.za).toBeDefined()
-    expect(result.ziq).toBeDefined()
-    expect(result.zim).toBeDefined()
-    expect(result.zia).toBeDefined()
+    expect(result.zQuery).toBeDefined()
+    expect(result.zMutation).toBeDefined()
+    expect(result.zAction).toBeDefined()
+    expect(result.zInternalQuery).toBeDefined()
+    expect(result.zInternalMutation).toBeDefined()
+    expect(result.zInternalAction).toBeDefined()
+    expect(result.zCustomQuery).toBeDefined()
+    expect(result.zCustomMutation).toBeDefined()
+    expect(result.zCustomAction).toBeDefined()
   })
 
-  it('returns zCustomCtx and zCustomCtxWithArgs', () => {
-    const result = initZodvex(schema, server as any)
-    expect(result.zCustomCtx).toBeDefined()
-    expect(result.zCustomCtxWithArgs).toBeDefined()
-  })
-
-  it('zq produces a function when called with config', () => {
-    const { zq } = initZodvex(schema, server as any)
-    const fn = zq({
+  it('zQuery produces a registered function when called with config', () => {
+    const { zQuery } = initZodvex(schema, server as any)
+    const fn = zQuery({
       args: { title: z.string() },
-      handler: async (ctx: any, args: any) => {
-        return args.title
-      }
+      handler: async (_ctx: any, { title }: any) => title
     })
     expect(fn).toBeDefined()
   })
 
-  it('zq.withContext returns a new builder', () => {
-    const { zq, zCustomCtx } = initZodvex(schema, server as any)
-    const authCtx = zCustomCtx(async (ctx: any) => {
-      return { user: { name: 'test' } }
+  it('zQuery validates args with Zod (rejects invalid args)', async () => {
+    const { zQuery } = initZodvex(schema, server as any)
+    const fn = zQuery({
+      args: { title: z.string().min(3) },
+      handler: async (_ctx: any, { title }: any) => title
     })
-    const authQuery = zq.withContext(authCtx)
-    expect(authQuery).toBeDefined()
-    expect(typeof authQuery).toBe('function')
+
+    // Should throw validation error — "ab" is too short (min 3)
+    await expect(fn.handler({}, { title: 'ab' })).rejects.toThrow()
   })
 
-  it('zq.withContext().withHooks() returns a new builder', () => {
-    const { zq, zCustomCtx } = initZodvex(schema, server as any)
-    const authCtx = zCustomCtx(async (ctx: any) => {
-      return { user: { name: 'test' } }
-    })
-    const hooks = {
-      decode: {
-        after: {
-          one: async (_ctx: any, doc: any) => doc
-        }
-      }
-    }
-    const hooked = zq.withContext(authCtx).withHooks(hooks)
-    expect(hooked).toBeDefined()
-    expect(typeof hooked).toBe('function')
-  })
-
-  it('za does not have .withHooks() (actions have no ctx.db)', () => {
-    const { za } = initZodvex(schema, server as any)
-    expect((za as any).withHooks).toBeUndefined()
-  })
-
-  it('za.withContext() does not have .withHooks()', () => {
-    const { za, zCustomCtx } = initZodvex(schema, server as any)
-    const authCtx = zCustomCtx(async () => ({ user: 'test' }))
-    const authAction = za.withContext(authCtx)
-    expect((authAction as any).withHooks).toBeUndefined()
-  })
-
-  it('za handler receives ctx without db wrapping', async () => {
-    const { za } = initZodvex(schema, server as any)
-    const fn = za({
+  it('zQuery encodes return values through Zod returns schema', async () => {
+    const { zQuery } = initZodvex(schema, server as any)
+    const fn = zQuery({
       args: {},
-      handler: async (ctx: any) => {
-        // Actions don't have ctx.db — verify it wasn't injected
-        expect(ctx.db).toBeUndefined()
-        return 'action result'
-      }
+      returns: z.object({ when: zx.date() }),
+      handler: async () => ({ when: new Date('2025-06-15T00:00:00Z') })
     })
-    // Mock server returns { handler, _invoke }, call the handler directly
+
     const result = await fn.handler({}, {})
-    expect(result).toBe('action result')
+    // Should be encoded to timestamp, not a Date
+    expect(typeof result.when).toBe('number')
+  })
+
+  it('zMutation validates args with Zod', async () => {
+    const { zMutation } = initZodvex(schema, server as any)
+    const fn = zMutation({
+      args: { email: z.string().email() },
+      handler: async (_ctx: any, { email }: any) => email
+    })
+
+    // Should throw — "not-an-email" isn't valid
+    await expect(fn.handler({}, { email: 'not-an-email' })).rejects.toThrow()
+  })
+
+  it('zAction validates args with Zod', async () => {
+    const { zAction } = initZodvex(schema, server as any)
+    const fn = zAction({
+      args: { count: z.number().int().positive() },
+      handler: async (_ctx: any, { count }: any) => count
+    })
+
+    // Should throw — -5 is not positive
+    await expect(fn.handler({}, { count: -5 })).rejects.toThrow()
   })
 })
