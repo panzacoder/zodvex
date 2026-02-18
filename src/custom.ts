@@ -389,6 +389,16 @@ export function customFnBuilder<
           }
 
           const ret = await handler(finalCtx, finalArgs)
+
+          // onSuccess MUST run before encode — sees runtime types (Date, SensitiveWrapper)
+          if (added?.hooks?.onSuccess) {
+            await added.hooks.onSuccess({
+              ctx: finalCtx,
+              args: parsed.data,
+              result: ret
+            })
+          }
+
           // Always run Zod return validation when returns schema is provided
           if (returns) {
             // Apply output transform BEFORE validation (converts internal format → wire format)
@@ -400,23 +410,9 @@ export function customFnBuilder<
 
             // Validate and encode using z.encode (Zod handles codecs natively)
             const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
-            // Strip undefined values before returning (Convex rejects explicit undefined)
-            const result = stripUndefined(validated)
-            if (added?.hooks?.onSuccess) {
-              await added.hooks.onSuccess({
-                ctx,
-                args: parsed.data,
-                result
-              })
-            }
-            return result
+            return stripUndefined(validated)
           }
-          // Strip undefined even without returns schema (Convex rejects explicit undefined)
-          const result = stripUndefined(ret)
-          if (added?.hooks?.onSuccess) {
-            await added.hooks.onSuccess({ ctx, args: parsed.data, result })
-          }
-          return result
+          return stripUndefined(ret)
         }
       })
     }
@@ -447,7 +443,16 @@ export function customFnBuilder<
         }
 
         const ret = await handler(finalCtx, finalArgs)
-        // Always run Zod return validation when returns schema is provided
+
+        // onSuccess MUST run before encode — sees runtime types (Date, SensitiveWrapper)
+        if (added?.hooks?.onSuccess) {
+          await added.hooks.onSuccess({
+            ctx: finalCtx,
+            args: allArgs,
+            result: ret
+          })
+        }
+
         if (returns) {
           // Apply output transform BEFORE validation (converts internal format → wire format)
           // This allows class instances (e.g., SensitiveField) to be converted to plain objects
@@ -458,19 +463,9 @@ export function customFnBuilder<
 
           // Validate and encode using z.encode (Zod handles codecs natively)
           const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
-          // Strip undefined values before returning (Convex rejects explicit undefined)
-          const result = stripUndefined(validated)
-          if (added?.hooks?.onSuccess) {
-            await added.hooks.onSuccess({ ctx, args: allArgs, result })
-          }
-          return result
+          return stripUndefined(validated)
         }
-        // Strip undefined even without returns schema (Convex rejects explicit undefined)
-        const result = stripUndefined(ret)
-        if (added?.hooks?.onSuccess) {
-          await added.hooks.onSuccess({ ctx, args: allArgs, result })
-        }
-        return result
+        return stripUndefined(ret)
       }
     })
   }
