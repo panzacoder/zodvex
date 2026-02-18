@@ -189,3 +189,5 @@ onWrite(ctx, runtimeDoc)  → runtimeDoc | null     // before encode
 ```
 
 Batch variants (`onReadMany`) may still be needed for performance (batch RLS with single permissions lookup), but both operate on runtime types.
+
+**Update:** zodvex v2 moved away from providing hook points entirely — consumers write their own DB wrappers (following Convex's `wrapDatabaseReader` pattern) on top of zodvex's codec layer, but this decision still applies: those wrappers receive runtime-typed documents.
