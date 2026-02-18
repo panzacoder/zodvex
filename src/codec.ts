@@ -65,10 +65,11 @@ export function encodePartialDoc<S extends z.ZodTypeAny>(
 ): Partial<z.input<S>> {
   if (!(schema instanceof z.ZodObject)) {
     // For non-object schemas (unions, etc.), fall back to full encode
-    return stripUndefined(z.encode(schema, partial))
+    // Cast needed: Partial<output<S>> is structurally compatible but not assignable to output<S>
+    return stripUndefined(z.encode(schema, partial as z.output<S>)) as Partial<z.input<S>>
   }
   const partialSchema = schema.partial()
-  return stripUndefined(z.encode(partialSchema, partial))
+  return stripUndefined(z.encode(partialSchema, partial)) as Partial<z.input<S>>
 }
 
 /**

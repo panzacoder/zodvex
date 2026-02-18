@@ -49,8 +49,8 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo>
     return new CodecQueryChain<TableInfo>(this.inner.order(order), this.schema)
   }
 
-  filter(predicate: any) {
-    return new CodecQueryChain<TableInfo>(this.inner.filter(predicate), this.schema)
+  filter(predicate: any): this {
+    return new CodecQueryChain<TableInfo>(this.inner.filter(predicate), this.schema) as this
   }
 
   limit(n: number) {
@@ -236,7 +236,8 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
     const wireValue = schema ? encodePartialDoc(schema, value) : value
 
     if (maybeValue !== undefined) {
-      return this.db.patch(idOrTable, id, wireValue)
+      // 3-arg form (table, id, value) is @internal in Convex types — cast required
+      return (this.db as any).patch(idOrTable, id, wireValue)
     }
     return this.db.patch(id, wireValue)
   }
@@ -261,14 +262,16 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
     const wireValue = schema ? encodePartialDoc(schema, value) : value
 
     if (maybeValue !== undefined) {
-      return this.db.replace(idOrTable, id, wireValue)
+      // 3-arg form (table, id, value) is @internal in Convex types — cast required
+      return (this.db as any).replace(idOrTable, id, wireValue)
     }
     return this.db.replace(id, wireValue)
   }
 
   async delete(idOrTable: any, maybeId?: any): Promise<void> {
     if (maybeId !== undefined) {
-      return this.db.delete(idOrTable, maybeId)
+      // 2-arg form (table, id) is @internal in Convex types — cast required
+      return (this.db as any).delete(idOrTable, maybeId)
     }
     return this.db.delete(idOrTable)
   }
