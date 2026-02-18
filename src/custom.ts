@@ -125,6 +125,9 @@ export function customCtxWithHooks<
   }
 }
 
+// Emit each deprecation warning at most once per process
+const _warnedTransforms = { input: false, output: false }
+
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
 
@@ -358,9 +361,12 @@ export function customFnBuilder<
 
           // Apply input transform if provided (after validation, before handler)
           if (added?.transforms?.input) {
-            console.warn(
-              '[zodvex] transforms.input is deprecated. Transform args in your customCtx input() function instead.'
-            )
+            if (!_warnedTransforms.input) {
+              _warnedTransforms.input = true
+              console.warn(
+                '[zodvex] transforms.input is deprecated. Transform args in your customCtx input() function instead.'
+              )
+            }
             finalArgs = (await added.transforms.input(finalArgs, argsSchema)) as Record<
               string,
               unknown
@@ -380,13 +386,17 @@ export function customFnBuilder<
 
           // Always run Zod return validation when returns schema is provided
           if (returns) {
-            const preTransformed = added?.transforms?.output
-              ? (console.warn(
+            let preTransformed = ret
+            if (added?.transforms?.output) {
+              if (!_warnedTransforms.output) {
+                _warnedTransforms.output = true
+                console.warn(
                   '[zodvex] transforms.output is deprecated. Use onSuccess in your Customization instead. ' +
                     'onSuccess now correctly sees runtime types (Date, SensitiveWrapper) before Zod encoding.'
-                ),
-                await added.transforms.output(ret, returns as z.ZodTypeAny))
-              : ret
+                )
+              }
+              preTransformed = await added.transforms.output(ret, returns as z.ZodTypeAny)
+            }
 
             // Validate and encode using z.encode (Zod handles codecs natively)
             const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
@@ -415,9 +425,12 @@ export function customFnBuilder<
 
         // Apply input transform if provided (even without args schema)
         if (added?.transforms?.input) {
-          console.warn(
-            '[zodvex] transforms.input is deprecated. Transform args in your customCtx input() function instead.'
-          )
+          if (!_warnedTransforms.input) {
+            _warnedTransforms.input = true
+            console.warn(
+              '[zodvex] transforms.input is deprecated. Transform args in your customCtx input() function instead.'
+            )
+          }
           finalArgs = (await added.transforms.input(finalArgs, z.unknown())) as Record<
             string,
             unknown
@@ -436,13 +449,17 @@ export function customFnBuilder<
         }
 
         if (returns) {
-          const preTransformed = added?.transforms?.output
-            ? (console.warn(
+          let preTransformed = ret
+          if (added?.transforms?.output) {
+            if (!_warnedTransforms.output) {
+              _warnedTransforms.output = true
+              console.warn(
                 '[zodvex] transforms.output is deprecated. Use onSuccess in your Customization instead. ' +
                   'onSuccess now correctly sees runtime types (Date, SensitiveWrapper) before Zod encoding.'
-              ),
-              await added.transforms.output(ret, returns as z.ZodTypeAny))
-            : ret
+              )
+            }
+            preTransformed = await added.transforms.output(ret, returns as z.ZodTypeAny)
+          }
 
           // Validate and encode using z.encode (Zod handles codecs natively)
           const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)

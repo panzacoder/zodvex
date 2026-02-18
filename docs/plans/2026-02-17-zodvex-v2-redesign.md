@@ -71,18 +71,21 @@ export const getEvent = zQuery({
 **Blessed builders** (equivalent to `customQuery` from convex-helpers):
 
 ```typescript
-const hotpotQuery = zCustomQuery(
-  query,
-  customCtx(async (ctx) => {
+// NOTE: Use a raw Customization object (not `customCtx`) when you need `onSuccess`.
+// `customCtx` is a convenience wrapper that only returns `{ ctx, args }` —
+// it does NOT forward `onSuccess`. Use `input` directly instead.
+const hotpotQuery = zCustomQuery(query, {
+  args: {},
+  input: async (ctx) => {
     const user = await getUser(ctx)
     const db = createSecureReader({ user }, ctx.db, securityRules)
     return {
-      user,
-      db,
+      ctx: { user, db },
+      args: {},
       onSuccess: ({ result }) => auditLog(result, user),
     }
-  })
-)
+  },
+})
 
 // App developers use the blessed builder
 export const getPatient = hotpotQuery({

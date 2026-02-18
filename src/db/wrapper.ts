@@ -51,10 +51,10 @@ interface ConvexDbWriter extends ConvexDbReader {
 // ---------------------------------------------------------------------------
 
 /** Wire-format document (as stored in / returned from Convex). */
-type WireDoc = Record<string, unknown>
+export type WireDoc = Record<string, unknown>
 
 /** Runtime-format document (after codec decode, e.g. Dates instead of timestamps). */
-type RuntimeDoc = Record<string, unknown>
+export type RuntimeDoc = Record<string, unknown>
 
 /** Decode a single document using the schema's codec. */
 function decodeOne(raw: WireDoc, schema: z.ZodTypeAny): RuntimeDoc {

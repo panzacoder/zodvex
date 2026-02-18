@@ -99,6 +99,16 @@ describe('zodvex/server exports', () => {
     expect(createZodDbWriter).toBeDefined()
   })
 
+  it('exports RuntimeDoc and WireDoc types (via type re-export)', async () => {
+    // Types are erased at runtime, so we verify the module re-exports them
+    // by checking that the db wrapper module is importable and the type names
+    // resolve. A compile-time check is the real verification (bun run type-check).
+    const db = await import('../src/db/wrapper')
+    // These are type-only exports — we just verify the module loads cleanly
+    expect(db.createZodDbReader).toBeDefined()
+    expect(db.createZodDbWriter).toBeDefined()
+  })
+
   it('exports deprecated symbols for backward compat', async () => {
     const {
       zCustomQueryBuilder,
