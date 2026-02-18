@@ -124,3 +124,9 @@ export type ZodvexCodec<Wire extends z.ZodTypeAny, Runtime extends z.ZodTypeAny>
 > & {
   readonly [ZodvexWireSchema]: Wire
 }
+
+/**
+ * Overwrites properties of T with properties of U.
+ * Properties in U replace same-named properties in T.
+ */
+export type Overwrite<T, U> = Omit<T, keyof U> & U

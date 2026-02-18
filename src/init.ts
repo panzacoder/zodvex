@@ -11,11 +11,12 @@ import type {
 import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
 import { NoOp } from 'convex-helpers/server/customFunctions'
-import type { CustomBuilder, Overwrite } from './custom'
+import type { CustomBuilder } from './custom'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
 import { createCodecCustomization } from './customization'
 import type { CodecDatabaseReader, CodecDatabaseWriter } from './db'
 import type { ZodTableMap } from './schema'
+import type { Overwrite } from './types'
 
 /**
  * A zodvex builder: callable CustomBuilder + .withContext() for composing

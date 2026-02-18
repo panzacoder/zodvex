@@ -14,7 +14,7 @@ import { ConvexError, type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
-import type { ExtractCtx, ExtractVisibility } from './types'
+import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
 import {
   assertNoNativeZodDate,
   handleZodValidationError,
@@ -194,7 +194,8 @@ type ArgsOutput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = 
     ? [z.output<z.ZodObject<ArgsValidator>>]
     : OneArgArray
 
-export type Overwrite<T, U> = Omit<T, keyof U> & U
+// Re-export for backwards compatibility (canonical definition in types.ts)
+export type { Overwrite } from './types'
 
 // Hack to simplify how TypeScript renders object types
 type Expand<ObjectType extends Record<any, any>> = ObjectType extends Record<any, any>
