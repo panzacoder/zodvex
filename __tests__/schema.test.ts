@@ -23,20 +23,33 @@ describe('defineZodSchema', () => {
     expect(schema.__zodTableMap.posts).toBeDefined()
   })
 
-  it('captures doc schemas (with system fields) in the table map', () => {
+  it('captures full zodTable schema set in the table map', () => {
     const schema = defineZodSchema({ users: Users })
+    const userSchemas = schema.__zodTableMap.users
 
-    const userDocSchema = schema.__zodTableMap.users
-    // Should be the doc schema — includes _id and _creationTime
-    const parsed = userDocSchema.parse({
+    // Should have all schema variants
+    expect(userSchemas.doc).toBeDefined()
+    expect(userSchemas.insert).toBeDefined()
+    expect(userSchemas.base).toBeDefined()
+    expect(userSchemas.update).toBeDefined()
+    expect(userSchemas.docArray).toBeDefined()
+
+    // doc schema includes _id and _creationTime
+    const parsed = userSchemas.doc.parse({
       _id: 'users:abc123',
       _creationTime: 1700000000000,
       name: 'Alice',
       createdAt: 1700000000000
     })
-
     expect(parsed.name).toBe('Alice')
     expect(parsed.createdAt).toBeInstanceOf(Date)
+
+    // insert schema has user fields only (no system fields)
+    const insertParsed = userSchemas.insert.parse({
+      name: 'Bob',
+      createdAt: 1700000000000
+    })
+    expect(insertParsed.name).toBe('Bob')
   })
 
   it('returns a valid Convex schema (has tables property)', () => {

@@ -10,7 +10,7 @@ import type {
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import type { z } from 'zod'
-import { decodeDoc, encodePartialDoc } from './codec'
+import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
 import type { ZodTableMap } from './schema'
 
 /**
@@ -158,15 +158,15 @@ export class CodecDatabaseReader<DataModel extends GenericDataModel>
 
     if (!doc) return null
 
-    const schema = tableName ? this.tableMap[tableName] : undefined
-    return schema ? decodeDoc(schema, doc) : doc
+    const schemas = tableName ? this.tableMap[tableName] : undefined
+    return schemas ? decodeDoc(schemas.doc, doc) : doc
   }
 
   query(tableName: any): any {
-    const schema = this.tableMap[tableName as string]
+    const schemas = this.tableMap[tableName as string]
     const innerQuery = this.db.query(tableName)
-    if (!schema) return innerQuery
-    return new CodecQueryChain(innerQuery, schema)
+    if (!schemas) return innerQuery
+    return new CodecQueryChain(innerQuery, schemas.doc)
   }
 }
 
@@ -208,10 +208,8 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
   // --- Write methods: encode before delegating ---
 
   async insert(table: any, value: any): Promise<any> {
-    const schema = this.tableMap[table as string]
-    // Use encodePartialDoc because insert value doesn't have system fields
-    // (_id, _creationTime are added by Convex)
-    const wireValue = schema ? encodePartialDoc(schema, value) : value
+    const schemas = this.tableMap[table as string]
+    const wireValue = schemas ? encodeDoc(schemas.insert, value) : value
     return this.db.insert(table, wireValue)
   }
 
@@ -232,8 +230,8 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
       tableName = resolveTableName(this.db, this.tableMap, id)
     }
 
-    const schema = tableName ? this.tableMap[tableName] : undefined
-    const wireValue = schema ? encodePartialDoc(schema, value) : value
+    const schemas = tableName ? this.tableMap[tableName] : undefined
+    const wireValue = schemas ? encodePartialDoc(schemas.insert, value) : value
 
     if (maybeValue !== undefined) {
       // 3-arg form (table, id, value) is @internal in Convex types — cast required
@@ -257,9 +255,8 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
       tableName = resolveTableName(this.db, this.tableMap, id)
     }
 
-    const schema = tableName ? this.tableMap[tableName] : undefined
-    // Use encodePartialDoc — system fields may be absent
-    const wireValue = schema ? encodePartialDoc(schema, value) : value
+    const schemas = tableName ? this.tableMap[tableName] : undefined
+    const wireValue = schemas ? encodeDoc(schemas.insert, value) : value
 
     if (maybeValue !== undefined) {
       // 3-arg form (table, id, value) is @internal in Convex types — cast required

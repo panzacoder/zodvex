@@ -7,6 +7,7 @@ import {
   createZodDbReader,
   createZodDbWriter
 } from '../src/db'
+import type { ZodTableSchemas } from '../src/schema'
 import { zx } from '../src/zx'
 
 const userDocSchema = z.object({
@@ -15,6 +16,19 @@ const userDocSchema = z.object({
   name: z.string(),
   createdAt: zx.date()
 })
+
+const userInsertSchema = z.object({
+  name: z.string(),
+  createdAt: zx.date()
+})
+
+const userSchemas: ZodTableSchemas = {
+  doc: userDocSchema,
+  docArray: z.array(userDocSchema),
+  base: userInsertSchema,
+  insert: userInsertSchema,
+  update: userInsertSchema.partial().extend({ _id: z.string() })
+}
 
 // Mock query chain — simulates Convex's QueryInitializer/Query/OrderedQuery
 function createMockQuery(docs: any[]) {
@@ -168,7 +182,7 @@ describe('CodecQueryChain', () => {
 
 describe('CodecDatabaseReader', () => {
   const tableMap = {
-    users: userDocSchema
+    users: userSchemas
   }
 
   const tableData = {
@@ -263,7 +277,7 @@ function createMockDbWriter(tables: Record<string, any[]>) {
 
 describe('CodecDatabaseWriter', () => {
   const tableMap = {
-    users: userDocSchema
+    users: userSchemas
   }
 
   const tableData = {
@@ -363,7 +377,7 @@ describe('createZodDbReader', () => {
   }
 
   it('creates a CodecDatabaseReader from schema with __zodTableMap', async () => {
-    const schema = { __zodTableMap: { users: userDocSchema } }
+    const schema = { __zodTableMap: { users: userSchemas } }
     const db = createZodDbReader(createMockDbReader(tableData) as any, schema)
 
     const user = await db.get('users:1' as any)
@@ -378,7 +392,7 @@ describe('createZodDbWriter', () => {
   }
 
   it('creates a CodecDatabaseWriter from schema with __zodTableMap', async () => {
-    const schema = { __zodTableMap: { users: userDocSchema } }
+    const schema = { __zodTableMap: { users: userSchemas } }
     const { db: mockDb, calls } = createMockDbWriter(tableData)
     const db = createZodDbWriter(mockDb as any, schema)
 
