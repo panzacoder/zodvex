@@ -40,6 +40,39 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
 }
 
 /**
+ * Decodes a wire-format document (from Convex DB) to runtime types.
+ * Runs Zod codec decode transforms (e.g., timestamp → Date via zx.date()).
+ */
+export function decodeDoc<S extends z.ZodTypeAny>(schema: S, wireDoc: unknown): z.output<S> {
+  return schema.parse(wireDoc)
+}
+
+/**
+ * Encodes a runtime document to wire format (for Convex DB writes).
+ * Runs Zod codec encode transforms and strips undefined values.
+ */
+export function encodeDoc<S extends z.ZodTypeAny>(schema: S, runtimeDoc: z.output<S>): z.input<S> {
+  return stripUndefined(z.encode(schema, runtimeDoc))
+}
+
+/**
+ * Encodes a partial runtime document to wire format (for Convex DB patch operations).
+ * Only encodes the fields present in the partial. Uses schema.partial() + z.encode().
+ */
+export function encodePartialDoc<S extends z.ZodTypeAny>(
+  schema: S,
+  partial: Partial<z.output<S>>
+): Partial<z.input<S>> {
+  if (!(schema instanceof z.ZodObject)) {
+    // For non-object schemas (unions, etc.), fall back to full encode
+    // Cast needed: Partial<output<S>> is structurally compatible but not assignable to output<S>
+    return stripUndefined(z.encode(schema, partial as z.output<S>)) as Partial<z.input<S>>
+  }
+  const partialSchema = schema.partial()
+  return stripUndefined(z.encode(partialSchema, partial)) as Partial<z.input<S>>
+}
+
+/**
  * Creates a branded ZodCodec for use with zodvex type inference.
  * Thin wrapper around z.codec() that adds type branding, allowing
  * ConvexValidatorFromZod to extract the wire schema even when the

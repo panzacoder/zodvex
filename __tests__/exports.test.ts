@@ -19,8 +19,11 @@ describe('zodvex/core exports', () => {
   })
 
   it('exports codec utilities', async () => {
-    const { convexCodec } = await import('../src/core')
+    const { convexCodec, decodeDoc, encodeDoc, encodePartialDoc } = await import('../src/core')
     expect(convexCodec).toBeDefined()
+    expect(decodeDoc).toBeDefined()
+    expect(encodeDoc).toBeDefined()
+    expect(encodePartialDoc).toBeDefined()
   })
 
   it('exports transform utilities', async () => {
@@ -91,6 +94,36 @@ describe('zodvex/server exports', () => {
     expect(zCustomMutation).toBeDefined()
     expect(zCustomAction).toBeDefined()
   })
+
+  it('exports defineZodSchema', async () => {
+    const { defineZodSchema } = await import('../src/server')
+    expect(defineZodSchema).toBeDefined()
+  })
+
+  it('exports initZodvex', async () => {
+    const { initZodvex } = await import('../src/server')
+    expect(initZodvex).toBeDefined()
+  })
+
+  it('exports createCodecCustomization', async () => {
+    const { createCodecCustomization } = await import('../src/server')
+    expect(createCodecCustomization).toBeDefined()
+  })
+
+  it('exports DB wrapper classes and factories', async () => {
+    const {
+      CodecDatabaseReader,
+      CodecDatabaseWriter,
+      CodecQueryChain,
+      createZodDbReader,
+      createZodDbWriter
+    } = await import('../src/server')
+    expect(CodecDatabaseReader).toBeDefined()
+    expect(CodecDatabaseWriter).toBeDefined()
+    expect(CodecQueryChain).toBeDefined()
+    expect(createZodDbReader).toBeDefined()
+    expect(createZodDbWriter).toBeDefined()
+  })
 })
 
 describe('zodvex (root) exports', () => {
@@ -109,5 +142,15 @@ describe('zodvex (root) exports', () => {
     expect(zodvex.customCtx).toBeDefined()
     expect(zodvex.zQueryBuilder).toBeDefined()
     expect(zodvex.zCustomQuery).toBeDefined()
+
+    // New codec DB exports
+    expect(zodvex.decodeDoc).toBeDefined()
+    expect(zodvex.encodeDoc).toBeDefined()
+    expect(zodvex.encodePartialDoc).toBeDefined()
+    expect(zodvex.defineZodSchema).toBeDefined()
+    expect(zodvex.createZodDbReader).toBeDefined()
+    expect(zodvex.createZodDbWriter).toBeDefined()
+    expect(zodvex.initZodvex).toBeDefined()
+    expect(zodvex.createCodecCustomization).toBeDefined()
   })
 })
