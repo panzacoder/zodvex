@@ -1,12 +1,14 @@
 # Hotpot `initZodvex` Adoption Design
 
-> **North star:** hotpot delegates all codec responsibilities to zodvex. Security (RLS + FLS) operates on runtime types only. zodvex owns decode/encode; hotpot owns access control.
+> **North star:** hotpot delegates all codec responsibilities to zodvex. Security (RLS + FLS) operates exclusively on `SensitiveField` — the single runtime type for all application code. `SensitiveWire` is confined to storage and transport. zodvex owns decode/encode; hotpot owns access control.
 
 **Depends on:**
 - zodvex ships `initZodvex` with `wrapDb: true` (composition layer — `docs/plans/2026-02-18-composition-layer-impl.md`)
 - zodvex removes hooks/transforms (cleanup — `docs/plans/2026-02-18-hooks-transforms-removal.md`)
 
-**Reference:** `docs/decisions/2026-02-17-runtime-only-middleware.md` — the architectural decision that makes this design possible.
+**References:**
+- `docs/decisions/2026-02-17-runtime-only-middleware.md` — runtime-only middleware
+- `docs/decisions/2026-02-18-sensitive-field-as-universal-runtime-type.md` — SensitiveField as the universal runtime type, monotonic `applyDecision`
 
 ---
 
@@ -15,17 +17,17 @@
 ### Before (current)
 
 ```
-raw ctx.db → SecureReader (RLS → FLS → schema.parse()) → handler
+raw ctx.db → SecureReader (RLS → FLS(wire) → schema.parse()) → handler
 ```
 
-hotpot owns the entire pipeline: fetch, security, AND codec decode (`schema.parse()`). zodvex provides builders (`zCustomQueryBuilder`) and `sensitive()` codec, but hotpot invokes the parse manually.
+hotpot owns the entire pipeline: fetch, security, AND codec decode (`schema.parse()`). FLS operates on SensitiveWire objects (wire format), then the codec transforms them to SensitiveField. Two representations exist in application code — the audit logger handles both via `isSensitiveFieldInstance()` and `isSensitiveWireObject()`.
 
 ```typescript
 // hotpot/queries.ts (current)
 export const hotpotQuery = zCustomQueryBuilder(query, {
   input: async (ctx) => {
     const db = createSecureReader(ctx.db, securityCtx, config)
-    // SecureReader does: fetch → RLS → FLS → schema.parse()
+    // SecureReader does: fetch → RLS → FLS(wire) → schema.parse()
     return {
       ctx: { db, securityCtx },
       transforms: { output: (result) => { produceReadAuditLog(...); return result } }
@@ -37,10 +39,10 @@ export const hotpotQuery = zCustomQueryBuilder(query, {
 ### After (target)
 
 ```
-raw ctx.db → CodecDatabaseReader (schema.parse()) → SecurityWrapper (RLS → FLS) → handler
+raw ctx.db → CodecDatabaseReader (decode) → SecurityWrapper (RLS → FLS(runtime)) → handler
 ```
 
-zodvex owns decode/encode via `wrapDb: true`. hotpot's security layer wraps the codec-wrapped db, operating on runtime types (SensitiveField instances).
+zodvex owns decode/encode via `wrapDb: true`. hotpot's security layer wraps the codec-wrapped db, operating exclusively on `SensitiveField` instances. FLS uses `SensitiveField.applyDecision()` — a monotonic operation that can only maintain or restrict access, never escalate.
 
 ```typescript
 // hotpot/queries.ts (target)
@@ -63,7 +65,75 @@ export const hotpotQuery = zq.withContext({
 
 ---
 
-## 2. Data Flow
+## 2. Type boundary
+
+The key architectural change: SensitiveWire is confined to storage/transport. All application code operates on SensitiveField.
+
+```
+DB (SensitiveWire) ←→ codec ←→ SensitiveField ←→ everything else
+                                                    ├─ FLS (applyDecision)
+                                                    ├─ RLS (plain field access)
+                                                    ├─ Handlers (.expose(), .isFull())
+                                                    └─ Audit logging (.field, .status)
+```
+
+**Before:** FLS straddled the wire/runtime boundary — creating SensitiveWire objects and passing them to the codec. The audit logger had to handle both formats.
+
+**After:** FLS operates entirely on SensitiveField via `applyDecision()`. The audit logger only sees SensitiveField. `isSensitiveWireObject()` checks are eliminated from application code.
+
+---
+
+## 3. `SensitiveField.applyDecision()`
+
+The core API addition that enables runtime-side FLS:
+
+```typescript
+/**
+ * Apply a security access decision to this field.
+ *
+ * Monotonic: can only maintain or restrict access, never escalate.
+ * Once hidden, always hidden — regardless of decision.
+ *
+ * @param decision - The access decision from policy evaluation
+ * @param fieldPath - Qualified field path (e.g., 'patients.email')
+ * @returns New SensitiveField with the decision applied
+ */
+applyDecision(decision: ReadDecision, fieldPath: string): SensitiveField<T> {
+  // INVARIANT: hidden data cannot be restored
+  if (this.status === 'hidden') {
+    return SensitiveField.hidden(fieldPath, this.reason ?? decision.reason)
+  }
+
+  if (decision.status === 'hidden') {
+    // Restrict: full → hidden (value is nulled, not recoverable)
+    return SensitiveField.hidden(fieldPath, decision.reason)
+  }
+
+  // Maintain: full → full (enrich with field path and reason)
+  return SensitiveField.full(this.expose(), fieldPath, decision.reason)
+}
+```
+
+**Why this is on SensitiveField (not a standalone function):**
+- The monotonic invariant (can't escalate) is a property of the type, enforced by the type
+- The instance knows its own state and what transitions are valid
+- Callers (FLS) can't accidentally bypass the restriction — it's built into the method
+
+**SensitiveField.full() change:** Add optional `reason` parameter (one-line, backward-compatible):
+
+```typescript
+// CURRENT
+static full<T>(value: T, field?: string): SensitiveField<T>
+
+// NEW
+static full<T>(value: T, field?: string, reason?: ReasonCode): SensitiveField<T>
+```
+
+The constructor already accepts `reason` — `.full()` just doesn't pass it through. Single-line fix.
+
+---
+
+## 4. Data Flow
 
 ### Read path
 
@@ -76,19 +146,19 @@ handler calls SecurityWrapper.get(table, id)
   │         └─ decodeDoc(schema.doc, wireDoc) → schema.parse()
   │              └─ sensitive() codec: SensitiveWire → SensitiveField (status: 'full')
   │              └─ zx.date() codec: timestamp → Date
-  │         └─ returns runtime doc
+  │         └─ returns runtime doc (all SensitiveField, all 'full')
   │
-  ├─ SecurityWrapper receives runtime doc (SensitiveField instances)
+  ├─ SecurityWrapper receives runtime doc
   │
   ├─ RLS check: checkRlsRead(ctx, runtimeDoc, rule, resolver)
-  │    └─ RLS checks clinicId, ownerId — plain strings, identical in both formats
-  │    └─ If denied: return null
+  │    └─ If denied: return null (fail closed)
   │
-  ├─ FLS check: applyFlsRuntime(runtimeDoc, schema, ctx, resolver, options)
+  ├─ FLS: applyFlsRuntime(runtimeDoc, schema, ctx, resolver, options)
   │    └─ For each sensitive field:
   │         └─ Evaluate read policy tiers via resolver
-  │         └─ If denied: replace with SensitiveField.hidden(fieldPath, reason)
-  │         └─ If allowed: enrich with field path metadata
+  │         └─ field.applyDecision(decision, fieldPath)
+  │              └─ If denied: new SensitiveField.hidden (value nulled, not recoverable)
+  │              └─ If allowed: new SensitiveField.full (enriched with field path + reason)
   │
   └─ Return runtime doc to handler
 ```
@@ -106,7 +176,7 @@ handler calls SecurityWrapper.insert(table, runtimeDoc)
   │         └─ If hidden status: delete from doc (preserve existing data)
   │         └─ Check write policy via resolver
   │         └─ If denied: throw
-  │         └─ If allowed: pass through (DON'T call toWire — zodvex handles encode)
+  │         └─ If allowed: pass through (zodvex handles encode)
   │
   ├─ SecurityWrapper calls this.db.insert(table, checkedRuntimeDoc)
   │    └─ this.db = CodecDatabaseWriter (from zodvex wrapDb)
@@ -144,46 +214,71 @@ handler calls SecurityWrapper.patch(table, id, runtimePatch)
 
 ---
 
-## 3. What changes in hotpot
+## 5. What changes in hotpot
 
-### 3a. FLS migration: wire → runtime types
-
-**`applyFls` (read path)** — currently creates SensitiveWire objects on a wire doc. New version operates on decoded runtime doc:
+### 5a. `SensitiveField` additions
 
 ```typescript
-// CURRENT: applyFls(wireDoc, schema, ctx, resolver, options)
-// - Walks wire doc, reads raw SensitiveWire from DB
-// - Creates NEW SensitiveWire with status from policy evaluation
-// - Returns wire doc ready for schema.parse()
+// Add to SensitiveField class:
+applyDecision(decision: ReadDecision, fieldPath: string): SensitiveField<T>
 
-// NEW: applyFlsRuntime(runtimeDoc, schema, ctx, resolver, options)
-// - Walks runtime doc, finds SensitiveField instances (all status: 'full' from decode)
-// - Evaluates policies
-// - Replaces denied fields with SensitiveField.hidden(fieldPath, reason)
-// - Enriches allowed fields with fieldPath metadata
-// - Returns modified runtime doc
+// Modify existing:
+static full<T>(value: T, field?: string, reason?: ReasonCode): SensitiveField<T>
 ```
 
-Key simplification: no SensitiveWire construction, no `__sensitiveField` path injection. `SensitiveField.hidden()` and field path enrichment replace the SensitiveWire manipulation.
+Both backward-compatible. `applyDecision` is new. `.full()` gains an optional third parameter.
 
-**`applyFlsWrite` (write path)** — currently normalizes to SensitiveField, checks policy, then calls `toWire()`. New version drops the wire conversion:
+### 5b. FLS migration: wire → runtime types
+
+**`applyFls` → `applyFlsRuntime` (read path):**
 
 ```typescript
-// CURRENT: applyFlsWrite(doc, schema, ctx, resolver, options)
-// - normalizeToSensitiveField(value)
-// - Check write policy
-// - field.toWire() → SensitiveWire for DB storage
+// CURRENT: manipulates SensitiveWire objects on a wire doc
+for (const { path } of sensitiveFields) {
+  const fieldValue = getValueAtPath(doc, path) as SensitiveWire<unknown>
+  const decision = await resolveReadPolicy(policyCtx, readPolicy, resolver)
+  const newWire: SensitiveWire = {
+    value: decision.status === 'full' ? fieldValue.value : null,
+    status: decision.status,
+    __sensitiveField: fieldPath,
+  }
+  if (decision.reason) newWire.reason = decision.reason
+  setValueAtPath(doc, path, newWire)
+}
 
-// NEW: applyFlsWriteRuntime(runtimeDoc, schema, ctx, resolver, options)
-// - Already has SensitiveField instances (runtime types)
-// - Check write policy
-// - Delete hidden fields
-// - Pass through allowed fields (zodvex encodes later)
+// NEW: calls applyDecision on SensitiveField instances
+for (const { path } of sensitiveFields) {
+  const field = getValueAtPath(doc, path) as SensitiveField<unknown>
+  const decision = await resolveReadPolicy(policyCtx, readPolicy, resolver)
+  setValueAtPath(doc, path, field.applyDecision(decision, fieldPath))
+}
 ```
 
-Key simplification: `normalizeToSensitiveField()` and `field.toWire()` are no longer needed in the write FLS path. zodvex's `encodeDoc()` handles SensitiveField → SensitiveWire via the `sensitive()` codec's encode transform.
+**`applyFlsWrite` → `applyFlsWriteRuntime` (write path):**
 
-### 3b. SecureReader/SecureWriter → SecurityWrapper
+```typescript
+// CURRENT: normalizes to SensitiveField, checks policy, converts toWire()
+const field = normalizeToSensitiveField(fieldValue)
+if (field.status === 'hidden') { deleteValueAtPath(...); return }
+const decision = await resolveWritePolicy(...)
+if (!decision.allowed) throw new Error(...)
+setValueAtPath(obj, path, field.toWire())
+
+// NEW: already SensitiveField, checks policy, passes through
+const field = getValueAtPath(doc, path) as SensitiveField<unknown>
+if (field.isHidden()) { deleteValueAtPath(...); return }
+const decision = await resolveWritePolicy(...)
+if (!decision.allowed) throw new Error(...)
+// No toWire() — zodvex's encodeDoc() handles SensitiveField → SensitiveWire
+```
+
+**Deletions:**
+- `normalizeToSensitiveField()` — everything is already SensitiveField
+- SensitiveWire object construction in read FLS (`{ value, status, __sensitiveField }`)
+- `field.toWire()` calls in write FLS (codec handles encode)
+- `isSensitiveWireObject()` checks in audit logger (only SensitiveField exists in app code)
+
+### 5c. SecureReader/SecureWriter → SecurityWrapper
 
 The current `createSecureReader` takes raw `ctx.db`. The new version takes codec-wrapped `ctx.db`:
 
@@ -201,24 +296,20 @@ export function createSecureReader(db: GenericDatabaseReader, ctx, config) {
 }
 
 // NEW
-export function createSecurityWrapper(db: CodecDatabaseReader, ctx, config) {
+export function createSecurityWrapper(db, ctx, config) {
   return {
     async get(table, id) {
-      const doc = await db.get(id)                          // already decoded runtime doc
+      const doc = await db.get(id)                              // decoded runtime doc
+      if (!doc) return null
       const rlsOk = await checkRlsRead(ctx, doc, ...)
-      return applyFlsRuntime(doc, schema, ctx, resolver, ...) // runtime → runtime (policy applied)
+      if (!rlsOk) return null
+      return applyFlsRuntime(doc, schema, ctx, resolver, ...)   // SensitiveField → SensitiveField
     }
   }
 }
 ```
 
-**Deletions from SecureReader/Writer:**
-- Remove `schema.parse()` calls (lines 137, 175 in `db.ts`)
-- Remove `applyFls` import (replaced by `applyFlsRuntime`)
-- Remove SensitiveWire creation logic from FLS
-- Remove `normalizeToSensitiveField()` and `field.toWire()` from write FLS
-
-### 3c. Builder migration
+### 5d. Builder migration
 
 Replace `zCustomQueryBuilder` / `zCustomMutationBuilder` with `initZodvex` builders:
 
@@ -246,7 +337,7 @@ transforms: { output: (result) => { produceReadAuditLog(securityCtx, result); re
 onSuccess: ({ result }) => produceReadAuditLog(securityCtx, result)
 ```
 
-### 3d. Schema bridge: models → ZodTableMap
+### 5e. Schema bridge: models → ZodTableMap
 
 zodvex's `initZodvex` expects `{ __zodTableMap: ZodTableMap }`. hotpot's models already have the right shape:
 
@@ -274,26 +365,22 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(
 
 ---
 
-## 4. What does NOT change
+## 6. What does NOT change
 
 | Component | Why unchanged |
 |-----------|---------------|
 | `sensitive()` codec | Still defines SensitiveWire ↔ SensitiveField transform. zodvex invokes it via schema.parse/z.encode |
-| `SensitiveField` class | Runtime representation unchanged. FLS still creates `.hidden()` / `.full()` instances |
 | RLS logic (`checkRlsRead/Write`) | Checks clinicId, ownerId, role — plain fields identical in wire and runtime |
 | Policy resolution (`resolveReadPolicy/WritePolicy`) | Evaluates requirements against resolver — type-agnostic |
-| `hotpotResolver` | Checks entitlements, roles, self-access — no SensitiveWire/Field dependency |
+| `hotpotResolver` | Checks entitlements, roles, self-access — no format dependency |
 | Two-phase RLS for patch | Still checks old + new state. Both are now runtime docs (works identically) |
 | `extra` args / `required` entitlements | Flows through `input(ctx, args, extra)` unchanged |
-| Audit logging (`produceReadAuditLog/WriteAuditLog`) | Already supports SensitiveField instances (runtime types) |
 | `defineHotpotModel` | Model definitions unchanged. ZodTableMap derived from existing models |
 | `createSecurityConfig` | Factory pattern unchanged. Schemas/rules/fieldRules derived from models |
 
 ---
 
-## 5. Why `.withContext()` works
-
-The runtime-only middleware decision (2026-02-17) resolves what seemed like a hard constraint: FLS needing wire-type access between fetch and decode.
+## 7. Why `.withContext()` works
 
 `.withContext()` composition order: **codec first, then user**:
 
@@ -301,43 +388,18 @@ The runtime-only middleware decision (2026-02-17) resolves what seemed like a ha
 raw db → CodecDatabaseReader (decode) → user customization → handler
 ```
 
-With wire-side FLS, this ordering was impossible — FLS needed to create SensitiveWire objects *before* decode. But with runtime-side FLS, the ordering is natural:
+This ordering works because FLS operates on `SensitiveField` via `applyDecision()`. The codec produces SensitiveField instances (all `status: 'full'` from DB storage), and FLS applies access decisions monotonically — can only maintain or restrict, never escalate.
 
-1. zodvex decodes: SensitiveWire → SensitiveField (all `status: 'full'` from DB)
-2. hotpot's FLS evaluates policies on SensitiveField instances
-3. Denied fields → `SensitiveField.hidden()` (value nulled, status set)
-4. Handler receives security-processed runtime doc
+The important invariants that make this safe:
+- `applyDecision` on a hidden field always returns hidden (hidden data can't be restored)
+- If SecurityWrapper encounters an error, it fails closed (returns null / throws)
+- The handler never sees the intermediate state (pre-FLS SensitiveField instances)
 
 **Performance:** The decision doc's analysis holds — decoding docs that RLS will filter costs ~0.024ms per doc, <5% of DB query time. Acceptable tradeoff for the architectural simplification.
 
 ---
 
-## 6. FLS detail: field path metadata
-
-**Current approach:** `applyFlsToPath` injects `__sensitiveField: 'patients.email'` into SensitiveWire objects. After decode, `SensitiveField.fromWire()` preserves this as `.field`. The audit logger uses `.field` to identify which sensitive field was accessed.
-
-**Runtime approach:** After codec decode, SensitiveField instances won't have `.field` set (the DB SensitiveWire doesn't store `__sensitiveField` — it's added by FLS during reads). Two options:
-
-**A. FLS enriches field path during processing (recommended):**
-```typescript
-// In applyFlsRuntime, for each sensitive field:
-const enriched = decision.status === 'full'
-  ? SensitiveField.full(existingField.expose(), { field: fieldPath, reason: decision.reason })
-  : SensitiveField.hidden(fieldPath, decision.reason)
-```
-
-This mirrors the current behavior: FLS is the source of truth for field paths and access reasons.
-
-**B. Audit logger infers paths from schema:**
-Walk the schema structure and match against SensitiveField instances by position. More complex, less explicit.
-
-Option A is simpler and maintains the current contract: FLS is responsible for annotating sensitive fields with their path and access decision.
-
-**Prerequisite:** `SensitiveField.full()` needs an optional metadata parameter (or a `.withMeta()` method) to set `.field` and `.reason` on allowed fields. Currently `.field` is only set on hidden instances. This is a minor `SensitiveField` API addition.
-
----
-
-## 7. Sequencing
+## 8. Sequencing
 
 ### Phase 1: zodvex ships composition layer
 - `initZodvex`, `createCodecCustomization`, `ZodvexBuilder` type
@@ -355,57 +417,62 @@ Option A is simpler and maintains the current contract: FLS is responsible for a
 - Follow `docs/plans/2026-02-18-hotpot-hooks-migration.md`
 - **Can be done independently of initZodvex adoption**
 
-### Phase 4: hotpot adopts initZodvex
+### Phase 4: hotpot adopts initZodvex + SensitiveField.applyDecision
+- Add `applyDecision()` to SensitiveField class
+- Add `reason` parameter to `SensitiveField.full()`
 - Create zodvex composition root (`convex/zodvex.ts`)
 - Replace `zCustomQueryBuilder` / `zCustomMutationBuilder` with `zq.withContext()` / `zm.withContext()`
 - Replace `zQueryBuilder(query)` / `zMutationBuilder(mutation)` with re-exported `zq` / `zm`
-- **This phase does NOT yet change SecureReader/Writer** — they still wrap raw ctx.db. The `wrapDb` benefit only kicks in after FLS migration.
-- This can use `wrapDb: false` initially, or `wrapDb: true` with the customization's `input` overriding `ctx.db` with the SecureReader (which still does its own schema.parse)
+- **This phase does NOT yet change SecureReader/Writer** — can use `wrapDb: false` initially, with SecureReader still wrapping raw ctx.db
 
-### Phase 5: FLS runtime migration (the big one)
-- Migrate `applyFls` → `applyFlsRuntime` (runtime-side field security)
-- Migrate `applyFlsWrite` → `applyFlsWriteRuntime` (drop `toWire()` call)
+### Phase 5: FLS runtime migration
+- Migrate `applyFls` → `applyFlsRuntime` (uses `field.applyDecision()` instead of SensitiveWire construction)
+- Migrate `applyFlsWrite` → `applyFlsWriteRuntime` (drop `normalizeToSensitiveField()` and `toWire()`)
 - Refactor `createSecureReader/Writer` → `createSecurityWrapper` (accepts codec-wrapped db, no schema.parse)
-- Add `.field` metadata support to `SensitiveField.full()`
 - Switch to `wrapDb: true` in the zodvex composition root
 - **Full test coverage before and after** — security behavior must be identical
 
 ### Phase 6: Cleanup
 - Remove old `applyFls` / `applyFlsWrite` (wire-side versions)
-- Remove `normalizeToSensitiveField()` from FLS (no longer needed)
+- Remove `normalizeToSensitiveField()` from FLS
+- Remove `isSensitiveWireObject()` checks from audit logger
 - Remove manual `schema.parse()` calls from security layer
 - Update security tests to use runtime types throughout
 
 ---
 
-## 8. Risk assessment
+## 9. Risk assessment
 
 | Risk | Mitigation |
 |------|------------|
-| FLS runtime migration breaks security | Extensive test coverage: every existing test must pass with identical assertions. Add property-based tests for FLS policy evaluation. |
+| FLS runtime migration breaks security | Extensive test coverage: every existing test must pass with identical assertions. `applyDecision()` enforces monotonic restriction at the type level. |
+| Hidden data restored via applyDecision bug | `applyDecision` checks `this.status` first — if already hidden, returns hidden regardless of decision. This is the hard invariant. |
 | Decode cost on RLS-filtered docs | Decision doc benchmarked: ~22ms worst case (1000 docs, 900 filtered). Acceptable. Add benchmark test as living documentation. |
-| SensitiveField metadata gap | Small API addition (`SensitiveField.full()` with metadata). Backward-compatible. |
-| Double parsing during incremental migration | Phase 4 uses `wrapDb: false` or overrides ctx.db, avoiding double parse. Phase 5 is atomic switchover. |
+| Double parsing during incremental migration | Phase 4 uses `wrapDb: false` to avoid double parse. Phase 5 is the atomic switchover to `wrapDb: true`. |
 | Schema mismatch between zodvex ZodTableMap and hotpot models | ZodTableMap is derived from the same `model.schema.doc/insert` that security already uses. Single source of truth. |
 
 ---
 
-## 9. Net effect
+## 10. Net effect
 
 **Deleted from hotpot:**
 - `schema.parse()` calls in SecureReader/Writer (~4 call sites)
-- SensitiveWire creation in `applyFls` read path
+- SensitiveWire object construction in `applyFls` read path
 - `normalizeToSensitiveField()` + `field.toWire()` in `applyFlsWrite`
+- `isSensitiveWireObject()` checks in audit logger
 - `zCustomQueryBuilder` / `zCustomMutationBuilder` imports and manual type parameters
 - `transforms.output` usage
 
 **Added to hotpot:**
+- `SensitiveField.applyDecision()` (~10 lines, enforces monotonic restriction)
+- `SensitiveField.full()` gains `reason` parameter (one-line change)
 - zodvex composition root (`convex/zodvex.ts`, ~15 lines)
 - `applyFlsRuntime` / `applyFlsWriteRuntime` (simpler than current versions)
-- `SensitiveField.full()` metadata parameter
 
 **Architectural win:**
+- SensitiveField is the single runtime type — all application code operates on one representation
+- SensitiveWire is confined to storage/transport — an implementation detail of the codec
 - zodvex owns all codec logic (decode/encode) at the DB boundary
 - hotpot owns all security logic (RLS/FLS) at the runtime level
-- Clean separation: security never touches wire format, codec never touches access control
+- Audit logger simplified: only handles SensitiveField (dual-format handling eliminated)
 - `.withContext()` composition "just works" — no manual `createCodecCustomization` needed
