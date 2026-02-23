@@ -7,6 +7,7 @@ export default defineConfig({
     'src/server/index.ts',
     'src/transform/index.ts',
     'src/cli/index.ts',
+    'src/codegen/index.ts',
   ],
   format: ['esm'],
   // DTS handled by tsc in build script - tsup's dts doesn't output individual files

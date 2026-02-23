@@ -39,6 +39,11 @@
       "types": "./dist/transform/index.d.ts",
       "import": "./dist/transform/index.js",
       "default": "./dist/transform/index.js"
+    },
+    "./codegen": {
+      "types": "./dist/codegen/index.d.ts",
+      "import": "./dist/codegen/index.js",
+      "default": "./dist/codegen/index.js"
     }
   },
   "files": ["dist", "src", "README.md", "LICENSE"],
