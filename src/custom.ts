@@ -15,6 +15,7 @@ import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
+import { attachMeta } from './meta'
 import {
   assertNoNativeZodDate,
   handleZodValidationError,
@@ -225,7 +226,7 @@ export function customFnBuilder<
       // Check for z.date() usage at construction time (once), not on every invocation
       assertNoNativeZodDate(argsSchema, 'args')
 
-      return builder({
+      const registered = builder({
         args: convexArgs,
         ...returnValidator,
         handler: async (ctx: Ctx, allArgs: any) => {
@@ -275,8 +276,10 @@ export function customFnBuilder<
           return result
         }
       })
+      attachMeta(registered, { type: 'function', zodArgs: argsSchema, zodReturns: returns })
+      return registered
     }
-    return builder({
+    const registered = builder({
       args: inputArgs,
       ...returnValidator,
       handler: async (ctx: Ctx, allArgs: any) => {
@@ -313,6 +316,8 @@ export function customFnBuilder<
         return result
       }
     })
+    attachMeta(registered, { type: 'function', zodArgs: undefined, zodReturns: returns })
+    return registered
   }
 }
 
