@@ -15,6 +15,7 @@ import type {
   InferReturns,
   ZodToConvexArgs
 } from './types'
+import { attachMeta } from './meta'
 import { zAction, zMutation, zQuery } from './wrappers'
 
 /**
@@ -55,9 +56,18 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
     ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
     Promise<InferReturns<R>>
   > => {
-    return zQuery(builder, config.args ?? ({} as any), config.handler, {
+    const result = zQuery(builder, config.args ?? ({} as any), config.handler, {
       returns: config.returns
-    }) as any
+    })
+    const zodArgs = config.args
+      ? config.args instanceof z.ZodObject
+        ? config.args
+        : config.args instanceof z.ZodType
+          ? undefined
+          : z.object(config.args as Record<string, z.ZodTypeAny>)
+      : undefined
+    attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
+    return result as any
   }
 }
 
@@ -99,9 +109,18 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
     ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
     Promise<InferReturns<R>>
   > => {
-    return zMutation(builder, config.args ?? ({} as any), config.handler, {
+    const result = zMutation(builder, config.args ?? ({} as any), config.handler, {
       returns: config.returns
-    }) as any
+    })
+    const zodArgs = config.args
+      ? config.args instanceof z.ZodObject
+        ? config.args
+        : config.args instanceof z.ZodType
+          ? undefined
+          : z.object(config.args as Record<string, z.ZodTypeAny>)
+      : undefined
+    attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
+    return result as any
   }
 }
 
@@ -143,9 +162,18 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
     ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
     Promise<InferReturns<R>>
   > => {
-    return zAction(builder, config.args ?? ({} as any), config.handler, {
+    const result = zAction(builder, config.args ?? ({} as any), config.handler, {
       returns: config.returns
-    }) as any
+    })
+    const zodArgs = config.args
+      ? config.args instanceof z.ZodObject
+        ? config.args
+        : config.args instanceof z.ZodType
+          ? undefined
+          : z.object(config.args as Record<string, z.ZodTypeAny>)
+      : undefined
+    attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
+    return result as any
   }
 }
 
