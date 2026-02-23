@@ -86,10 +86,7 @@ describe('zodvex/server exports', () => {
   })
 
   it('exports custom function utilities', async () => {
-    const { customCtxWithHooks, zCustomQuery, zCustomMutation, zCustomAction } = await import(
-      '../src/server'
-    )
-    expect(customCtxWithHooks).toBeDefined()
+    const { zCustomQuery, zCustomMutation, zCustomAction } = await import('../src/server')
     expect(zCustomQuery).toBeDefined()
     expect(zCustomMutation).toBeDefined()
     expect(zCustomAction).toBeDefined()

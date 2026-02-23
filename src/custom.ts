@@ -10,7 +10,7 @@ import {
   type MutationBuilder,
   type QueryBuilder
 } from 'convex/server'
-import { ConvexError, type PropertyValidators } from 'convex/values'
+import { type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
@@ -22,132 +22,6 @@ import {
   stripUndefined,
   validateReturns
 } from './utils'
-
-/**
- * Hooks for observing the function execution (side effects, no return value).
- */
-export type CustomizationHooks = {
-  /** Called after successful execution with access to ctx, args, and result */
-  onSuccess?: (info: {
-    ctx: unknown
-    args: Record<string, unknown>
-    result: unknown
-  }) => void | Promise<void>
-}
-
-/**
- * Transforms for modifying data in the function flow.
- */
-export type CustomizationTransforms = {
-  /** Transform args after validation but before handler receives them */
-  input?: (args: unknown, schema: z.ZodTypeAny) => unknown | Promise<unknown>
-  /** Transform the output after validation but before wire encoding */
-  output?: (result: unknown, schema: z.ZodTypeAny) => unknown | Promise<unknown>
-}
-
-/**
- * Result returned from a customization input function.
- * Separates Convex concepts (ctx, args) from hooks (side effects) and transforms (data modifications).
- */
-export type CustomizationResult<
-  CustomCtx extends Record<string, any> = Record<string, any>,
-  CustomArgs extends Record<string, any> = Record<string, any>
-> = {
-  /** Custom context to merge with base context */
-  ctx?: CustomCtx
-  /** Custom args to merge with parsed args */
-  args?: CustomArgs
-  /** Hooks for observing execution (side effects) */
-  hooks?: CustomizationHooks
-  /** Transforms for modifying the data flow */
-  transforms?: CustomizationTransforms
-}
-
-/**
- * Extended input result that includes hooks and transforms.
- * This is what the input function returns internally.
- */
-export type CustomizationInputResult<
-  OutCtx extends Record<string, any>,
-  OutArgs extends Record<string, any>
-> = {
-  ctx: OutCtx
-  args: OutArgs
-  hooks?: CustomizationHooks
-  transforms?: CustomizationTransforms
-}
-
-/**
- * Customization type that supports hooks and transforms.
- * This extends convex-helpers' Customization pattern to include
- * hooks (side effects) and transforms (data modifications).
- *
- * Use customCtxWithHooks() to create instances of this type.
- */
-export type CustomizationWithHooks<
-  InCtx extends Record<string, any>,
-  OutCtx extends Record<string, any> = Record<string, any>,
-  OutArgs extends Record<string, any> = Record<string, any>,
-  ExtraArgs extends Record<string, any> = Record<string, any>
-> = {
-  args: Record<string, never>
-  input: (
-    ctx: InCtx,
-    args?: Record<string, unknown>,
-    extra?: ExtraArgs
-  ) =>
-    | Promise<CustomizationInputResult<OutCtx, OutArgs>>
-    | CustomizationInputResult<OutCtx, OutArgs>
-}
-
-/**
- * A helper for defining a Customization with full support for hooks and transforms.
- * Use this instead of customCtx when you need onSuccess, transforms.input, transforms.output, etc.
- *
- * @example
- * ```ts
- * const secureMutation = zCustomMutationBuilder(
- *   mutation,
- *   customCtxWithHooks(async (ctx: MutationCtx) => {
- *     const securityCtx = await getSecurityContext(ctx)
- *     return {
- *       ctx: { securityCtx },
- *       hooks: {
- *         onSuccess: ({ result }) => console.log('Mutation returned:', result),
- *       },
- *       transforms: {
- *         // Transform incoming args (e.g., wire format → runtime objects)
- *         input: (args, schema) => transformIncomingArgs(args, securityCtx),
- *         // Transform outgoing result (e.g., runtime objects → wire format)
- *         output: (result, schema) => transformOutgoingResult(result, securityCtx),
- *       },
- *     }
- *   })
- * )
- * ```
- */
-export function customCtxWithHooks<
-  InCtx extends Record<string, any>,
-  OutCtx extends Record<string, any> = Record<string, any>,
-  OutArgs extends Record<string, any> = Record<string, any>
->(
-  fn: (
-    ctx: InCtx
-  ) => Promise<CustomizationResult<OutCtx, OutArgs>> | CustomizationResult<OutCtx, OutArgs>
-): CustomizationWithHooks<InCtx, OutCtx, OutArgs> {
-  return {
-    args: {},
-    input: async (ctx: InCtx): Promise<CustomizationInputResult<OutCtx, OutArgs>> => {
-      const result = await fn(ctx)
-      return {
-        ctx: result.ctx ?? ({} as OutCtx),
-        args: result.args ?? ({} as OutArgs),
-        hooks: result.hooks,
-        transforms: result.transforms
-      }
-    }
-  }
-}
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
@@ -305,9 +179,7 @@ export function customFnBuilder<
   ExtraArgs extends Record<string, any> = Record<string, any>
 >(
   builder: Builder,
-  customization:
-    | Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
-    | CustomizationWithHooks<Ctx, CustomCtx, CustomMadeArgs, ExtraArgs>
+  customization: Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
   const customInput = customization.input ?? NoOp.input
   const inputArgs = customization.args ?? NoOp.args
@@ -359,9 +231,7 @@ export function customFnBuilder<
         handler: async (ctx: Ctx, allArgs: any) => {
           // Cast justification: customInput expects ObjectType<CustomArgsValidator>, but pick()
           // returns Partial<T>. The cast is safe because inputArgs keys are derived from
-          // CustomArgsValidator at the type level. The 'added' result is typed as 'any' because
-          // it may include hooks/transforms from CustomizationWithHooks which aren't in the
-          // convex-helpers Customization type.
+          // CustomArgsValidator at the type level.
           // TODO: Create a type-safe pickArgs<T>() helper that preserves the ObjectType<T>
           // return type when the keys are statically known from the validator.
           const added: any = await customInput(
@@ -379,34 +249,17 @@ export function customFnBuilder<
           const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
           const baseArgs = parsed.data as Record<string, unknown>
           const addedArgs = (added?.args as Record<string, unknown>) ?? {}
-          let finalArgs = { ...baseArgs, ...addedArgs }
-
-          // Apply input transform if provided (after validation, before handler)
-          if (added?.transforms?.input) {
-            finalArgs = (await added.transforms.input(finalArgs, argsSchema)) as Record<
-              string,
-              unknown
-            >
-          }
+          const finalArgs = { ...baseArgs, ...addedArgs }
 
           const ret = await handler(finalCtx, finalArgs)
           // Always run Zod return validation when returns schema is provided
           if (returns) {
-            // Apply output transform BEFORE validation (converts internal format → wire format)
-            // This allows class instances (e.g., SensitiveField) to be converted to plain objects
-            // before validation processes them
-            const preTransformed = added?.transforms?.output
-              ? await added.transforms.output(ret, returns as z.ZodTypeAny)
-              : ret
-
             // Validate and encode using z.encode (Zod handles codecs natively)
-            const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
+            const validated = validateReturns(returns as z.ZodTypeAny, ret)
             // Strip undefined values before returning (Convex rejects explicit undefined)
             const result = stripUndefined(validated)
-            // Support both zodvex (hooks.onSuccess) and convex-helpers (onSuccess) conventions
-            const onSuccess = added?.hooks?.onSuccess ?? added?.onSuccess
-            if (onSuccess) {
-              await onSuccess({
+            if (added?.onSuccess) {
+              await added.onSuccess({
                 ctx,
                 args: parsed.data,
                 result
@@ -416,9 +269,8 @@ export function customFnBuilder<
           }
           // Strip undefined even without returns schema (Convex rejects explicit undefined)
           const result = stripUndefined(ret)
-          const onSuccess2 = added?.hooks?.onSuccess ?? added?.onSuccess
-          if (onSuccess2) {
-            await onSuccess2({ ctx, args: parsed.data, result })
+          if (added?.onSuccess) {
+            await added.onSuccess({ ctx, args: parsed.data, result })
           }
           return result
         }
@@ -439,43 +291,24 @@ export function customFnBuilder<
         const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
         const baseArgs = allArgs as Record<string, unknown>
         const addedArgs = (added?.args as Record<string, unknown>) ?? {}
-        let finalArgs = { ...baseArgs, ...addedArgs }
-
-        // Apply input transform if provided (even without args schema)
-        // Note: schema is z.unknown() in no-args path, transform should handle this
-        if (added?.transforms?.input) {
-          finalArgs = (await added.transforms.input(finalArgs, z.unknown())) as Record<
-            string,
-            unknown
-          >
-        }
+        const finalArgs = { ...baseArgs, ...addedArgs }
 
         const ret = await handler(finalCtx, finalArgs)
         // Always run Zod return validation when returns schema is provided
         if (returns) {
-          // Apply output transform BEFORE validation (converts internal format → wire format)
-          // This allows class instances (e.g., SensitiveField) to be converted to plain objects
-          // before validation processes them
-          const preTransformed = added?.transforms?.output
-            ? await added.transforms.output(ret, returns as z.ZodTypeAny)
-            : ret
-
           // Validate and encode using z.encode (Zod handles codecs natively)
-          const validated = validateReturns(returns as z.ZodTypeAny, preTransformed)
+          const validated = validateReturns(returns as z.ZodTypeAny, ret)
           // Strip undefined values before returning (Convex rejects explicit undefined)
           const result = stripUndefined(validated)
-          // Support both zodvex (hooks.onSuccess) and convex-helpers (onSuccess) conventions
-          const onSuccess = added?.hooks?.onSuccess ?? added?.onSuccess
-          if (onSuccess) {
-            await onSuccess({ ctx, args: allArgs, result })
+          if (added?.onSuccess) {
+            await added.onSuccess({ ctx, args: allArgs, result })
           }
           return result
         }
         // Strip undefined even without returns schema (Convex rejects explicit undefined)
         const result = stripUndefined(ret)
-        const onSuccess2 = added?.hooks?.onSuccess ?? added?.onSuccess
-        if (onSuccess2) {
-          await onSuccess2({ ctx, args: allArgs, result })
+        if (added?.onSuccess) {
+          await added.onSuccess({ ctx, args: allArgs, result })
         }
         return result
       }

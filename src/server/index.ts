@@ -14,7 +14,7 @@
 export { customCtx } from 'convex-helpers/server/customFunctions'
 // Function builders (zQueryBuilder, zMutationBuilder, zActionBuilder, etc.)
 export * from '../builders'
-// Custom function utilities (customCtxWithHooks, zCustomQuery, etc.)
+// Custom function utilities (zCustomQuery, zCustomMutation, zCustomAction, etc.)
 export * from '../custom'
 // Codec customization (manual composition escape hatch)
 export { createCodecCustomization } from '../customization'

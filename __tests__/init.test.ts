@@ -76,25 +76,6 @@ describe('composeCodecAndUser', () => {
     expect(result.ctx.db.wrapped).toBe(true)
   })
 
-  it('propagates user hooks.onSuccess through composition', async () => {
-    const onSuccessFn = () => {
-      /* noop */
-    }
-    const userCust = {
-      args: {},
-      input: async () => ({
-        ctx: {},
-        args: {},
-        hooks: { onSuccess: onSuccessFn }
-      })
-    }
-
-    const composed = composeCodecAndUser(mockCodecCust, userCust)
-    const result = await composed.input({}, {})
-
-    expect(result.hooks?.onSuccess).toBe(onSuccessFn)
-  })
-
   it('propagates user top-level onSuccess (convex-helpers convention)', async () => {
     const onSuccessFn = () => {
       /* noop */
@@ -112,26 +93,6 @@ describe('composeCodecAndUser', () => {
     const result = await composed.input({}, {})
 
     expect(result.onSuccess).toBe(onSuccessFn)
-  })
-
-  it('propagates user transforms through composition', async () => {
-    const transforms = {
-      input: (args: any) => args,
-      output: (result: any) => result
-    }
-    const userCust = {
-      args: {},
-      input: async () => ({
-        ctx: {},
-        args: {},
-        transforms
-      })
-    }
-
-    const composed = composeCodecAndUser(mockCodecCust, userCust)
-    const result = await composed.input({}, {})
-
-    expect(result.transforms).toBe(transforms)
   })
 })
 

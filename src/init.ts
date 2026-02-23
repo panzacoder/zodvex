@@ -146,8 +146,8 @@ export function initZodvex(
  * Codec input runs first (wraps ctx.db), user input runs second
  * (sees codec-wrapped ctx.db).
  *
- * Propagates hooks, transforms, and onSuccess from the user's customization
- * through the composed return value so customFnBuilder can find them.
+ * Propagates onSuccess from the user's customization through the composed
+ * return value so customFnBuilder can find it.
  *
  * @internal Exported for testing only -- not part of the public API.
  */
@@ -168,14 +168,11 @@ export function composeCodecAndUser(
       }
       const userResult = await userCust.input(codecCtx, args, extra)
 
-      // 3. Merge ctx/args; pass through user's hooks/transforms/onSuccess
+      // 3. Merge ctx/args; pass through user's onSuccess (convex-helpers convention)
       return {
         ctx: { ...codecResult.ctx, ...(userResult.ctx ?? {}) },
         args: userResult.args ?? {},
-        // Preserve both zodvex (hooks) and convex-helpers (onSuccess) conventions
-        ...(userResult.hooks && { hooks: userResult.hooks }),
-        ...(userResult.onSuccess && { onSuccess: userResult.onSuccess }),
-        ...(userResult.transforms && { transforms: userResult.transforms })
+        ...(userResult.onSuccess && { onSuccess: userResult.onSuccess })
       }
     }
   }
