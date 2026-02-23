@@ -1,0 +1,5 @@
+node_modules/
+dist/
+convex/_generated/
+convex/_zodvex/
+.env.local
