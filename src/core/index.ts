@@ -14,6 +14,8 @@ export * from '../codec'
 export * from '../ids'
 // Zod → Convex validator mapping
 export * from '../mapping'
+// Codegen metadata utilities
+export * from '../meta'
 // Client-safe model definitions
 export * from '../model'
 // JSON Schema overrides and registry

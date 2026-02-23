@@ -46,6 +46,12 @@ describe('zodvex/core exports', () => {
     expect(toJSONSchema).toBeDefined()
   })
 
+  it('exports meta utilities', async () => {
+    const { attachMeta, readMeta } = await import('../src/core')
+    expect(attachMeta).toBeDefined()
+    expect(readMeta).toBeDefined()
+  })
+
   it('does NOT export zodTable', async () => {
     const core = await import('../src/core')
     expect((core as any).zodTable).toBeUndefined()
