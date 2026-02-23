@@ -89,6 +89,8 @@ export type ZodModel<
   readonly fields: Fields
   readonly schema: {
     readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
+    /** User fields only — alias for insert */
+    readonly base: z.ZodObject<Fields>
     readonly insert: z.ZodObject<Fields>
     readonly update: z.ZodObject<
       { _id: ZxId<Name>; _creationTime: z.ZodOptional<z.ZodNumber> } & {
@@ -194,6 +196,7 @@ export function defineZodModel<Name extends string, Fields extends z.ZodRawShape
 
   const schema = {
     doc: docSchema,
+    base: insertSchema,
     insert: insertSchema,
     update: updateSchema,
     docArray: docArraySchema

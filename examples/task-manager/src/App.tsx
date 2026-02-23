@@ -67,7 +67,7 @@ function TaskPanel() {
       {!ownerId && <p>Create a user with email "demo@example.com" first</p>}
 
       <ul>
-        {tasks?.page?.map((task: any) => (
+        {tasks?.page?.map((task) => (
           <li key={task._id}>
             <strong>{task.title}</strong> — {task.status}
             {task.estimate != null && ` (est: ${task.estimate} min)`}

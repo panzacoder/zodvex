@@ -99,8 +99,13 @@ async function main() {
   assert(task!.priority === 'high', 'task priority matches')
   assert(task!.ownerId === userId, 'task ownerId matches')
   assert(typeof task!.createdAt === 'number', `task createdAt is wire format: ${task!.createdAt}`)
-  assert(typeof task!.estimate === 'number', `task estimate is wire format (number): ${task!.estimate}`)
-  assert(task!.estimate === 90, 'task estimate value is 90 (minutes)')
+  // NOTE: estimate is zDuration codec — the return type says {hours, minutes}
+  // but the wire format is a number (minutes). This is a known boundary question:
+  // should the return type reflect decoded or wire format?
+  // For now, test the actual wire value.
+  const rawEstimate = task!.estimate as unknown as number
+  assert(typeof rawEstimate === 'number', `task estimate is wire format (number): ${rawEstimate}`)
+  assert(rawEstimate === 90, 'task estimate value is 90 (minutes)')
 
   // Complete the task
   await client.mutation(api.tasks.complete, { id: taskId })

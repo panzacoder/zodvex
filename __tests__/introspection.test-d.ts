@@ -89,11 +89,12 @@ describe('Table introspection preserves enum types', () => {
     type ProjectsTable = typeof Projects.table
 
     // Extract the document type from the table
-    type ProjectsDoc = ProjectsTable extends TableDefinition<infer V, any, any, any>
-      ? V extends VObject<infer Fields, any, any, any>
-        ? Fields
+    type ProjectsDoc =
+      ProjectsTable extends TableDefinition<infer V, any, any, any>
+        ? V extends VObject<infer Fields, any, any, any>
+          ? Fields
+          : never
         : never
-      : never
 
     // THE ACTUAL TEST: type field should NOT be undefined
     // This should fail with current implementation
@@ -126,11 +127,12 @@ describe('Table introspection preserves enum types', () => {
     const TestTable = zodTable('test', shape)
 
     type TestTableType = typeof TestTable.table
-    type TestDoc = TestTableType extends TableDefinition<infer V, any, any, any>
-      ? V extends VObject<infer Fields, any, any, any>
-        ? Fields
+    type TestDoc =
+      TestTableType extends TableDefinition<infer V, any, any, any>
+        ? V extends VObject<infer Fields, any, any, any>
+          ? Fields
+          : never
         : never
-      : never
 
     // This should fail if enums show as undefined
     expectTypeOf<TestDoc['status']>().not.toEqualTypeOf<undefined>()

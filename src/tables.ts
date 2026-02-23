@@ -310,19 +310,17 @@ function isObjectShape(input: any): input is Record<string, z.ZodTypeAny> {
  * ```
  */
 // Helper type to compute the result of addSystemFields for use in zodTable return type
-type AddSystemFieldsResult<
-  TableName extends string,
-  Schema extends z.ZodTypeAny
-> = Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
-  ? z.ZodObject<Shape & SystemFields<TableName>>
-  : Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
-    ? z.ZodUnion<MapSystemFields<TableName, Options>>
-    : Schema extends z.ZodDiscriminatedUnion<
-          infer Options extends readonly z.ZodObject<z.ZodRawShape>[],
-          infer Disc extends string
-        >
-      ? z.ZodDiscriminatedUnion<MapSystemFields<TableName, Options>, Disc>
-      : Schema
+type AddSystemFieldsResult<TableName extends string, Schema extends z.ZodTypeAny> =
+  Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
+    ? z.ZodObject<Shape & SystemFields<TableName>>
+    : Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
+      ? z.ZodUnion<MapSystemFields<TableName, Options>>
+      : Schema extends z.ZodDiscriminatedUnion<
+            infer Options extends readonly z.ZodObject<z.ZodRawShape>[],
+            infer Disc extends string
+          >
+        ? z.ZodDiscriminatedUnion<MapSystemFields<TableName, Options>, Disc>
+        : Schema
 
 /**
  * Update schema shape: _id required, _creationTime optional, user fields partial
@@ -349,19 +347,17 @@ type MapUpdateVariants<TableName extends string, Options extends readonly z.ZodT
  * For objects: the whole object gets update shape
  * For other types: returns as-is
  */
-type UpdateSchemaType<
-  TableName extends string,
-  Schema extends z.ZodTypeAny
-> = Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
-  ? z.ZodUnion<MapUpdateVariants<TableName, Options>>
-  : Schema extends z.ZodDiscriminatedUnion<
-        infer Options extends readonly z.ZodObject<z.ZodRawShape>[],
-        infer _Disc extends string
-      >
+type UpdateSchemaType<TableName extends string, Schema extends z.ZodTypeAny> =
+  Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
     ? z.ZodUnion<MapUpdateVariants<TableName, Options>>
-    : Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
-      ? z.ZodObject<UpdateShape<TableName, Shape>>
-      : Schema
+    : Schema extends z.ZodDiscriminatedUnion<
+          infer Options extends readonly z.ZodObject<z.ZodRawShape>[],
+          infer _Disc extends string
+        >
+      ? z.ZodUnion<MapUpdateVariants<TableName, Options>>
+      : Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
+        ? z.ZodObject<UpdateShape<TableName, Shape>>
+        : Schema
 
 // Overload 1: Object shape (most common case - raw object with Zod validators)
 export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(

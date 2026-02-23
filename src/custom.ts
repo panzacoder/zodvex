@@ -73,20 +73,22 @@ type ArgsOutput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = 
 export type { Overwrite } from './types'
 
 // Hack to simplify how TypeScript renders object types
-type Expand<ObjectType extends Record<any, any>> = ObjectType extends Record<any, any>
-  ? {
-      [Key in keyof ObjectType]: ObjectType[Key]
-    }
-  : never
+type Expand<ObjectType extends Record<any, any>> =
+  ObjectType extends Record<any, any>
+    ? {
+        [Key in keyof ObjectType]: ObjectType[Key]
+      }
+    : never
 
 type ArgsForHandlerType<
   OneOrZeroArgs extends [] | [Record<string, any>],
   CustomMadeArgs extends Record<string, any>
-> = CustomMadeArgs extends Record<string, never>
-  ? OneOrZeroArgs
-  : OneOrZeroArgs extends [infer A]
-    ? [Expand<A & CustomMadeArgs>]
-    : [CustomMadeArgs]
+> =
+  CustomMadeArgs extends Record<string, never>
+    ? OneOrZeroArgs
+    : OneOrZeroArgs extends [infer A]
+      ? [Expand<A & CustomMadeArgs>]
+      : [CustomMadeArgs]
 
 // Helper type for function registration (from zodV3)
 type Registration<

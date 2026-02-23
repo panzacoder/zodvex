@@ -25,11 +25,8 @@ import type { ZodvexWireSchema } from '../types'
  * Checks if a Zod field type represents an optional field (ZodOptional or ZodDefault).
  * Used to determine which fields should use TypeScript's optional property syntax (?:).
  */
-type IsOptionalField<Z> = Z extends z.ZodOptional<any>
-  ? true
-  : Z extends z.ZodDefault<any>
-    ? true
-    : false
+type IsOptionalField<Z> =
+  Z extends z.ZodOptional<any> ? true : Z extends z.ZodDefault<any> ? true : false
 
 /**
  * Unwraps ZodOptional and ZodDefault to get the inner type.
@@ -41,13 +38,14 @@ type IsOptionalField<Z> = Z extends z.ZodOptional<any>
  * This is used in the context of WireInferObject where we need the
  * value type, not the schema type.
  */
-type UnwrapOptionalValue<Z> = Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
-  ? WireInferValue<Inner>
-  : Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
+type UnwrapOptionalValue<Z> =
+  Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
     ? WireInferValue<Inner>
-    : Z extends z.ZodTypeAny
-      ? WireInferValue<Z>
-      : never
+    : Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
+      ? WireInferValue<Inner>
+      : Z extends z.ZodTypeAny
+        ? WireInferValue<Z>
+        : never
 
 /**
  * Like WireInfer but doesn't add | undefined for optionals.
@@ -58,41 +56,37 @@ type UnwrapOptionalValue<Z> = Z extends z.ZodOptional<infer Inner extends z.ZodT
  * - { email?: T } allows path extraction to work correctly
  * - { email: T | undefined } breaks path extraction because undefined
  *   doesn't extend GenericDocument (Record<string, Value>)
+ *
+ * Check order: codecs → wrappers → containers → primitives → fallback
  */
 type WireInferValue<Z extends z.ZodTypeAny> =
-  // Handle branded zodvex codecs (zx.date(), zx.codec(), etc.)
+  // 1. Branded zodvex codecs (zx.date(), zx.codec(), etc.) — most common in zodvex
   Z extends { readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny }
     ? z.infer<W>
-    : // Handle native Zod codecs
+    : // 2. Native Zod codecs
       Z extends z.ZodCodec<infer Wire extends z.ZodTypeAny, any>
       ? z.infer<Wire>
-      : // Recursively process objects to handle nested codecs
-        // Uses the same ?: pattern for nested optional fields
-        Z extends z.ZodObject<infer Shape extends z.ZodRawShape>
-        ? WireInferObject<Shape>
-        : // Handle optionals - DON'T add | undefined here, let ?: handle it
-          Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
-          ? WireInferValue<Inner>
-          : // Handle nullables - DO add | null since this is about value, not presence
-            Z extends z.ZodNullable<infer Inner extends z.ZodTypeAny>
-            ? WireInferValue<Inner> | null
-            : // Handle defaults - unwrap to inner type
-              Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
-              ? WireInferValue<Inner>
-              : // Handle arrays
+      : // 3. Wrappers — unwrap and recurse
+        Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
+        ? WireInferValue<Inner>
+        : Z extends z.ZodNullable<infer Inner extends z.ZodTypeAny>
+          ? WireInferValue<Inner> | null
+          : Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
+            ? WireInferValue<Inner>
+            : // 4. Objects — recurse into shape
+              Z extends z.ZodObject<infer Shape extends z.ZodRawShape>
+              ? WireInferObject<Shape>
+              : // 5. Containers
                 Z extends z.ZodArray<infer Element extends z.ZodTypeAny>
                 ? WireInferValue<Element>[]
-                : // Handle unions
-                  Z extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
+                : Z extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
                   ? WireInferValue<Options[number]>
-                  : // Handle records
-                    Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
+                  : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                     ? Record<string, WireInferValue<V>>
-                    : // Handle z.date() - maps to number for type inference only.
-                      // IMPORTANT: z.date() does not work at runtime (use zx.date()).
+                    : // 6. z.date() fallback (should use zx.date() instead)
                       Z extends z.ZodDate
                       ? number
-                      : // Fallback to regular inference for primitives
+                      : // 7. Primitives — use Zod's built-in inference
                         z.infer<Z>
 
 /**
@@ -124,41 +118,37 @@ type WireInferObject<Shape extends z.ZodRawShape> = {
  * This is critical for Convex's GenericDocument constraint - the document type
  * must reflect what's actually stored in the database (wire format), not the
  * runtime representation after decoding.
+ *
+ * Check order: codecs → wrappers → containers → primitives → fallback
  */
 type WireInfer<Z extends z.ZodTypeAny> =
-  // Handle branded zodvex codecs (zx.date(), zx.codec(), etc.)
+  // 1. Branded zodvex codecs — most common in zodvex
   Z extends { readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny }
     ? z.infer<W>
-    : // Handle native Zod codecs
+    : // 2. Native Zod codecs
       Z extends z.ZodCodec<infer Wire extends z.ZodTypeAny, any>
       ? z.infer<Wire>
-      : // Recursively process objects to handle nested codecs
-        // Uses ?: for optional fields to maintain Convex path extraction compatibility
-        Z extends z.ZodObject<infer Shape extends z.ZodRawShape>
-        ? WireInferObject<Shape>
-        : // Handle optionals - add | undefined for standalone optionals (not in object context)
-          Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
-          ? WireInfer<Inner> | undefined
-          : // Handle nullables
-            Z extends z.ZodNullable<infer Inner extends z.ZodTypeAny>
-            ? WireInfer<Inner> | null
-            : // Handle defaults (unwrap to inner type)
-              Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
-              ? WireInfer<Inner>
-              : // Handle arrays
+      : // 3. Wrappers
+        Z extends z.ZodOptional<infer Inner extends z.ZodTypeAny>
+        ? WireInfer<Inner> | undefined
+        : Z extends z.ZodNullable<infer Inner extends z.ZodTypeAny>
+          ? WireInfer<Inner> | null
+          : Z extends z.ZodDefault<infer Inner extends z.ZodTypeAny>
+            ? WireInfer<Inner>
+            : // 4. Objects
+              Z extends z.ZodObject<infer Shape extends z.ZodRawShape>
+              ? WireInferObject<Shape>
+              : // 5. Containers
                 Z extends z.ZodArray<infer Element extends z.ZodTypeAny>
                 ? WireInferValue<Element>[]
-                : // Handle unions
-                  Z extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
+                : Z extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
                   ? WireInfer<Options[number]>
-                  : // Handle records
-                    Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
+                  : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                     ? Record<string, WireInferValue<V>>
-                    : // Handle z.date() - maps to number for type inference only.
-                      // IMPORTANT: z.date() does not work at runtime (use zx.date()).
+                    : // 6. z.date() fallback
                       Z extends z.ZodDate
                       ? number
-                      : // Fallback to regular inference for primitives
+                      : // 7. Primitives
                         z.infer<Z>
 
 // Check if a type has the _tableName property added by zx.id() (or legacy zid())
@@ -190,32 +180,38 @@ export type ZodValidator = Record<string, z.ZodTypeAny>
 
 // Helper type to convert optional types to union with null for container elements
 // This ensures we never produce VOptional which has "optional" constraint
-type ConvexValidatorFromZodRequired<Z extends z.ZodTypeAny> = Z extends z.ZodOptional<
-  infer T extends z.ZodTypeAny
->
-  ? VUnion<WireInfer<T> | null, any[], 'required'>
-  : ConvexValidatorFromZodBase<Z>
+type ConvexValidatorFromZodRequired<Z extends z.ZodTypeAny> =
+  Z extends z.ZodOptional<infer T extends z.ZodTypeAny>
+    ? VUnion<WireInfer<T> | null, any[], 'required'>
+    : ConvexValidatorFromZodBase<Z>
 
-// Base type mapper that never produces VOptional
+/**
+ * Base type mapper that never produces VOptional.
+ * Check order: codecs → id → primitives → containers → fallback
+ */
 type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
-  // Check for zid types first (by _tableName property)
-  IsZid<Z> extends true
-    ? ExtractTableName<Z> extends infer TableName extends string
-      ? VId<GenericId<TableName>, 'required'>
-      : VAny<'required'>
-    : Z extends z.ZodString
-      ? VString<z.infer<Z>, 'required'>
-      : Z extends z.ZodNumber
-        ? VFloat64<z.infer<Z>, 'required'>
-        : Z extends z.ZodDate
-          ? VFloat64<number, 'required'>
-          : Z extends z.ZodBigInt
-            ? VInt64<z.infer<Z>, 'required'>
+  // 1. Branded zodvex codecs — extract wire schema and recurse
+  Z extends { readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny }
+    ? ConvexValidatorFromZodBase<W>
+    : // 2. Native Zod codecs — use input schema (wire format) for Convex
+      Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
+      ? ConvexValidatorFromZodBase<A>
+      : // 3. Convex IDs
+        IsZid<Z> extends true
+        ? ExtractTableName<Z> extends infer TableName extends string
+          ? VId<GenericId<TableName>, 'required'>
+          : VAny<'required'>
+        : // 4. Common primitives
+          Z extends z.ZodString
+          ? VString<z.infer<Z>, 'required'>
+          : Z extends z.ZodNumber
+            ? VFloat64<z.infer<Z>, 'required'>
             : Z extends z.ZodBoolean
               ? VBoolean<z.infer<Z>, 'required'>
               : Z extends z.ZodNull
                 ? VNull<null, 'required'>
-                : Z extends z.ZodArray<infer T extends z.ZodTypeAny>
+                : // 5. Containers
+                  Z extends z.ZodArray<infer T extends z.ZodTypeAny>
                   ? VArray<WireInfer<Z>, ConvexValidatorFromZodRequired<T>, 'required'>
                   : Z extends z.ZodObject<infer T>
                     ? VObject<WireInfer<Z>, ConvexValidatorFromZodFieldsAuto<T>, 'required', string>
@@ -223,7 +219,8 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                       ? T extends readonly [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]
                         ? VUnion<WireInfer<Z>, any[], 'required'>
                         : never
-                      : Z extends z.ZodLiteral<infer T>
+                      : // 6. Literals and enums
+                        Z extends z.ZodLiteral<infer T>
                         ? VLiteral<T, 'required'>
                         : Z extends z.ZodEnum<infer T>
                           ? T extends readonly [string, ...string[]]
@@ -245,7 +242,8 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                                   never
                                 >
                               : VUnion<string, any[], 'required', any>
-                          : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
+                          : // 7. Less common types
+                            Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
                             ? VRecord<
                                 Record<string, WireInfer<V>>,
                                 VString<string, 'required'>,
@@ -270,27 +268,37 @@ type ConvexValidatorFromZodBase<Z extends z.ZodTypeAny> =
                                     [ConvexValidatorFromZodBase<Inner>, VNull<null, 'required'>],
                                     'required'
                                   >
-                              : Z extends z.ZodAny
-                                ? VAny<'required'>
-                                : Z extends z.ZodUnknown
-                                  ? VAny<'required'>
-                                  : Z extends {
-                                        readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny
-                                      }
-                                    ? ConvexValidatorFromZodBase<W> // Extract wire schema from branded codec
-                                    : Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
-                                      ? ConvexValidatorFromZodBase<A> // Use input schema (wire format) for Convex
+                              : Z extends z.ZodDate
+                                ? VFloat64<number, 'required'>
+                                : Z extends z.ZodBigInt
+                                  ? VInt64<z.infer<Z>, 'required'>
+                                  : Z extends z.ZodAny
+                                    ? VAny<'required'>
+                                    : Z extends z.ZodUnknown
+                                      ? VAny<'required'>
                                       : VAny<'required'>
 
-// Main type mapper with constraint system
+/**
+ * Main type mapper with constraint system.
+ *
+ * Check order optimized for zodvex usage patterns:
+ * codecs → wrappers → id → common primitives → containers → rare types → fallback
+ *
+ * Codec and wrapper checks come first because zodvex fields commonly use
+ * zx.date(), zx.id(), zx.codec() wrapped in .optional()/.nullable().
+ * These types just unwrap and recurse — checking them first avoids
+ * ~12 failed `extends` checks per codec field.
+ */
 export type ConvexValidatorFromZod<
   Z extends z.ZodTypeAny,
   Constraint extends 'required' | 'optional' = 'required'
-> = Z extends z.ZodAny
-  ? VAny<'required'>
-  : Z extends z.ZodUnknown
-    ? VAny<'required'>
-    : Z extends z.ZodDefault<infer T extends z.ZodTypeAny>
+> = Z extends { readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny } // 1. Branded zodvex codecs — extract wire schema and recurse
+  ? ConvexValidatorFromZod<W, Constraint>
+  : // 2. Native Zod codecs — use input schema (wire format) for Convex
+    Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
+    ? ConvexValidatorFromZod<A, Constraint>
+    : // 3. Wrappers — unwrap and recurse with appropriate constraints
+      Z extends z.ZodDefault<infer T extends z.ZodTypeAny>
       ? ConvexValidatorFromZod<T, Constraint>
       : Z extends z.ZodOptional<infer T extends z.ZodTypeAny>
         ? T extends z.ZodNullable<infer Inner extends z.ZodTypeAny>
@@ -300,79 +308,75 @@ export type ConvexValidatorFromZod<
             : VOptional<ConvexValidatorFromZod<T, 'required'>>
         : Z extends z.ZodNullable<infer T extends z.ZodTypeAny>
           ? VUnion<WireInfer<T> | null, any[], Constraint>
-          : IsZid<Z> extends true
+          : // 4. Convex IDs
+            IsZid<Z> extends true
             ? ExtractTableName<Z> extends infer TableName extends string
               ? VId<GenericId<TableName>, Constraint>
               : VAny<'required'>
-            : Z extends z.ZodString
+            : // 5. Common primitives
+              Z extends z.ZodString
               ? VString<z.infer<Z>, Constraint>
               : Z extends z.ZodNumber
                 ? VFloat64<z.infer<Z>, Constraint>
-                : Z extends z.ZodDate
-                  ? VFloat64<number, Constraint>
-                  : Z extends z.ZodBigInt
-                    ? VInt64<z.infer<Z>, Constraint>
-                    : Z extends z.ZodBoolean
-                      ? VBoolean<z.infer<Z>, Constraint>
-                      : Z extends z.ZodNull
-                        ? VNull<null, Constraint>
-                        : Z extends z.ZodArray<infer T extends z.ZodTypeAny>
-                          ? VArray<WireInfer<Z>, ConvexValidatorFromZodRequired<T>, Constraint>
-                          : Z extends z.ZodObject<infer T>
-                            ? VObject<
-                                WireInfer<Z>,
-                                ConvexValidatorFromZodFields<T, 'required'>,
-                                Constraint,
-                                string
-                              >
-                            : Z extends z.ZodUnion<infer T>
-                              ? T extends readonly [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]
-                                ? VUnion<WireInfer<Z>, any[], Constraint>
-                                : never
-                              : Z extends z.ZodLiteral<infer T>
-                                ? VLiteral<T, Constraint>
-                                : Z extends z.ZodEnum<infer T>
-                                  ? T extends readonly [string, ...string[]]
-                                    ? T['length'] extends 1
-                                      ? VLiteral<T[0], Constraint>
-                                      : T['length'] extends 2
-                                        ? VUnion<
-                                            T[number],
-                                            [
-                                              VLiteral<T[0], 'required'>,
-                                              VLiteral<T[1], 'required'>
-                                            ],
-                                            Constraint,
-                                            never
-                                          >
-                                        : VUnion<
-                                            T[number],
-                                            EnumToLiteralsTuple<T>,
-                                            Constraint,
-                                            never
-                                          >
-                                    : T extends Record<string, string | number>
-                                      ? VUnion<
-                                          T[keyof T],
-                                          Array<VLiteral<T[keyof T], 'required'>>,
-                                          Constraint,
-                                          never
-                                        >
-                                      : VUnion<string, any[], Constraint, any>
-                                  : Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
-                                    ? VRecord<
-                                        Record<string, WireInfer<V>>,
-                                        VString<string, 'required'>,
-                                        ConvexValidatorFromZodRequired<V>,
+                : Z extends z.ZodBoolean
+                  ? VBoolean<z.infer<Z>, Constraint>
+                  : Z extends z.ZodNull
+                    ? VNull<null, Constraint>
+                    : // 6. Containers
+                      Z extends z.ZodArray<infer T extends z.ZodTypeAny>
+                      ? VArray<WireInfer<Z>, ConvexValidatorFromZodRequired<T>, Constraint>
+                      : Z extends z.ZodObject<infer T>
+                        ? VObject<
+                            WireInfer<Z>,
+                            ConvexValidatorFromZodFields<T, 'required'>,
+                            Constraint,
+                            string
+                          >
+                        : Z extends z.ZodUnion<infer T>
+                          ? T extends readonly [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]
+                            ? VUnion<WireInfer<Z>, any[], Constraint>
+                            : never
+                          : // 7. Literals and enums
+                            Z extends z.ZodLiteral<infer T>
+                            ? VLiteral<T, Constraint>
+                            : Z extends z.ZodEnum<infer T>
+                              ? T extends readonly [string, ...string[]]
+                                ? T['length'] extends 1
+                                  ? VLiteral<T[0], Constraint>
+                                  : T['length'] extends 2
+                                    ? VUnion<
+                                        T[number],
+                                        [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>],
                                         Constraint,
-                                        string
+                                        never
                                       >
-                                    : Z extends {
-                                          readonly [ZodvexWireSchema]: infer W extends z.ZodTypeAny
-                                        }
-                                      ? ConvexValidatorFromZod<W, Constraint> // Extract wire schema from branded codec
-                                      : Z extends z.ZodCodec<infer A extends z.ZodTypeAny, any>
-                                        ? ConvexValidatorFromZod<A, Constraint> // Use input schema (wire format) for Convex
+                                    : VUnion<T[number], EnumToLiteralsTuple<T>, Constraint, never>
+                                : T extends Record<string, string | number>
+                                  ? VUnion<
+                                      T[keyof T],
+                                      Array<VLiteral<T[keyof T], 'required'>>,
+                                      Constraint,
+                                      never
+                                    >
+                                  : VUnion<string, any[], Constraint, any>
+                              : // 8. Less common types
+                                Z extends z.ZodRecord<z.ZodString, infer V extends z.ZodTypeAny>
+                                ? VRecord<
+                                    Record<string, WireInfer<V>>,
+                                    VString<string, 'required'>,
+                                    ConvexValidatorFromZodRequired<V>,
+                                    Constraint,
+                                    string
+                                  >
+                                : Z extends z.ZodDate
+                                  ? VFloat64<number, Constraint>
+                                  : Z extends z.ZodBigInt
+                                    ? VInt64<z.infer<Z>, Constraint>
+                                    : // 9. Catch-alls
+                                      Z extends z.ZodAny
+                                      ? VAny<'required'>
+                                      : Z extends z.ZodUnknown
+                                        ? VAny<'required'>
                                         : VAny<'required'>
 
 type ConvexValidatorFromZodFields<
@@ -384,17 +388,14 @@ type ConvexValidatorFromZodFields<
     : VAny<'required'>
 }
 
-// Auto-detect optional fields and apply appropriate constraints
+/**
+ * Auto-detect optional fields and apply appropriate constraints.
+ * Simplified: only checks IsOptionalField (ZodOptional | ZodDefault)
+ * to determine the constraint. ConvexValidatorFromZod handles all
+ * type-specific logic internally.
+ */
 export type ConvexValidatorFromZodFieldsAuto<T extends { [key: string]: any }> = {
-  [K in keyof T]: T[K] extends z.ZodOptional<any>
-    ? ConvexValidatorFromZod<T[K], 'optional'>
-    : T[K] extends z.ZodDefault<any>
-      ? ConvexValidatorFromZod<T[K], 'optional'>
-      : T[K] extends z.ZodNullable<any>
-        ? ConvexValidatorFromZod<T[K], 'required'>
-        : T[K] extends z.ZodEnum<any>
-          ? ConvexValidatorFromZod<T[K], 'required'>
-          : T[K] extends z.ZodTypeAny
-            ? ConvexValidatorFromZod<T[K], 'required'>
-            : VAny<'required'>
+  [K in keyof T]: T[K] extends z.ZodTypeAny
+    ? ConvexValidatorFromZod<T[K], IsOptionalField<T[K]> extends true ? 'optional' : 'required'>
+    : VAny<'required'>
 }

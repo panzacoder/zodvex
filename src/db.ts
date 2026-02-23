@@ -1,11 +1,25 @@
 import type {
+  DocumentByInfo,
+  ExpressionOrValue,
+  FilterBuilder,
   GenericDatabaseReader,
   GenericDatabaseWriter,
   GenericDataModel,
   GenericTableInfo,
+  IndexNames,
+  IndexRange,
+  IndexRangeBuilder,
+  NamedIndex,
+  NamedSearchIndex,
+  NamedTableInfo,
+  OrderedQuery,
   PaginationOptions,
   PaginationResult,
+  Query,
   QueryInitializer,
+  SearchFilter,
+  SearchFilterBuilder,
+  SearchIndexNames,
   TableNamesInDataModel
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
@@ -28,28 +42,43 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo>
     private schema: z.ZodTypeAny
   ) {}
 
+  /** Decode a wire-format doc and cast to the document type. */
+  private decode(doc: any): DocumentByInfo<TableInfo> {
+    return decodeDoc(this.schema, doc) as DocumentByInfo<TableInfo>
+  }
+
   // --- Intermediate methods: pass-through, return wrapped ---
 
-  fullTableScan() {
+  fullTableScan(): Query<TableInfo> {
     return new CodecQueryChain<TableInfo>(this.inner.fullTableScan(), this.schema)
   }
 
-  withIndex(indexName: any, indexRange?: any) {
+  withIndex<IndexName extends IndexNames<TableInfo>>(
+    indexName: IndexName,
+    indexRange?: (
+      q: IndexRangeBuilder<DocumentByInfo<TableInfo>, NamedIndex<TableInfo, IndexName>>
+    ) => IndexRange
+  ): Query<TableInfo> {
     return new CodecQueryChain<TableInfo>(this.inner.withIndex(indexName, indexRange), this.schema)
   }
 
-  withSearchIndex(indexName: any, searchFilter: any) {
+  withSearchIndex<IndexName extends SearchIndexNames<TableInfo>>(
+    indexName: IndexName,
+    searchFilter: (
+      q: SearchFilterBuilder<DocumentByInfo<TableInfo>, NamedSearchIndex<TableInfo, IndexName>>
+    ) => SearchFilter
+  ): OrderedQuery<TableInfo> {
     return new CodecQueryChain<TableInfo>(
       this.inner.withSearchIndex(indexName, searchFilter),
       this.schema
     )
   }
 
-  order(order: 'asc' | 'desc') {
+  order(order: 'asc' | 'desc'): OrderedQuery<TableInfo> {
     return new CodecQueryChain<TableInfo>(this.inner.order(order), this.schema)
   }
 
-  filter(predicate: any): this {
+  filter(predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>): this {
     return new CodecQueryChain<TableInfo>(this.inner.filter(predicate), this.schema) as this
   }
 
@@ -63,39 +92,41 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo>
 
   // --- Terminal methods: decode at boundary ---
 
-  async first(): Promise<any> {
+  async first(): Promise<DocumentByInfo<TableInfo> | null> {
     const doc = await this.inner.first()
-    return doc ? decodeDoc(this.schema, doc) : null
+    return doc ? this.decode(doc) : null
   }
 
-  async unique(): Promise<any> {
+  async unique(): Promise<DocumentByInfo<TableInfo> | null> {
     const doc = await this.inner.unique()
-    return doc ? decodeDoc(this.schema, doc) : null
+    return doc ? this.decode(doc) : null
   }
 
-  async collect(): Promise<any[]> {
+  async collect(): Promise<DocumentByInfo<TableInfo>[]> {
     const docs = await this.inner.collect()
-    return docs.map((doc: any) => decodeDoc(this.schema, doc))
+    return docs.map((doc: any) => this.decode(doc))
   }
 
-  async take(n: number): Promise<any[]> {
+  async take(n: number): Promise<DocumentByInfo<TableInfo>[]> {
     const docs = await this.inner.take(n)
-    return docs.map((doc: any) => decodeDoc(this.schema, doc))
+    return docs.map((doc: any) => this.decode(doc))
   }
 
-  async paginate(paginationOpts: PaginationOptions): Promise<PaginationResult<any>> {
+  async paginate(
+    paginationOpts: PaginationOptions
+  ): Promise<PaginationResult<DocumentByInfo<TableInfo>>> {
     const result = await this.inner.paginate(paginationOpts)
     return {
       ...result,
-      page: result.page.map((doc: any) => decodeDoc(this.schema, doc))
+      page: result.page.map((doc: any) => this.decode(doc))
     }
   }
 
   // --- AsyncIterable: decode each yielded document ---
 
-  async *[Symbol.asyncIterator](): AsyncIterator<any> {
+  async *[Symbol.asyncIterator](): AsyncIterator<DocumentByInfo<TableInfo>> {
     for await (const doc of this.inner) {
-      yield decodeDoc(this.schema, doc)
+      yield this.decode(doc)
     }
   }
 }
@@ -162,11 +193,13 @@ export class CodecDatabaseReader<DataModel extends GenericDataModel>
     return schemas ? decodeDoc(schemas.doc, doc) : doc
   }
 
-  query(tableName: any): any {
+  query<TableName extends TableNamesInDataModel<DataModel>>(
+    tableName: TableName
+  ): QueryInitializer<NamedTableInfo<DataModel, TableName>> {
     const schemas = this.tableMap[tableName as string]
     const innerQuery = this.db.query(tableName)
     if (!schemas) return innerQuery
-    return new CodecQueryChain(innerQuery, schemas.doc)
+    return new CodecQueryChain<NamedTableInfo<DataModel, TableName>>(innerQuery, schemas.doc)
   }
 }
 
@@ -201,7 +234,9 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
     return this.reader.get(idOrTable, maybeId)
   }
 
-  query(tableName: any): any {
+  query<TableName extends TableNamesInDataModel<DataModel>>(
+    tableName: TableName
+  ): QueryInitializer<NamedTableInfo<DataModel, TableName>> {
     return this.reader.query(tableName)
   }
 

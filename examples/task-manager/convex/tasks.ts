@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import { zx, encodeDoc } from 'zodvex/core'
+import { zx, zPaginated } from 'zodvex/core'
 import { zq, zm } from './functions'
 import { TaskModel } from './models/task'
+import { zDuration } from './codecs'
 
 export const get = zq({
   args: { id: zx.id('tasks') },
@@ -21,21 +22,16 @@ export const list = zq({
     }),
   },
   handler: async (ctx, { status, ownerId, paginationOpts }) => {
-    let q = ctx.db.query('tasks')
+    const baseQuery = ctx.db.query('tasks')
+    const q = ownerId
+      ? baseQuery.withIndex('by_owner', (idx) => idx.eq('ownerId', ownerId))
+      : status
+        ? baseQuery.withIndex('by_status', (idx) => idx.eq('status', status))
+        : baseQuery
 
-    if (ownerId) {
-      q = q.withIndex('by_owner', (idx) => idx.eq('ownerId', ownerId))
-    } else if (status) {
-      q = q.withIndex('by_status', (idx) => idx.eq('status', status))
-    }
-
-    const result = await q.order('desc').paginate(paginationOpts)
-    // Re-encode decoded docs back to wire format for Convex serialization
-    return {
-      ...result,
-      page: result.page.map((doc: any) => encodeDoc(TaskModel.schema.doc, doc)),
-    }
+    return await q.order('desc').paginate(paginationOpts)
   },
+  returns: zPaginated(TaskModel.schema.doc),
 })
 
 export const create = zm({
@@ -47,16 +43,13 @@ export const create = zm({
     ownerId: zx.id('users'),
     assigneeId: zx.id('users').optional(),
     dueDate: zx.date().optional(),
-    estimate: z.number().optional(),
+    estimate: zDuration.optional(),
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert('tasks', {
       ...args,
       status: args.status ?? 'todo',
       priority: args.priority ?? null,
-      estimate: args.estimate != null
-        ? { hours: Math.floor(args.estimate / 60), minutes: args.estimate % 60 }
-        : undefined,
       createdAt: new Date(),
     })
     return id
@@ -73,15 +66,10 @@ export const update = zm({
     priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
     assigneeId: zx.id('users').optional(),
     dueDate: zx.date().optional(),
-    estimate: z.number().optional(),
+    estimate: zDuration.optional(),
   },
-  handler: async (ctx, { id, estimate, ...fields }) => {
-    await ctx.db.patch(id, {
-      ...fields,
-      ...(estimate != null
-        ? { estimate: { hours: Math.floor(estimate / 60), minutes: estimate % 60 } }
-        : {}),
-    })
+  handler: async (ctx, { id, ...fields }) => {
+    await ctx.db.patch(id, fields)
   },
 })
 

@@ -83,6 +83,10 @@ The library is built with tsup and can run on:
 - Node.js 20+
 - Bun 1.0+
 
+## Convex Reference
+
+See `docs/convex_rules.txt` for official Convex agent guidance (query patterns, schema design, function registration, etc.). This is the canonical reference for how Convex APIs should be used — always consult it before writing or reviewing Convex code.
+
 ## Tooling
 
 - **Runtime/Package Manager**: Bun (replaces pnpm)
