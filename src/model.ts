@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod'
+import { attachMeta } from './meta'
 import { type ZxId, zx } from './zx'
 
 // ============================================================================
@@ -203,7 +204,7 @@ export function defineZodModel<Name extends string, Fields extends z.ZodRawShape
     searchIndexes: Record<string, SearchIndexConfig>,
     vectorIndexes: Record<string, VectorIndexConfig>
   ): any {
-    return {
+    const model = {
       name,
       fields,
       schema,
@@ -224,6 +225,8 @@ export function defineZodModel<Name extends string, Fields extends z.ZodRawShape
         return createModel(indexes, searchIndexes, { ...vectorIndexes, [indexName]: config })
       }
     }
+    attachMeta(model, { type: 'model', tableName: name, schemas: schema })
+    return model
   }
 
   return createModel({}, {}, {})

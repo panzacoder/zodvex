@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { zodvexCodec } from '../src/codec'
+import { readMeta, type ZodvexModelMeta } from '../src/meta'
 import { defineZodModel, type FieldPaths, type ModelFieldPaths } from '../src/model'
 import type { ZodvexCodec } from '../src/types'
 import { zx } from '../src/zx'
@@ -470,5 +471,56 @@ describe('defineZodModel .searchIndex() / .vectorIndex()', () => {
     expect(Object.keys(model.indexes)).toEqual(['byTitle'])
     expect(Object.keys(model.searchIndexes)).toEqual(['search_body'])
     expect(Object.keys(model.vectorIndexes)).toEqual(['by_embedding'])
+  })
+})
+
+describe('defineZodModel __zodvexMeta', () => {
+  it('model has metadata with type model, correct tableName, all 4 schemas', () => {
+    const model = defineZodModel('users', {
+      name: z.string(),
+      email: z.string()
+    })
+
+    const meta = readMeta(model)
+    expect(meta).toBeDefined()
+    expect(meta!.type).toBe('model')
+
+    const mmeta = meta as ZodvexModelMeta
+    expect(mmeta.tableName).toBe('users')
+    expect(mmeta.schemas.doc).toBe(model.schema.doc)
+    expect(mmeta.schemas.insert).toBe(model.schema.insert)
+    expect(mmeta.schemas.update).toBe(model.schema.update)
+    expect(mmeta.schemas.docArray).toBe(model.schema.docArray)
+  })
+
+  it('metadata preserved through .index() chaining', () => {
+    const model = defineZodModel('posts', {
+      title: z.string(),
+      authorId: z.string()
+    })
+      .index('byAuthor', ['authorId'])
+      .index('byTitle', ['title'])
+
+    const meta = readMeta(model)
+    expect(meta).toBeDefined()
+    expect(meta!.type).toBe('model')
+
+    const mmeta = meta as ZodvexModelMeta
+    expect(mmeta.tableName).toBe('posts')
+    expect(mmeta.schemas.doc).toBeDefined()
+    expect(mmeta.schemas.insert).toBeDefined()
+  })
+
+  it('metadata preserved through .searchIndex() and .vectorIndex() chaining', () => {
+    const model = defineZodModel('docs', {
+      body: z.string(),
+      embedding: z.array(z.number())
+    })
+      .searchIndex('search_body', { searchField: 'body' })
+      .vectorIndex('by_embedding', { vectorField: 'embedding', dimensions: 1536 })
+
+    const meta = readMeta(model) as ZodvexModelMeta
+    expect(meta.type).toBe('model')
+    expect(meta.tableName).toBe('docs')
   })
 })
