@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx, encodeDoc } from 'zodvex/core'
 import { zq, zm } from './functions'
 import { TaskModel } from './models/task'
 
@@ -29,7 +29,12 @@ export const list = zq({
       q = q.withIndex('by_status', (idx) => idx.eq('status', status))
     }
 
-    return await q.order('desc').paginate(paginationOpts)
+    const result = await q.order('desc').paginate(paginationOpts)
+    // Re-encode decoded docs back to wire format for Convex serialization
+    return {
+      ...result,
+      page: result.page.map((doc: any) => encodeDoc(TaskModel.schema.doc, doc)),
+    }
   },
 })
 
@@ -49,6 +54,9 @@ export const create = zm({
       ...args,
       status: args.status ?? 'todo',
       priority: args.priority ?? null,
+      estimate: args.estimate != null
+        ? { hours: Math.floor(args.estimate / 60), minutes: args.estimate % 60 }
+        : undefined,
       createdAt: new Date(),
     })
     return id
@@ -67,8 +75,13 @@ export const update = zm({
     dueDate: zx.date().optional(),
     estimate: z.number().optional(),
   },
-  handler: async (ctx, { id, ...fields }) => {
-    await ctx.db.patch(id, fields)
+  handler: async (ctx, { id, estimate, ...fields }) => {
+    await ctx.db.patch(id, {
+      ...fields,
+      ...(estimate != null
+        ? { estimate: { hours: Math.floor(estimate / 60), minutes: estimate % 60 } }
+        : {}),
+    })
   },
 })
 
