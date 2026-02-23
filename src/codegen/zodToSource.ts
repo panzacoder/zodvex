@@ -10,7 +10,8 @@ import { z } from 'zod'
  * Unsupported types fall back to `z.any()` with a comment.
  */
 export function zodToSource(schema: z.ZodTypeAny): string {
-  const def = schema._zod?.def
+  // Cast to any — Zod v4's internal _zod.def properties are not publicly typed
+  const def = schema._zod?.def as any
 
   // Peel off wrappers first (optional, nullable)
   if (schema instanceof z.ZodOptional) {
