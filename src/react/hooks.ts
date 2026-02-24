@@ -1,10 +1,6 @@
 import { useQuery, useMutation } from 'convex/react'
-import type {
-  FunctionArgs,
-  FunctionReference,
-  FunctionReturnType,
-  OptionalRestArgsOrSkip
-} from 'convex/server'
+import type { OptionalRestArgsOrSkip } from 'convex/react'
+import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import { getFunctionName } from 'convex/server'
 import { z } from 'zod'
 import { stripUndefined } from '../utils'
@@ -87,7 +83,7 @@ export function createZodvexHooks<R extends AnyRegistry>(registry: R) {
       // Encode args: runtime types -> wire format (e.g., Date -> timestamp)
       const wireArgs = entry?.args ? stripUndefined(z.encode(entry.args, args)) : args
 
-      const wireResult = await rawMutate(wireArgs)
+      const wireResult = await (rawMutate as any)(wireArgs)
 
       // Decode result: wire format -> runtime types
       if (!entry?.returns) return wireResult
