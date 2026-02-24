@@ -1,5 +1,17 @@
 import { z } from 'zod'
 
+export type CodecRef = {
+  exportName: string
+  sourceFile: string
+}
+
+export type ZodToSourceContext = {
+  /** Map from ZodCodec schema identity → reference info */
+  codecMap: Map<z.ZodTypeAny, CodecRef>
+  /** Accumulates needed imports: sourceFile → Set of export names */
+  neededCodecImports: Map<string, Set<string>>
+}
+
 /**
  * Converts a runtime Zod schema to its source code representation.
  * Used by the codegen engine to serialize ad-hoc schemas in the generated api.ts.
@@ -9,16 +21,16 @@ import { z } from 'zod'
  *
  * Unsupported types fall back to `z.any()` with a comment.
  */
-export function zodToSource(schema: z.ZodTypeAny): string {
+export function zodToSource(schema: z.ZodTypeAny, ctx?: ZodToSourceContext): string {
   // Cast to any — Zod v4's internal _zod.def properties are not publicly typed
   const def = schema._zod?.def as any
 
   // Peel off wrappers first (optional, nullable)
   if (schema instanceof z.ZodOptional) {
-    return `${zodToSource(def.innerType)}.optional()`
+    return `${zodToSource(def.innerType, ctx)}.optional()`
   }
   if (schema instanceof z.ZodNullable) {
-    return `${zodToSource(def.innerType)}.nullable()`
+    return `${zodToSource(def.innerType, ctx)}.nullable()`
   }
 
   // zodvex extensions — detect before generic types
@@ -38,6 +50,24 @@ export function zodToSource(schema: z.ZodTypeAny): string {
     return 'zx.date()'
   }
 
+  // Generic ZodCodec — check codec map for identity match
+  if (schema instanceof z.ZodCodec) {
+    if (ctx?.codecMap) {
+      const ref = ctx.codecMap.get(schema)
+      if (ref) {
+        // Track the needed import
+        if (!ctx.neededCodecImports.has(ref.sourceFile)) {
+          ctx.neededCodecImports.set(ref.sourceFile, new Set())
+        }
+        ctx.neededCodecImports.get(ref.sourceFile)!.add(ref.exportName)
+        return ref.exportName
+      }
+    }
+    // Unknown codec — fall back to wire schema (def.in) with warning
+    const wireSource = zodToSource(def.in, ctx)
+    return `${wireSource} /* codec: transforms lost */`
+  }
+
   // Primitives
   if (schema instanceof z.ZodString) return 'z.string()'
   if (schema instanceof z.ZodNumber) return 'z.number()'
@@ -50,14 +80,14 @@ export function zodToSource(schema: z.ZodTypeAny): string {
   if (schema instanceof z.ZodObject) {
     const shape = def.shape as Record<string, z.ZodTypeAny>
     const fields = Object.entries(shape)
-      .map(([key, value]) => `${key}: ${zodToSource(value)}`)
+      .map(([key, value]) => `${key}: ${zodToSource(value, ctx)}`)
       .join(', ')
     return `z.object({ ${fields} })`
   }
 
   // Arrays
   if (schema instanceof z.ZodArray) {
-    return `z.array(${zodToSource(def.element)})`
+    return `z.array(${zodToSource(def.element, ctx)})`
   }
 
   // Enums
@@ -76,19 +106,23 @@ export function zodToSource(schema: z.ZodTypeAny): string {
 
   // Unions
   if (schema instanceof z.ZodUnion) {
-    const members = (def.options as z.ZodTypeAny[]).map(zodToSource).join(', ')
+    const members = (def.options as z.ZodTypeAny[])
+      .map((s: z.ZodTypeAny) => zodToSource(s, ctx))
+      .join(', ')
     return `z.union([${members}])`
   }
 
   // Tuples
   if (schema instanceof z.ZodTuple) {
-    const items = (def.items as z.ZodTypeAny[]).map(zodToSource).join(', ')
+    const items = (def.items as z.ZodTypeAny[])
+      .map((s: z.ZodTypeAny) => zodToSource(s, ctx))
+      .join(', ')
     return `z.tuple([${items}])`
   }
 
   // Records
   if (schema instanceof z.ZodRecord) {
-    return `z.record(${zodToSource(def.keyType)}, ${zodToSource(def.valueType)})`
+    return `z.record(${zodToSource(def.keyType, ctx)}, ${zodToSource(def.valueType, ctx)})`
   }
 
   // Fallback for unsupported types

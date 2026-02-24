@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { zx } from '../src/zx'
-import { zodToSource } from '../src/codegen/zodToSource'
+import { zodToSource, type ZodToSourceContext } from '../src/codegen/zodToSource'
 
 describe('zodToSource', () => {
   describe('primitives', () => {
@@ -134,6 +134,65 @@ describe('zodToSource', () => {
     it('z.custom() falls back to z.any() with comment', () => {
       const schema = z.custom<string>(() => true)
       expect(zodToSource(schema)).toBe('z.any() /* unsupported: custom */')
+    })
+  })
+
+  describe('codecs', () => {
+    // Create a test codec (similar to zDuration)
+    const zTestCodec = zx.codec(z.number(), z.object({ hours: z.number(), minutes: z.number() }), {
+      decode: (mins: number) => ({ hours: Math.floor(mins / 60), minutes: mins % 60 }),
+      encode: (d: { hours: number; minutes: number }) => d.hours * 60 + d.minutes
+    })
+
+    it('known codec from map emits export name', () => {
+      const ctx: ZodToSourceContext = {
+        codecMap: new Map([[zTestCodec, { exportName: 'zDuration', sourceFile: '../codecs' }]]),
+        neededCodecImports: new Map()
+      }
+      expect(zodToSource(zTestCodec, ctx)).toBe('zDuration')
+      expect(ctx.neededCodecImports.get('../codecs')?.has('zDuration')).toBe(true)
+    })
+
+    it('known codec wrapped in .optional() emits name.optional()', () => {
+      const ctx: ZodToSourceContext = {
+        codecMap: new Map([[zTestCodec, { exportName: 'zDuration', sourceFile: '../codecs' }]]),
+        neededCodecImports: new Map()
+      }
+      expect(zodToSource(zTestCodec.optional(), ctx)).toBe('zDuration.optional()')
+    })
+
+    it('unknown codec falls back to wire schema with warning', () => {
+      const unknownCodec = zx.codec(z.string(), z.object({ parsed: z.boolean() }), {
+        decode: () => ({ parsed: true }),
+        encode: () => 'raw'
+      })
+      // No ctx → no codec map
+      expect(zodToSource(unknownCodec)).toBe('z.string() /* codec: transforms lost */')
+    })
+
+    it('unknown codec with empty ctx falls back to wire schema', () => {
+      const unknownCodec = zx.codec(z.string(), z.object({ parsed: z.boolean() }), {
+        decode: () => ({ parsed: true }),
+        encode: () => 'raw'
+      })
+      const ctx: ZodToSourceContext = {
+        codecMap: new Map(),
+        neededCodecImports: new Map()
+      }
+      expect(zodToSource(unknownCodec, ctx)).toBe('z.string() /* codec: transforms lost */')
+    })
+
+    it('zx.date() still works without codec map (backward compat)', () => {
+      expect(zodToSource(zx.date())).toBe('zx.date()')
+    })
+
+    it('codec nested in object is resolved via codec map', () => {
+      const ctx: ZodToSourceContext = {
+        codecMap: new Map([[zTestCodec, { exportName: 'zDuration', sourceFile: '../codecs' }]]),
+        neededCodecImports: new Map()
+      }
+      const schema = z.object({ duration: zTestCodec })
+      expect(zodToSource(schema, ctx)).toBe('z.object({ duration: zDuration })')
     })
   })
 })
