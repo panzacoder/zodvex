@@ -2,7 +2,12 @@ import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { zx } from '../src/zx'
 import type { DiscoveredFunction, DiscoveredModel } from '../src/codegen/discover'
-import { generateSchemaFile, generateApiFile, generateClientFile } from '../src/codegen/generate'
+import {
+  generateSchemaFile,
+  generateApiFile,
+  generateClientFile,
+  type CodecForGeneration
+} from '../src/codegen/generate'
 
 const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.string() })
 
@@ -108,6 +113,83 @@ describe('generateApiFile', () => {
     // users:list has no returns
     expect(output).toContain("'users:list'")
     expect(output).toContain('returns: undefined')
+  })
+})
+
+describe('wrapper-aware identity matching', () => {
+  it('.nullable() of model doc schema uses Model.schema.doc.nullable()', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:get',
+        exportName: 'get',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({ id: zx.id('users') }),
+        zodReturns: userDocSchema.nullable()
+      }
+    ]
+    const output = generateApiFile(funcs, sampleModels)
+    expect(output).toContain('UserModel.schema.doc.nullable()')
+  })
+
+  it('.optional() of model doc schema uses Model.schema.doc.optional()', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:get',
+        exportName: 'get',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({ id: zx.id('users') }),
+        zodReturns: userDocSchema.optional()
+      }
+    ]
+    const output = generateApiFile(funcs, sampleModels)
+    expect(output).toContain('UserModel.schema.doc.optional()')
+  })
+
+  it('.nullable().optional() wraps correctly', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:get',
+        exportName: 'get',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({}),
+        zodReturns: userDocSchema.nullable().optional()
+      }
+    ]
+    const output = generateApiFile(funcs, sampleModels)
+    // The outer wrapper is .optional(), inner is .nullable(), unwrapping peels them
+    expect(output).toContain('UserModel.schema.doc.nullable().optional()')
+  })
+})
+
+describe('codec integration', () => {
+  it('codec in function args generates import and reference', () => {
+    const testCodec = zx.codec(z.number(), z.object({ hours: z.number(), minutes: z.number() }), {
+      decode: (n: number) => ({ hours: Math.floor(n / 60), minutes: n % 60 }),
+      encode: (d: { hours: number; minutes: number }) => d.hours * 60 + d.minutes
+    })
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'tasks:create',
+        exportName: 'create',
+        sourceFile: 'tasks.ts',
+        zodArgs: z.object({ estimate: testCodec }),
+        zodReturns: zx.id('tasks')
+      }
+    ]
+    const output = generateApiFile(funcs, sampleModels, [
+      {
+        exportName: 'zDuration',
+        sourceFile: 'codecs.ts',
+        schema: testCodec
+      }
+    ])
+    expect(output).toContain('zDuration')
+    expect(output).toContain("import { zDuration } from '../codecs'")
+  })
+
+  it('backward compat: generateApiFile works without codecs param', () => {
+    const output = generateApiFile(sampleFunctions, sampleModels)
+    expect(output).toContain('export const zodvexRegistry')
   })
 })
 
