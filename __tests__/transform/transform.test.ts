@@ -856,12 +856,13 @@ describe('transform/transform.ts', () => {
       expect(result.email).toBe('[REDACTED]')
     })
 
-    it('should NOT find metadata when applied BEFORE refine (documented limitation)', () => {
-      // Anti-pattern: metadata applied before refine is lost entirely
+    it('should find metadata when applied BEFORE refine (Zod v4.3.6+)', () => {
+      // Since Zod v4.3.6, .refine() adds a check to the existing schema
+      // instead of wrapping it — metadata is preserved.
       const schema = z.object({
         password: z
           .string()
-          .meta({ sensitive: true }) // Applied BEFORE - will be lost!
+          .meta({ sensitive: true })
           .refine(s => s.length >= 8)
       })
       const value = { password: 'secret123' }
@@ -873,8 +874,8 @@ describe('transform/transform.ts', () => {
         return val
       })
 
-      // Metadata is NOT found - refine doesn't preserve inner metadata
-      expect(result.password).toBe('secret123') // Not redacted
+      // Metadata IS found — refine preserves the underlying schema and its metadata
+      expect(result.password).toBe('[REDACTED]')
     })
 
     it('should work with chained transforms when meta is last', () => {
