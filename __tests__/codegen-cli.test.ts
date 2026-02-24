@@ -14,11 +14,12 @@ afterEach(() => {
 })
 
 describe('generate()', () => {
-  it('creates _zodvex/schema.ts and _zodvex/api.ts', async () => {
+  it('creates _zodvex/schema.ts, _zodvex/api.ts, and _zodvex/client.ts', async () => {
     await generate(fixtureDir)
 
     expect(fs.existsSync(path.join(outputDir, 'schema.ts'))).toBe(true)
     expect(fs.existsSync(path.join(outputDir, 'api.ts'))).toBe(true)
+    expect(fs.existsSync(path.join(outputDir, 'client.ts'))).toBe(true)
   })
 
   it('generated schema.ts contains model re-exports', async () => {
@@ -36,6 +37,21 @@ describe('generate()', () => {
     expect(content).toContain('zodvexRegistry')
     expect(content).toContain('users:get')
     expect(content).toContain('users:list')
+  })
+
+  it('generated client.ts contains pre-bound hooks and client factory', async () => {
+    await generate(fixtureDir)
+
+    const content = fs.readFileSync(path.join(outputDir, 'client.ts'), 'utf-8')
+    expect(content).toContain('AUTO-GENERATED')
+    expect(content).toContain("import { createZodvexHooks } from 'zodvex/react'")
+    expect(content).toContain(
+      "import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'"
+    )
+    expect(content).toContain("import { zodvexRegistry } from './api'")
+    expect(content).toContain('useZodQuery')
+    expect(content).toContain('useZodMutation')
+    expect(content).toContain('createClient')
   })
 
   it('throws for non-existent convex directory', async () => {

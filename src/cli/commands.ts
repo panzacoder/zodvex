@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { discoverModules } from '../codegen/discover'
-import { generateSchemaFile, generateApiFile } from '../codegen/generate'
+import { generateSchemaFile, generateApiFile, generateClientFile } from '../codegen/generate'
 
 /**
  * One-shot codegen. Discovers modules, generates files.
@@ -14,10 +14,12 @@ export async function generate(convexDir?: string): Promise<void> {
 
   const schemaContent = generateSchemaFile(result.models)
   const apiContent = generateApiFile(result.functions, result.models)
+  const clientContent = generateClientFile()
 
   fs.mkdirSync(zodvexDir, { recursive: true })
   fs.writeFileSync(path.join(zodvexDir, 'schema.ts'), schemaContent)
   fs.writeFileSync(path.join(zodvexDir, 'api.ts'), apiContent)
+  fs.writeFileSync(path.join(zodvexDir, 'client.ts'), clientContent)
 
   console.log(
     `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s)`

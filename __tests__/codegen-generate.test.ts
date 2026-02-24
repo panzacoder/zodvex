@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { zx } from '../src/zx'
 import type { DiscoveredFunction, DiscoveredModel } from '../src/codegen/discover'
-import { generateSchemaFile, generateApiFile } from '../src/codegen/generate'
+import { generateSchemaFile, generateApiFile, generateClientFile } from '../src/codegen/generate'
 
 const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.string() })
 
@@ -108,5 +108,20 @@ describe('generateApiFile', () => {
     // users:list has no returns
     expect(output).toContain("'users:list'")
     expect(output).toContain('returns: undefined')
+  })
+})
+
+describe('generateClientFile', () => {
+  it('should generate client file with pre-bound hooks and client factory', () => {
+    const content = generateClientFile()
+    expect(content).toContain("import { createZodvexHooks } from 'zodvex/react'")
+    expect(content).toContain(
+      "import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'"
+    )
+    expect(content).toContain("import { zodvexRegistry } from './api'")
+    expect(content).toContain('useZodQuery')
+    expect(content).toContain('useZodMutation')
+    expect(content).toContain('createClient')
+    expect(content).toContain('AUTO-GENERATED')
   })
 })
