@@ -4,7 +4,9 @@ import { attachMeta, readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } f
 
 describe('attachMeta / readMeta', () => {
   it('attaches function metadata as non-enumerable property', () => {
-    const target = () => {}
+    const target = () => {
+      /* no-op stub */
+    }
     const meta: ZodvexFunctionMeta = {
       type: 'function',
       zodArgs: z.object({ name: z.string() }),
@@ -17,7 +19,7 @@ describe('attachMeta / readMeta', () => {
     // But readMeta should find it
     const read = readMeta(target)
     expect(read).toBeDefined()
-    expect(read!.type).toBe('function')
+    expect(read?.type).toBe('function')
     expect((read as ZodvexFunctionMeta).zodArgs).toBeInstanceOf(z.ZodObject)
     expect((read as ZodvexFunctionMeta).zodReturns).toBeInstanceOf(z.ZodString)
   })
@@ -38,7 +40,7 @@ describe('attachMeta / readMeta', () => {
 
     const read = readMeta(target)
     expect(read).toBeDefined()
-    expect(read!.type).toBe('model')
+    expect(read?.type).toBe('model')
     expect((read as ZodvexModelMeta).tableName).toBe('users')
     expect((read as ZodvexModelMeta).schemas.doc).toBeInstanceOf(z.ZodObject)
     expect((read as ZodvexModelMeta).schemas.insert).toBeInstanceOf(z.ZodObject)
@@ -48,7 +50,11 @@ describe('attachMeta / readMeta', () => {
 
   it('readMeta returns undefined for objects without metadata', () => {
     expect(readMeta({})).toBeUndefined()
-    expect(readMeta(() => {})).toBeUndefined()
+    expect(
+      readMeta(() => {
+        /* no-op */
+      })
+    ).toBeUndefined()
   })
 
   it('readMeta returns undefined for non-objects', () => {

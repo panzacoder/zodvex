@@ -126,3 +126,12 @@ export type ZodvexCodec<Wire extends z.ZodTypeAny, Runtime extends z.ZodTypeAny>
  * Properties in U replace same-named properties in T.
  */
 export type Overwrite<T, U> = Omit<T, keyof U> & U
+
+/**
+ * Registry shape: maps function paths (e.g. "tasks:list") to optional
+ * args/returns Zod schemas that define the codec transforms.
+ *
+ * Produced by zodvex codegen into `_zodvex/api.ts` and consumed by all
+ * four codec boundary implementations: hooks, client, actionCtx, initZodvex.
+ */
+export type AnyRegistry = Record<string, { args?: z.ZodTypeAny; returns?: z.ZodTypeAny }>

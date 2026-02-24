@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { z } from 'zod'
 import path from 'node:path'
+import { z } from 'zod'
 import { discoverModules } from '../src/codegen/discover'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
@@ -46,7 +46,25 @@ describe('discoverModules', () => {
 
     const fn = result.functions.find(f => f.functionPath === 'users:get')
     expect(fn).toBeDefined()
-    expect(fn!.sourceFile).toContain('users.ts')
+    expect(fn?.sourceFile).toContain('users.ts')
+  })
+
+  it('preserves full directory prefix for 1-level nested functions', async () => {
+    const result = await discoverModules(fixtureDir)
+    const fnPaths = result.functions.map(f => f.functionPath)
+
+    // convex/api/reports.ts → "api/reports:summary", not "reports:summary"
+    expect(fnPaths).toContain('api/reports:summary')
+    expect(fnPaths).not.toContain('reports:summary')
+  })
+
+  it('preserves full directory prefix for deeply nested functions', async () => {
+    const result = await discoverModules(fixtureDir)
+    const fnPaths = result.functions.map(f => f.functionPath)
+
+    // convex/admin/audit/logs.ts → "admin/audit/logs:list", not "logs:list"
+    expect(fnPaths).toContain('admin/audit/logs:list')
+    expect(fnPaths).not.toContain('logs:list')
   })
 })
 
@@ -56,7 +74,7 @@ describe('codec discovery', () => {
     expect(result.codecs.length).toBeGreaterThanOrEqual(1)
     const duration = result.codecs.find(c => c.exportName === 'zDuration')
     expect(duration).toBeDefined()
-    expect(duration!.sourceFile).toBe('codecs.ts')
+    expect(duration?.sourceFile).toBe('codecs.ts')
   })
 
   it('skips zx.date() codecs', async () => {
@@ -70,6 +88,6 @@ describe('codec discovery', () => {
     const duration = result.codecs.find(c => c.exportName === 'zDuration')
     expect(duration).toBeDefined()
     // The schema should be the actual ZodCodec instance
-    expect(duration!.schema).toBeInstanceOf(z.ZodCodec)
+    expect(duration?.schema).toBeInstanceOf(z.ZodCodec)
   })
 })

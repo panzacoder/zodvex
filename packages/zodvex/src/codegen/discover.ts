@@ -1,7 +1,7 @@
+import path from 'node:path'
+import { Glob } from 'bun'
 import { z } from 'zod'
 import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../meta'
-import { Glob } from 'bun'
-import path from 'node:path'
 
 export type DiscoveredModel = {
   exportName: string
@@ -66,11 +66,10 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
       continue
     }
 
-    // Derive module name from file path (strip extension, use forward slashes)
+    // Derive module name from file path (strip extension, use forward slashes).
+    // Used as-is for function paths — Convex's getFunctionName() returns the full
+    // relative path including any subdirectory prefix (e.g. "api/reports:summary").
     const moduleName = file.replace(/\.(ts|js)$/, '').replace(/\\/g, '/')
-    // For nested paths like models/user, keep the full path
-    // But for function paths, use the last segment (Convex convention)
-    const moduleBase = moduleName.includes('/') ? moduleName.split('/').pop()! : moduleName
 
     for (const [exportName, value] of Object.entries(moduleExports)) {
       const meta = readMeta(value)
@@ -84,7 +83,7 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
           })
         } else if (meta.type === 'function') {
           functions.push({
-            functionPath: `${moduleBase}:${exportName}`,
+            functionPath: `${moduleName}:${exportName}`,
             exportName,
             sourceFile: file,
             zodArgs: meta.zodArgs,

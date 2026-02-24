@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test'
+import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { z } from 'zod'
 import { zx } from '../src/zx'
 
@@ -30,7 +30,9 @@ class MockConvexClient {
 
   onUpdate(ref: any, args: any, callback: (result: any) => void): () => void {
     if (mockOnUpdateImpl) return mockOnUpdateImpl(ref, args, callback)
-    return () => {}
+    return () => {
+      /* no-op unsubscribe */
+    }
   }
 
   setAuth(fetchToken: any) {
@@ -257,7 +259,9 @@ describe('ZodvexClient', () => {
       mockOnUpdateImpl = (_ref: any, _args: any, callback: any) => {
         // Simulate server pushing wire data
         callback([{ _id: 'sub1', title: 'Subscribed', createdAt: ts }])
-        return () => {}
+        return () => {
+          /* no-op unsubscribe */
+        }
       }
 
       client.subscribe(fakeRef('tasks:list'), {}, (result: any) => {
@@ -276,10 +280,14 @@ describe('ZodvexClient', () => {
 
       mockOnUpdateImpl = (_ref: any, args: any, _callback: any) => {
         capturedArgs = args
-        return () => {}
+        return () => {
+          /* no-op unsubscribe */
+        }
       }
 
-      client.subscribe(fakeRef('tasks:create'), { title: 'Sub task', dueAt: dueDate }, () => {})
+      client.subscribe(fakeRef('tasks:create'), { title: 'Sub task', dueAt: dueDate }, () => {
+        /* no-op unsubscribe */
+      })
 
       expect(capturedArgs).toBeDefined()
       expect(typeof capturedArgs.dueAt).toBe('number')
@@ -294,7 +302,9 @@ describe('ZodvexClient', () => {
         }
       }
 
-      const unsub = client.subscribe(fakeRef('tasks:list'), {}, () => {})
+      const unsub = client.subscribe(fakeRef('tasks:list'), {}, () => {
+        /* no-op unsubscribe */
+      })
       expect(typeof unsub).toBe('function')
 
       unsub()
@@ -307,7 +317,9 @@ describe('ZodvexClient', () => {
 
       mockOnUpdateImpl = (_ref: any, _args: any, callback: any) => {
         callback(raw)
-        return () => {}
+        return () => {
+          /* no-op unsubscribe */
+        }
       }
 
       client.subscribe(fakeRef('unknown:fn'), {}, (result: any) => {

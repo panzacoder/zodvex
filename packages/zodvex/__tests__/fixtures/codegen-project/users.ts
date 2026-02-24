@@ -16,6 +16,8 @@ attachMeta(list, {
 })
 
 // A plain export without metadata (should be skipped)
-const helper = () => {}
+const helper = () => {
+  /* no-op — tests that exports without metadata are skipped */
+}
 
 export { get, list, helper }

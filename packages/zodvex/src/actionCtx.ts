@@ -1,9 +1,8 @@
 import type { GenericActionCtx, GenericDataModel } from 'convex/server'
 import { getFunctionName } from 'convex/server'
 import { z } from 'zod'
+import type { AnyRegistry } from './types'
 import { stripUndefined } from './utils'
-
-type AnyRegistry = Record<string, { args?: z.ZodTypeAny; returns?: z.ZodTypeAny }>
 
 /**
  * Wraps an action context's runQuery/runMutation with automatic

@@ -142,6 +142,7 @@ const _dateCheck: _date1 = true
 // z.input should give us { value: string | null, status: ..., __sensitiveField?: ..., reason?: ... }
 // So "email.value", "email.status" should be valid paths.
 
+// biome-ignore lint/correctness/noUnusedVariables: documents the wire shape for this test section
 type SensitiveWire<T> = {
   value: T | null
   status: 'full' | 'hidden'
@@ -292,6 +293,7 @@ type ZodModelCore<
 function defineZodModel<Name extends string, Fields extends z.ZodRawShape>(
   name: Name,
   fields: Fields
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes in this spike
 ): ZodModelCore<Name, Fields, z.ZodObject<Fields>, {}> {
   const insertSchema = z.object(fields)
   const docSchema = insertSchema.extend({
@@ -422,7 +424,7 @@ describe('FieldPaths type-level spike', () => {
       z.custom<{ _brand: 'SensitiveField' }>(() => true),
       {
         decode: wire => ({ _brand: 'SensitiveField' as const, ...wire }),
-        encode: field => ({
+        encode: _field => ({
           value: null,
           status: 'full' as const
         })
@@ -454,7 +456,7 @@ describe('FieldPaths type-level spike', () => {
       }),
       z.custom<{ _brand: 'SensitiveField' }>(() => true),
       {
-        decode: wire => ({ _brand: 'SensitiveField' as const }),
+        decode: _wire => ({ _brand: 'SensitiveField' as const }),
         encode: () => ({ value: null, status: 'full' as const })
       }
     )

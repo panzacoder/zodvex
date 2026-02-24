@@ -1,15 +1,10 @@
-import { useQuery, useMutation } from 'convex/react'
 import type { OptionalRestArgsOrSkip } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import { getFunctionName } from 'convex/server'
 import { z } from 'zod'
+import type { AnyRegistry } from '../types'
 import { stripUndefined } from '../utils'
-
-/**
- * Registry shape: maps function paths (e.g. "tasks:list") to optional
- * args/returns Zod schemas that define the codec transforms.
- */
-type AnyRegistry = Record<string, { args?: z.ZodTypeAny; returns?: z.ZodTypeAny }>
 
 /**
  * Creates zodvex-aware React hooks that automatically decode query results

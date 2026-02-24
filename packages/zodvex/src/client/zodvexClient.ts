@@ -1,11 +1,10 @@
-import { ConvexClient } from 'convex/browser'
 import type { AuthTokenFetcher } from 'convex/browser'
+import { ConvexClient } from 'convex/browser'
 import type { FunctionReference } from 'convex/server'
 import { getFunctionName } from 'convex/server'
 import { z } from 'zod'
+import type { AnyRegistry } from '../types'
 import { stripUndefined } from '../utils'
-
-type AnyRegistry = Record<string, { args?: z.ZodTypeAny; returns?: z.ZodTypeAny }>
 
 export type ZodvexClientOptions = {
   url: string

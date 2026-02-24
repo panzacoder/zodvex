@@ -174,6 +174,7 @@ export type ZodModel<
 export function defineZodModel<Name extends string, Fields extends z.ZodRawShape>(
   name: Name,
   fields: Fields
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
 ): ZodModel<Name, Fields, z.ZodObject<Fields>, {}, {}, {}> {
   const insertSchema = z.object(fields)
   const docSchema = insertSchema.extend({

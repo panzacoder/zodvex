@@ -18,9 +18,7 @@ import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
 import { createCodecCustomization } from './customization'
 import type { CodecDatabaseReader, CodecDatabaseWriter } from './db'
 import type { ZodTableMap } from './schema'
-import type { Overwrite } from './types'
-
-type AnyRegistry = Record<string, { args?: z.ZodTypeAny; returns?: z.ZodTypeAny }>
+import type { AnyRegistry, Overwrite } from './types'
 
 /**
  * A zodvex builder: callable CustomBuilder + .withContext() for composing

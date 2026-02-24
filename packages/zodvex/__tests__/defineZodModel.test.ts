@@ -86,6 +86,7 @@ const _dateCheck: _date1 = true
 
 // --- Sensitive field codec (wire format = object, nested paths) ---
 
+// biome-ignore lint/correctness/noUnusedVariables: documents the wire shape for this test section
 type SensitiveWire<T> = {
   value: T | null
   status: 'full' | 'hidden'
@@ -483,7 +484,7 @@ describe('defineZodModel __zodvexMeta', () => {
 
     const meta = readMeta(model)
     expect(meta).toBeDefined()
-    expect(meta!.type).toBe('model')
+    expect(meta?.type).toBe('model')
 
     const mmeta = meta as ZodvexModelMeta
     expect(mmeta.tableName).toBe('users')
@@ -503,7 +504,7 @@ describe('defineZodModel __zodvexMeta', () => {
 
     const meta = readMeta(model)
     expect(meta).toBeDefined()
-    expect(meta!.type).toBe('model')
+    expect(meta?.type).toBe('model')
 
     const mmeta = meta as ZodvexModelMeta
     expect(mmeta.tableName).toBe('posts')

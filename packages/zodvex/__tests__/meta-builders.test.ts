@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { readMeta, type ZodvexFunctionMeta } from '../src/meta'
-import { zCustomQuery } from '../src/custom'
 import { zActionBuilder, zMutationBuilder, zQueryBuilder } from '../src/builders'
+import { zCustomQuery } from '../src/custom'
+import { readMeta, type ZodvexFunctionMeta } from '../src/meta'
 
 // Mock builder that just returns whatever function config it receives
 const mockBuilder = (fn: any) => fn
@@ -18,7 +18,7 @@ describe('__zodvexMeta in customFnBuilder', () => {
 
     const meta = readMeta(fn)
     expect(meta).toBeDefined()
-    expect(meta!.type).toBe('function')
+    expect(meta?.type).toBe('function')
 
     const fmeta = meta as ZodvexFunctionMeta
     expect(fmeta.zodArgs).toBeInstanceOf(z.ZodObject)
@@ -34,7 +34,7 @@ describe('__zodvexMeta in customFnBuilder', () => {
 
     const meta = readMeta(fn)
     expect(meta).toBeDefined()
-    expect(meta!.type).toBe('function')
+    expect(meta?.type).toBe('function')
 
     const fmeta = meta as ZodvexFunctionMeta
     expect(fmeta.zodArgs).toBeInstanceOf(z.ZodObject)
@@ -47,7 +47,7 @@ describe('__zodvexMeta in customFnBuilder', () => {
 
     const meta = readMeta(fn)
     expect(meta).toBeDefined()
-    expect(meta!.type).toBe('function')
+    expect(meta?.type).toBe('function')
 
     const fmeta = meta as ZodvexFunctionMeta
     expect(fmeta.zodArgs).toBeUndefined()
@@ -66,7 +66,7 @@ describe('__zodvexMeta in direct builders', () => {
 
     const meta = readMeta(fn)
     expect(meta).toBeDefined()
-    expect(meta!.type).toBe('function')
+    expect(meta?.type).toBe('function')
 
     const fmeta = meta as ZodvexFunctionMeta
     expect(fmeta.zodArgs).toBeInstanceOf(z.ZodObject)
@@ -77,7 +77,9 @@ describe('__zodvexMeta in direct builders', () => {
     const zm = zMutationBuilder(mockBuilder)
     const fn = zm({
       args: { email: z.string() },
-      handler: async (_ctx: any, _args: any) => {}
+      handler: async (_ctx: any, _args: any) => {
+        /* no-op */
+      }
     })
 
     const meta = readMeta(fn)
