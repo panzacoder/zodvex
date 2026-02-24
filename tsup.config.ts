@@ -8,6 +8,8 @@ export default defineConfig({
     'src/transform/index.ts',
     'src/cli/index.ts',
     'src/codegen/index.ts',
+    'src/react/index.ts',
+    'src/client/index.ts',
   ],
   format: ['esm'],
   // DTS handled by tsc in build script - tsup's dts doesn't output individual files
@@ -17,7 +19,7 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   minify: false,
-  external: ['zod', 'convex', 'convex-helpers', 'bun'],
+  external: ['zod', 'convex', 'convex-helpers', 'bun', 'react'],
   outDir: 'dist',
   target: 'node18'
 })
