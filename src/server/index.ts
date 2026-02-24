@@ -12,6 +12,8 @@
 
 // Re-export customCtx for convenience
 export { customCtx } from 'convex-helpers/server/customFunctions'
+// Action context wrapping (auto-codec for runQuery/runMutation in actions)
+export { createZodvexActionCtx } from '../actionCtx'
 // Function builders (zQueryBuilder, zMutationBuilder, zActionBuilder, etc.)
 export * from '../builders'
 // Custom function utilities (zCustomQuery, zCustomMutation, zCustomAction, etc.)
