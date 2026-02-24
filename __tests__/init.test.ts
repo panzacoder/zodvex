@@ -1,13 +1,21 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, mock } from 'bun:test'
 import { z } from 'zod'
 import { zCustomQuery } from '../src/custom'
 import { composeCodecAndUser, createZodvexBuilder, initZodvex } from '../src/init'
+import { zx } from '../src/zx'
 import {
   createMockDbReader,
   createMockDbWriter,
   userSchemas,
   userTableData
 } from './fixtures/mock-db'
+
+// ---------------------------------------------------------------------------
+// Mock convex/server — needed for getFunctionName in action codec path
+// ---------------------------------------------------------------------------
+mock.module('convex/server', () => ({
+  getFunctionName: (ref: any) => ref._testPath
+}))
 
 describe('composeCodecAndUser', () => {
   // Minimal codec customization mock — wraps ctx.db
@@ -379,6 +387,171 @@ describe('initZodvex with wrapDb: false', () => {
     // No codec wrapping — raw timestamp
     expect(result.doc.createdAt).toBe(1700000000000)
     // User customization still works
+    expect(result.user).toBe('AuthUser')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// initZodvex with registry
+// ---------------------------------------------------------------------------
+
+describe('initZodvex with registry', () => {
+  const mockSchema = { __zodTableMap: { users: userSchemas } }
+  const mockServer = {
+    query: (fn: any) => fn,
+    mutation: (fn: any) => fn,
+    action: (fn: any) => fn,
+    internalQuery: (fn: any) => fn,
+    internalMutation: (fn: any) => fn,
+    internalAction: (fn: any) => fn
+  }
+
+  /** Create a fake FunctionReference with a _testPath property */
+  function fakeRef(path: string) {
+    return { _testPath: path } as any
+  }
+
+  const taskReturnsSchema = z.object({
+    _id: z.string(),
+    title: z.string(),
+    createdAt: zx.date()
+  })
+
+  const registry = {
+    'tasks:get': { returns: taskReturnsSchema }
+  }
+
+  it('should accept a lazy registry thunk', () => {
+    const result = initZodvex(mockSchema, mockServer as any, {
+      registry: () => registry
+    })
+    expect(result.za).toBeTypeOf('function')
+    expect(result.zia).toBeTypeOf('function')
+    expect(result.za.withContext).toBeTypeOf('function')
+    expect(result.zia.withContext).toBeTypeOf('function')
+  })
+
+  it('za handler receives wrapped ctx.runQuery that decodes results', async () => {
+    const ts = 1700000000000
+    const { za } = initZodvex(mockSchema, mockServer as any, {
+      registry: () => registry
+    })
+
+    const fn = za({
+      handler: async (ctx: any) => {
+        return ctx.runQuery(fakeRef('tasks:get'))
+      }
+    })
+
+    const rawCtx = {
+      runQuery: async () => ({ _id: 'abc', title: 'Test', createdAt: ts }),
+      runMutation: async () => undefined,
+      runAction: async () => undefined,
+      auth: { getUserIdentity: async () => null }
+    }
+
+    const result: any = await fn.handler(rawCtx, {})
+
+    // Should be decoded: number -> Date
+    expect(result.createdAt).toBeInstanceOf(Date)
+    expect(result.createdAt.getTime()).toBe(ts)
+  })
+
+  it('zia handler receives wrapped ctx.runMutation that decodes results', async () => {
+    const ts = 1700000000000
+    const { zia } = initZodvex(mockSchema, mockServer as any, {
+      registry: () => registry
+    })
+
+    const fn = zia({
+      handler: async (ctx: any) => {
+        return ctx.runMutation(fakeRef('tasks:get'))
+      }
+    })
+
+    const rawCtx = {
+      runQuery: async () => undefined,
+      runMutation: async () => ({ _id: 'abc', title: 'Test', createdAt: ts }),
+      runAction: async () => undefined,
+      auth: { getUserIdentity: async () => null }
+    }
+
+    const result: any = await fn.handler(rawCtx, {})
+
+    // Should be decoded: number -> Date
+    expect(result.createdAt).toBeInstanceOf(Date)
+    expect(result.createdAt.getTime()).toBe(ts)
+  })
+
+  it('za handler without registry has no codec wrapping', async () => {
+    const ts = 1700000000000
+    const { za } = initZodvex(mockSchema, mockServer as any)
+
+    const fn = za({
+      handler: async (ctx: any) => {
+        return ctx.runQuery(fakeRef('tasks:get'))
+      }
+    })
+
+    const rawCtx = {
+      runQuery: async () => ({ _id: 'abc', title: 'Test', createdAt: ts }),
+      runMutation: async () => undefined,
+      runAction: async () => undefined,
+      auth: { getUserIdentity: async () => null }
+    }
+
+    const result: any = await fn.handler(rawCtx, {})
+
+    // Without registry, no decoding — raw number stays as-is
+    expect(result.createdAt).toBe(ts)
+  })
+
+  it('registry thunk is not called at construction time', () => {
+    let called = false
+    initZodvex(mockSchema, mockServer as any, {
+      registry: () => {
+        called = true
+        return registry
+      }
+    })
+
+    // The thunk should NOT have been called during initZodvex()
+    expect(called).toBe(false)
+  })
+
+  it('za.withContext() composes registry codec with user customization', async () => {
+    const ts = 1700000000000
+    const { za } = initZodvex(mockSchema, mockServer as any, {
+      registry: () => registry
+    })
+
+    const authedAction = za.withContext({
+      args: {},
+      input: async (ctx: any) => ({
+        ctx: { user: 'AuthUser' },
+        args: {}
+      })
+    })
+
+    const fn = authedAction({
+      handler: async (ctx: any) => {
+        const doc = await ctx.runQuery(fakeRef('tasks:get'))
+        return { doc, user: ctx.user }
+      }
+    })
+
+    const rawCtx = {
+      runQuery: async () => ({ _id: 'abc', title: 'Test', createdAt: ts }),
+      runMutation: async () => undefined,
+      runAction: async () => undefined,
+      auth: { getUserIdentity: async () => null }
+    }
+
+    const result: any = await fn.handler(rawCtx, {})
+
+    // Registry codec works: number -> Date
+    expect(result.doc.createdAt).toBeInstanceOf(Date)
+    // User customization works
     expect(result.user).toBe('AuthUser')
   })
 })

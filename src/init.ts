@@ -11,12 +11,16 @@ import type {
 import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
 import { NoOp } from 'convex-helpers/server/customFunctions'
+import type { z } from 'zod'
+import { createZodvexActionCtx } from './actionCtx'
 import type { CustomBuilder } from './custom'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
 import { createCodecCustomization } from './customization'
 import type { CodecDatabaseReader, CodecDatabaseWriter } from './db'
 import type { ZodTableMap } from './schema'
 import type { Overwrite } from './types'
+
+type AnyRegistry = Record<string, { args?: z.ZodTypeAny; returns?: z.ZodTypeAny }>
 
 /**
  * A zodvex builder: callable CustomBuilder + .withContext() for composing
@@ -74,7 +78,7 @@ export function initZodvex<DM extends GenericDataModel>(
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options: { wrapDb: false }
+  options: { wrapDb: false; registry?: () => AnyRegistry }
 ): {
   zq: ZodvexBuilder<'query', Record<string, never>, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<'mutation', Record<string, never>, GenericMutationCtx<DM>, 'public'>
@@ -100,7 +104,7 @@ export function initZodvex<
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options?: { wrapDb?: true }
+  options?: { wrapDb?: true; registry?: () => AnyRegistry }
 ): {
   zq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<
@@ -131,23 +135,38 @@ export function initZodvex(
     internalMutation: MutationBuilder<any, 'internal'>
     internalAction: ActionBuilder<any, 'internal'>
   },
-  options?: { wrapDb?: boolean }
+  options?: { wrapDb?: boolean; registry?: () => AnyRegistry }
 ) {
   const codec = createCodecCustomization(schema.__zodTableMap)
   const noOp = { args: {} as Record<string, never>, input: NoOp.input }
   const wrap = options?.wrapDb !== false
 
+  // Create action customization when registry is provided
+  const registryThunk = options?.registry
+  const actionCust = registryThunk
+    ? {
+        args: {} as Record<string, never>,
+        input: async (ctx: any) => {
+          const wrapped = createZodvexActionCtx(registryThunk(), ctx)
+          return {
+            ctx: { runQuery: wrapped.runQuery, runMutation: wrapped.runMutation },
+            args: {}
+          }
+        }
+      }
+    : noOp
+
   return {
     zq: createZodvexBuilder(server.query, wrap ? codec.query : noOp, zCustomQuery),
     zm: createZodvexBuilder(server.mutation, wrap ? codec.mutation : noOp, zCustomMutation),
-    za: createZodvexBuilder(server.action, noOp, zCustomAction),
+    za: createZodvexBuilder(server.action, actionCust, zCustomAction),
     ziq: createZodvexBuilder(server.internalQuery, wrap ? codec.query : noOp, zCustomQuery),
     zim: createZodvexBuilder(
       server.internalMutation,
       wrap ? codec.mutation : noOp,
       zCustomMutation
     ),
-    zia: createZodvexBuilder(server.internalAction, noOp, zCustomAction)
+    zia: createZodvexBuilder(server.internalAction, actionCust, zCustomAction)
   }
 }
 
