@@ -37,8 +37,11 @@ jobs:
       - name: Build package
         run: bun run build
 
+      - name: Copy root files for publish
+        run: cp README.md LICENSE packages/zodvex/
+
       - name: Publish to npm
-        run: npm publish --access public
+        run: cd packages/zodvex && npm publish --access public
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

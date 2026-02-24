@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping with correct optional and nullable semantics. It acts as a thin, practical glue around `convex-helpers` that preserves Convex's notion of optional fields while offering ergonomic wrappers and codecs for working with Zod schemas in Convex applications.
 
+## Monorepo Structure
+
+This is a bun workspaces monorepo:
+
+- `packages/zodvex/` — the publishable library (source, tests, build config)
+- `examples/task-manager/` — example app using zodvex via `workspace:*`
+- Root `package.json` — workspace root (private, not published)
+
+All commands can be run from the repo root — they delegate to `packages/zodvex/`.
+
 ## Key Commands
 
 ### Development
@@ -17,8 +27,6 @@ zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping
 ### Testing
 
 - `bun test` - Run tests with Bun's built-in test runner
-- `bun run test:vitest` - Run tests with Vitest
-- `bun run test:coverage` - Run tests with code coverage
 
 ### Code Quality
 
@@ -28,13 +36,13 @@ zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping
 
 ### Publishing
 
-- `bun run prepublishOnly` - Runs build, test, and type-check before publishing
+- `cd packages/zodvex && npm publish` - Publish to npm
 
 ## Architecture
 
 ### Core Modules
 
-The library is organized into focused modules in the `src/` directory:
+The library is organized into focused modules in `packages/zodvex/src/`:
 
 - **mapping.ts** - Core Zod to Convex validator conversion logic. Handles the translation of Zod schemas to Convex validators with proper optional/nullable semantics.
 
@@ -63,11 +71,11 @@ The library is organized into focused modules in the `src/` directory:
 
 ## Testing Approach
 
-Tests are located in `__tests__/` directory and use Vitest. Run a specific test file:
+Tests are located in `packages/zodvex/__tests__/` and use Bun's test runner. Run a specific test file:
 
 ```bash
-pnpm vitest run __tests__/mapping.test.ts
-pnpm vitest run __tests__/codec.test.ts
+bun test packages/zodvex/__tests__/mapping.test.ts
+bun test packages/zodvex/__tests__/codec.test.ts
 ```
 
 ## Dependencies
@@ -92,5 +100,5 @@ See `docs/convex_rules.txt` for official Convex agent guidance (query patterns, 
 - **Runtime/Package Manager**: Bun (replaces pnpm)
 - **Linting/Formatting**: Biome (replaces ESLint + Prettier)
 - **Building**: tsup (powered by esbuild)
-- **Testing**: Bun test runner or Vitest
+- **Testing**: Bun test runner
 - **TypeScript**: v5.x with strict mode
