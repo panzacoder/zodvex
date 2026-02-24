@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../meta'
 import { Glob } from 'bun'
 import path from 'node:path'
@@ -17,9 +18,16 @@ export type DiscoveredFunction = {
   zodReturns?: ZodvexFunctionMeta['zodReturns']
 }
 
+export type DiscoveredCodec = {
+  exportName: string
+  sourceFile: string
+  schema: z.ZodTypeAny
+}
+
 export type DiscoveryResult = {
   models: DiscoveredModel[]
   functions: DiscoveredFunction[]
+  codecs: DiscoveredCodec[]
 }
 
 /**
@@ -30,6 +38,7 @@ export type DiscoveryResult = {
 export async function discoverModules(convexDir: string): Promise<DiscoveryResult> {
   const models: DiscoveredModel[] = []
   const functions: DiscoveredFunction[] = []
+  const codecs: DiscoveredCodec[] = []
 
   const glob = new Glob('**/*.{ts,js}')
   const files: string[] = []
@@ -65,26 +74,43 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
 
     for (const [exportName, value] of Object.entries(moduleExports)) {
       const meta = readMeta(value)
-      if (!meta) continue
+      if (meta) {
+        if (meta.type === 'model') {
+          models.push({
+            exportName,
+            tableName: meta.tableName,
+            sourceFile: file,
+            schemas: meta.schemas
+          })
+        } else if (meta.type === 'function') {
+          functions.push({
+            functionPath: `${moduleBase}:${exportName}`,
+            exportName,
+            sourceFile: file,
+            zodArgs: meta.zodArgs,
+            zodReturns: meta.zodReturns
+          })
+        }
+      }
 
-      if (meta.type === 'model') {
-        models.push({
-          exportName,
-          tableName: meta.tableName,
-          sourceFile: file,
-          schemas: meta.schemas
-        })
-      } else if (meta.type === 'function') {
-        functions.push({
-          functionPath: `${moduleBase}:${exportName}`,
-          exportName,
-          sourceFile: file,
-          zodArgs: meta.zodArgs,
-          zodReturns: meta.zodReturns
-        })
+      // Check for exported ZodCodec instances (custom codecs)
+      // Skip zx.date() — it's handled natively by zodToSource
+      if (value instanceof z.ZodCodec) {
+        const def = (value as any)._zod?.def as any
+        const isZxDate = def?.in instanceof z.ZodNumber && def?.out instanceof z.ZodCustom
+        if (!isZxDate) {
+          // Deduplicate by object identity (same codec from re-exports)
+          if (!codecs.some(c => c.schema === value)) {
+            codecs.push({
+              exportName,
+              sourceFile: file,
+              schema: value as z.ZodTypeAny
+            })
+          }
+        }
       }
     }
   }
 
-  return { models, functions }
+  return { models, functions, codecs }
 }

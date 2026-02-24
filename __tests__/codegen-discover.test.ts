@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+import { z } from 'zod'
 import path from 'node:path'
 import { discoverModules } from '../src/codegen/discover'
 
@@ -46,5 +47,29 @@ describe('discoverModules', () => {
     const fn = result.functions.find(f => f.functionPath === 'users:get')
     expect(fn).toBeDefined()
     expect(fn!.sourceFile).toContain('users.ts')
+  })
+})
+
+describe('codec discovery', () => {
+  it('discovers exported ZodCodec instances', async () => {
+    const result = await discoverModules(fixtureDir)
+    expect(result.codecs.length).toBeGreaterThanOrEqual(1)
+    const duration = result.codecs.find(c => c.exportName === 'zDuration')
+    expect(duration).toBeDefined()
+    expect(duration!.sourceFile).toBe('codecs.ts')
+  })
+
+  it('skips zx.date() codecs', async () => {
+    const result = await discoverModules(fixtureDir)
+    const dateCodecs = result.codecs.filter(c => c.exportName === 'zCreatedAt')
+    expect(dateCodecs.length).toBe(0)
+  })
+
+  it('records schema reference for identity matching', async () => {
+    const result = await discoverModules(fixtureDir)
+    const duration = result.codecs.find(c => c.exportName === 'zDuration')
+    expect(duration).toBeDefined()
+    // The schema should be the actual ZodCodec instance
+    expect(duration!.schema).toBeInstanceOf(z.ZodCodec)
   })
 })
