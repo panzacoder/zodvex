@@ -13,7 +13,7 @@ export async function generate(convexDir?: string): Promise<void> {
   const result = await discoverModules(resolved)
 
   const schemaContent = generateSchemaFile(result.models)
-  const apiContent = generateApiFile(result.functions, result.models)
+  const apiContent = generateApiFile(result.functions, result.models, result.codecs)
   const clientContent = generateClientFile()
 
   fs.mkdirSync(zodvexDir, { recursive: true })
@@ -22,7 +22,7 @@ export async function generate(convexDir?: string): Promise<void> {
   fs.writeFileSync(path.join(zodvexDir, 'client.ts'), clientContent)
 
   console.log(
-    `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s)`
+    `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s), ${result.codecs.length} codec(s)`
   )
 }
 

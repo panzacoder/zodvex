@@ -22,7 +22,7 @@ describe('codegen e2e', () => {
 
     // 2. Generate
     const schemaContent = generateSchemaFile(result.models)
-    const apiContent = generateApiFile(result.functions, result.models)
+    const apiContent = generateApiFile(result.functions, result.models, result.codecs)
     const clientContent = generateClientFile()
 
     // 3. Write to _zodvex/
@@ -60,6 +60,13 @@ describe('codegen e2e', () => {
     expect(clientContent).toContain('useZodQuery')
     expect(clientContent).toContain('useZodMutation')
     expect(clientContent).toContain('createClient')
+
+    // 9. Verify codec discovery
+    expect(result.codecs.length).toBeGreaterThanOrEqual(1)
+    expect(result.codecs.some(c => c.exportName === 'zDuration')).toBe(true)
+
+    // 10. Verify codec handling in api.ts — no unsupported pipe fallback
+    expect(apiContent).not.toContain('unsupported: pipe')
   })
 
   it('schema.ts has correct import paths relative to _zodvex/', async () => {
@@ -72,7 +79,7 @@ describe('codegen e2e', () => {
 
   it('api.ts imports zod when ad-hoc schemas are present', async () => {
     const result = await discoverModules(fixtureDir)
-    const apiContent = generateApiFile(result.functions, result.models)
+    const apiContent = generateApiFile(result.functions, result.models, result.codecs)
 
     expect(apiContent).toContain("import { z } from 'zod'")
   })
