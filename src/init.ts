@@ -84,9 +84,14 @@ export function initZodvex<DM extends GenericDataModel>(
   zia: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'internal'>
 }
 
-// Overload 2: wrapDb: true (default) — codec DB wrapping enabled
-export function initZodvex<DM extends GenericDataModel>(
-  schema: { __zodTableMap: ZodTableMap },
+// Overload 2: wrapDb: true (default) — codec DB wrapping with decoded types
+// DD (DecodedDocs) is inferred from schema.__decodedDocs, carrying the decoded
+// document types computed by DecodedDocFor<T> in defineZodSchema.
+export function initZodvex<
+  DM extends GenericDataModel,
+  DD extends Record<string, any> = Record<string, any>
+>(
+  schema: { __zodTableMap: ZodTableMap; __decodedDocs: DD },
   server: {
     query: QueryBuilder<DM, 'public'>
     mutation: MutationBuilder<DM, 'public'>
@@ -97,13 +102,18 @@ export function initZodvex<DM extends GenericDataModel>(
   },
   options?: { wrapDb?: true }
 ): {
-  zq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM> }, GenericQueryCtx<DM>, 'public'>
-  zm: ZodvexBuilder<'mutation', { db: CodecDatabaseWriter<DM> }, GenericMutationCtx<DM>, 'public'>
+  zq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
+  zm: ZodvexBuilder<
+    'mutation',
+    { db: CodecDatabaseWriter<DM, DD> },
+    GenericMutationCtx<DM>,
+    'public'
+  >
   za: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'public'>
-  ziq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM> }, GenericQueryCtx<DM>, 'internal'>
+  ziq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'internal'>
   zim: ZodvexBuilder<
     'mutation',
-    { db: CodecDatabaseWriter<DM> },
+    { db: CodecDatabaseWriter<DM, DD> },
     GenericMutationCtx<DM>,
     'internal'
   >

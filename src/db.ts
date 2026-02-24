@@ -12,11 +12,8 @@ import type {
   NamedIndex,
   NamedSearchIndex,
   NamedTableInfo,
-  OrderedQuery,
   PaginationOptions,
   PaginationResult,
-  Query,
-  QueryInitializer,
   SearchFilter,
   SearchFilterBuilder,
   SearchIndexNames,
@@ -31,26 +28,36 @@ import type { ZodTableMap } from './schema'
  * Wraps a Convex query chain, decoding documents through a Zod schema
  * at terminal methods (first, unique, collect, take, paginate).
  *
- * Intermediate methods (filter, order, withIndex, etc.) pass through
- * to the inner query — they operate on wire-format data.
+ * Two type contexts (dual-generic design):
+ * - `TableInfo`: Convex's wire-format table info. Used by intermediate methods
+ *   (withIndex, filter, etc.) so IndexRangeBuilder and FilterBuilder see
+ *   wire-format field types (e.g., `createdAt: number`).
+ * - `Doc`: The decoded/runtime document type. Used by terminal methods
+ *   (first, collect, paginate, etc.) so handlers see runtime types
+ *   (e.g., `createdAt: Date`).
+ *
+ * Consumer code never passes these generics manually — they're inferred
+ * from CodecDatabaseReader.query() which gets them from defineZodSchema's
+ * captured type parameter.
+ *
+ * Does NOT implement QueryInitializer<TableInfo> because terminal methods
+ * return Doc (decoded) instead of DocumentByInfo<TableInfo> (wire).
  */
-export class CodecQueryChain<TableInfo extends GenericTableInfo>
-  implements QueryInitializer<TableInfo>
-{
+export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentByInfo<TableInfo>> {
   constructor(
     private inner: any,
     private schema: z.ZodTypeAny
   ) {}
 
-  /** Decode a wire-format doc and cast to the document type. */
-  private decode(doc: any): DocumentByInfo<TableInfo> {
-    return decodeDoc(this.schema, doc) as DocumentByInfo<TableInfo>
+  /** Decode a wire-format doc and cast to the decoded document type. */
+  private decode(doc: any): Doc {
+    return decodeDoc(this.schema, doc) as Doc
   }
 
-  // --- Intermediate methods: pass-through, return wrapped ---
+  // --- Intermediate methods: wire-typed TableInfo for Convex machinery ---
 
-  fullTableScan(): Query<TableInfo> {
-    return new CodecQueryChain<TableInfo>(this.inner.fullTableScan(), this.schema)
+  fullTableScan(): CodecQueryChain<TableInfo, Doc> {
+    return new CodecQueryChain<TableInfo, Doc>(this.inner.fullTableScan(), this.schema)
   }
 
   withIndex<IndexName extends IndexNames<TableInfo>>(
@@ -58,8 +65,11 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo>
     indexRange?: (
       q: IndexRangeBuilder<DocumentByInfo<TableInfo>, NamedIndex<TableInfo, IndexName>>
     ) => IndexRange
-  ): Query<TableInfo> {
-    return new CodecQueryChain<TableInfo>(this.inner.withIndex(indexName, indexRange), this.schema)
+  ): CodecQueryChain<TableInfo, Doc> {
+    return new CodecQueryChain<TableInfo, Doc>(
+      this.inner.withIndex(indexName, indexRange),
+      this.schema
+    )
   }
 
   withSearchIndex<IndexName extends SearchIndexNames<TableInfo>>(
@@ -67,54 +77,54 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo>
     searchFilter: (
       q: SearchFilterBuilder<DocumentByInfo<TableInfo>, NamedSearchIndex<TableInfo, IndexName>>
     ) => SearchFilter
-  ): OrderedQuery<TableInfo> {
-    return new CodecQueryChain<TableInfo>(
+  ): CodecQueryChain<TableInfo, Doc> {
+    return new CodecQueryChain<TableInfo, Doc>(
       this.inner.withSearchIndex(indexName, searchFilter),
       this.schema
     )
   }
 
-  order(order: 'asc' | 'desc'): OrderedQuery<TableInfo> {
-    return new CodecQueryChain<TableInfo>(this.inner.order(order), this.schema)
+  order(order: 'asc' | 'desc'): CodecQueryChain<TableInfo, Doc> {
+    return new CodecQueryChain<TableInfo, Doc>(this.inner.order(order), this.schema)
   }
 
-  filter(predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>): this {
-    return new CodecQueryChain<TableInfo>(this.inner.filter(predicate), this.schema) as this
+  filter(
+    predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
+  ): CodecQueryChain<TableInfo, Doc> {
+    return new CodecQueryChain<TableInfo, Doc>(this.inner.filter(predicate), this.schema)
   }
 
-  limit(n: number) {
-    return new CodecQueryChain<TableInfo>(this.inner.limit(n), this.schema)
+  limit(n: number): CodecQueryChain<TableInfo, Doc> {
+    return new CodecQueryChain<TableInfo, Doc>(this.inner.limit(n), this.schema)
   }
 
   count(): Promise<number> {
     return this.inner.count()
   }
 
-  // --- Terminal methods: decode at boundary ---
+  // --- Terminal methods: return decoded Doc type ---
 
-  async first(): Promise<DocumentByInfo<TableInfo> | null> {
+  async first(): Promise<Doc | null> {
     const doc = await this.inner.first()
     return doc ? this.decode(doc) : null
   }
 
-  async unique(): Promise<DocumentByInfo<TableInfo> | null> {
+  async unique(): Promise<Doc | null> {
     const doc = await this.inner.unique()
     return doc ? this.decode(doc) : null
   }
 
-  async collect(): Promise<DocumentByInfo<TableInfo>[]> {
+  async collect(): Promise<Doc[]> {
     const docs = await this.inner.collect()
     return docs.map((doc: any) => this.decode(doc))
   }
 
-  async take(n: number): Promise<DocumentByInfo<TableInfo>[]> {
+  async take(n: number): Promise<Doc[]> {
     const docs = await this.inner.take(n)
     return docs.map((doc: any) => this.decode(doc))
   }
 
-  async paginate(
-    paginationOpts: PaginationOptions
-  ): Promise<PaginationResult<DocumentByInfo<TableInfo>>> {
+  async paginate(paginationOpts: PaginationOptions): Promise<PaginationResult<Doc>> {
     const result = await this.inner.paginate(paginationOpts)
     return {
       ...result,
@@ -124,12 +134,25 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo>
 
   // --- AsyncIterable: decode each yielded document ---
 
-  async *[Symbol.asyncIterator](): AsyncIterator<DocumentByInfo<TableInfo>> {
+  async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
     for await (const doc of this.inner) {
       yield this.decode(doc)
     }
   }
 }
+
+/**
+ * Resolves the decoded document type for a given table.
+ * If the table has a decoded type in DecodedDocs, use it.
+ * Otherwise fall back to DocumentByInfo (wire types = runtime types for tables without codecs).
+ */
+type ResolveDecodedDoc<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>,
+  TableName extends TableNamesInDataModel<DataModel>
+> = TableName extends keyof DecodedDocs
+  ? DecodedDocs[TableName]
+  : DocumentByInfo<NamedTableInfo<DataModel, TableName>>
 
 /**
  * Resolves a table name from a GenericId by iterating the tableMap
@@ -153,10 +176,20 @@ function resolveTableName<DataModel extends GenericDataModel>(
  * Documents from tables in the zodTableMap are decoded through their schema.
  * Tables not in the map pass through without decoding.
  * System tables always pass through.
+ *
+ * DecodedDocs is a phantom type carrying the decoded document types for each
+ * table (computed by DecodedDocFor<T> from defineZodSchema). It's never
+ * accessed at runtime — it only drives the Doc generic on CodecQueryChain
+ * so terminal methods return decoded types (e.g., Date instead of number).
+ *
+ * Does NOT implement GenericDatabaseReader<DataModel> because query() returns
+ * CodecQueryChain (with decoded terminal types) instead of QueryInitializer
+ * (with wire terminal types).
  */
-export class CodecDatabaseReader<DataModel extends GenericDataModel>
-  implements GenericDatabaseReader<DataModel>
-{
+export class CodecDatabaseReader<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any> = Record<string, any>
+> {
   system: GenericDatabaseReader<DataModel>['system']
 
   constructor(
@@ -195,29 +228,48 @@ export class CodecDatabaseReader<DataModel extends GenericDataModel>
 
   query<TableName extends TableNamesInDataModel<DataModel>>(
     tableName: TableName
-  ): QueryInitializer<NamedTableInfo<DataModel, TableName>> {
+  ): CodecQueryChain<
+    NamedTableInfo<DataModel, TableName>,
+    ResolveDecodedDoc<DataModel, DecodedDocs, TableName>
+  > {
     const schemas = this.tableMap[tableName as string]
     const innerQuery = this.db.query(tableName)
-    if (!schemas) return innerQuery
-    return new CodecQueryChain<NamedTableInfo<DataModel, TableName>>(innerQuery, schemas.doc)
+    if (!schemas) {
+      // No codec for this table — return unwrapped query.
+      // Wire types = runtime types for non-codec tables, and
+      // ResolveDecodedDoc falls back to DocumentByInfo (wire) here.
+      return innerQuery as any
+    }
+    return new CodecQueryChain<
+      NamedTableInfo<DataModel, TableName>,
+      ResolveDecodedDoc<DataModel, DecodedDocs, TableName>
+    >(innerQuery, schemas.doc)
   }
 }
 
 /**
  * Wraps a GenericDatabaseWriter with automatic Zod codec encoding on writes
  * and decoding on reads. Delegates read operations to a CodecDatabaseReader.
+ *
+ * Does NOT implement GenericDatabaseWriter<DataModel> because query() returns
+ * CodecQueryChain (decoded types) instead of QueryInitializer (wire types).
  */
-export class CodecDatabaseWriter<DataModel extends GenericDataModel>
-  implements GenericDatabaseWriter<DataModel>
-{
-  private reader: CodecDatabaseReader<DataModel>
+export class CodecDatabaseWriter<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any> = Record<string, any>
+> {
+  private reader: CodecDatabaseReader<DataModel, DecodedDocs>
   system: GenericDatabaseWriter<DataModel>['system']
 
   constructor(
     private db: GenericDatabaseWriter<DataModel>,
     private tableMap: ZodTableMap
   ) {
-    this.reader = new CodecDatabaseReader(db, tableMap)
+    // DecodedDocs is phantom — the cast propagates the type through delegation.
+    this.reader = new CodecDatabaseReader(db, tableMap) as CodecDatabaseReader<
+      DataModel,
+      DecodedDocs
+    >
     this.system = db.system
   }
 
@@ -236,7 +288,10 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
 
   query<TableName extends TableNamesInDataModel<DataModel>>(
     tableName: TableName
-  ): QueryInitializer<NamedTableInfo<DataModel, TableName>> {
+  ): CodecQueryChain<
+    NamedTableInfo<DataModel, TableName>,
+    ResolveDecodedDoc<DataModel, DecodedDocs, TableName>
+  > {
     return this.reader.query(tableName)
   }
 
@@ -312,21 +367,33 @@ export class CodecDatabaseWriter<DataModel extends GenericDataModel>
 /**
  * Creates a CodecDatabaseReader from a Convex DatabaseReader and a schema
  * with __zodTableMap (as returned by defineZodSchema).
+ *
+ * When the schema carries __decodedDocs (from defineZodSchema), DD is inferred
+ * automatically, providing decoded types on query terminal methods.
  */
-export function createZodDbReader<DataModel extends GenericDataModel>(
+export function createZodDbReader<
+  DataModel extends GenericDataModel,
+  DD extends Record<string, any> = Record<string, any>
+>(
   db: GenericDatabaseReader<DataModel>,
-  schema: { __zodTableMap: ZodTableMap }
-): CodecDatabaseReader<DataModel> {
-  return new CodecDatabaseReader(db, schema.__zodTableMap)
+  schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD }
+): CodecDatabaseReader<DataModel, DD> {
+  return new CodecDatabaseReader(db, schema.__zodTableMap) as CodecDatabaseReader<DataModel, DD>
 }
 
 /**
  * Creates a CodecDatabaseWriter from a Convex DatabaseWriter and a schema
  * with __zodTableMap (as returned by defineZodSchema).
+ *
+ * When the schema carries __decodedDocs (from defineZodSchema), DD is inferred
+ * automatically, providing decoded types on query terminal methods.
  */
-export function createZodDbWriter<DataModel extends GenericDataModel>(
+export function createZodDbWriter<
+  DataModel extends GenericDataModel,
+  DD extends Record<string, any> = Record<string, any>
+>(
   db: GenericDatabaseWriter<DataModel>,
-  schema: { __zodTableMap: ZodTableMap }
-): CodecDatabaseWriter<DataModel> {
-  return new CodecDatabaseWriter(db, schema.__zodTableMap)
+  schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD }
+): CodecDatabaseWriter<DataModel, DD> {
+  return new CodecDatabaseWriter(db, schema.__zodTableMap) as CodecDatabaseWriter<DataModel, DD>
 }

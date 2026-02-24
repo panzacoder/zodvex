@@ -95,6 +95,19 @@ type ConvexTablesFrom<T extends Record<string, ZodSchemaEntry>> = {
   [K in keyof T & string]: ConvexTableFor<T[K]>
 }
 
+/**
+ * Computes decoded (runtime) document types for each table from the schema entry types.
+ * Uses z.output<> on each table's doc schema, which resolves codec transforms
+ * (e.g., zx.date() wire number → runtime Date).
+ *
+ * This is a phantom type — it exists only for TypeScript inference, never accessed at runtime.
+ * The constraint uses the structural shape `{ schema: { doc: z.ZodTypeAny } }` rather than
+ * ZodSchemaEntry so it can be exported without exposing internal union types.
+ */
+export type DecodedDocFor<T extends Record<string, { schema: { doc: z.ZodTypeAny } }>> = {
+  [K in keyof T & string]: z.output<T[K]['schema']['doc']>
+}
+
 // ============================================================================
 // Runtime helpers
 // ============================================================================
@@ -189,5 +202,6 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
   // defineSchema needs to produce a properly-typed DataModel.
   const convexSchema = defineSchema(convexTables as ConvexTablesFrom<T>)
 
-  return Object.assign(convexSchema, { __zodTableMap: zodTableMap })
+  const result = Object.assign(convexSchema, { __zodTableMap: zodTableMap })
+  return result as typeof result & { __decodedDocs: DecodedDocFor<T> }
 }
