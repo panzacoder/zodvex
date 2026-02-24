@@ -14,11 +14,11 @@ afterEach(() => {
 })
 
 describe('generate()', () => {
-  it('creates _zodvex/schema.ts and _zodvex/validators.ts', async () => {
+  it('creates _zodvex/schema.ts and _zodvex/api.ts', async () => {
     await generate(fixtureDir)
 
     expect(fs.existsSync(path.join(outputDir, 'schema.ts'))).toBe(true)
-    expect(fs.existsSync(path.join(outputDir, 'validators.ts'))).toBe(true)
+    expect(fs.existsSync(path.join(outputDir, 'api.ts'))).toBe(true)
   })
 
   it('generated schema.ts contains model re-exports', async () => {
@@ -29,10 +29,10 @@ describe('generate()', () => {
     expect(content).toContain('AUTO-GENERATED')
   })
 
-  it('generated validators.ts contains function registry', async () => {
+  it('generated api.ts contains function registry', async () => {
     await generate(fixtureDir)
 
-    const content = fs.readFileSync(path.join(outputDir, 'validators.ts'), 'utf-8')
+    const content = fs.readFileSync(path.join(outputDir, 'api.ts'), 'utf-8')
     expect(content).toContain('zodvexRegistry')
     expect(content).toContain('users:get')
     expect(content).toContain('users:list')

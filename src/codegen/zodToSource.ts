@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /**
  * Converts a runtime Zod schema to its source code representation.
- * Used by the codegen engine to serialize ad-hoc schemas in the generated validators.ts.
+ * Used by the codegen engine to serialize ad-hoc schemas in the generated api.ts.
  *
  * Supports: primitives, objects, arrays, optional, nullable, enums, literals,
  * unions, tuples, records, and zodvex extensions (zx.id, zx.date).

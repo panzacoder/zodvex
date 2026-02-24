@@ -49,7 +49,7 @@ async function main() {
 
   // Verify files exist
   assert(fs.existsSync(path.join(zodvexDir, 'schema.ts')), 'schema.ts generated')
-  assert(fs.existsSync(path.join(zodvexDir, 'validators.ts')), 'validators.ts generated')
+  assert(fs.existsSync(path.join(zodvexDir, 'api.ts')), 'api.ts generated')
 
   // Verify schema.ts content
   const schemaContent = fs.readFileSync(path.join(zodvexDir, 'schema.ts'), 'utf-8')
@@ -58,13 +58,13 @@ async function main() {
   assert(schemaContent.includes('TaskModel'), 'schema.ts exports TaskModel')
   assert(schemaContent.includes('CommentModel'), 'schema.ts exports CommentModel')
 
-  // Verify validators.ts content
-  const validatorsContent = fs.readFileSync(path.join(zodvexDir, 'validators.ts'), 'utf-8')
-  assert(validatorsContent.includes('AUTO-GENERATED'), 'validators.ts has auto-generated header')
-  assert(validatorsContent.includes('zodvexRegistry'), 'validators.ts exports registry')
-  assert(validatorsContent.includes("'users:get'"), 'registry has users:get')
-  assert(validatorsContent.includes("'tasks:list'"), 'registry has tasks:list')
-  assert(validatorsContent.includes("'comments:create'"), 'registry has comments:create')
+  // Verify api.ts content
+  const apiContent = fs.readFileSync(path.join(zodvexDir, 'api.ts'), 'utf-8')
+  assert(apiContent.includes('AUTO-GENERATED'), 'api.ts has auto-generated header')
+  assert(apiContent.includes('zodvexRegistry'), 'api.ts exports registry')
+  assert(apiContent.includes("'users:get'"), 'registry has users:get')
+  assert(apiContent.includes("'tasks:list'"), 'registry has tasks:list')
+  assert(apiContent.includes("'comments:create'"), 'registry has comments:create')
 
   // --- Part 2: Convex Functions ---
   console.log('\n2. Convex Functions')

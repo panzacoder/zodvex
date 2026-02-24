@@ -27,9 +27,9 @@ type SchemaRef = {
 }
 
 /**
- * Generates the validators.ts file content — function-to-schema registry.
+ * Generates the api.ts file content — function-to-schema registry.
  */
-export function generateValidatorsFile(
+export function generateApiFile(
   functions: DiscoveredFunction[],
   models: DiscoveredModel[]
 ): string {
