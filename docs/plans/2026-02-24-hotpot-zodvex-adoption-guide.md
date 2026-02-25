@@ -4,6 +4,7 @@
 > Supersedes all prior hotpot migration docs in this directory.
 
 **Date:** 2026-02-24
+**zodvex version:** `0.6.0-beta.0` (`npm install zodvex@beta`)
 **zodvex branch:** `feat/codec-end-to-end` (all zodvex work complete)
 **Audience:** Agent executing the migration in the hotpot codebase
 
