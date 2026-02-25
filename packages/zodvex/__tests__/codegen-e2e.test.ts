@@ -19,7 +19,7 @@ describe('codegen e2e', () => {
     // 1. Discover
     const result = await discoverModules(fixtureDir)
     expect(result.models.length).toBe(2) // UserModel + EventModel
-    expect(result.functions.length).toBeGreaterThanOrEqual(2)
+    expect(result.functions.length).toBeGreaterThanOrEqual(3) // get, list, update
 
     // 2. Generate
     const schemaContent = generateSchemaFile(result.models)
@@ -52,6 +52,7 @@ describe('codegen e2e', () => {
     expect(apiContent).toContain('export const zodvexRegistry')
     expect(apiContent).toContain("'users:get'")
     expect(apiContent).toContain("'users:list'")
+    expect(apiContent).toContain("'users:update'")
 
     // 7. Verify ad-hoc schemas are serialized with zodToSource
     expect(apiContent).toContain('z.object(')
@@ -143,6 +144,31 @@ describe('codegen e2e', () => {
 
     const apiContent = generateApiFile(funcs, result.models, result.codecs, result.modelCodecs)
     expect(apiContent).toContain('EventModel.schema.paginatedDoc')
+  })
+
+  it('discovers model-embedded codecs from fixture models', async () => {
+    const result = await discoverModules(fixtureDir)
+    // UserModel now has a tagged codec in the email field
+    expect(result.modelCodecs.length).toBeGreaterThanOrEqual(1)
+    const emailCodec = result.modelCodecs.find(mc => mc.fieldName === 'email')
+    expect(emailCodec).toBeDefined()
+    expect(emailCodec!.modelExportName).toBe('UserModel')
+  })
+
+  it('model-embedded codecs in .partial() args produce extractCodec references', async () => {
+    const result = await discoverModules(fixtureDir)
+    const apiContent = generateApiFile(
+      result.functions,
+      result.models,
+      result.codecs,
+      result.modelCodecs
+    )
+
+    // Should NOT contain "transforms lost" for model-derived codecs
+    expect(apiContent).not.toContain('transforms lost')
+    // Should contain extractCodec references
+    expect(apiContent).toContain('extractCodec')
+    expect(apiContent).toContain("import { extractCodec } from 'zodvex/codegen'")
   })
 
   it('skips _generated/ and _zodvex/ during discovery', async () => {

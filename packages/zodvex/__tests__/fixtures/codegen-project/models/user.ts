@@ -1,14 +1,16 @@
 import { z } from 'zod'
 import { attachMeta } from '../../../../src/meta'
+import { tagged } from '../tagged'
 
-const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.string() })
+const taggedEmail = tagged(z.string())
+const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: taggedEmail.optional() })
 
 const UserModel = {
   name: 'users',
   schema: {
     doc: userDocSchema,
-    insert: z.object({ name: z.string(), email: z.string() }),
-    update: z.object({ name: z.string().optional(), email: z.string().optional() }),
+    insert: z.object({ name: z.string(), email: taggedEmail.optional() }),
+    update: z.object({ name: z.string().optional(), email: taggedEmail.optional() }),
     docArray: z.array(userDocSchema),
     paginatedDoc: z.object({
       page: z.array(userDocSchema),
