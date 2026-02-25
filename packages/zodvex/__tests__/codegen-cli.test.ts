@@ -14,12 +14,13 @@ afterEach(() => {
 })
 
 describe('generate()', () => {
-  it('creates _zodvex/schema.ts, _zodvex/api.ts, and _zodvex/client.ts', async () => {
+  it('creates _zodvex/schema.ts, _zodvex/api.ts, _zodvex/client.ts, and _zodvex/server.ts', async () => {
     await generate(fixtureDir)
 
     expect(fs.existsSync(path.join(outputDir, 'schema.ts'))).toBe(true)
     expect(fs.existsSync(path.join(outputDir, 'api.ts'))).toBe(true)
     expect(fs.existsSync(path.join(outputDir, 'client.ts'))).toBe(true)
+    expect(fs.existsSync(path.join(outputDir, 'server.ts'))).toBe(true)
   })
 
   it('generated schema.ts contains model re-exports', async () => {
@@ -52,6 +53,16 @@ describe('generate()', () => {
     expect(content).toContain('useZodQuery')
     expect(content).toContain('useZodMutation')
     expect(content).toContain('createClient')
+  })
+
+  it('generated server.ts contains concrete context types', async () => {
+    await generate(fixtureDir)
+
+    const content = fs.readFileSync(path.join(outputDir, 'server.ts'), 'utf-8')
+    expect(content).toContain('AUTO-GENERATED')
+    expect(content).toContain('export type QueryCtx')
+    expect(content).toContain('export type MutationCtx')
+    expect(content).toContain('export type ActionCtx')
   })
 
   it('throws for non-existent convex directory', async () => {

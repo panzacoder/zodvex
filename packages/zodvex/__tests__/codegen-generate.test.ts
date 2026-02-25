@@ -5,7 +5,8 @@ import {
   type CodecForGeneration,
   generateApiFile,
   generateClientFile,
-  generateSchemaFile
+  generateSchemaFile,
+  generateServerFile
 } from '../src/codegen/generate'
 import { zx } from '../src/zx'
 
@@ -228,5 +229,21 @@ describe('generateClientFile', () => {
     expect(content).toContain('useZodMutation')
     expect(content).toContain('createClient')
     expect(content).toContain('AUTO-GENERATED')
+  })
+})
+
+describe('generateServerFile', () => {
+  it('generates concrete context type aliases', () => {
+    const content = generateServerFile()
+    expect(content).toContain('AUTO-GENERATED')
+    expect(content).toContain("import type { DataModel } from '../_generated/dataModel'")
+    expect(content).toContain(
+      "import type { ZodvexActionCtx, ZodvexMutationCtx, ZodvexQueryCtx } from 'zodvex/server'"
+    )
+    expect(content).toContain("import type schema from '../schema'")
+    expect(content).toContain("type DecodedDocs = (typeof schema)['__decodedDocs']")
+    expect(content).toContain('export type QueryCtx = ZodvexQueryCtx<DataModel, DecodedDocs>')
+    expect(content).toContain('export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>')
+    expect(content).toContain('export type ActionCtx = ZodvexActionCtx<DataModel>')
   })
 })

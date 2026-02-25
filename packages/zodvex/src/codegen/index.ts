@@ -8,6 +8,7 @@ export {
   type CodecForGeneration,
   generateApiFile,
   generateClientFile,
-  generateSchemaFile
+  generateSchemaFile,
+  generateServerFile
 } from './generate'
 export { type CodecRef, type ZodToSourceContext, zodToSource } from './zodToSource'

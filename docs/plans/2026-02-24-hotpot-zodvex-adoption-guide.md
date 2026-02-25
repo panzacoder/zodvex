@@ -217,8 +217,11 @@ bunx zodvex generate    # generates _zodvex/ directory
 - `convex/_zodvex/schema.ts` — model re-exports
 - `convex/_zodvex/api.ts` — `zodvexRegistry` mapping function paths to `{ args, returns }` Zod schemas
 - `convex/_zodvex/client.ts` — pre-bound hooks + client factory (imports registry internally)
+- `convex/_zodvex/server.ts` — concrete context type aliases (`QueryCtx`, `MutationCtx`, `ActionCtx`)
 
 The registry bridges server-side schemas and client-side codec transforms. Actions consume it via `initZodvex({ registry })`, React hooks via `createZodvexHooks()`, vanilla client via `ZodvexClient`.
+
+The server types are derived from `defineZodSchema`'s `__decodedDocs` phantom type — no manual doc-type mapping needed. Import `QueryCtx`/`MutationCtx` from `_zodvex/server` instead of `_generated/server` when using `wrapDb: true`.
 
 ### Codec Primitives (escape hatches)
 
@@ -702,7 +705,7 @@ export const hotpotQuery = zq.withContext({
 
 ### Phase 7: React Hooks + Codegen
 
-**Scope:** Generate registry, adopt zodvex hooks.
+**Scope:** Generate registry, adopt zodvex hooks, eliminate `ctx as unknown as QueryCtx` casts.
 **Independent of Phases 3-6 — needs only codegen.**
 
 **Step 7a: Run codegen**
@@ -712,7 +715,38 @@ bunx zodvex init        # one-time setup
 bunx zodvex generate    # generates convex/_zodvex/
 ```
 
-**Step 7b: Replace `useQuery` with `useZodQuery`**
+**Step 7b: Adopt generated context types**
+
+Codegen produces `convex/_zodvex/server.ts` with concrete context type aliases derived from the schema:
+
+```typescript
+// AUTO-GENERATED — convex/_zodvex/server.ts
+import type { DataModel } from '../_generated/dataModel'
+import type { ZodvexActionCtx, ZodvexMutationCtx, ZodvexQueryCtx } from 'zodvex/server'
+import type schema from '../schema'
+
+type DecodedDocs = (typeof schema)['__decodedDocs']
+
+export type QueryCtx = ZodvexQueryCtx<DataModel, DecodedDocs>
+export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>
+export type ActionCtx = ZodvexActionCtx<DataModel>
+```
+
+Update `resolveContext`, `resolveScope`, and any other functions that accept context types:
+
+```typescript
+// BEFORE
+import type { MutationCtx, QueryCtx } from '@/convex/_generated/server'
+const securityCtx = await resolveContext(ctx as unknown as QueryCtx)
+
+// AFTER
+import type { MutationCtx, QueryCtx } from '@/convex/_zodvex/server'
+const securityCtx = await resolveContext(ctx)
+```
+
+The `ctx as unknown as QueryCtx` cast is eliminated — the generated `QueryCtx` is the exact type that `wrapDb: true` produces. See `docs/plans/2026-02-25-zodvex-ctx-types-guide.md` for the full step-by-step.
+
+**Step 7c: Replace `useQuery` with `useZodQuery`**
 
 ```typescript
 // BEFORE
@@ -727,7 +761,7 @@ const patient = useZodQuery(api.patients.get, { patientId })
 // patient.createdAt is Date (not number)
 ```
 
-**Step 7c: Update component sensitive field access**
+**Step 7d: Update component sensitive field access**
 
 Breaking change for all components reading sensitive fields:
 

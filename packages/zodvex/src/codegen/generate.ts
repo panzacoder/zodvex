@@ -169,6 +169,31 @@ export function generateApiFile(
 }
 
 /**
+ * Generates the server.ts file content — concrete context types for the app's schema.
+ *
+ * These parallel Convex's _generated/server.ts exports (QueryCtx, MutationCtx, ActionCtx)
+ * but with zodvex's codec-wrapped db types baked in.
+ */
+export function generateServerFile(): string {
+  return `${HEADER}
+import type { DataModel } from '../_generated/dataModel'
+import type { ZodvexActionCtx, ZodvexMutationCtx, ZodvexQueryCtx } from 'zodvex/server'
+import type schema from '../schema'
+
+type DecodedDocs = (typeof schema)['__decodedDocs']
+
+/** Query context with codec-wrapped db (decoded types on reads). */
+export type QueryCtx = ZodvexQueryCtx<DataModel, DecodedDocs>
+
+/** Mutation context with codec-wrapped db (decoded reads, encoded writes). */
+export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>
+
+/** Action context (no db, but runQuery/runMutation may be codec-wrapped). */
+export type ActionCtx = ZodvexActionCtx<DataModel>
+`
+}
+
+/**
  * Generates the client.ts file content — pre-bound hooks and client factory.
  */
 export function generateClientFile(): string {
