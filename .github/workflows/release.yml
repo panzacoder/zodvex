@@ -25,9 +25,6 @@ jobs:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Update npm
-        run: npm install -g npm@latest
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -38,7 +35,13 @@ jobs:
         run: bun run build
 
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          VERSION=$(node -p "require('./packages/zodvex/package.json').version")
+          if echo "$VERSION" | grep -q "-"; then
+            npm publish --access public --tag beta
+          else
+            npm publish --access public
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
