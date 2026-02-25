@@ -36,6 +36,8 @@ jobs:
 
       - name: Publish to npm
         working-directory: packages/zodvex
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
           if echo "$VERSION" | grep -q "-"; then
