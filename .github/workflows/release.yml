@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     permissions:
       contents: write
       id-token: write
@@ -18,7 +18,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.9"
+          bun-version: 1.3.9
 
       - uses: actions/setup-node@v4
         with:
@@ -32,41 +32,17 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run tests
-        run: bun run test
+        run: bun test
 
       - name: Build package
         run: bun run build
 
-      - name: Copy root files for publish
-        run: cp README.md LICENSE packages/zodvex/
-
-      - name: Determine npm dist-tag
-        id: dist-tag
-        run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          if [[ "$TAG" == *-beta* ]]; then
-            echo "tag=beta" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == *-alpha* ]]; then
-            echo "tag=alpha" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == *-rc* ]]; then
-            echo "tag=rc" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Publish to npm
-        run: |
-          cd packages/zodvex
-          if [ "${{ steps.dist-tag.outputs.tag }}" = "latest" ]; then
-            npm publish --access public --provenance
-          else
-            npm publish --access public --provenance --tag ${{ steps.dist-tag.outputs.tag }}
-          fi
+        run: npm publish --access public
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
-          prerelease: ${{ steps.dist-tag.outputs.tag != 'latest' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
