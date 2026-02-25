@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx, zPaginated } from 'zodvex/core'
+import { zx } from 'zodvex/core'
 import { zq, zm } from './functions'
 import { TaskModel } from './models/task'
 import { zDuration } from './codecs'
@@ -31,7 +31,7 @@ export const list = zq({
 
     return await q.order('desc').paginate(paginationOpts)
   },
-  returns: zPaginated(TaskModel.schema.doc),
+  returns: TaskModel.schema.paginatedDoc,
 })
 
 export const create = zm({

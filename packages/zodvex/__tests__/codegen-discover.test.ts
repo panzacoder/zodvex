@@ -9,10 +9,13 @@ describe('discoverModules', () => {
   it('discovers models with correct exportName and tableName', async () => {
     const result = await discoverModules(fixtureDir)
 
-    expect(result.models.length).toBe(1)
-    const model = result.models[0]
-    expect(model.exportName).toBe('UserModel')
-    expect(model.tableName).toBe('users')
+    expect(result.models.length).toBe(2) // UserModel + EventModel
+    const userModel = result.models.find(m => m.exportName === 'UserModel')
+    expect(userModel).toBeDefined()
+    expect(userModel!.tableName).toBe('users')
+    const eventModel = result.models.find(m => m.exportName === 'EventModel')
+    expect(eventModel).toBeDefined()
+    expect(eventModel!.tableName).toBe('events')
   })
 
   it('discovers functions with correct functionPath', async () => {
@@ -41,7 +44,7 @@ describe('discoverModules', () => {
   it('records source file path for import generation', async () => {
     const result = await discoverModules(fixtureDir)
 
-    const model = result.models[0]
+    const model = result.models.find(m => m.exportName === 'UserModel')!
     expect(model.sourceFile).toContain('models/user.ts')
 
     const fn = result.functions.find(f => f.functionPath === 'users:get')
