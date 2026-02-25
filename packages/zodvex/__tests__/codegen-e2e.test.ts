@@ -110,7 +110,7 @@ describe('codegen e2e', () => {
     // Should discover both models
     const eventModel = result.models.find(m => m.exportName === 'EventModel')
     expect(eventModel).toBeDefined()
-    expect(eventModel!.tableName).toBe('events')
+    expect(eventModel?.tableName).toBe('events')
 
     // Generate schema file should re-export EventModel
     const schemaContent = generateSchemaFile(result.models)
@@ -129,7 +129,8 @@ describe('codegen e2e', () => {
   it('union model schemas are included in identity map', async () => {
     const result = await discoverModules(fixtureDir)
 
-    const eventModel = result.models.find(m => m.exportName === 'EventModel')!
+    const eventModel = result.models.find(m => m.exportName === 'EventModel')
+    if (!eventModel) throw new Error('EventModel not found')
 
     // Create a function that returns the event model's paginatedDoc
     const funcs = [
@@ -152,7 +153,7 @@ describe('codegen e2e', () => {
     expect(result.modelCodecs.length).toBeGreaterThanOrEqual(1)
     const emailCodec = result.modelCodecs.find(mc => mc.fieldName === 'email')
     expect(emailCodec).toBeDefined()
-    expect(emailCodec!.modelExportName).toBe('UserModel')
+    expect(emailCodec?.modelExportName).toBe('UserModel')
   })
 
   it('model-embedded codecs in .partial() args produce extractCodec references', async () => {

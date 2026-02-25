@@ -2,6 +2,7 @@ import path from 'node:path'
 import { Glob } from 'bun'
 import { z } from 'zod'
 import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../meta'
+import { extractCodec } from './extractCodec'
 
 export type DiscoveredModel = {
   exportName: string
@@ -41,7 +42,7 @@ export type DiscoveryResult = {
 
 /**
  * Walks a model's schema shapes to find embedded ZodCodec instances.
- * Unwraps through ZodOptional/ZodNullable to find codecs in field definitions.
+ * Uses extractCodec to unwrap ZodOptional/ZodNullable and find codecs.
  * Deduplicates by codec object identity.
  * Skips zx.date() (handled natively by zodToSource).
  */
@@ -61,28 +62,16 @@ export function walkModelCodecs(
     if (!shape) continue
 
     for (const [fieldName, fieldSchema] of Object.entries(shape)) {
-      let current: z.ZodTypeAny = fieldSchema
-      for (let i = 0; i < 10; i++) {
-        if (current instanceof z.ZodCodec) {
-          const def = (current as any)._zod?.def as any
-          const isZxDate = def?.in instanceof z.ZodNumber && def?.out instanceof z.ZodCustom
-          if (!isZxDate && !seen.has(current)) {
-            seen.add(current)
-            found.push({
-              codec: current,
-              modelExportName,
-              modelSourceFile: sourceFile,
-              schemaKey,
-              fieldName
-            })
-          }
-          break
-        }
-        if (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
-          current = (current._zod?.def as any).innerType
-          continue
-        }
-        break
+      const codec = extractCodec(fieldSchema)
+      if (codec && !seen.has(codec)) {
+        seen.add(codec)
+        found.push({
+          codec,
+          modelExportName,
+          modelSourceFile: sourceFile,
+          schemaKey,
+          fieldName
+        })
       }
     }
   }
