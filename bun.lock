@@ -26,7 +26,7 @@
     },
     "packages/zodvex": {
       "name": "zodvex",
-      "version": "0.6.0-beta.6",
+      "version": "0.6.0-beta.8",
       "bin": {
         "zodvex": "./dist/cli/index.js",
       },
