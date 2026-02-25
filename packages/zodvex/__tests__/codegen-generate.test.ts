@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { zx } from '../src/zx'
 import type { DiscoveredFunction, DiscoveredModel } from '../src/codegen/discover'
 import {
-  generateSchemaFile,
+  type CodecForGeneration,
   generateApiFile,
   generateClientFile,
-  type CodecForGeneration
+  generateSchemaFile
 } from '../src/codegen/generate'
+import { zx } from '../src/zx'
 
 const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.string() })
+
+const userPaginatedDocSchema = z.object({
+  page: z.array(userDocSchema),
+  isDone: z.boolean(),
+  continueCursor: z.string().nullable().optional()
+})
 
 const sampleModels: DiscoveredModel[] = [
   {
@@ -20,7 +26,8 @@ const sampleModels: DiscoveredModel[] = [
       doc: userDocSchema,
       insert: z.object({ name: z.string(), email: z.string() }),
       update: z.object({ name: z.string().optional() }),
-      docArray: z.array(userDocSchema)
+      docArray: z.array(userDocSchema),
+      paginatedDoc: userPaginatedDocSchema
     }
   }
 ]
@@ -190,6 +197,22 @@ describe('codec integration', () => {
   it('backward compat: generateApiFile works without codecs param', () => {
     const output = generateApiFile(sampleFunctions, sampleModels)
     expect(output).toContain('export const zodvexRegistry')
+  })
+})
+
+describe('paginatedDoc identity matching', () => {
+  it('uses Model.schema.paginatedDoc for identity-matched paginated returns', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:list',
+        exportName: 'list',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({}),
+        zodReturns: userPaginatedDocSchema // Same reference as model's paginatedDoc
+      }
+    ]
+    const output = generateApiFile(funcs, sampleModels)
+    expect(output).toContain('UserModel.schema.paginatedDoc')
   })
 })
 

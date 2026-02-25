@@ -1,7 +1,7 @@
 import { defineSchema, defineTable, type TableDefinition } from 'convex/server'
 import type { ObjectType, VObject } from 'convex/values'
 import type { z } from 'zod'
-import { zodToConvexFields, type ConvexValidatorFromZodFieldsAuto } from './mapping'
+import { type ConvexValidatorFromZodFieldsAuto, zodToConvexFields } from './mapping'
 import type { SearchIndexConfig, VectorIndexConfig } from './model'
 
 /**
@@ -12,6 +12,7 @@ import type { SearchIndexConfig, VectorIndexConfig } from './model'
 export type ZodTableSchemas = {
   doc: z.ZodTypeAny
   docArray: z.ZodTypeAny
+  paginatedDoc: z.ZodTypeAny
   base: z.ZodTypeAny
   insert: z.ZodTypeAny
   update: z.ZodTypeAny
@@ -39,6 +40,7 @@ type ZodModelEntry = {
     insert: z.ZodTypeAny
     update: z.ZodTypeAny
     docArray: z.ZodTypeAny
+    paginatedDoc: z.ZodTypeAny
   }
   indexes: Record<string, readonly string[]>
   searchIndexes: Record<string, SearchIndexConfig>
@@ -187,6 +189,7 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
       zodTableMap[name] = {
         doc: entry.schema.doc,
         docArray: entry.schema.docArray,
+        paginatedDoc: entry.schema.paginatedDoc,
         base: entry.schema.base,
         insert: entry.schema.insert,
         update: entry.schema.update
