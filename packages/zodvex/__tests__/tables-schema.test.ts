@@ -252,6 +252,55 @@ describe('zodTable schema namespace', () => {
     })
   })
 
+  describe('schema.paginatedDoc', () => {
+    it('provides paginatedDoc for object shapes', () => {
+      const Users = zodTable('users', {
+        name: z.string(),
+        email: z.string()
+      })
+
+      expect(Users.schema.paginatedDoc).toBeDefined()
+
+      const result = Users.schema.paginatedDoc.safeParse({
+        page: [{ name: 'Alice', email: 'a@b.c', _id: 'u1', _creationTime: 1 }],
+        isDone: true,
+        continueCursor: null
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('paginatedDoc page items use doc schema (with system fields)', () => {
+      const Users = zodTable('users', { name: z.string() })
+
+      // Missing system fields in page items should fail
+      const result = Users.schema.paginatedDoc.safeParse({
+        page: [{ name: 'Alice' }],
+        isDone: false,
+        continueCursor: null
+      })
+      expect(result.success).toBe(false)
+    })
+
+    it('provides paginatedDoc for union schemas', () => {
+      const Shapes = zodTable(
+        'shapes',
+        z.union([
+          z.object({ kind: z.literal('circle'), r: z.number() }),
+          z.object({ kind: z.literal('rect'), w: z.number() })
+        ])
+      )
+
+      expect(Shapes.schema.paginatedDoc).toBeDefined()
+
+      const result = Shapes.schema.paginatedDoc.safeParse({
+        page: [{ kind: 'circle', r: 5, _id: 's1', _creationTime: 1 }],
+        isDone: false,
+        continueCursor: 'abc'
+      })
+      expect(result.success).toBe(true)
+    })
+  })
+
   describe('deprecated properties (backward compatibility)', () => {
     // These properties are deprecated but still work for backward compatibility
     // Deprecation is now via TypeScript @deprecated JSDoc annotations, not runtime warnings

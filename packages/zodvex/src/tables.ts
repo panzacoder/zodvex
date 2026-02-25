@@ -396,6 +396,12 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
         }
       >
     >
+    /** Paginated result schema matching Convex's PaginationResult shape */
+    paginatedDoc: z.ZodObject<{
+      page: z.ZodArray<z.ZodObject<Shape & { _id: ZxId<TableName>; _creationTime: z.ZodNumber }>>
+      isDone: z.ZodBoolean
+      continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+    }>
     /** The base schema - user fields without system fields */
     base: z.ZodObject<Shape>
     /** Alias for base - user fields for insert operations */
@@ -442,6 +448,12 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
         }
       >
     >
+    /** Paginated result schema matching Convex's PaginationResult shape */
+    paginatedDoc: z.ZodObject<{
+      page: z.ZodArray<z.ZodObject<Shape & { _id: ZxId<TableName>; _creationTime: z.ZodNumber }>>
+      isDone: z.ZodBoolean
+      continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+    }>
     /** The base schema - user fields without system fields */
     base: z.ZodObject<Shape>
     /** Alias for base - user fields for insert operations */
@@ -462,6 +474,12 @@ export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
   schema: {
     doc: AddSystemFieldsResult<TableName, Schema>
     docArray: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
+    /** Paginated result schema matching Convex's PaginationResult shape */
+    paginatedDoc: z.ZodObject<{
+      page: z.ZodArray<AddSystemFieldsResult<TableName, Schema>>
+      isDone: z.ZodBoolean
+      continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+    }>
     /** The base schema - user fields without system fields */
     base: Schema
     /** Alias for base - user fields for insert operations */
@@ -507,6 +525,13 @@ export function zodTable<
     // Create docArray helper for return types
     const docArray = z.array(zDoc)
 
+    // Create paginatedDoc helper matching Convex's PaginationResult shape
+    const paginatedDoc = z.object({
+      page: z.array(zDoc),
+      isDone: z.boolean(),
+      continueCursor: z.string().nullable().optional()
+    })
+
     // Create partial shape for user fields
     const partialShape: Record<string, z.ZodTypeAny> = {}
     for (const [key, value] of Object.entries(shape)) {
@@ -524,6 +549,7 @@ export function zodTable<
     const schema = {
       doc: zDoc,
       docArray,
+      paginatedDoc,
       base: baseSchema,
       insert: baseSchema, // alias for base
       update: updateSchema
@@ -554,6 +580,13 @@ export function zodTable<
 
     // Create docArray helper
     const docArray = z.array(docSchema)
+
+    // Create paginatedDoc helper matching Convex's PaginationResult shape
+    const paginatedDoc = z.object({
+      page: z.array(docSchema),
+      isDone: z.boolean(),
+      continueCursor: z.string().nullable().optional()
+    })
 
     // Create update schema: _id required, _creationTime optional, user fields partial
     let updateSchema: z.ZodTypeAny
@@ -596,6 +629,7 @@ export function zodTable<
     const schemaNamespace = {
       doc: docSchema,
       docArray,
+      paginatedDoc,
       base: schema,
       insert: schema, // alias for base
       update: updateSchema
