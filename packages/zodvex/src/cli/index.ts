@@ -12,11 +12,12 @@ async function main() {
     case 'dev':
       await dev(convexDir)
       break
-    case 'init':
+    case 'init': {
       // Dynamic import to keep init dependencies lazy
       const { init } = await import('./init')
       await init()
       break
+    }
     case 'help':
     case '--help':
     case '-h':

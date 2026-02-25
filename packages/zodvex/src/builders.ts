@@ -8,6 +8,7 @@ import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { type CustomBuilder, customFnBuilder } from './custom'
+import { attachMeta } from './meta'
 import type {
   ExtractCtx,
   ExtractVisibility,
@@ -15,7 +16,6 @@ import type {
   InferReturns,
   ZodToConvexArgs
 } from './types'
-import { attachMeta } from './meta'
 import { zAction, zMutation, zQuery } from './wrappers'
 
 /**

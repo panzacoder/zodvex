@@ -21,6 +21,31 @@ import type { ZodTableMap } from './schema'
 import type { AnyRegistry, Overwrite } from './types'
 
 /**
+ * The context type received by query handlers when wrapDb: true.
+ * Replaces ctx.db with CodecDatabaseReader while preserving auth, storage, etc.
+ */
+export type ZodvexQueryCtx<
+  DM extends GenericDataModel,
+  DD extends Record<string, any> = Record<string, any>
+> = Overwrite<GenericQueryCtx<DM>, { db: CodecDatabaseReader<DM, DD> }>
+
+/**
+ * The context type received by mutation handlers when wrapDb: true.
+ * Replaces ctx.db with CodecDatabaseWriter while preserving auth, storage, etc.
+ */
+export type ZodvexMutationCtx<
+  DM extends GenericDataModel,
+  DD extends Record<string, any> = Record<string, any>
+> = Overwrite<GenericMutationCtx<DM>, { db: CodecDatabaseWriter<DM, DD> }>
+
+/**
+ * The context type received by action handlers.
+ * Currently identical to GenericActionCtx (actions don't have ctx.db),
+ * but exported for API symmetry and forward compatibility.
+ */
+export type ZodvexActionCtx<DM extends GenericDataModel> = GenericActionCtx<DM>
+
+/**
  * A zodvex builder: callable CustomBuilder + .withContext() for composing
  * user customizations on top of the codec layer.
  *

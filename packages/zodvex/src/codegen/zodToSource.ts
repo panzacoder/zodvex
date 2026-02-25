@@ -59,7 +59,7 @@ export function zodToSource(schema: z.ZodTypeAny, ctx?: ZodToSourceContext): str
         if (!ctx.neededCodecImports.has(ref.sourceFile)) {
           ctx.neededCodecImports.set(ref.sourceFile, new Set())
         }
-        ctx.neededCodecImports.get(ref.sourceFile)!.add(ref.exportName)
+        ctx.neededCodecImports.get(ref.sourceFile)?.add(ref.exportName)
         return ref.exportName
       }
     }
