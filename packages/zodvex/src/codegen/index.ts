@@ -4,6 +4,7 @@ export {
   type DiscoveredModel,
   discoverModules
 } from './discover'
+export { extractCodec } from './extractCodec'
 export {
   type CodecForGeneration,
   generateApiFile,
