@@ -169,4 +169,25 @@ describe('defineZodSchema', () => {
     expect(Object.keys(schema.__zodTableMap)).toEqual(['users', 'tasks', 'visits'])
     expect(schema).toHaveProperty('tables')
   })
+
+  // ===========================================================================
+  // Name validation for defineZodModel entries
+  // ===========================================================================
+
+  it('throws when model name does not match key', () => {
+    const WrongName = defineZodModel('wrong_name', { title: z.string() })
+
+    expect(() => defineZodSchema({ tasks: WrongName })).toThrow(
+      "Model name 'wrong_name' does not match key 'tasks'"
+    )
+  })
+
+  it('accepts model when name matches key', () => {
+    expect(() => defineZodSchema({ tasks: TaskModel })).not.toThrow()
+  })
+
+  it('does not validate names for zodTable entries (no name property)', () => {
+    // zodTable entries don't have a .name — validation only applies to models
+    expect(() => defineZodSchema({ users: Users })).not.toThrow()
+  })
 })

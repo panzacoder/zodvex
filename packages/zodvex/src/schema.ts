@@ -31,7 +31,7 @@ type ZodTableEntry = {
 }
 
 // Accept defineZodModel() results
-type ZodModelEntry = {
+export type ZodModelEntry = {
   name: string
   fields: z.ZodRawShape
   schema: {
@@ -74,10 +74,12 @@ type ConvexTableFor<E> =
   // zodTable entry — extract .table with full VObject type
   E extends { table: infer T extends TableDefinition }
     ? T
-    : // model entry — compute from fields + indexes
+    : // model entry — compute from fields + indexes + search/vector indexes
       E extends {
           fields: infer F extends Record<string, z.ZodTypeAny>
           indexes: infer I extends Record<string, readonly string[]>
+          searchIndexes: infer SI extends Record<string, SearchIndexConfig>
+          vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
         }
       ? TableDefinition<
           VObject<
@@ -85,7 +87,11 @@ type ConvexTableFor<E> =
             ConvexValidatorFromZodFieldsAuto<F>
           >,
           // Convert readonly index tuples to mutable (Convex's format)
-          { [K in keyof I]: [...I[K]] }
+          { [K in keyof I]: [...I[K]] },
+          // Preserve search index names (field paths widen to string)
+          { [K in keyof SI]: { searchField: string; filterFields: string } },
+          // Preserve vector index names (field paths widen to string)
+          { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
         >
       : TableDefinition
 
@@ -185,6 +191,12 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
 
   for (const [name, entry] of Object.entries(tables)) {
     if (isZodModelEntry(entry)) {
+      if (entry.name !== name) {
+        throw new Error(
+          `Model name '${entry.name}' does not match key '${name}'. ` +
+            `The model name must match the key in the schema definition.`
+        )
+      }
       convexTables[name] = tableFromModel(entry)
       zodTableMap[name] = {
         doc: entry.schema.doc,
