@@ -40,12 +40,33 @@ jobs:
       - name: Copy root files for publish
         run: cp README.md LICENSE packages/zodvex/
 
+      - name: Determine npm dist-tag
+        id: dist-tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          if [[ "$TAG" == *-beta* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == *-alpha* ]]; then
+            echo "tag=alpha" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == *-rc* ]]; then
+            echo "tag=rc" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
-        run: cd packages/zodvex && npm publish --access public
+        run: |
+          cd packages/zodvex
+          if [ "${{ steps.dist-tag.outputs.tag }}" = "latest" ]; then
+            npm publish --access public --provenance
+          else
+            npm publish --access public --provenance --tag ${{ steps.dist-tag.outputs.tag }}
+          fi
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ steps.dist-tag.outputs.tag != 'latest' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
