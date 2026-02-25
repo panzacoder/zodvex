@@ -268,6 +268,51 @@ describe('defineZodModel', () => {
     ])
     expect(result.success).toBe(true)
   })
+
+  it('schema.paginatedDoc validates paginated response shape', () => {
+    const model = defineZodModel('tasks', {
+      title: z.string(),
+      done: z.boolean()
+    })
+
+    expect(model.schema.paginatedDoc).toBeDefined()
+
+    const result = model.schema.paginatedDoc.safeParse({
+      page: [
+        { title: 'Task 1', done: false, _id: 'a', _creationTime: 1 },
+        { title: 'Task 2', done: true, _id: 'b', _creationTime: 2 }
+      ],
+      isDone: false,
+      continueCursor: 'cursor123'
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('schema.paginatedDoc rejects invalid page items', () => {
+    const model = defineZodModel('tasks', {
+      title: z.string()
+    })
+
+    const result = model.schema.paginatedDoc.safeParse({
+      page: [{ badField: true }],
+      isDone: false,
+      continueCursor: null
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('schema.paginatedDoc accepts null continueCursor', () => {
+    const model = defineZodModel('tasks', {
+      title: z.string()
+    })
+
+    const result = model.schema.paginatedDoc.safeParse({
+      page: [],
+      isDone: true,
+      continueCursor: null
+    })
+    expect(result.success).toBe(true)
+  })
 })
 
 describe('defineZodModel .index()', () => {

@@ -100,6 +100,11 @@ export type ZodModel<
     readonly docArray: z.ZodArray<
       z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
     >
+    readonly paginatedDoc: z.ZodObject<{
+      page: z.ZodArray<z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>>
+      isDone: z.ZodBoolean
+      continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+    }>
   }
   readonly indexes: Indexes
   readonly searchIndexes: SearchIndexes
@@ -195,12 +200,19 @@ export function defineZodModel<Name extends string, Fields extends z.ZodRawShape
 
   const docArraySchema = z.array(docSchema)
 
+  const paginatedDocSchema = z.object({
+    page: z.array(docSchema),
+    isDone: z.boolean(),
+    continueCursor: z.string().nullable().optional()
+  })
+
   const schema = {
     doc: docSchema,
     base: insertSchema,
     insert: insertSchema,
     update: updateSchema,
-    docArray: docArraySchema
+    docArray: docArraySchema,
+    paginatedDoc: paginatedDocSchema
   }
 
   function createModel(

@@ -16,6 +16,7 @@ export type ZodvexModelMeta = {
     insert: z.ZodTypeAny
     update: z.ZodTypeAny
     docArray: z.ZodTypeAny
+    paginatedDoc: z.ZodTypeAny
   }
 }
 
