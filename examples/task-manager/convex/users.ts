@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { zx } from 'zodvex/core'
 import { zq, zm } from './functions'
 import { UserModel } from './models/user'
+import { tagged } from './tagged'
 
 export const get = zq({
   args: { id: zx.id('users') },
@@ -12,11 +13,11 @@ export const get = zq({
 })
 
 export const getByEmail = zq({
-  args: { email: z.string() },
+  args: { email: tagged(z.string()) },  // inline factory codec — NOT the same instance as model
   handler: async (ctx, { email }) => {
     return await ctx.db
       .query('users')
-      .withIndex('by_email', (q) => q.eq('email', email))
+      .withIndex('by_email', (q) => q.eq('email', email.value))
       .unique()
   },
   returns: UserModel.schema.doc.nullable(),
@@ -39,13 +40,10 @@ export const create = zm({
 })
 
 export const update = zm({
-  args: {
-    id: zx.id('users'),
-    name: z.string().optional(),
-    email: z.string().optional(),
-    avatarUrl: z.string().optional(),
-  },
-  handler: async (ctx, { id, ...fields }) => {
-    await ctx.db.patch(id, fields)
+  args: UserModel.schema.doc.partial().extend({
+    _id: zx.id('users'),  // _id required for patch target
+  }),
+  handler: async (ctx, { _id, ...fields }) => {
+    await ctx.db.patch(_id, fields)
   },
 })
