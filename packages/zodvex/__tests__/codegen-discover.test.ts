@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import path from 'node:path'
 import { z } from 'zod'
-import { discoverModules, walkModelCodecs, type ModelEmbeddedCodec } from '../src/codegen/discover'
+import { discoverModules, walkModelCodecs } from '../src/codegen/discover'
 import { zx } from '../src/zx'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
@@ -106,12 +106,30 @@ describe('walkModelCodecs', () => {
     }
   )
 
+  const emptyPaginated = z.object({
+    page: z.array(z.object({})),
+    isDone: z.boolean(),
+    continueCursor: z.string().nullable().optional()
+  })
+
+  function makeSchemas(fields: {
+    doc: z.ZodObject<any>
+    insert: z.ZodObject<any>
+    update: z.ZodObject<any>
+  }) {
+    return {
+      ...fields,
+      docArray: z.array(fields.doc),
+      paginatedDoc: emptyPaginated
+    }
+  }
+
   it('finds codec in optional field', () => {
-    const schemas = {
+    const schemas = makeSchemas({
       doc: z.object({ _id: z.string(), email: testCodec.optional() }),
       insert: z.object({ email: testCodec.optional() }),
       update: z.object({ email: testCodec.optional() })
-    }
+    })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     expect(result.length).toBeGreaterThanOrEqual(1)
     expect(result[0].codec).toBe(testCodec)
@@ -121,11 +139,11 @@ describe('walkModelCodecs', () => {
   })
 
   it('deduplicates same codec across schema keys', () => {
-    const schemas = {
+    const schemas = makeSchemas({
       doc: z.object({ _id: z.string(), email: testCodec.optional() }),
       insert: z.object({ email: testCodec.optional() }),
       update: z.object({ email: testCodec.optional() })
-    }
+    })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     const emailCodecs = result.filter(c => c.codec === testCodec)
     expect(emailCodecs.length).toBe(1)
@@ -136,31 +154,31 @@ describe('walkModelCodecs', () => {
       decode: (n: number) => String(n),
       encode: (s: string) => Number(s)
     })
-    const schemas = {
+    const schemas = makeSchemas({
       doc: z.object({ _id: z.string(), email: testCodec.optional(), phone: otherCodec.nullable() }),
       insert: z.object({ email: testCodec.optional(), phone: otherCodec.nullable() }),
       update: z.object({ email: testCodec.optional(), phone: otherCodec.optional() })
-    }
+    })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     expect(result.length).toBe(2)
   })
 
   it('skips zx.date() codecs', () => {
-    const schemas = {
+    const schemas = makeSchemas({
       doc: z.object({ _id: z.string(), createdAt: zx.date() }),
       insert: z.object({ createdAt: zx.date() }),
       update: z.object({})
-    }
+    })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     expect(result.length).toBe(0)
   })
 
   it('skips non-codec fields', () => {
-    const schemas = {
+    const schemas = makeSchemas({
       doc: z.object({ _id: z.string(), name: z.string(), active: z.boolean().optional() }),
       insert: z.object({ name: z.string() }),
       update: z.object({ name: z.string().optional() })
-    }
+    })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     expect(result.length).toBe(0)
   })

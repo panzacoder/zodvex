@@ -48,7 +48,7 @@ export type DiscoveryResult = {
 export function walkModelCodecs(
   modelExportName: string,
   sourceFile: string,
-  schemas: Record<string, z.ZodTypeAny>
+  schemas: ZodvexModelMeta['schemas']
 ): ModelEmbeddedCodec[] {
   const found: ModelEmbeddedCodec[] = []
   const seen = new Set<z.ZodTypeAny>()
@@ -173,11 +173,7 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
 
   const modelCodecs: ModelEmbeddedCodec[] = []
   for (const model of models) {
-    const found = walkModelCodecs(
-      model.exportName,
-      model.sourceFile,
-      model.schemas as unknown as Record<string, z.ZodTypeAny>
-    )
+    const found = walkModelCodecs(model.exportName, model.sourceFile, model.schemas)
     modelCodecs.push(...found)
   }
 
