@@ -24,10 +24,70 @@ export type DiscoveredCodec = {
   schema: z.ZodTypeAny
 }
 
+export type ModelEmbeddedCodec = {
+  codec: z.ZodTypeAny
+  modelExportName: string
+  modelSourceFile: string
+  schemaKey: string
+  fieldName: string
+}
+
 export type DiscoveryResult = {
   models: DiscoveredModel[]
   functions: DiscoveredFunction[]
   codecs: DiscoveredCodec[]
+  modelCodecs: ModelEmbeddedCodec[]
+}
+
+/**
+ * Walks a model's schema shapes to find embedded ZodCodec instances.
+ * Unwraps through ZodOptional/ZodNullable to find codecs in field definitions.
+ * Deduplicates by codec object identity.
+ * Skips zx.date() (handled natively by zodToSource).
+ */
+export function walkModelCodecs(
+  modelExportName: string,
+  sourceFile: string,
+  schemas: Record<string, z.ZodTypeAny>
+): ModelEmbeddedCodec[] {
+  const found: ModelEmbeddedCodec[] = []
+  const seen = new Set<z.ZodTypeAny>()
+
+  for (const schemaKey of ['doc', 'insert', 'update'] as const) {
+    const schema = schemas[schemaKey]
+    if (!schema || !(schema instanceof z.ZodObject)) continue
+
+    const shape = (schema._zod?.def as any)?.shape as Record<string, z.ZodTypeAny> | undefined
+    if (!shape) continue
+
+    for (const [fieldName, fieldSchema] of Object.entries(shape)) {
+      let current: z.ZodTypeAny = fieldSchema
+      for (let i = 0; i < 10; i++) {
+        if (current instanceof z.ZodCodec) {
+          const def = (current as any)._zod?.def as any
+          const isZxDate = def?.in instanceof z.ZodNumber && def?.out instanceof z.ZodCustom
+          if (!isZxDate && !seen.has(current)) {
+            seen.add(current)
+            found.push({
+              codec: current,
+              modelExportName,
+              modelSourceFile: sourceFile,
+              schemaKey,
+              fieldName
+            })
+          }
+          break
+        }
+        if (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
+          current = (current._zod?.def as any).innerType
+          continue
+        }
+        break
+      }
+    }
+  }
+
+  return found
 }
 
 /**
@@ -111,5 +171,15 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
     }
   }
 
-  return { models, functions, codecs }
+  const modelCodecs: ModelEmbeddedCodec[] = []
+  for (const model of models) {
+    const found = walkModelCodecs(
+      model.exportName,
+      model.sourceFile,
+      model.schemas as unknown as Record<string, z.ZodTypeAny>
+    )
+    modelCodecs.push(...found)
+  }
+
+  return { models, functions, codecs, modelCodecs }
 }

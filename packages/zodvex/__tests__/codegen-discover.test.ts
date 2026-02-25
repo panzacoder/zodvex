@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import path from 'node:path'
 import { z } from 'zod'
-import { discoverModules } from '../src/codegen/discover'
+import { discoverModules, walkModelCodecs, type ModelEmbeddedCodec } from '../src/codegen/discover'
+import { zx } from '../src/zx'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
 
@@ -92,5 +93,83 @@ describe('codec discovery', () => {
     expect(duration).toBeDefined()
     // The schema should be the actual ZodCodec instance
     expect(duration?.schema).toBeInstanceOf(z.ZodCodec)
+  })
+})
+
+describe('walkModelCodecs', () => {
+  const testCodec = zx.codec(
+    z.object({ value: z.string(), tag: z.string() }),
+    z.object({ value: z.string(), tag: z.string(), display: z.string() }),
+    {
+      decode: (w: any) => ({ ...w, display: `[${w.tag}] ${w.value}` }),
+      encode: (r: any) => ({ value: r.value, tag: r.tag })
+    }
+  )
+
+  it('finds codec in optional field', () => {
+    const schemas = {
+      doc: z.object({ _id: z.string(), email: testCodec.optional() }),
+      insert: z.object({ email: testCodec.optional() }),
+      update: z.object({ email: testCodec.optional() })
+    }
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBeGreaterThanOrEqual(1)
+    expect(result[0].codec).toBe(testCodec)
+    expect(result[0].modelExportName).toBe('TestModel')
+    expect(result[0].fieldName).toBe('email')
+    expect(result[0].schemaKey).toBe('doc')
+  })
+
+  it('deduplicates same codec across schema keys', () => {
+    const schemas = {
+      doc: z.object({ _id: z.string(), email: testCodec.optional() }),
+      insert: z.object({ email: testCodec.optional() }),
+      update: z.object({ email: testCodec.optional() })
+    }
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    const emailCodecs = result.filter(c => c.codec === testCodec)
+    expect(emailCodecs.length).toBe(1)
+  })
+
+  it('finds multiple different codecs', () => {
+    const otherCodec = zx.codec(z.number(), z.string(), {
+      decode: (n: number) => String(n),
+      encode: (s: string) => Number(s)
+    })
+    const schemas = {
+      doc: z.object({ _id: z.string(), email: testCodec.optional(), phone: otherCodec.nullable() }),
+      insert: z.object({ email: testCodec.optional(), phone: otherCodec.nullable() }),
+      update: z.object({ email: testCodec.optional(), phone: otherCodec.optional() })
+    }
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBe(2)
+  })
+
+  it('skips zx.date() codecs', () => {
+    const schemas = {
+      doc: z.object({ _id: z.string(), createdAt: zx.date() }),
+      insert: z.object({ createdAt: zx.date() }),
+      update: z.object({})
+    }
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBe(0)
+  })
+
+  it('skips non-codec fields', () => {
+    const schemas = {
+      doc: z.object({ _id: z.string(), name: z.string(), active: z.boolean().optional() }),
+      insert: z.object({ name: z.string() }),
+      update: z.object({ name: z.string().optional() })
+    }
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBe(0)
+  })
+})
+
+describe('discoverModules modelCodecs', () => {
+  it('returns modelCodecs array in discovery result', async () => {
+    const result = await discoverModules(fixtureDir)
+    expect(result.modelCodecs).toBeDefined()
+    expect(Array.isArray(result.modelCodecs)).toBe(true)
   })
 })
