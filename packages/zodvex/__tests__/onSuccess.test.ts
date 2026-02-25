@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { zCustomQuery, zCustomQueryBuilder } from '../src'
+import { zx } from '../src/zx'
 
 // Mock Convex query builder
 const mockQueryBuilder = (fn: any) => fn
@@ -79,5 +80,65 @@ describe('onSuccess convex-helpers convention (top-level)', () => {
     await fn.handler({}, {})
 
     expect(successCalled).toBe(true)
+  })
+
+  it('receives runtime types (not wire format) when returns schema uses codecs', async () => {
+    let receivedResult: unknown
+
+    const builder = zCustomQueryBuilder(mockQueryBuilder, {
+      args: {},
+      input: async () => ({
+        ctx: {},
+        args: {},
+        onSuccess: ({ result }: any) => {
+          receivedResult = result
+        }
+      })
+    })
+
+    const now = new Date()
+    const fn = builder({
+      args: z.object({}),
+      returns: z.object({ createdAt: zx.date() }),
+      handler: async () => ({ createdAt: now })
+    })
+
+    const wireResult = await fn.handler({}, {})
+
+    // Wire result is encoded (Date → number for Convex)
+    expect(typeof (wireResult as any).createdAt).toBe('number')
+
+    // onSuccess receives the handler's runtime return value (Date, not number)
+    expect((receivedResult as any).createdAt).toBeInstanceOf(Date)
+    expect((receivedResult as any).createdAt).toBe(now)
+  })
+
+  it('receives runtime types in no-args path with codec returns', async () => {
+    let receivedResult: unknown
+
+    const builder = zCustomQueryBuilder(mockQueryBuilder, {
+      args: {},
+      input: async () => ({
+        ctx: {},
+        args: {},
+        onSuccess: ({ result }: any) => {
+          receivedResult = result
+        }
+      })
+    })
+
+    const now = new Date()
+    const fn = builder({
+      returns: z.object({ createdAt: zx.date() }),
+      handler: async () => ({ createdAt: now })
+    })
+
+    const wireResult = await fn.handler({}, {})
+
+    // Wire result is encoded
+    expect(typeof (wireResult as any).createdAt).toBe('number')
+
+    // onSuccess sees runtime types
+    expect((receivedResult as any).createdAt).toBeInstanceOf(Date)
   })
 })

@@ -14,8 +14,8 @@ import { type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
-import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
 import { attachMeta } from './meta'
+import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
 import {
   assertNoNativeZodDate,
   handleZodValidationError,
@@ -255,27 +255,20 @@ export function customFnBuilder<
           const finalArgs = { ...baseArgs, ...addedArgs }
 
           const ret = await handler(finalCtx, finalArgs)
+          // Fire onSuccess before encoding — consumers see runtime types (Date, SensitiveField),
+          // not wire format (number, SensitiveWire). This matches the intent of audit logging.
+          if (added?.onSuccess) {
+            await added.onSuccess({ ctx, args: parsed.data, result: ret })
+          }
           // Always run Zod return validation when returns schema is provided
           if (returns) {
             // Validate and encode using z.encode (Zod handles codecs natively)
             const validated = validateReturns(returns as z.ZodTypeAny, ret)
             // Strip undefined values before returning (Convex rejects explicit undefined)
-            const result = stripUndefined(validated)
-            if (added?.onSuccess) {
-              await added.onSuccess({
-                ctx,
-                args: parsed.data,
-                result
-              })
-            }
-            return result
+            return stripUndefined(validated)
           }
           // Strip undefined even without returns schema (Convex rejects explicit undefined)
-          const result = stripUndefined(ret)
-          if (added?.onSuccess) {
-            await added.onSuccess({ ctx, args: parsed.data, result })
-          }
-          return result
+          return stripUndefined(ret)
         }
       })
       attachMeta(registered, { type: 'function', zodArgs: argsSchema, zodReturns: returns })
@@ -299,23 +292,20 @@ export function customFnBuilder<
         const finalArgs = { ...baseArgs, ...addedArgs }
 
         const ret = await handler(finalCtx, finalArgs)
+        // Fire onSuccess before encoding — consumers see runtime types (Date, SensitiveField),
+        // not wire format (number, SensitiveWire). This matches the intent of audit logging.
+        if (added?.onSuccess) {
+          await added.onSuccess({ ctx, args: allArgs, result: ret })
+        }
         // Always run Zod return validation when returns schema is provided
         if (returns) {
           // Validate and encode using z.encode (Zod handles codecs natively)
           const validated = validateReturns(returns as z.ZodTypeAny, ret)
           // Strip undefined values before returning (Convex rejects explicit undefined)
-          const result = stripUndefined(validated)
-          if (added?.onSuccess) {
-            await added.onSuccess({ ctx, args: allArgs, result })
-          }
-          return result
+          return stripUndefined(validated)
         }
         // Strip undefined even without returns schema (Convex rejects explicit undefined)
-        const result = stripUndefined(ret)
-        if (added?.onSuccess) {
-          await added.onSuccess({ ctx, args: allArgs, result })
-        }
-        return result
+        return stripUndefined(ret)
       }
     })
     attachMeta(registered, { type: 'function', zodArgs: undefined, zodReturns: returns })
