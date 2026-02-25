@@ -35,8 +35,9 @@ jobs:
         run: bun run build
 
       - name: Publish to npm
+        working-directory: packages/zodvex
         run: |
-          VERSION=$(node -p "require('./packages/zodvex/package.json').version")
+          VERSION=$(node -p "require('./package.json').version")
           if echo "$VERSION" | grep -q "-"; then
             npm publish --access public --tag beta
           else
