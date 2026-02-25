@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { discoverModules } from '../codegen/discover'
-import { generateSchemaFile, generateApiFile, generateClientFile } from '../codegen/generate'
+import { generateApiFile, generateClientFile, generateSchemaFile } from '../codegen/generate'
 
 /**
  * One-shot codegen. Discovers modules, generates files.
@@ -35,7 +35,9 @@ export async function dev(convexDir?: string): Promise<void> {
   console.log('[zodvex] Starting watch mode...')
   await generate(resolved)
 
-  const watcher = fs.watch(resolved, { recursive: true }, async (_event, filename) => {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+  const watcher = fs.watch(resolved, { recursive: true }, (_event, filename) => {
     if (!filename) return
     // Skip generated directories and non-TS files
     if (
@@ -46,16 +48,20 @@ export async function dev(convexDir?: string): Promise<void> {
       return
     }
 
-    console.log(`[zodvex] Change detected: ${filename}`)
-    try {
-      await generate(resolved)
-    } catch (err) {
-      console.error('[zodvex] Generation failed:', (err as Error).message)
-    }
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(async () => {
+      console.log('[zodvex] Regenerating...')
+      try {
+        await generate(resolved)
+      } catch (err) {
+        console.error('[zodvex] Generation failed:', (err as Error).message)
+      }
+    }, 300)
   })
 
   // Keep process alive
   process.on('SIGINT', () => {
+    if (debounceTimer) clearTimeout(debounceTimer)
     watcher.close()
     process.exit(0)
   })
