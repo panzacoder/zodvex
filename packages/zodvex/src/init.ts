@@ -78,12 +78,12 @@ export function initZodvex<DM extends GenericDataModel>(
   },
   options: { wrapDb: false; registry?: () => AnyRegistry }
 ): {
-  zq: ZodvexBuilder<'query', Record<string, never>, GenericQueryCtx<DM>, 'public'>
-  zm: ZodvexBuilder<'mutation', Record<string, never>, GenericMutationCtx<DM>, 'public'>
-  za: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'public'>
-  ziq: ZodvexBuilder<'query', Record<string, never>, GenericQueryCtx<DM>, 'internal'>
-  zim: ZodvexBuilder<'mutation', Record<string, never>, GenericMutationCtx<DM>, 'internal'>
-  zia: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'internal'>
+  zq: ZodvexBuilder<'query', {}, GenericQueryCtx<DM>, 'public'>
+  zm: ZodvexBuilder<'mutation', {}, GenericMutationCtx<DM>, 'public'>
+  za: ZodvexBuilder<'action', {}, GenericActionCtx<DM>, 'public'>
+  ziq: ZodvexBuilder<'query', {}, GenericQueryCtx<DM>, 'internal'>
+  zim: ZodvexBuilder<'mutation', {}, GenericMutationCtx<DM>, 'internal'>
+  zia: ZodvexBuilder<'action', {}, GenericActionCtx<DM>, 'internal'>
 }
 
 // Overload 2: wrapDb: true (default) — codec DB wrapping with decoded types
@@ -111,7 +111,7 @@ export function initZodvex<
     GenericMutationCtx<DM>,
     'public'
   >
-  za: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'public'>
+  za: ZodvexBuilder<'action', {}, GenericActionCtx<DM>, 'public'>
   ziq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'internal'>
   zim: ZodvexBuilder<
     'mutation',
@@ -119,7 +119,7 @@ export function initZodvex<
     GenericMutationCtx<DM>,
     'internal'
   >
-  zia: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'internal'>
+  zia: ZodvexBuilder<'action', {}, GenericActionCtx<DM>, 'internal'>
 }
 
 // Implementation

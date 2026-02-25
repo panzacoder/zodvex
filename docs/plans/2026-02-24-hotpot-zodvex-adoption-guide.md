@@ -239,7 +239,10 @@ These are what `CodecDatabaseReader`/`Writer` use internally. Exposed for consum
 ### Sequencing Overview
 
 ```
-P0:  Prerequisites (delete customCtxWithHooks test)    [BLOCKER]
+P0:  Prerequisites                                      [BLOCKERS]
+       P0a: delete customCtxWithHooks test
+       P0b: zid() → zx.id() cleanup (optional)
+       P0c: defineHotpotModel → defineZodModel delegation
       │
 Phase 1: transforms → onSuccess                        [2 files, minimal]
       │
@@ -274,6 +277,47 @@ grep -r "customCtxWithHooks" convex/ src/ tests/
 **P0b: `zid()` → `zx.id()` cleanup**
 
 Hotpot uses deprecated `zid()` in model and function files. Not a blocker, but reduces churn in later phases. Can be batched with Phase 2.
+
+**P0c: Migrate `defineHotpotModel` to delegate to `defineZodModel` [REQUIRED FOR PHASE 2]**
+
+`defineHotpotModel()` currently constructs schemas manually: `z.object(fields)` → `.extend({ _id, _creationTime })` → `z.array()`. This produces `{ doc, insert, docArray }` — missing `base`, `update`, `paginatedDoc`.
+
+`initZodvex` requires `ZodTableMap` entries to satisfy `ZodTableSchemas`, which includes all six schema variants. `defineZodModel` (from `zodvex/core`, client-safe) generates the full set automatically.
+
+**Migration pattern:**
+
+```typescript
+import { defineZodModel } from 'zodvex/core'
+
+// BEFORE
+export function defineHotpotModel(name, fields, config) {
+  const doc = z.object(fields).extend({ _id: z.string(), _creationTime: z.number() })
+  const insert = z.object(fields)
+  const docArray = z.array(doc)
+  return { name, schema: { doc, insert, docArray }, ...config }
+}
+
+// AFTER
+export function defineHotpotModel(name, fields, config) {
+  // 1. Inject retention field if needed (hotpot-specific)
+  const fieldsWithRetention = config?.retention
+    ? { ...fields, sensitiveExpiresAt: z.number().optional() }
+    : fields
+
+  // 2. Delegate to defineZodModel for full schema set
+  const model = defineZodModel(name, fieldsWithRetention)
+
+  // 3. Layer on hotpot-specific metadata
+  return {
+    ...model,
+    rules: config?.rules,
+    fieldRules: config?.fieldRules,
+    // model.schema now has: doc, base, insert, update, docArray, paginatedDoc
+  }
+}
+```
+
+**Note:** Only `doc` and `insert` are used by `CodecDatabaseReader`/`Writer` at runtime. The other schemas (`base`, `update`, `docArray`, `paginatedDoc`) are used by codegen registry (Phase 7) and type-level inference.
 
 ---
 
@@ -318,11 +362,9 @@ import { initZodvex } from 'zodvex/server'
 import * as server from './_generated/server'
 import { models } from './models'
 
+// After P0c, models have full ZodTableSchemas (doc, base, insert, update, docArray, paginatedDoc)
 const zodTableMap = Object.fromEntries(
-  Object.entries(models).map(([name, model]) => [
-    name,
-    { doc: model.schema.doc, insert: model.schema.insert }
-  ])
+  Object.entries(models).map(([name, model]) => [name, model.schema])
 )
 
 export const { zq, zm, za, ziq, zim, zia } = initZodvex(
@@ -333,6 +375,8 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(
 ```
 
 **Why `wrapDb: false`:** SecureReader still does its own `schema.parse()`. Enabling `wrapDb: true` before removing that would cause double decode. Phase 2 changes only builder construction — no behavioral change to DB operations.
+
+**Note on `.withContext()`:** With `wrapDb: false`, `.withContext()` works correctly for typed customizations (zodvex 0.6.0-beta.2+ fixed a type bug where `Record<string, never>` caused `Overwrite` to strip context properties). Secure wrappers can use `.withContext()` in Phase 2, or defer to Phase 5 — either works.
 
 **Step 2b: Replace builder imports**
 
@@ -598,6 +642,20 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(
   server,
   { wrapDb: true }  // NOW safe — SecurityWrapper no longer calls schema.parse()
 )
+```
+
+**IMPORTANT: Retention cron must bypass codec wrapping.** When `wrapDb: true`, ALL zodvex builders (including `zim`) codec-wrap `ctx.db`. The retention cron's `scrubDocument()` operates on raw wire docs — using a zodvex builder would double-encode. Import from `_generated/server` directly:
+
+```typescript
+// convex/retention.ts — uses raw Convex, NOT zodvex builders
+import { internalMutation } from './_generated/server'
+
+export const scrubExpired = internalMutation({
+  handler: async (ctx) => {
+    // ctx.db is raw — wire-format, no codec wrapping
+    await scrubDocument(ctx.db, docId)
+  }
+})
 ```
 
 **Step 5d: Update hotpotQuery to use codec-wrapped ctx.db**
