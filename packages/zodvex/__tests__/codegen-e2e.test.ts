@@ -23,7 +23,12 @@ describe('codegen e2e', () => {
 
     // 2. Generate
     const schemaContent = generateSchemaFile(result.models)
-    const apiContent = generateApiFile(result.functions, result.models, result.codecs)
+    const apiContent = generateApiFile(
+      result.functions,
+      result.models,
+      result.codecs,
+      result.modelCodecs
+    )
     const clientContent = generateClientFile()
 
     // 3. Write to _zodvex/
@@ -81,7 +86,12 @@ describe('codegen e2e', () => {
 
   it('api.ts imports zod when ad-hoc schemas are present', async () => {
     const result = await discoverModules(fixtureDir)
-    const apiContent = generateApiFile(result.functions, result.models, result.codecs)
+    const apiContent = generateApiFile(
+      result.functions,
+      result.models,
+      result.codecs,
+      result.modelCodecs
+    )
 
     expect(apiContent).toContain("import { z } from 'zod'")
   })
@@ -106,7 +116,12 @@ describe('codegen e2e', () => {
     expect(schemaContent).toContain("export { EventModel } from '../models/event'")
 
     // Generate api file should include EventModel import when referenced
-    const apiContent = generateApiFile(result.functions, result.models, result.codecs)
+    const apiContent = generateApiFile(
+      result.functions,
+      result.models,
+      result.codecs,
+      result.modelCodecs
+    )
     expect(apiContent).toContain('export const zodvexRegistry')
   })
 
@@ -126,7 +141,7 @@ describe('codegen e2e', () => {
       }
     ]
 
-    const apiContent = generateApiFile(funcs, result.models, result.codecs)
+    const apiContent = generateApiFile(funcs, result.models, result.codecs, result.modelCodecs)
     expect(apiContent).toContain('EventModel.schema.paginatedDoc')
   })
 

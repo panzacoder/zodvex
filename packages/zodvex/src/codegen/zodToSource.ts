@@ -5,11 +5,18 @@ export type CodecRef = {
   sourceFile: string
 }
 
+export type UndiscoverableCodec = {
+  functionPath?: string
+  fieldPath: string
+}
+
 export type ZodToSourceContext = {
   /** Map from ZodCodec schema identity → reference info */
   codecMap: Map<z.ZodTypeAny, CodecRef>
   /** Accumulates needed imports: sourceFile → Set of export names */
   neededCodecImports: Map<string, Set<string>>
+  /** Codecs found during serialization that aren't in the codecMap */
+  undiscoverableCodecs: UndiscoverableCodec[]
 }
 
 /**
@@ -63,8 +70,9 @@ export function zodToSource(schema: z.ZodTypeAny, ctx?: ZodToSourceContext): str
         return ref.exportName
       }
     }
-    // Unknown codec — fall back to wire schema (def.in) with warning
+    // Unknown codec — fall back to wire schema with warning
     const wireSource = zodToSource(def.in, ctx)
+    ctx?.undiscoverableCodecs?.push({ fieldPath: 'unknown' })
     return `${wireSource} /* codec: transforms lost */`
   }
 

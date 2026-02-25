@@ -124,7 +124,8 @@ export function generateApiFile(
 
   const zodToSourceCtx: ZodToSourceContext = {
     codecMap,
-    neededCodecImports: new Map()
+    neededCodecImports: new Map(),
+    undiscoverableCodecs: []
   }
 
   // Track which imports we need
