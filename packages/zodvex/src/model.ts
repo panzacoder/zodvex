@@ -10,6 +10,7 @@
 
 import { z } from 'zod'
 import { attachMeta } from './meta'
+import { addSystemFields, createUnionFromOptions, getUnionOptions, isZodUnion } from './tables'
 import { type ZxId, zx } from './zx'
 
 // ============================================================================
@@ -158,15 +159,15 @@ export type ZodModel<
 /**
  * Define a client-safe model with Zod schemas and type-safe index definitions.
  *
+ * Accepts either a raw Zod shape (object mapping field names to Zod types) or
+ * a pre-built Zod schema (union, discriminated union, or object).
+ *
  * @param name - The table name (literal string type preserved)
- * @param fields - Raw Zod shape mapping field names to Zod types
+ * @param fieldsOrSchema - Raw Zod shape or pre-built Zod schema
  * @returns A ZodModel with schemas, chainable index methods
  *
- * @example
+ * @example Raw shape (most common)
  * ```ts
- * import { z } from 'zod'
- * import { defineZodModel, zx } from 'zodvex/core'
- *
  * const patients = defineZodModel('patients', {
  *   clinicId: z.string(),
  *   email: z.string().email().optional(),
@@ -175,12 +176,43 @@ export type ZodModel<
  *   .index('byClinic', ['clinicId'])
  *   .index('byCreation', ['_creationTime'])
  * ```
+ *
+ * @example Discriminated union
+ * ```ts
+ * const visits = defineZodModel('visits', z.discriminatedUnion('type', [
+ *   z.object({ type: z.literal('phone'), duration: z.number() }),
+ *   z.object({ type: z.literal('in-person'), roomId: z.string() }),
+ * ]))
+ *   .index('byType', ['type'])
+ * ```
  */
+// Overload 1: raw shape (existing behavior)
 export function defineZodModel<Name extends string, Fields extends z.ZodRawShape>(
   name: Name,
   fields: Fields
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-): ZodModel<Name, Fields, z.ZodObject<Fields>, {}, {}, {}> {
+): ZodModel<Name, Fields, z.ZodObject<Fields>, {}, {}, {}>
+
+// Overload 2: pre-built schema (union or object)
+export function defineZodModel<Name extends string, Schema extends z.ZodTypeAny>(
+  name: Name,
+  schema: Schema
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
+): ZodModel<Name, z.ZodRawShape, Schema, {}, {}, {}>
+
+// Implementation
+export function defineZodModel<Name extends string>(
+  name: Name,
+  fieldsOrSchema: z.ZodRawShape | z.ZodTypeAny
+): any {
+  // Detect if input is a pre-built Zod schema (union, object, etc.) vs raw shape
+  if (fieldsOrSchema instanceof z.ZodType) {
+    return createUnionModel(name, fieldsOrSchema as z.ZodTypeAny)
+  }
+
+  // Existing raw-shape path
+  const fields = fieldsOrSchema as z.ZodRawShape
+
   const insertSchema = z.object(fields)
   const docSchema = insertSchema.extend({
     _id: zx.id(name),
@@ -214,6 +246,104 @@ export function defineZodModel<Name extends string, Fields extends z.ZodRawShape
     docArray: docArraySchema,
     paginatedDoc: paginatedDocSchema
   }
+
+  function createModel(
+    indexes: Record<string, readonly string[]>,
+    searchIndexes: Record<string, SearchIndexConfig>,
+    vectorIndexes: Record<string, VectorIndexConfig>
+  ): any {
+    const model = {
+      name,
+      fields,
+      schema,
+      indexes,
+      searchIndexes,
+      vectorIndexes,
+      index(indexName: string, indexFields: readonly string[]) {
+        return createModel(
+          { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
+          searchIndexes,
+          vectorIndexes
+        )
+      },
+      searchIndex(indexName: string, config: SearchIndexConfig) {
+        return createModel(indexes, { ...searchIndexes, [indexName]: config }, vectorIndexes)
+      },
+      vectorIndex(indexName: string, config: VectorIndexConfig) {
+        return createModel(indexes, searchIndexes, { ...vectorIndexes, [indexName]: config })
+      }
+    }
+    attachMeta(model, { type: 'model', tableName: name, schemas: schema })
+    return model
+  }
+
+  return createModel({}, {}, {})
+}
+
+// ============================================================================
+// createUnionModel — Internal helper for union/schema path
+// ============================================================================
+
+/**
+ * Creates a ZodModel from a pre-built Zod schema (union, discriminated union, or object).
+ * Mirrors the union path logic from zodTable() in tables.ts.
+ *
+ * @internal
+ */
+function createUnionModel<Name extends string>(name: Name, inputSchema: z.ZodTypeAny): any {
+  const insertSchema = inputSchema
+  const docSchema = addSystemFields(name, inputSchema)
+  const docArraySchema = z.array(docSchema)
+  const paginatedDocSchema = z.object({
+    page: z.array(docSchema),
+    isDone: z.boolean(),
+    continueCursor: z.string().nullable().optional()
+  })
+
+  // Build update schema: _id required, _creationTime optional, user fields partial
+  let updateSchema: z.ZodTypeAny
+  if (isZodUnion(inputSchema)) {
+    const originalOptions = getUnionOptions(inputSchema)
+    const updateOptions = originalOptions.map((variant: z.ZodTypeAny) => {
+      if (variant instanceof z.ZodObject) {
+        const partialShape: Record<string, z.ZodTypeAny> = {}
+        for (const [key, value] of Object.entries(variant.shape)) {
+          partialShape[key] = (value as z.ZodTypeAny).optional()
+        }
+        return z.object({
+          _id: zx.id(name),
+          _creationTime: z.number().optional(),
+          ...partialShape
+        })
+      }
+      return variant
+    })
+    updateSchema = createUnionFromOptions(updateOptions)
+  } else if (inputSchema instanceof z.ZodObject) {
+    const partialShape: Record<string, z.ZodTypeAny> = {}
+    for (const [key, value] of Object.entries(inputSchema.shape)) {
+      partialShape[key] = (value as z.ZodTypeAny).optional()
+    }
+    updateSchema = z.object({
+      _id: zx.id(name),
+      _creationTime: z.number().optional(),
+      ...partialShape
+    })
+  } else {
+    updateSchema = inputSchema
+  }
+
+  const schema = {
+    doc: docSchema,
+    base: insertSchema,
+    insert: insertSchema,
+    update: updateSchema,
+    docArray: docArraySchema,
+    paginatedDoc: paginatedDocSchema
+  }
+
+  // For union models, fields is an empty shape (field paths come from InsertSchema generic)
+  const fields: z.ZodRawShape = {}
 
   function createModel(
     indexes: Record<string, readonly string[]>,
