@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import type { DiscoveredFunction, DiscoveredModel } from '../src/codegen/discover'
+import type {
+  DiscoveredFunction,
+  DiscoveredModel,
+  ModelEmbeddedCodec
+} from '../src/codegen/discover'
 import {
   type CodecForGeneration,
   generateApiFile,
@@ -245,5 +249,102 @@ describe('generateServerFile', () => {
     expect(content).toContain('export type QueryCtx = ZodvexQueryCtx<DataModel, DecodedDocs>')
     expect(content).toContain('export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>')
     expect(content).toContain('export type ActionCtx = ZodvexActionCtx<DataModel>')
+  })
+})
+
+describe('model-embedded codec resolution', () => {
+  const testCodec = zx.codec(
+    z.object({ value: z.string(), tag: z.string() }),
+    z.object({ value: z.string(), tag: z.string(), display: z.string() }),
+    {
+      decode: (w: any) => ({ ...w, display: `[${w.tag}] ${w.value}` }),
+      encode: (r: any) => ({ value: r.value, tag: r.tag })
+    }
+  )
+
+  const codecModel: DiscoveredModel = {
+    exportName: 'UserModel',
+    tableName: 'users',
+    sourceFile: 'models/user.ts',
+    schemas: {
+      doc: z.object({ _id: z.string(), name: z.string(), email: testCodec.optional() }),
+      insert: z.object({ name: z.string(), email: testCodec.optional() }),
+      update: z.object({ name: z.string().optional(), email: testCodec.optional() }),
+      docArray: z.array(
+        z.object({ _id: z.string(), name: z.string(), email: testCodec.optional() })
+      ),
+      paginatedDoc: z.object({
+        page: z.array(z.object({ _id: z.string(), name: z.string(), email: testCodec.optional() })),
+        isDone: z.boolean(),
+        continueCursor: z.string().nullable().optional()
+      })
+    }
+  }
+
+  const modelCodecs: ModelEmbeddedCodec[] = [
+    {
+      codec: testCodec,
+      modelExportName: 'UserModel',
+      modelSourceFile: 'models/user.ts',
+      schemaKey: 'doc',
+      fieldName: 'email'
+    }
+  ]
+
+  it('resolves model-embedded codec in .partial() args', () => {
+    const partialArgs = (codecModel.schemas.doc as z.ZodObject<any>).partial()
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:update',
+        exportName: 'update',
+        sourceFile: 'users.ts',
+        zodArgs: partialArgs,
+        zodReturns: undefined
+      }
+    ]
+    const output = generateApiFile(funcs, [codecModel], [], modelCodecs)
+
+    // Should NOT contain "transforms lost"
+    expect(output).not.toContain('transforms lost')
+    // Should contain extractCodec import and helper var
+    expect(output).toContain("import { extractCodec } from 'zodvex/codegen'")
+    expect(output).toContain("import { UserModel } from '../models/user'")
+    expect(output).toContain('extractCodec(UserModel.schema.doc.shape.email)')
+  })
+
+  it('model-embedded codec in .extend() args preserves transforms', () => {
+    const extendedArgs = (codecModel.schemas.doc as z.ZodObject<any>).extend({ extra: z.string() })
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:update',
+        exportName: 'update',
+        sourceFile: 'users.ts',
+        zodArgs: extendedArgs,
+        zodReturns: undefined
+      }
+    ]
+    const output = generateApiFile(funcs, [codecModel], [], modelCodecs)
+    expect(output).not.toContain('transforms lost')
+  })
+
+  it('still uses exported codec when both model-embedded and exported exist', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'tasks:create',
+        exportName: 'create',
+        sourceFile: 'tasks.ts',
+        zodArgs: z.object({ estimate: testCodec }),
+        zodReturns: undefined
+      }
+    ]
+    // Pass same codec as both exported and model-embedded
+    const exportedCodecs: CodecForGeneration[] = [
+      { exportName: 'zTagged', sourceFile: 'codecs.ts', schema: testCodec }
+    ]
+    const output = generateApiFile(funcs, [codecModel], exportedCodecs, modelCodecs)
+
+    // Exported codec takes precedence (simpler reference)
+    expect(output).toContain('zTagged')
+    expect(output).toContain("import { zTagged } from '../codecs'")
   })
 })
