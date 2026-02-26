@@ -2,7 +2,7 @@ import path from 'node:path'
 import { Glob } from 'bun'
 import { z } from 'zod'
 import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../meta'
-import { extractCodec } from './extractCodec'
+import { findCodec } from './extractCodec'
 
 export type DiscoveredModel = {
   exportName: string
@@ -68,8 +68,8 @@ function walkSchemaRecursive(
   if (visited.has(schema)) return
   visited.add(schema)
 
-  // Check if this node is/contains a codec (extractCodec unwraps optional/nullable)
-  const codec = extractCodec(schema)
+  // Check if this node is/contains a codec (findCodec unwraps optional/nullable)
+  const codec = findCodec(schema)
   if (codec) {
     if (!seenCodecs.has(codec)) {
       seenCodecs.add(codec)

@@ -6,9 +6,9 @@ import { readMeta } from '../meta'
  * Returns the codec instance, or undefined if none found.
  * Skips zx.date() (ZodCodec with in=ZodNumber, out=ZodCustom).
  *
- * Used by generated _zodvex/api.ts to extract codec references from model shapes.
+ * Used internally by the discovery pipeline to probe schemas for codecs.
  */
-export function extractCodec(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
+export function findCodec(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
   let current = schema
   for (let i = 0; i < 10; i++) {
     if (current instanceof z.ZodCodec) {
@@ -25,6 +25,21 @@ export function extractCodec(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
     break
   }
   return undefined
+}
+
+/**
+ * Extracts the inner ZodCodec from a schema, throwing if none is found.
+ * The codegen only emits extractCodec() calls for schemas it has verified
+ * contain a codec during discovery, so a missing codec is a bug.
+ *
+ * Used by generated _zodvex/api.ts to extract codec references at runtime.
+ */
+export function extractCodec(schema: z.ZodTypeAny): z.ZodTypeAny {
+  const codec = findCodec(schema)
+  if (!codec) {
+    throw new Error('zodvex: extractCodec() found no codec in schema — this is a codegen bug')
+  }
+  return codec
 }
 
 /**

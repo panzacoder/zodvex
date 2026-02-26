@@ -7,7 +7,7 @@ import {
   walkFunctionCodecs,
   walkModelCodecs
 } from '../src/codegen/discover'
-import { extractCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
+import { extractCodec, findCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
 import { attachMeta } from '../src/meta'
 import { zx } from '../src/zx'
 
@@ -406,34 +406,49 @@ describe('discoverModules functionCodecs', () => {
   })
 })
 
-describe('extractCodec', () => {
+describe('findCodec', () => {
   it('returns codec directly if no wrappers', () => {
-    expect(extractCodec(testCodec)).toBe(testCodec)
+    expect(findCodec(testCodec)).toBe(testCodec)
   })
 
   it('unwraps .optional() to find codec', () => {
-    expect(extractCodec(testCodec.optional())).toBe(testCodec)
+    expect(findCodec(testCodec.optional())).toBe(testCodec)
   })
 
   it('unwraps .nullable() to find codec', () => {
-    expect(extractCodec(testCodec.nullable())).toBe(testCodec)
+    expect(findCodec(testCodec.nullable())).toBe(testCodec)
   })
 
   it('unwraps .optional().nullable() to find codec', () => {
-    expect(extractCodec(testCodec.optional().nullable())).toBe(testCodec)
+    expect(findCodec(testCodec.optional().nullable())).toBe(testCodec)
   })
 
   it('unwraps double .optional() (from .partial()) to find codec', () => {
-    expect(extractCodec(testCodec.optional().optional())).toBe(testCodec)
+    expect(findCodec(testCodec.optional().optional())).toBe(testCodec)
   })
 
   it('returns undefined for non-codec schemas', () => {
-    expect(extractCodec(z.string())).toBeUndefined()
-    expect(extractCodec(z.string().optional())).toBeUndefined()
+    expect(findCodec(z.string())).toBeUndefined()
+    expect(findCodec(z.string().optional())).toBeUndefined()
   })
 
   it('skips zx.date() codecs', () => {
-    expect(extractCodec(zx.date())).toBeUndefined()
-    expect(extractCodec(zx.date().optional())).toBeUndefined()
+    expect(findCodec(zx.date())).toBeUndefined()
+    expect(findCodec(zx.date().optional())).toBeUndefined()
+  })
+})
+
+describe('extractCodec', () => {
+  it('returns codec when present', () => {
+    expect(extractCodec(testCodec)).toBe(testCodec)
+    expect(extractCodec(testCodec.optional())).toBe(testCodec)
+  })
+
+  it('throws for non-codec schemas', () => {
+    expect(() => extractCodec(z.string())).toThrow('codegen bug')
+  })
+
+  it('throws for zx.date() codecs', () => {
+    expect(() => extractCodec(zx.date())).toThrow('codegen bug')
   })
 })
