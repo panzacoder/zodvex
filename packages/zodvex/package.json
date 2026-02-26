@@ -54,6 +54,11 @@
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js",
       "default": "./dist/client/index.js"
+    },
+    "./form/mantine": {
+      "types": "./dist/form/mantine/index.d.ts",
+      "import": "./dist/form/mantine/index.js",
+      "default": "./dist/form/mantine/index.js"
     }
   },
   "files": ["dist", "src", "README.md", "LICENSE"],
@@ -72,10 +77,18 @@
     "convex": "^1.28.0",
     "convex-helpers": "^0.1.104",
     "react": "^18.0.0 || ^19.0.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@mantine/form": "^8.0.0",
+    "mantine-form-zod-resolver": "^1.2.1"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "@mantine/form": {
+      "optional": true
+    },
+    "mantine-form-zod-resolver": {
       "optional": true
     }
   },
