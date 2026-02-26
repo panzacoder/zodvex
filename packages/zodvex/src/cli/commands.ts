@@ -22,7 +22,8 @@ export async function generate(convexDir?: string): Promise<void> {
     result.functions,
     result.models,
     result.codecs,
-    result.modelCodecs
+    result.modelCodecs,
+    result.functionCodecs
   )
   const clientContent = generateClientFile()
   const serverContent = generateServerFile()
@@ -33,7 +34,8 @@ export async function generate(convexDir?: string): Promise<void> {
   fs.writeFileSync(path.join(zodvexDir, 'client.ts'), clientContent)
   fs.writeFileSync(path.join(zodvexDir, 'server.ts'), serverContent)
 
-  const totalCodecs = result.codecs.length + result.modelCodecs.length
+  const totalCodecs =
+    result.codecs.length + result.modelCodecs.length + result.functionCodecs.length
   console.log(
     `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s), ${totalCodecs} codec(s)`
   )

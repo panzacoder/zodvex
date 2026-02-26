@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { readMeta } from '../meta'
 
 /**
  * Unwraps ZodOptional/ZodNullable layers to find the inner ZodCodec.
@@ -24,4 +25,28 @@ export function extractCodec(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
     break
   }
   return undefined
+}
+
+/**
+ * Extracts the zodArgs schema from a zodvex-registered function.
+ * Used by generated _zodvex/api.ts to access function-embedded codecs at runtime.
+ */
+export function readFnArgs(fn: unknown): z.ZodTypeAny {
+  const meta = readMeta(fn)
+  if (!meta || meta.type !== 'function' || !meta.zodArgs) {
+    throw new Error('zodvex: function has no zodArgs metadata')
+  }
+  return meta.zodArgs
+}
+
+/**
+ * Extracts the zodReturns schema from a zodvex-registered function.
+ * Used by generated _zodvex/api.ts to access function-embedded codecs at runtime.
+ */
+export function readFnReturns(fn: unknown): z.ZodTypeAny {
+  const meta = readMeta(fn)
+  if (!meta || meta.type !== 'function' || !meta.zodReturns) {
+    throw new Error('zodvex: function has no zodReturns metadata')
+  }
+  return meta.zodReturns
 }

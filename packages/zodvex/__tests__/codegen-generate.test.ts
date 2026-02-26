@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type {
   DiscoveredFunction,
   DiscoveredModel,
+  FunctionEmbeddedCodec,
   ModelEmbeddedCodec
 } from '../src/codegen/discover'
 import {
@@ -287,7 +288,7 @@ describe('model-embedded codec resolution', () => {
       modelExportName: 'UserModel',
       modelSourceFile: 'models/user.ts',
       schemaKey: 'doc',
-      fieldName: 'email'
+      accessPath: '.shape.email'
     }
   ]
 
@@ -346,5 +347,132 @@ describe('model-embedded codec resolution', () => {
     // Exported codec takes precedence (simpler reference)
     expect(output).toContain('zTagged')
     expect(output).toContain("import { zTagged } from '../codecs'")
+  })
+})
+
+describe('function-embedded codec resolution', () => {
+  // A codec that only exists in function args (not in any model or export)
+  const inlineCodec = zx.codec(z.string(), z.string(), {
+    decode: (w: string) => w.toUpperCase(),
+    encode: (r: string) => r.toLowerCase()
+  })
+
+  it('resolves function-embedded codec in args', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:search',
+        exportName: 'search',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({ query: inlineCodec }),
+        zodReturns: undefined
+      }
+    ]
+    const fnCodecs: FunctionEmbeddedCodec[] = [
+      {
+        codec: inlineCodec,
+        functionExportName: 'search',
+        functionSourceFile: 'users.ts',
+        schemaSource: 'zodArgs',
+        accessPath: '.shape.query'
+      }
+    ]
+    const output = generateApiFile(funcs, [], [], [], fnCodecs)
+
+    expect(output).not.toContain('transforms lost')
+    expect(output).toContain('readFnArgs')
+    expect(output).toContain("import { extractCodec, readFnArgs } from 'zodvex/codegen'")
+    expect(output).toContain("import { search } from '../users'")
+    expect(output).toContain('extractCodec(readFnArgs(search).shape.query)')
+  })
+
+  it('resolves function-embedded codec in returns', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:get',
+        exportName: 'get',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({}),
+        zodReturns: z.object({ data: inlineCodec })
+      }
+    ]
+    const fnCodecs: FunctionEmbeddedCodec[] = [
+      {
+        codec: inlineCodec,
+        functionExportName: 'get',
+        functionSourceFile: 'users.ts',
+        schemaSource: 'zodReturns',
+        accessPath: '.shape.data'
+      }
+    ]
+    const output = generateApiFile(funcs, [], [], [], fnCodecs)
+
+    expect(output).not.toContain('transforms lost')
+    expect(output).toContain('readFnReturns')
+    expect(output).toContain("import { extractCodec, readFnReturns } from 'zodvex/codegen'")
+    expect(output).toContain('extractCodec(readFnReturns(get).shape.data)')
+  })
+
+  it('model codec takes precedence over function codec for same instance', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:update',
+        exportName: 'update',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({ email: inlineCodec }),
+        zodReturns: undefined
+      }
+    ]
+    const modelCodecs: ModelEmbeddedCodec[] = [
+      {
+        codec: inlineCodec,
+        modelExportName: 'UserModel',
+        modelSourceFile: 'models/user.ts',
+        schemaKey: 'doc',
+        accessPath: '.shape.email'
+      }
+    ]
+    const fnCodecs: FunctionEmbeddedCodec[] = [
+      {
+        codec: inlineCodec,
+        functionExportName: 'update',
+        functionSourceFile: 'users.ts',
+        schemaSource: 'zodArgs',
+        accessPath: '.shape.email'
+      }
+    ]
+    const output = generateApiFile(funcs, [], [], modelCodecs, fnCodecs)
+
+    // Model codec should win — uses extractCodec(UserModel.schema...) not readFnArgs
+    expect(output).toContain('UserModel.schema.doc')
+    expect(output).not.toContain('readFnArgs')
+  })
+
+  it('exported codec takes precedence over function codec', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'test:fn',
+        exportName: 'fn',
+        sourceFile: 'test.ts',
+        zodArgs: z.object({ val: inlineCodec }),
+        zodReturns: undefined
+      }
+    ]
+    const exportedCodecs: CodecForGeneration[] = [
+      { exportName: 'myCodec', sourceFile: 'codecs.ts', schema: inlineCodec }
+    ]
+    const fnCodecs: FunctionEmbeddedCodec[] = [
+      {
+        codec: inlineCodec,
+        functionExportName: 'fn',
+        functionSourceFile: 'test.ts',
+        schemaSource: 'zodArgs',
+        accessPath: '.shape.val'
+      }
+    ]
+    const output = generateApiFile(funcs, [], exportedCodecs, [], fnCodecs)
+
+    // Exported codec wins
+    expect(output).toContain('myCodec')
+    expect(output).not.toContain('readFnArgs')
   })
 })

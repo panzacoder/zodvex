@@ -151,7 +151,7 @@ describe('codegen e2e', () => {
     const result = await discoverModules(fixtureDir)
     // UserModel now has a tagged codec in the email field
     expect(result.modelCodecs.length).toBeGreaterThanOrEqual(1)
-    const emailCodec = result.modelCodecs.find(mc => mc.fieldName === 'email')
+    const emailCodec = result.modelCodecs.find(mc => mc.accessPath === '.shape.email')
     expect(emailCodec).toBeDefined()
     expect(emailCodec?.modelExportName).toBe('UserModel')
   })

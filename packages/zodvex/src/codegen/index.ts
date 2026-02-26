@@ -2,9 +2,10 @@ export {
   type DiscoveredCodec,
   type DiscoveredFunction,
   type DiscoveredModel,
-  discoverModules
+  discoverModules,
+  type FunctionEmbeddedCodec
 } from './discover'
-export { extractCodec } from './extractCodec'
+export { extractCodec, readFnArgs, readFnReturns } from './extractCodec'
 export {
   type CodecForGeneration,
   generateApiFile,

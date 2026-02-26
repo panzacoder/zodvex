@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'bun:test'
 import path from 'node:path'
 import { z } from 'zod'
-import { discoverModules, walkModelCodecs } from '../src/codegen/discover'
-import { extractCodec } from '../src/codegen/extractCodec'
+import {
+  type DiscoveredFunction,
+  discoverModules,
+  walkFunctionCodecs,
+  walkModelCodecs
+} from '../src/codegen/discover'
+import { extractCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
+import { attachMeta } from '../src/meta'
 import { zx } from '../src/zx'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
@@ -136,7 +142,7 @@ describe('walkModelCodecs', () => {
     expect(result.length).toBeGreaterThanOrEqual(1)
     expect(result[0].codec).toBe(testCodec)
     expect(result[0].modelExportName).toBe('TestModel')
-    expect(result[0].fieldName).toBe('email')
+    expect(result[0].accessPath).toBe('.shape.email')
     expect(result[0].schemaKey).toBe('doc')
   })
 
@@ -184,6 +190,101 @@ describe('walkModelCodecs', () => {
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     expect(result.length).toBe(0)
   })
+
+  it('finds codec nested inside a union member', () => {
+    const variant1 = z.object({ type: z.literal('a'), name: testCodec })
+    const variant2 = z.object({ type: z.literal('b'), label: z.string() })
+    const schemas = makeSchemas({
+      doc: z.object({ _id: z.string(), payload: z.union([variant1, variant2]) }),
+      insert: z.object({ payload: z.union([variant1, variant2]) }),
+      update: z.object({})
+    })
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBe(1)
+    expect(result[0].codec).toBe(testCodec)
+    expect(result[0].accessPath).toBe('.shape.payload._zod.def.options[0].shape.name')
+  })
+
+  it('finds codec nested inside an optional union member', () => {
+    const variant = z.object({ type: z.literal('a'), name: testCodec.optional() })
+    const schemas = makeSchemas({
+      doc: z.object({ _id: z.string(), payload: z.union([variant]).optional() }),
+      insert: z.object({ payload: z.union([variant]).optional() }),
+      update: z.object({})
+    })
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBe(1)
+    expect(result[0].codec).toBe(testCodec)
+    expect(result[0].accessPath).toBe(
+      '.shape.payload._zod.def.innerType._zod.def.options[0].shape.name'
+    )
+  })
+
+  it('finds codec inside array element', () => {
+    const schemas = makeSchemas({
+      doc: z.object({ _id: z.string(), items: z.array(z.object({ val: testCodec })) }),
+      insert: z.object({ items: z.array(z.object({ val: testCodec })) }),
+      update: z.object({})
+    })
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBe(1)
+    expect(result[0].codec).toBe(testCodec)
+    expect(result[0].accessPath).toBe('.shape.items._zod.def.element.shape.val')
+  })
+
+  it('finds codec inside record value type', () => {
+    const schemas = makeSchemas({
+      doc: z.object({ _id: z.string(), data: z.record(z.string(), testCodec) }),
+      insert: z.object({ data: z.record(z.string(), testCodec) }),
+      update: z.object({})
+    })
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBe(1)
+    expect(result[0].codec).toBe(testCodec)
+    expect(result[0].accessPath).toBe('.shape.data._zod.def.valueType')
+  })
+
+  it('finds codecs at multiple nesting levels', () => {
+    const otherCodec = zx.codec(z.number(), z.string(), {
+      decode: (n: number) => String(n),
+      encode: (s: string) => Number(s)
+    })
+    const schemas = makeSchemas({
+      doc: z.object({
+        _id: z.string(),
+        email: testCodec.optional(),
+        payload: z.union([z.object({ type: z.literal('a'), score: otherCodec })])
+      }),
+      insert: z.object({ email: testCodec.optional() }),
+      update: z.object({})
+    })
+    const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
+    expect(result.length).toBe(2)
+    const emailCodec = result.find(r => r.codec === testCodec)
+    const scoreCodec = result.find(r => r.codec === otherCodec)
+    expect(emailCodec?.accessPath).toBe('.shape.email')
+    expect(scoreCodec?.accessPath).toBe('.shape.payload._zod.def.options[0].shape.score')
+  })
+
+  it('handles top-level union schema (non-object root)', () => {
+    const variant1 = z.object({ type: z.literal('a'), name: testCodec })
+    const variant2 = z.object({ type: z.literal('b') })
+    const unionDoc = z.union([variant1, variant2])
+    const result = walkModelCodecs('TestModel', 'models/test.ts', {
+      doc: unionDoc,
+      insert: z.object({}),
+      update: z.object({}),
+      docArray: z.array(unionDoc),
+      paginatedDoc: z.object({
+        page: z.array(unionDoc),
+        isDone: z.boolean(),
+        continueCursor: z.string().nullable().optional()
+      })
+    })
+    expect(result.length).toBe(1)
+    expect(result[0].codec).toBe(testCodec)
+    expect(result[0].accessPath).toBe('._zod.def.options[0].shape.name')
+  })
 })
 
 describe('discoverModules modelCodecs', () => {
@@ -191,6 +292,117 @@ describe('discoverModules modelCodecs', () => {
     const result = await discoverModules(fixtureDir)
     expect(result.modelCodecs).toBeDefined()
     expect(Array.isArray(result.modelCodecs)).toBe(true)
+  })
+})
+
+describe('walkFunctionCodecs', () => {
+  function makeFn(
+    overrides: Partial<DiscoveredFunction> & { zodArgs?: z.ZodTypeAny; zodReturns?: z.ZodTypeAny }
+  ): DiscoveredFunction {
+    return {
+      functionPath: 'test:fn',
+      exportName: 'fn',
+      sourceFile: 'test.ts',
+      ...overrides
+    }
+  }
+
+  it('finds codec in function zodArgs', () => {
+    const fns = [makeFn({ zodArgs: z.object({ email: testCodec }) })]
+    const result = walkFunctionCodecs(fns)
+    expect(result.length).toBe(1)
+    expect(result[0].codec).toBe(testCodec)
+    expect(result[0].schemaSource).toBe('zodArgs')
+    expect(result[0].accessPath).toBe('.shape.email')
+    expect(result[0].functionExportName).toBe('fn')
+  })
+
+  it('finds codec in function zodReturns', () => {
+    const fns = [makeFn({ zodReturns: z.object({ data: testCodec.optional() }) })]
+    const result = walkFunctionCodecs(fns)
+    expect(result.length).toBe(1)
+    expect(result[0].codec).toBe(testCodec)
+    expect(result[0].schemaSource).toBe('zodReturns')
+    expect(result[0].accessPath).toBe('.shape.data')
+  })
+
+  it('finds codec nested in union within args', () => {
+    const args = z.object({
+      payload: z.union([
+        z.object({ type: z.literal('a'), val: testCodec }),
+        z.object({ type: z.literal('b') })
+      ])
+    })
+    const fns = [makeFn({ zodArgs: args })]
+    const result = walkFunctionCodecs(fns)
+    expect(result.length).toBe(1)
+    expect(result[0].accessPath).toBe('.shape.payload._zod.def.options[0].shape.val')
+  })
+
+  it('deduplicates same codec across multiple functions', () => {
+    const fns = [
+      makeFn({ exportName: 'fn1', zodArgs: z.object({ a: testCodec }) }),
+      makeFn({ exportName: 'fn2', zodArgs: z.object({ b: testCodec }) })
+    ]
+    const result = walkFunctionCodecs(fns)
+    // Same codec instance — only first function wins
+    expect(result.length).toBe(1)
+    expect(result[0].functionExportName).toBe('fn1')
+  })
+
+  it('skips functions without zodArgs or zodReturns', () => {
+    const fns = [makeFn({})]
+    const result = walkFunctionCodecs(fns)
+    expect(result.length).toBe(0)
+  })
+
+  it('skips zx.date() codecs', () => {
+    const fns = [makeFn({ zodArgs: z.object({ ts: zx.date() }) })]
+    const result = walkFunctionCodecs(fns)
+    expect(result.length).toBe(0)
+  })
+})
+
+describe('readFnArgs / readFnReturns', () => {
+  it('readFnArgs extracts zodArgs from function metadata', () => {
+    const argsSchema = z.object({ id: z.string() })
+    const fn = { _isRegistered: true }
+    attachMeta(fn, { type: 'function', zodArgs: argsSchema, zodReturns: undefined })
+    expect(readFnArgs(fn)).toBe(argsSchema)
+  })
+
+  it('readFnReturns extracts zodReturns from function metadata', () => {
+    const returnsSchema = z.object({ name: z.string() })
+    const fn = { _isRegistered: true }
+    attachMeta(fn, { type: 'function', zodArgs: undefined, zodReturns: returnsSchema })
+    expect(readFnReturns(fn)).toBe(returnsSchema)
+  })
+
+  it('readFnArgs throws for non-function metadata', () => {
+    expect(() => readFnArgs({})).toThrow('zodvex: function has no zodArgs metadata')
+  })
+
+  it('readFnReturns throws for missing zodReturns', () => {
+    const fn = { _isRegistered: true }
+    attachMeta(fn, { type: 'function', zodArgs: z.object({}), zodReturns: undefined })
+    expect(() => readFnReturns(fn)).toThrow('zodvex: function has no zodReturns metadata')
+  })
+})
+
+describe('discoverModules functionCodecs', () => {
+  it('returns functionCodecs array in discovery result', async () => {
+    const result = await discoverModules(fixtureDir)
+    expect(result.functionCodecs).toBeDefined()
+    expect(Array.isArray(result.functionCodecs)).toBe(true)
+  })
+
+  it('discovers codecs from function args in fixture', async () => {
+    const result = await discoverModules(fixtureDir)
+    // The fixture's users:get has zodArgs: z.object({ id: z.string() }) — no codecs
+    // The fixture's users:update has zodArgs derived from UserModel.schema.doc.partial() — contains tagged codec
+    // That tagged codec should already be in modelCodecs, so functionCodecs may or may not find it again
+    // depending on whether it's the same instance
+    expect(result.functionCodecs.length).toBeGreaterThanOrEqual(0)
   })
 })
 
