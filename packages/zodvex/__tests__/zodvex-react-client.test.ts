@@ -47,7 +47,9 @@ class MockConvexReactClient {
   watchQuery(ref: any, args: any, opts?: any) {
     if (mockWatchQueryImpl) return mockWatchQueryImpl(ref, args, opts)
     return {
-      onUpdate: (_cb: () => void) => () => {},
+      onUpdate: (_cb: () => void) => () => {
+        /* noop */
+      },
       localQueryResult: () => undefined,
       journal: () => undefined
     }
@@ -321,7 +323,9 @@ describe('ZodvexReactClient', () => {
     it('decodes localQueryResult via codec (number -> Date)', () => {
       const ts = 1700000000000
       mockWatchQueryImpl = () => ({
-        onUpdate: (_cb: () => void) => () => {},
+        onUpdate: (_cb: () => void) => () => {
+          /* noop */
+        },
         localQueryResult: () => [{ _id: 'w1', title: 'Watched', createdAt: ts }],
         journal: () => undefined
       })
@@ -336,7 +340,9 @@ describe('ZodvexReactClient', () => {
 
     it('returns undefined when localQueryResult is undefined (loading)', () => {
       mockWatchQueryImpl = () => ({
-        onUpdate: (_cb: () => void) => () => {},
+        onUpdate: (_cb: () => void) => () => {
+          /* noop */
+        },
         localQueryResult: () => undefined,
         journal: () => undefined
       })
@@ -349,7 +355,9 @@ describe('ZodvexReactClient', () => {
     it('memoizes by wire reference identity', () => {
       const wireData = [{ _id: 'w2', title: 'Memoized', createdAt: 1700000000000 }]
       mockWatchQueryImpl = () => ({
-        onUpdate: (_cb: () => void) => () => {},
+        onUpdate: (_cb: () => void) => () => {
+          /* noop */
+        },
         localQueryResult: () => wireData, // same reference every time
         journal: () => undefined
       })
@@ -368,7 +376,9 @@ describe('ZodvexReactClient', () => {
       const wire2 = [{ _id: 'w3', title: 'Second', createdAt: 1800000000000 }]
 
       mockWatchQueryImpl = () => ({
-        onUpdate: (_cb: () => void) => () => {},
+        onUpdate: (_cb: () => void) => () => {
+          /* noop */
+        },
         localQueryResult: () => {
           callCount++
           return callCount === 1 ? wire1 : wire2
@@ -395,7 +405,9 @@ describe('ZodvexReactClient', () => {
       mockWatchQueryImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return {
-          onUpdate: (_cb: () => void) => () => {},
+          onUpdate: (_cb: () => void) => () => {
+            /* noop */
+          },
           localQueryResult: () => undefined,
           journal: () => undefined
         }
@@ -432,7 +444,7 @@ describe('ZodvexReactClient', () => {
 
       // Trigger the callback via the inner watch
       expect(onUpdateCb).not.toBeNull()
-      onUpdateCb!()
+      onUpdateCb?.()
       expect(notified).toBe(true)
 
       // Unsubscribe
@@ -443,7 +455,9 @@ describe('ZodvexReactClient', () => {
     it('delegates journal unchanged', () => {
       const journalData = { definitionId: 'test', cursor: null }
       mockWatchQueryImpl = () => ({
-        onUpdate: (_cb: () => void) => () => {},
+        onUpdate: (_cb: () => void) => () => {
+          /* noop */
+        },
         localQueryResult: () => undefined,
         journal: () => journalData
       })
@@ -458,7 +472,9 @@ describe('ZodvexReactClient', () => {
   describe('pass-through methods', () => {
     it('delegates setAuth to inner ConvexReactClient', () => {
       const fetchToken = async () => 'test-token'
-      const onChange = () => {}
+      const onChange = () => {
+        /* noop */
+      }
       client.setAuth(fetchToken, onChange)
       expect(mockSetAuthCalls).toHaveLength(1)
       expect(mockSetAuthCalls[0].fetchToken).toBe(fetchToken)
@@ -486,7 +502,9 @@ describe('ZodvexReactClient', () => {
     })
 
     it('delegates subscribeToConnectionState to inner ConvexReactClient', () => {
-      const cb = () => {}
+      const cb = () => {
+        /* noop */
+      }
       const unsub = client.subscribeToConnectionState(cb)
       expect(mockSubscribeToConnectionStateCb).toBe(cb)
       expect(typeof unsub).toBe('function')
