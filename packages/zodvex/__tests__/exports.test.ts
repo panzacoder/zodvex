@@ -18,6 +18,11 @@ describe('zodvex/core exports', () => {
     expect(zodToConvexFields).toBeDefined()
   })
 
+  it('exports createCodecHelpers', async () => {
+    const { createCodecHelpers } = await import('../src/core')
+    expect(createCodecHelpers).toBeDefined()
+  })
+
   it('exports codec utilities', async () => {
     const { convexCodec, decodeDoc, encodeDoc, encodePartialDoc } = await import('../src/core')
     expect(convexCodec).toBeDefined()

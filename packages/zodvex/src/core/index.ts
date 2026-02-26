@@ -10,6 +10,8 @@
 
 // Codec utilities
 export * from '../codec'
+// Codec helpers (shared encode/decode for client wrappers)
+export { createCodecHelpers } from '../codecHelpers'
 // Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
 export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
 // ID utilities
