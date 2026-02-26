@@ -30,19 +30,36 @@ import { stripUndefined } from '../utils'
  */
 export function createZodvexHooks<R extends AnyRegistry>(registry: R) {
   /**
-   * Drop-in replacement for Convex's `useQuery`.
+   * Drop-in replacement for Convex's `useQuery` with automatic codec decode.
    *
    * Delegates to the real `useQuery` and then decodes the wire result through
    * the `returns` schema in the registry (if one exists for this function).
    *
+   * Two overloads:
+   * 1. Rest-args (Convex-compatible): `useZodQuery(ref, args)` or `useZodQuery(ref, 'skip')`
+   * 2. Union args (composable): `useZodQuery(ref, args | 'skip')` — for wrappers
+   *    and conditional skip patterns where the decision is made upstream.
+   *
    * - Loading state (`undefined`) passes through unchanged.
    * - Functions not in the registry return the raw wire result.
    */
+  // Overload 1: drop-in compatible with Convex's useQuery
   function useZodQuery<Query extends FunctionReference<'query', any, any, any>>(
     ref: Query,
-    ...restArgs: OptionalRestArgsOrSkip<Query>
-  ): FunctionReturnType<Query> | undefined {
-    const wireResult = useQuery(ref, ...restArgs)
+    ...args: OptionalRestArgsOrSkip<Query>
+  ): FunctionReturnType<Query> | undefined
+  // Overload 2: composable — accepts Args | 'skip' union for wrappers
+  function useZodQuery<Query extends FunctionReference<'query', any, any, any>>(
+    ref: Query,
+    args: Query['_args'] | 'skip'
+  ): FunctionReturnType<Query> | undefined
+  // Implementation
+  function useZodQuery(ref: FunctionReference<'query', any, any, any>, ...restArgs: any[]) {
+    const args = restArgs[0]
+    const wireResult = useQuery(
+      ref,
+      ...((args === 'skip' ? ['skip'] : [args]) as OptionalRestArgsOrSkip<typeof ref>)
+    )
 
     // Loading state — Convex returns undefined while the subscription is pending
     if (wireResult === undefined) return undefined
