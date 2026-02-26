@@ -1,11 +1,8 @@
 import type { OptionalRestArgsOrSkip } from 'convex/react'
 import { useMutation, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
-import { getFunctionName } from 'convex/server'
-import { z } from 'zod'
-import { safeEncode } from '../normalizeCodecPaths'
+import { createCodecHelpers } from '../codecHelpers'
 import type { AnyRegistry } from '../types'
-import { stripUndefined } from '../utils'
 
 /**
  * Creates zodvex-aware React hooks that automatically decode query results
@@ -30,6 +27,8 @@ import { stripUndefined } from '../utils'
  * ```
  */
 export function createZodvexHooks<R extends AnyRegistry>(registry: R) {
+  const codec = createCodecHelpers(registry)
+
   /**
    * Drop-in replacement for Convex's `useQuery` with automatic codec decode.
    *
@@ -65,14 +64,8 @@ export function createZodvexHooks<R extends AnyRegistry>(registry: R) {
     // Loading state — Convex returns undefined while the subscription is pending
     if (wireResult === undefined) return undefined
 
-    const path = getFunctionName(ref)
-    const entry = registry[path]
-
-    // No codec registered for this function — pass through raw wire data
-    if (!entry?.returns) return wireResult
-
     // Decode: wire format -> runtime types (e.g., timestamp number -> Date)
-    return entry.returns.parse(wireResult)
+    return codec.decodeResult(ref, wireResult)
   }
 
   /**
@@ -89,18 +82,15 @@ export function createZodvexHooks<R extends AnyRegistry>(registry: R) {
     ref: Mutation
   ) {
     const rawMutate = useMutation(ref)
-    const path = getFunctionName(ref)
-    const entry = registry[path]
 
     return async (args: FunctionArgs<Mutation>): Promise<FunctionReturnType<Mutation>> => {
       // Encode args: runtime types -> wire format (e.g., Date -> timestamp)
-      const wireArgs = entry?.args ? stripUndefined(safeEncode(entry.args, args)) : args
+      const wireArgs = codec.encodeArgs(ref, args)
 
       const wireResult = await (rawMutate as any)(wireArgs)
 
       // Decode result: wire format -> runtime types
-      if (!entry?.returns) return wireResult
-      return entry.returns.parse(wireResult)
+      return codec.decodeResult(ref, wireResult)
     }
   }
 

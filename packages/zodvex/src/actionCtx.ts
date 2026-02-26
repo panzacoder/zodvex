@@ -1,9 +1,6 @@
 import type { GenericActionCtx, GenericDataModel } from 'convex/server'
-import { getFunctionName } from 'convex/server'
-import { z } from 'zod'
-import { safeEncode } from './normalizeCodecPaths'
+import { createCodecHelpers } from './codecHelpers'
 import type { AnyRegistry } from './types'
-import { stripUndefined } from './utils'
 
 /**
  * Wraps an action context's runQuery/runMutation with automatic
@@ -19,27 +16,19 @@ export function createZodvexActionCtx<DM extends GenericDataModel>(
   registry: AnyRegistry,
   ctx: GenericActionCtx<DM>
 ): GenericActionCtx<DM> {
+  const codec = createCodecHelpers(registry)
+
   return {
     ...ctx,
     runQuery: async (ref: any, ...restArgs: any[]) => {
-      const path = getFunctionName(ref)
-      const entry = registry[path]
-      const args = restArgs[0]
-      const wireArgs =
-        entry?.args && args != null ? stripUndefined(safeEncode(entry.args, args)) : args
+      const wireArgs = codec.encodeArgs(ref, restArgs[0])
       const wireResult = await ctx.runQuery(ref, wireArgs)
-      if (!entry?.returns) return wireResult
-      return entry.returns.parse(wireResult)
+      return codec.decodeResult(ref, wireResult)
     },
     runMutation: async (ref: any, ...restArgs: any[]) => {
-      const path = getFunctionName(ref)
-      const entry = registry[path]
-      const args = restArgs[0]
-      const wireArgs =
-        entry?.args && args != null ? stripUndefined(safeEncode(entry.args, args)) : args
+      const wireArgs = codec.encodeArgs(ref, restArgs[0])
       const wireResult = await ctx.runMutation(ref, wireArgs)
-      if (!entry?.returns) return wireResult
-      return entry.returns.parse(wireResult)
+      return codec.decodeResult(ref, wireResult)
     }
   } as GenericActionCtx<DM>
 }
