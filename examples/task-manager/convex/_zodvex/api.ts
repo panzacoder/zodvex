@@ -2,18 +2,16 @@
 // Run `zodvex generate` to regenerate
 
 import { z } from 'zod'
-import { zx, extractCodec, readFnArgs } from 'zodvex/core'
+import { zx, extractCodec } from 'zodvex/core'
 import { CommentModel } from '../models/comment'
-import { UserModel } from '../models/user'
 import { TaskModel } from '../models/task'
+import { UserModel } from '../models/user'
 import { ActivityModel } from '../models/activity'
-import { getByEmail } from '../users'
 import { zDuration } from '../codecs'
 
 const _mc0 = extractCodec(ActivityModel.schema.doc.shape.payload._zod.def.options[1].shape.email)
 const _mc1 = extractCodec(ActivityModel.schema.doc.shape.tags._zod.def.innerType._zod.def.element)
 const _mc2 = extractCodec(UserModel.schema.doc.shape.email)
-const _fc0 = extractCodec(readFnArgs(getByEmail).shape.email)
 
 export const zodvexRegistry = {
   'comments:create': {
@@ -24,6 +22,14 @@ export const zodvexRegistry = {
     args: z.object({ taskId: zx.id("tasks") }),
     returns: CommentModel.schema.docArray,
   },
+  'api/reports:summary': {
+    args: z.object({ ownerId: zx.id("users").optional() }),
+    returns: z.object({ total: z.number(), done: z.number() }),
+  },
+  'api/reports:taskById': {
+    args: z.object({ id: zx.id("tasks") }),
+    returns: TaskModel.schema.doc.nullable(),
+  },
   'users:create': {
     args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.string().optional() }),
     returns: zx.id("users"),
@@ -33,7 +39,7 @@ export const zodvexRegistry = {
     returns: UserModel.schema.doc.nullable(),
   },
   'users:getByEmail': {
-    args: z.object({ email: _fc0 }),
+    args: z.object({ email: _mc2 }),
     returns: UserModel.schema.doc.nullable(),
   },
   'users:update': {
@@ -71,13 +77,5 @@ export const zodvexRegistry = {
   'activities:update': {
     args: z.object({ actorId: zx.id("users").optional(), payload: z.union([z.object({ type: z.literal("task_completed"), taskId: zx.id("tasks"), duration: zDuration }), z.object({ type: z.literal("user_invited"), email: _mc0 })]).optional(), tags: z.array(_mc1).optional().optional(), createdAt: zx.date().optional(), _id: zx.id("activities"), _creationTime: z.number().optional() }),
     returns: undefined,
-  },
-  'api/reports:summary': {
-    args: z.object({ ownerId: zx.id("users").optional() }),
-    returns: z.object({ total: z.number(), done: z.number() }),
-  },
-  'api/reports:taskById': {
-    args: z.object({ id: zx.id("tasks") }),
-    returns: TaskModel.schema.doc.nullable(),
   },
 } as const

@@ -357,7 +357,7 @@ describe('function-embedded codec resolution', () => {
     encode: (r: string) => r.toLowerCase()
   })
 
-  it('resolves function-embedded codec in args', () => {
+  it('warns and falls back when function codec has no model/standalone match', () => {
     const funcs: DiscoveredFunction[] = [
       {
         functionPath: 'users:search',
@@ -378,38 +378,60 @@ describe('function-embedded codec resolution', () => {
     ]
     const output = generateApiFile(funcs, [], [], [], fnCodecs)
 
-    expect(output).not.toContain('transforms lost')
-    expect(output).toContain('readFnArgs')
-    expect(output).toContain("import { extractCodec, readFnArgs } from 'zodvex/core'")
-    expect(output).toContain("import { search } from '../users'")
-    expect(output).toContain('extractCodec(readFnArgs(search).shape.query)')
+    // No function imports — avoids circular dependency
+    expect(output).not.toContain('import { search }')
+    expect(output).not.toContain('readFnArgs')
+    // Codec falls through to wire schema
+    expect(output).toContain('transforms lost')
   })
 
-  it('resolves function-embedded codec in returns', () => {
+  it('fingerprint-matches function codec to structurally equivalent model codec', () => {
+    // Two different instances of the same codec factory (like tagged() or sensitive())
+    const modelCodecInstance = zx.codec(z.string(), z.string(), {
+      decode: (w: string) => w.toUpperCase(),
+      encode: (r: string) => r.toLowerCase()
+    })
+    const fnCodecInstance = zx.codec(z.string(), z.string(), {
+      decode: (w: string) => w.toUpperCase(),
+      encode: (r: string) => r.toLowerCase()
+    })
+    expect(modelCodecInstance).not.toBe(fnCodecInstance) // different instances
+
     const funcs: DiscoveredFunction[] = [
       {
-        functionPath: 'users:get',
-        exportName: 'get',
+        functionPath: 'users:search',
+        exportName: 'search',
         sourceFile: 'users.ts',
-        zodArgs: z.object({}),
-        zodReturns: z.object({ data: inlineCodec })
+        zodArgs: z.object({ query: fnCodecInstance }),
+        zodReturns: undefined
+      }
+    ]
+    const modelCodecs: ModelEmbeddedCodec[] = [
+      {
+        codec: modelCodecInstance,
+        modelExportName: 'UserModel',
+        modelSourceFile: 'models/user.ts',
+        schemaKey: 'doc',
+        accessPath: '.shape.query'
       }
     ]
     const fnCodecs: FunctionEmbeddedCodec[] = [
       {
-        codec: inlineCodec,
-        functionExportName: 'get',
+        codec: fnCodecInstance,
+        functionExportName: 'search',
         functionSourceFile: 'users.ts',
-        schemaSource: 'zodReturns',
-        accessPath: '.shape.data'
+        schemaSource: 'zodArgs',
+        accessPath: '.shape.query'
       }
     ]
-    const output = generateApiFile(funcs, [], [], [], fnCodecs)
+    const output = generateApiFile(funcs, [], [], modelCodecs, fnCodecs)
 
+    // Should resolve via model codec, not function import
     expect(output).not.toContain('transforms lost')
-    expect(output).toContain('readFnReturns')
-    expect(output).toContain("import { extractCodec, readFnReturns } from 'zodvex/core'")
-    expect(output).toContain('extractCodec(readFnReturns(get).shape.data)')
+    expect(output).not.toContain('readFnArgs')
+    expect(output).not.toContain('import { search }')
+    expect(output).toContain('UserModel.schema.doc')
+    expect(output).toContain('extractCodec')
   })
 
   it('model codec takes precedence over function codec for same instance', () => {
