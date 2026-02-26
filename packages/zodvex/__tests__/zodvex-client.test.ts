@@ -388,6 +388,34 @@ describe('ZodvexClient', () => {
     })
   })
 
+  // ---- constructor with existing client ------------------------------------
+
+  describe('constructor with existing client', () => {
+    it('wraps an existing ConvexClient without creating a new one', () => {
+      const existingClient = new (MockConvexClient as any)('https://existing.convex.cloud')
+      const zc = new ZodvexClient(registry as any, { client: existingClient })
+      expect(zc.convex).toBe(existingClient)
+    })
+
+    it('uses the existing client for queries', async () => {
+      const existingClient = new (MockConvexClient as any)('https://existing.convex.cloud')
+      const zc = new ZodvexClient(registry as any, { client: existingClient })
+      const now = Date.now()
+      mockQueryImpl = () => [{ _id: 'abc', title: 'Test', createdAt: now }]
+      const result = await zc.query(fakeRef('tasks:list'))
+      expect(result[0].createdAt).toBeInstanceOf(Date)
+    })
+  })
+
+  // ---- .convex accessor ---------------------------------------------------
+
+  describe('.convex accessor', () => {
+    it('exposes the inner ConvexClient', () => {
+      expect(client.convex).toBeDefined()
+      expect(client.convex).toBeInstanceOf(MockConvexClient)
+    })
+  })
+
   // ---- createZodvexClient factory -----------------------------------------
 
   describe('createZodvexClient', () => {

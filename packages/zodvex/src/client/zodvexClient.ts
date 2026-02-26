@@ -1,15 +1,10 @@
 import type { AuthTokenFetcher } from 'convex/browser'
 import { ConvexClient } from 'convex/browser'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
-import { getFunctionName } from 'convex/server'
-import { safeEncode } from '../normalizeCodecPaths'
+import { createCodecHelpers } from '../codecHelpers'
 import type { AnyRegistry } from '../types'
-import { stripUndefined } from '../utils'
 
-export type ZodvexClientOptions = {
-  url: string
-  token?: string | null
-}
+export type ZodvexClientOptions = { url: string; token?: string | null } | { client: ConvexClient }
 
 /** Wrap a static token string as an AuthTokenFetcher for ConvexClient */
 function tokenToFetcher(token: string): AuthTokenFetcher {
@@ -17,42 +12,39 @@ function tokenToFetcher(token: string): AuthTokenFetcher {
 }
 
 export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
-  private inner: ConvexClient
-  private registry: R
+  readonly convex: ConvexClient
+  private codec: ReturnType<typeof createCodecHelpers>
 
   constructor(registry: R, options: ZodvexClientOptions) {
-    this.registry = registry
-    this.inner = new ConvexClient(options.url)
-    if (options.token) this.inner.setAuth(tokenToFetcher(options.token))
-  }
-
-  private encodeArgs(ref: FunctionReference<any, any, any, any>, args: any): any {
-    const path = getFunctionName(ref)
-    const entry = this.registry[path]
-    return entry?.args && args ? stripUndefined(safeEncode(entry.args, args)) : args
-  }
-
-  private decodeResult(ref: FunctionReference<any, any, any, any>, wireResult: any): any {
-    const path = getFunctionName(ref)
-    const entry = this.registry[path]
-    if (!entry?.returns) return wireResult
-    return entry.returns.parse(wireResult)
+    this.codec = createCodecHelpers(registry)
+    if ('client' in options) {
+      this.convex = options.client
+    } else {
+      this.convex = new ConvexClient(options.url)
+      if (options.token) this.convex.setAuth(tokenToFetcher(options.token))
+    }
   }
 
   async query<Q extends FunctionReference<'query', any, any, any>>(
     ref: Q,
     args: Q['_args']
   ): Promise<Q['_returnType']> {
-    const wireResult = await this.inner.query(ref, this.encodeArgs(ref, args) as FunctionArgs<Q>)
-    return this.decodeResult(ref, wireResult)
+    const wireResult = await this.convex.query(
+      ref,
+      this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
+    )
+    return this.codec.decodeResult(ref, wireResult)
   }
 
   async mutate<M extends FunctionReference<'mutation', any, any, any>>(
     ref: M,
     args: M['_args']
   ): Promise<M['_returnType']> {
-    const wireResult = await this.inner.mutation(ref, this.encodeArgs(ref, args) as FunctionArgs<M>)
-    return this.decodeResult(ref, wireResult)
+    const wireResult = await this.convex.mutation(
+      ref,
+      this.codec.encodeArgs(ref, args) as FunctionArgs<M>
+    )
+    return this.codec.decodeResult(ref, wireResult)
   }
 
   subscribe<Q extends FunctionReference<'query', any, any, any>>(
@@ -60,18 +52,18 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
     args: Q['_args'],
     callback: (result: Q['_returnType']) => void
   ): () => void {
-    const wireArgs = this.encodeArgs(ref, args) as FunctionArgs<Q>
-    return this.inner.onUpdate(ref, wireArgs, (wireResult: FunctionReturnType<Q>) => {
-      callback(this.decodeResult(ref, wireResult))
+    const wireArgs = this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
+    return this.convex.onUpdate(ref, wireArgs, (wireResult: FunctionReturnType<Q>) => {
+      callback(this.codec.decodeResult(ref, wireResult))
     })
   }
 
   setAuth(token: string | null) {
-    this.inner.setAuth(async () => token)
+    this.convex.setAuth(async () => token)
   }
 
   async close() {
-    await this.inner.close()
+    await this.convex.close()
   }
 }
 
