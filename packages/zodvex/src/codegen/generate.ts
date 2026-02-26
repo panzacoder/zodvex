@@ -292,12 +292,19 @@ export type ActionCtx = ZodvexActionCtx<DataModel>
 export function generateClientFile(): string {
   return `${HEADER}
 import { createZodvexHooks } from 'zodvex/react'
+import { createZodvexReactClient, type ZodvexReactClientOptions } from 'zodvex/react'
 import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'
+import { createCodecHelpers } from 'zodvex/core'
 import { zodvexRegistry } from './api'
 
 export const { useZodQuery, useZodMutation } = createZodvexHooks(zodvexRegistry)
 
 export const createClient = (options: ZodvexClientOptions) =>
   createZodvexClient(zodvexRegistry, options)
+
+export const createReactClient = (options: ZodvexReactClientOptions) =>
+  createZodvexReactClient(zodvexRegistry, options)
+
+export const { encodeArgs, decodeResult } = createCodecHelpers(zodvexRegistry)
 `
 }

@@ -227,12 +227,19 @@ describe('generateClientFile', () => {
     const content = generateClientFile()
     expect(content).toContain("import { createZodvexHooks } from 'zodvex/react'")
     expect(content).toContain(
+      "import { createZodvexReactClient, type ZodvexReactClientOptions } from 'zodvex/react'"
+    )
+    expect(content).toContain(
       "import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'"
     )
+    expect(content).toContain("import { createCodecHelpers } from 'zodvex/core'")
     expect(content).toContain("import { zodvexRegistry } from './api'")
     expect(content).toContain('useZodQuery')
     expect(content).toContain('useZodMutation')
     expect(content).toContain('createClient')
+    expect(content).toContain('createReactClient')
+    expect(content).toContain('encodeArgs')
+    expect(content).toContain('decodeResult')
     expect(content).toContain('AUTO-GENERATED')
   })
 })
