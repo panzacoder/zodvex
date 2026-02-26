@@ -4,7 +4,7 @@
 
 **Goal:** Add `.withRules()` and `.audit()` methods to `CodecDatabaseReader`/`CodecDatabaseWriter` for per-table, per-operation rules and post-operation audit callbacks.
 
-**Architecture:** Subclass-based. `.withRules()` returns a `RulesCodecDatabaseReader`/`Writer` that extends the base class and overrides `get()`/`query()`/write methods. `.audit()` returns an `AuditCodecDatabaseReader`/`Writer` that overrides terminals to fire callbacks. Both return the same parent type, enabling natural chaining.
+**Architecture:** Subclass-based with extensible chain factory. `CodecQueryChain` gets a `protected createChain()` factory so subclasses inherit intermediate methods for free. `.withRules()` returns a `RulesCodecDatabaseReader`/`Writer` that extends the base class and overrides `get()`/`query()`/write methods. `RulesCodecQueryChain` extends `CodecQueryChain` and overrides only `createChain()` + terminals. `.audit()` follows the same pattern. Both return the same parent type, enabling natural chaining.
 
 **Tech Stack:** TypeScript, Bun test runner, Zod v4, Convex server types
 
@@ -31,15 +31,19 @@ import type {
 
 /**
  * Per-document rule function. Gates and optionally transforms documents.
- * Return the doc (possibly transformed) to allow, null to deny.
+ * Return true to allow unchanged, false/null to deny, or Doc to transform.
+ * Boolean shorthand keeps simple RLS rules concise.
  */
-export type ReadRule<Ctx, Doc> = (ctx: Ctx, doc: Doc) => Promise<Doc | null>
+export type ReadRule<Ctx, Doc> = (ctx: Ctx, doc: Doc) => Promise<Doc | null | boolean>
+
+/** Convenience type: insert doc is the decoded doc without system fields. */
+export type InsertDoc<Doc> = Omit<Doc, '_id' | '_creationTime'>
 
 /**
  * Per-insert rule. Gates and optionally transforms the insert value.
  * Return the value (possibly transformed) to allow. Throw to deny.
  */
-export type InsertRule<Ctx> = (ctx: Ctx, value: any) => Promise<any>
+export type InsertRule<Ctx, Doc> = (ctx: Ctx, value: InsertDoc<Doc>) => Promise<InsertDoc<Doc>>
 
 /**
  * Per-patch rule. Receives current doc + patch value.
@@ -71,7 +75,7 @@ export type DeleteRule<Ctx, Doc> = (ctx: Ctx, doc: Doc) => Promise<void>
  */
 export type TableRules<Ctx, Doc> = {
   read?: ReadRule<Ctx, Doc>
-  insert?: InsertRule<Ctx>
+  insert?: InsertRule<Ctx, Doc>
   patch?: PatchRule<Ctx, Doc>
   replace?: ReplaceRule<Ctx, Doc>
   delete?: DeleteRule<Ctx, Doc>
@@ -79,7 +83,8 @@ export type TableRules<Ctx, Doc> = {
 
 /**
  * Per-table rules for all tables in the data model.
- * Tables not listed are unaffected by rules (regardless of defaultPolicy).
+ * With defaultPolicy: 'deny', ALL tables are denied by default (including unmentioned ones).
+ * With defaultPolicy: 'allow' (default), unmentioned tables pass through.
  */
 export type CodecRules<
   Ctx,
@@ -106,7 +111,7 @@ export type ResolveDecodedDocForRules<
  * Configuration for .withRules().
  */
 export type CodecRulesConfig = {
-  /** Default policy for operations without rules on tables that ARE listed. Default: 'allow'. */
+  /** Default policy for all operations. 'deny' applies to ALL tables including unmentioned ones. Default: 'allow'. */
   defaultPolicy?: 'allow' | 'deny'
   /** Allow count() when rules are present. Default: false. */
   allowCounting?: boolean
@@ -181,13 +186,22 @@ git commit -m "feat: add rule and audit types for codec database wrapping"
 
 ---
 
-### Task 2: RulesCodecQueryChain — Rule-Filtered Query Chain
+### Task 2: Make CodecQueryChain Extensible + RulesCodecQueryChain
 
 **Files:**
-- Modify: `packages/zodvex/src/rules.ts`
+- Modify: `packages/zodvex/src/db.ts` (make `inner`/`schema` protected, add `createChain()` factory)
+- Modify: `packages/zodvex/src/rules.ts` (add `RulesCodecQueryChain` extending `CodecQueryChain`)
 - Test: `packages/zodvex/__tests__/rules.test.ts`
 
-This is the core of the read-path. `RulesCodecQueryChain` wraps a `CodecQueryChain` and applies the read rule at every terminal method.
+**Prerequisite: Refactor CodecQueryChain.** Before adding rules, make `CodecQueryChain` extensible:
+1. Change `private inner` → `protected inner`, `private schema` → `protected schema`
+2. Add `protected createChain(inner: any): CodecQueryChain<TableInfo, Doc>` that returns `new CodecQueryChain(inner, this.schema)`
+3. Change all intermediate methods to use `this.createChain(this.inner.xxx())` instead of `new CodecQueryChain(...)`
+4. Run existing `bun test packages/zodvex/__tests__/db.test.ts` to verify no regressions
+
+Then add `RulesCodecQueryChain` extending `CodecQueryChain`. It overrides only `createChain()` + terminals. Intermediate methods are inherited.
+
+**Read rule normalization:** The `RulesCodecQueryChain` normalizes read rule results at runtime — `true` becomes the original doc, `false` becomes `null`, `Doc`/`null` used as-is.
 
 **Step 1: Write failing tests for RulesCodecQueryChain**
 
@@ -195,7 +209,6 @@ Add to `packages/zodvex/__tests__/rules.test.ts`:
 
 ```ts
 import { z } from 'zod'
-import { CodecQueryChain } from '../src/db'
 import { RulesCodecQueryChain } from '../src/rules'
 import { zx } from '../src/zx'
 
@@ -207,8 +220,8 @@ const docSchema = z.object({
   role: z.string(),
 })
 
-// Helper: creates a CodecQueryChain backed by mock docs
-function createCodecChain(docs: any[]) {
+// Helper: creates a raw mock query (not a CodecQueryChain — RulesCodecQueryChain extends CodecQueryChain directly)
+function createMockQuery(docs: any[]) {
   const mockQuery: any = {
     fullTableScan: () => mockQuery,
     withIndex: () => mockQuery,
@@ -233,7 +246,7 @@ function createCodecChain(docs: any[]) {
       for (const doc of docs) yield doc
     },
   }
-  return new CodecQueryChain(mockQuery, docSchema)
+  return mockQuery
 }
 
 // Wire-format docs (createdAt is a timestamp number)
@@ -250,21 +263,21 @@ describe('RulesCodecQueryChain', () => {
     doc.role === 'admin' ? doc : null
 
   it('collect() returns all docs when rule allows all', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', allowAll, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {})
     const results = await chain.collect()
     expect(results).toHaveLength(3)
     expect(results[0].createdAt).toBeInstanceOf(Date)
   })
 
   it('collect() filters docs through read rule', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', adminsOnly, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
     const results = await chain.collect()
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('Alice')
   })
 
   it('collect() returns empty array when rule denies all', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', denyAll, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, denyAll, {})
     const results = await chain.collect()
     expect(results).toHaveLength(0)
   })
@@ -273,14 +286,14 @@ describe('RulesCodecQueryChain', () => {
     // Bob and Charlie are users, Alice is admin. If we deny admins:
     const usersOnly = async (_ctx: any, doc: any) =>
       doc.role === 'user' ? doc : null
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', usersOnly, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, usersOnly, {})
     const result = await chain.first()
     expect(result).not.toBeNull()
     expect(result?.name).toBe('Bob')
   })
 
   it('first() returns null when no docs pass the rule', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', denyAll, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, denyAll, {})
     const result = await chain.first()
     expect(result).toBeNull()
   })
@@ -288,7 +301,7 @@ describe('RulesCodecQueryChain', () => {
   it('take(n) collects n allowed docs, skipping denied', async () => {
     const usersOnly = async (_ctx: any, doc: any) =>
       doc.role === 'user' ? doc : null
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', usersOnly, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, usersOnly, {})
     const results = await chain.take(1)
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('Bob')
@@ -296,7 +309,7 @@ describe('RulesCodecQueryChain', () => {
 
   it('unique() applies rule and returns doc if allowed', async () => {
     const singleDoc = [wireDocs[0]]
-    const chain = new RulesCodecQueryChain(createCodecChain(singleDoc), 'users', allowAll, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(singleDoc), docSchema, allowAll, {})
     const result = await chain.unique()
     expect(result).not.toBeNull()
     expect(result?.name).toBe('Alice')
@@ -304,13 +317,13 @@ describe('RulesCodecQueryChain', () => {
 
   it('unique() returns null when rule denies', async () => {
     const singleDoc = [wireDocs[0]]
-    const chain = new RulesCodecQueryChain(createCodecChain(singleDoc), 'users', denyAll, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(singleDoc), docSchema, denyAll, {})
     const result = await chain.unique()
     expect(result).toBeNull()
   })
 
   it('paginate() post-filters the page (page may shrink)', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', adminsOnly, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
     const result = await chain.paginate({ numItems: 10, cursor: null })
     expect(result.page).toHaveLength(1)
     expect(result.page[0].name).toBe('Alice')
@@ -318,14 +331,14 @@ describe('RulesCodecQueryChain', () => {
   })
 
   it('count() throws when allowCounting is false', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', allowAll, {
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {
       allowCounting: false,
     })
     await expect(chain.count()).rejects.toThrow('count is not allowed with rules')
   })
 
   it('count() delegates when allowCounting is true', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', allowAll, {
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {
       allowCounting: true,
     })
     const count = await chain.count()
@@ -334,13 +347,28 @@ describe('RulesCodecQueryChain', () => {
 
   it('read rule can transform documents', async () => {
     const transform = async (_ctx: any, doc: any) => ({ ...doc, name: doc.name.toUpperCase() })
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', transform, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, transform, {})
     const results = await chain.collect()
     expect(results[0].name).toBe('ALICE')
   })
 
+  it('read rule boolean shorthand: true passes doc through unchanged', async () => {
+    const allowBoolean = async (_ctx: any, _doc: any) => true
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, allowBoolean, {})
+    const results = await chain.collect()
+    expect(results).toHaveLength(3)
+    expect(results[0].createdAt).toBeInstanceOf(Date)
+  })
+
+  it('read rule boolean shorthand: false denies', async () => {
+    const denyBoolean = async (_ctx: any, _doc: any) => false
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, denyBoolean, {})
+    const results = await chain.collect()
+    expect(results).toHaveLength(0)
+  })
+
   it('async iteration filters through rule', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', adminsOnly, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
     const results: any[] = []
     for await (const doc of chain) {
       results.push(doc)
@@ -350,7 +378,7 @@ describe('RulesCodecQueryChain', () => {
   })
 
   it('intermediate methods delegate and re-wrap', async () => {
-    const chain = new RulesCodecQueryChain(createCodecChain(wireDocs), 'users', adminsOnly, {})
+    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
     const results = await chain.order('asc').filter(() => true).collect()
     expect(results).toHaveLength(1)
   })
@@ -362,7 +390,28 @@ describe('RulesCodecQueryChain', () => {
 Run: `bun test packages/zodvex/__tests__/rules.test.ts`
 Expected: FAIL — `RulesCodecQueryChain` is not exported
 
-**Step 3: Implement RulesCodecQueryChain**
+**Step 3a: Refactor CodecQueryChain in db.ts**
+
+In `packages/zodvex/src/db.ts`, make three changes to `CodecQueryChain`:
+
+1. Change `private inner: any` → `protected inner: any` and `private schema: z.ZodTypeAny` → `protected schema: z.ZodTypeAny`
+2. Add factory method:
+```ts
+protected createChain(inner: any): CodecQueryChain<TableInfo, Doc> {
+  return new CodecQueryChain(inner, this.schema)
+}
+```
+3. Change all intermediate methods to use factory:
+```ts
+fullTableScan(): CodecQueryChain<TableInfo, Doc> {
+  return this.createChain(this.inner.fullTableScan())
+}
+// Same for withIndex, withSearchIndex, order, filter, limit
+```
+
+Run `bun test packages/zodvex/__tests__/db.test.ts` — all existing tests must still pass.
+
+**Step 3b: Implement RulesCodecQueryChain**
 
 Add to `packages/zodvex/src/rules.ts`:
 
@@ -371,122 +420,98 @@ import type { GenericTableInfo, PaginationOptions, PaginationResult } from 'conv
 import { CodecQueryChain } from './db'
 
 /**
- * Wraps a CodecQueryChain, applying a read rule at every terminal method.
- * Intermediate methods delegate to the inner chain and re-wrap.
- *
- * The read rule receives decoded docs (from the inner chain's terminals)
- * and returns the doc (possibly transformed) to allow, or null to deny.
+ * Normalize a read rule result: true → doc (pass-through), false/null → null (deny), Doc → Doc (transform).
  */
-export class RulesCodecQueryChain<TableInfo extends GenericTableInfo, Doc> {
+function normalizeReadResult<Doc>(result: Doc | null | boolean, originalDoc: Doc): Doc | null {
+  if (result === true) return originalDoc
+  if (result === false) return null
+  return result
+}
+
+/**
+ * Extends CodecQueryChain, applying a read rule at every terminal method.
+ * Intermediate methods are inherited from the base class via createChain().
+ * Only terminals and createChain() are overridden.
+ */
+export class RulesCodecQueryChain<TableInfo extends GenericTableInfo, Doc> extends CodecQueryChain<TableInfo, Doc> {
+  private readRule: ReadRule<any, Doc>
+  private rulesConfig: CodecRulesConfig
+  private ctx: any
+
   constructor(
-    private inner: CodecQueryChain<TableInfo, Doc>,
-    private tableName: string,
-    private readRule: ReadRule<any, Doc>,
-    private config: CodecRulesConfig,
-  ) {}
-
-  // --- Intermediate methods: delegate and re-wrap ---
-
-  fullTableScan(): RulesCodecQueryChain<TableInfo, Doc> {
-    return new RulesCodecQueryChain(this.inner.fullTableScan() as any, this.tableName, this.readRule, this.config)
+    inner: any,
+    schema: any,
+    readRule: ReadRule<any, Doc>,
+    config: CodecRulesConfig,
+    ctx: any = {},
+  ) {
+    super(inner, schema)
+    this.readRule = readRule
+    this.rulesConfig = config
+    this.ctx = ctx
   }
 
-  withIndex(...args: any[]): RulesCodecQueryChain<TableInfo, Doc> {
-    return new RulesCodecQueryChain((this.inner as any).withIndex(...args), this.tableName, this.readRule, this.config)
+  protected createChain(inner: any): RulesCodecQueryChain<TableInfo, Doc> {
+    return new RulesCodecQueryChain(inner, this.schema, this.readRule, this.rulesConfig, this.ctx)
   }
 
-  withSearchIndex(...args: any[]): RulesCodecQueryChain<TableInfo, Doc> {
-    return new RulesCodecQueryChain((this.inner as any).withSearchIndex(...args), this.tableName, this.readRule, this.config)
-  }
-
-  order(order: 'asc' | 'desc'): RulesCodecQueryChain<TableInfo, Doc> {
-    return new RulesCodecQueryChain(this.inner.order(order) as any, this.tableName, this.readRule, this.config)
-  }
-
-  filter(predicate: any): RulesCodecQueryChain<TableInfo, Doc> {
-    return new RulesCodecQueryChain(this.inner.filter(predicate) as any, this.tableName, this.readRule, this.config)
-  }
-
-  limit(n: number): RulesCodecQueryChain<TableInfo, Doc> {
-    return new RulesCodecQueryChain(this.inner.limit(n) as any, this.tableName, this.readRule, this.config)
-  }
-
-  // --- Terminal methods: apply read rule ---
+  // --- Terminal overrides: apply read rule ---
 
   async first(): Promise<Doc | null> {
-    for await (const doc of this.inner) {
-      const result = await this.readRule({}, doc)
-      if (result !== null) return result
+    for await (const doc of this) {
+      return doc
     }
     return null
   }
 
   async unique(): Promise<Doc | null> {
-    const doc = await this.inner.unique()
+    const doc = await super.unique()
     if (doc === null) return null
-    return this.readRule({}, doc)
+    return normalizeReadResult(await this.readRule(this.ctx, doc), doc)
   }
 
   async collect(): Promise<Doc[]> {
     const results: Doc[] = []
-    for await (const doc of this.inner) {
-      const result = await this.readRule({}, doc)
-      if (result !== null) results.push(result)
+    for await (const doc of this) {
+      results.push(doc)
     }
     return results
   }
 
   async take(n: number): Promise<Doc[]> {
     const results: Doc[] = []
-    for await (const doc of this.inner) {
+    for await (const doc of this) {
       if (results.length >= n) break
-      const result = await this.readRule({}, doc)
-      if (result !== null) results.push(result)
+      results.push(doc)
     }
     return results
   }
 
   async paginate(opts: PaginationOptions): Promise<PaginationResult<Doc>> {
-    const result = await this.inner.paginate(opts)
+    const result = await super.paginate(opts)
     const filtered: Doc[] = []
     for (const doc of result.page) {
-      const allowed = await this.readRule({}, doc)
+      const allowed = normalizeReadResult(await this.readRule(this.ctx, doc), doc)
       if (allowed !== null) filtered.push(allowed)
     }
     return { ...result, page: filtered }
   }
 
   async count(): Promise<number> {
-    if (!this.config.allowCounting) {
+    if (!this.rulesConfig.allowCounting) {
       throw new Error('count is not allowed with rules')
     }
-    return this.inner.count()
+    return super.count()
   }
 
   async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
-    for await (const doc of this.inner) {
-      const result = await this.readRule({}, doc)
+    for await (const doc of super[Symbol.asyncIterator]() as AsyncIterable<Doc>) {
+      const result = normalizeReadResult(await this.readRule(this.ctx, doc), doc)
       if (result !== null) yield result
     }
   }
 }
 ```
-
-**Important:** The `readRule` is called with `{}` as the ctx placeholder above. The actual ctx will be captured when `RulesCodecDatabaseReader` constructs the chain — it passes the ctx through. Update the constructor to accept `ctx`:
-
-Replace the constructor and all `this.readRule({}, doc)` calls with `this.readRule(this.ctx, doc)`:
-
-```ts
-constructor(
-  private inner: CodecQueryChain<TableInfo, Doc>,
-  private tableName: string,
-  private readRule: ReadRule<any, Doc>,
-  private config: CodecRulesConfig,
-  private ctx: any = {},
-) {}
-```
-
-And all calls become `this.readRule(this.ctx, doc)`.
 
 **Step 4: Run tests to verify they pass**
 
@@ -656,6 +681,25 @@ describe('CodecDatabaseReader.withRules()', () => {
     expect(user?.name).toBe('ALICE')
   })
 
+  it('read rule boolean shorthand: true passes doc through', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules({}, {
+      users: { read: async () => true },
+    })
+    const user = await secureDb.get('users:1' as any)
+    expect(user).not.toBeNull()
+    expect(user?.name).toBe('Alice')
+  })
+
+  it('read rule boolean shorthand: false denies', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules({}, {
+      users: { read: async () => false },
+    })
+    const user = await secureDb.get('users:1' as any)
+    expect(user).toBeNull()
+  })
+
   it('tables without rules pass through unchanged', async () => {
     const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules({}, {})
@@ -710,8 +754,8 @@ class RulesCodecDatabaseReader<
     private rules: Record<string, TableRules<any, any>>,
     private rulesConfig: CodecRulesConfig,
   ) {
-    // Pass the inner's protected fields to super.
-    // We override all methods, so super's behavior is unused.
+    // Pass the inner's protected db + tableMap to super.
+    // query() uses super.query() for pass-through and this.db/this.tableMap for RulesCodecQueryChain.
     super((inner as any).db, (inner as any).tableMap)
     this.system = inner.system
   }
@@ -732,24 +776,22 @@ class RulesCodecDatabaseReader<
   query<TableName extends TableNamesInDataModel<DataModel>>(
     tableName: TableName,
   ): any {
-    const innerChain = this.inner.query(tableName)
     const tableRules = this.rules[tableName as string]
-    if (!tableRules?.read) {
-      // No read rule — check defaultPolicy
-      if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
-        // Table is listed but no read rule + deny policy — block all reads
-        const denyRule: ReadRule<any, any> = async () => null
-        return new RulesCodecQueryChain(innerChain as any, tableName as string, denyRule, this.rulesConfig, this.ctx)
-      }
-      return innerChain
+
+    if (!tableRules?.read && (this.rulesConfig.defaultPolicy ?? 'allow') === 'allow') {
+      // No rule + allow policy → pass through unchanged (super creates CodecQueryChain or raw)
+      return super.query(tableName)
     }
-    return new RulesCodecQueryChain(
-      innerChain as any,
-      tableName as string,
-      tableRules.read,
-      this.rulesConfig,
-      this.ctx,
-    )
+
+    // Need a RulesCodecQueryChain. Build from the raw Convex query + doc schema.
+    // (Can't pass a CodecQueryChain as inner — RulesCodecQueryChain extends CodecQueryChain,
+    //  so inner must be the raw Convex query chain, not another CodecQueryChain.)
+    const schemas = this.tableMap[tableName as string]
+    const rawQuery = this.db.query(tableName)
+    const readRule = tableRules?.read ?? (async () => null) // deny if no rule + deny policy
+    // For non-codec tables, use a passthrough schema ({parse: x => x}) so decode is identity
+    const schema = schemas?.doc ?? { parse: (x: any) => x }
+    return new RulesCodecQueryChain(rawQuery, schema, readRule, this.rulesConfig, this.ctx)
   }
 
   private resolveTableFromId(id: any): string | null {
@@ -767,7 +809,8 @@ class RulesCodecDatabaseReader<
       if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') return null
       return doc
     }
-    return tableRules.read(this.ctx, doc)
+    const result = await tableRules.read(this.ctx, doc)
+    return normalizeReadResult(result, doc)
   }
 }
 ```
@@ -1268,7 +1311,36 @@ Add to `packages/zodvex/__tests__/rules.test.ts`:
 
 ```ts
 describe('edge cases', () => {
-  it('withRules on table not in rules object — no rules applied', async () => {
+  it('defaultPolicy deny blocks ALL tables including unmentioned ones', async () => {
+    const extendedData = {
+      ...tableData,
+      logs: [{ _id: 'logs:1', _creationTime: 100, message: 'hello' }],
+    }
+    const db = new CodecDatabaseReader(
+      createMockDbReader(extendedData),
+      { ...tableMap },
+    )
+    const secureDb = db.withRules({}, {
+      users: { read: async (_ctx, doc) => doc }, // explicitly allow users
+    }, { defaultPolicy: 'deny' })
+    // users allowed by explicit rule
+    const user = await secureDb.get('users:1' as any)
+    expect(user).not.toBeNull()
+    // logs NOT listed in rules — denied by defaultPolicy
+    const logResults = await secureDb.query('logs' as any).collect()
+    expect(logResults).toHaveLength(0)
+  })
+
+  it('defaultPolicy deny blocks listed table with no read rule', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules({}, {
+      users: {}, // listed but no read rule
+    }, { defaultPolicy: 'deny' })
+    const user = await secureDb.get('users:1' as any)
+    expect(user).toBeNull()
+  })
+
+  it('defaultPolicy allow passes unmentioned tables through', async () => {
     const extendedData = {
       ...tableData,
       logs: [{ _id: 'logs:1', _creationTime: 100, message: 'hello' }],
@@ -1279,19 +1351,13 @@ describe('edge cases', () => {
     )
     const secureDb = db.withRules({}, {
       users: { read: async () => null }, // deny all users
-    }, { defaultPolicy: 'deny' })
-    // logs table is not listed in rules — should pass through unchanged
-    const logResults = await secureDb.query('logs' as any).collect()
-    expect(logResults).toHaveLength(1)
-  })
-
-  it('defaultPolicy deny only affects listed tables', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
-    const secureDb = db.withRules({}, {
-      users: {}, // listed but no read rule
-    }, { defaultPolicy: 'deny' })
+    }) // defaultPolicy is 'allow' by default
+    // users denied by explicit rule
     const user = await secureDb.get('users:1' as any)
     expect(user).toBeNull()
+    // logs NOT listed in rules — allowed by defaultPolicy
+    const logResults = await secureDb.query('logs' as any).collect()
+    expect(logResults).toHaveLength(1)
   })
 
   it('patch rule receives decoded doc (not wire)', async () => {

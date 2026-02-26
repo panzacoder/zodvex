@@ -29,7 +29,9 @@ convex-helpers uses three categories: `read`, `modify`, `insert`. We use five, m
 
 ### Rules as gates + transforms, not just boolean predicates
 
-Read rules return `Doc | null` instead of `boolean`. Write rules return the (possibly transformed) value, or throw to deny. This handles both RLS (gate) and FLS (transform) in a single rule function, without requiring a separate wrapping layer for transforms.
+Read rules return `Doc | null | boolean` instead of just `boolean`. `true` passes the doc through unchanged, `false`/`null` denies, and returning a `Doc` allows transformation. This handles both RLS (gate) and FLS (transform) in a single rule function, without requiring a separate wrapping layer for transforms. The boolean shorthand keeps the simple case simple — consumers who just want "can this user see this row?" write `(ctx, doc) => allowed` instead of `(ctx, doc) => allowed ? doc : null`.
+
+Write rules return the (possibly transformed) value, or throw to deny.
 
 **Trade-off acknowledged:** Transform-capable rules are a sharper tool than boolean predicates — a buggy rule can corrupt a document. But the alternative is consumers building manual wrappers with `any` types throughout, which has the same corruption risk without type safety.
 
@@ -77,14 +79,18 @@ type CodecRules<
   >
 }
 
+/** Convenience type: insert doc is the decoded doc without system fields. */
+type InsertDoc<Doc> = Omit<Doc, '_id' | '_creationTime'>
+
 type TableRules<Ctx, Doc> = {
   /** Gate + transform on every document returned to the handler.
-   *  Return the doc (possibly transformed) to allow, null to deny. */
-  read?: (ctx: Ctx, doc: Doc) => Promise<Doc | null>
+   *  Return true to allow unchanged, false/null to deny, or Doc to transform.
+   *  Boolean shorthand keeps simple RLS rules concise. */
+  read?: (ctx: Ctx, doc: Doc) => Promise<Doc | null | boolean>
 
   /** Gate + transform on insert values.
    *  Return the value (possibly transformed) to allow. Throw to deny. */
-  insert?: (ctx: Ctx, value: any) => Promise<any>
+  insert?: (ctx: Ctx, value: InsertDoc<Doc>) => Promise<InsertDoc<Doc>>
 
   /** Gate + transform on patch operations.
    *  Receives the current doc and the partial patch value.
@@ -154,7 +160,18 @@ type WriteEvent =
 
 `normalizeId` and `system` are inherited unchanged.
 
-**`RulesCodecQueryChain`** wraps a `CodecQueryChain`. Intermediate methods (`withIndex`, `filter`, `order`, `limit`, `fullTableScan`, `withSearchIndex`) delegate to the inner chain and re-wrap. Terminal methods apply the read rule:
+**Read rule normalization:** At runtime, read rule results are normalized — `true` becomes the original doc (pass-through), `false` becomes `null` (deny), and `Doc` values are used as-is (transform). This happens once at each terminal, not in the type system.
+
+**`RulesCodecQueryChain` extends `CodecQueryChain`** — it does NOT wrap it. To enable this:
+
+1. `CodecQueryChain.inner` and `schema` change from `private` to `protected`
+2. A new `protected createChain(inner)` factory method is added to `CodecQueryChain`
+3. All intermediate methods (`withIndex`, `filter`, `order`, etc.) use `this.createChain()` instead of `new CodecQueryChain()`
+4. `RulesCodecQueryChain` overrides `createChain()` to return a `RulesCodecQueryChain` and overrides only terminal methods
+
+This eliminates intermediate method re-delegation entirely — intermediate methods are inherited from the base class and automatically return the correct subclass type via the factory method. No type erasure, no re-wrapping.
+
+Terminal method overrides:
 
 | Terminal | Behavior |
 |---|---|
@@ -165,6 +182,8 @@ type WriteEvent =
 | `paginate(opts)` | Delegate to inner, post-filter page (page may shrink) |
 | `count()` | If `allowCounting` → delegate. Otherwise throw. |
 | `[Symbol.asyncIterator]` | Yield only docs that pass the read rule |
+
+The same `createChain` pattern applies to `AuditCodecQueryChain`.
 
 **Writer overrides:**
 
@@ -203,10 +222,10 @@ Each call wraps the previous, creating a pipeline:
 
 Operations without a rule follow `defaultPolicy` (default: `'allow'`).
 
-- `defaultPolicy: 'allow'` — operations without rules pass through. Good for incremental adoption.
-- `defaultPolicy: 'deny'` — operations without rules throw. Good for lockdown posture.
+- `defaultPolicy: 'allow'` — all operations on all tables pass through unless explicitly denied by a rule. Good for incremental adoption.
+- `defaultPolicy: 'deny'` — all operations on ALL tables are denied by default, including tables not mentioned in the rules object. You must explicitly add rules to grant access. Good for lockdown posture.
 
-Tables not mentioned in the rules object at all are unaffected (no rules applied, regardless of `defaultPolicy`). The policy only applies to tables that appear in the rules but are missing a rule for a specific operation.
+This means `defaultPolicy: 'deny'` is a true lockdown — adding a new table to the schema without adding rules will deny all access to it. No silent gaps.
 
 ### Error Semantics
 
@@ -285,9 +304,13 @@ const rules = {
 
 Replaced by rule definitions + `.withRules().audit()` composition in the blessed function (~10 lines of setup).
 
+## Modified Files
+
+- **`packages/zodvex/src/db.ts`** — `CodecQueryChain` changes: `inner`/`schema` become `protected`, add `protected createChain()` factory, intermediate methods use `this.createChain()`. `CodecDatabaseReader`/`Writer` get `.withRules()` and `.audit()` methods.
+
 ## New File
 
-`packages/zodvex/src/rules.ts` — contains `RulesCodecDatabaseReader`, `RulesCodecDatabaseWriter`, `RulesCodecQueryChain`, `AuditCodecDatabaseReader`, `AuditCodecDatabaseWriter`, `AuditCodecQueryChain`, and all supporting types. The `.withRules()` and `.audit()` methods are added to the existing classes in `db.ts` and delegate to the constructors in `rules.ts`.
+`packages/zodvex/src/rules.ts` — contains `RulesCodecDatabaseReader`, `RulesCodecDatabaseWriter`, `RulesCodecQueryChain` (extends `CodecQueryChain`), `AuditCodecDatabaseReader`, `AuditCodecDatabaseWriter`, `AuditCodecQueryChain` (extends `CodecQueryChain`), and all supporting types.
 
 ## Exports
 
