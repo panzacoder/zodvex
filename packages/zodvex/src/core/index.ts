@@ -14,6 +14,8 @@ export * from '../codec'
 export * from '../ids'
 // Zod → Convex validator mapping
 export * from '../mapping'
+// Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
+export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
 // Codegen metadata utilities
 export * from '../meta'
 // Client-safe model definitions

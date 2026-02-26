@@ -308,7 +308,7 @@ describe('model-embedded codec resolution', () => {
     // Should NOT contain "transforms lost"
     expect(output).not.toContain('transforms lost')
     // Should contain extractCodec import and helper var
-    expect(output).toContain("import { extractCodec } from 'zodvex/codegen'")
+    expect(output).toContain("import { extractCodec } from 'zodvex/core'")
     expect(output).toContain("import { UserModel } from '../models/user'")
     expect(output).toContain('extractCodec(UserModel.schema.doc.shape.email)')
   })
@@ -380,7 +380,7 @@ describe('function-embedded codec resolution', () => {
 
     expect(output).not.toContain('transforms lost')
     expect(output).toContain('readFnArgs')
-    expect(output).toContain("import { extractCodec, readFnArgs } from 'zodvex/codegen'")
+    expect(output).toContain("import { extractCodec, readFnArgs } from 'zodvex/core'")
     expect(output).toContain("import { search } from '../users'")
     expect(output).toContain('extractCodec(readFnArgs(search).shape.query)')
   })
@@ -408,7 +408,7 @@ describe('function-embedded codec resolution', () => {
 
     expect(output).not.toContain('transforms lost')
     expect(output).toContain('readFnReturns')
-    expect(output).toContain("import { extractCodec, readFnReturns } from 'zodvex/codegen'")
+    expect(output).toContain("import { extractCodec, readFnReturns } from 'zodvex/core'")
     expect(output).toContain('extractCodec(readFnReturns(get).shape.data)')
   })
 

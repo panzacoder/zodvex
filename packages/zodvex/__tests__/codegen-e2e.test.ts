@@ -169,7 +169,8 @@ describe('codegen e2e', () => {
     expect(apiContent).not.toContain('transforms lost')
     // Should contain extractCodec references
     expect(apiContent).toContain('extractCodec')
-    expect(apiContent).toContain("import { extractCodec } from 'zodvex/codegen'")
+    expect(apiContent).toContain("from 'zodvex/core'")
+    expect(apiContent).toContain('extractCodec')
   })
 
   it('skips _generated/ and _zodvex/ during discovery', async () => {

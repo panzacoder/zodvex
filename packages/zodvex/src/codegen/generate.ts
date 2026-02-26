@@ -224,19 +224,19 @@ export function generateApiFile(
   // Build imports
   const imports: string[] = []
   if (needsZod) imports.push("import { z } from 'zod'")
-  if (needsZx) imports.push("import { zx } from 'zodvex/core'")
 
-  // Build zodvex/codegen import with needed utilities
-  const codegenImports: string[] = []
+  // Build single zodvex/core import (zx, extractCodec, readFnArgs, readFnReturns)
+  const coreImports: string[] = []
+  if (needsZx) coreImports.push('zx')
   if (usedModelCodecVars.length > 0 || usedFnCodecVars.length > 0) {
-    codegenImports.push('extractCodec')
+    coreImports.push('extractCodec')
   }
   const needsReadFnArgs = usedFnCodecVars.some(fc => fc.expression.includes('readFnArgs'))
   const needsReadFnReturns = usedFnCodecVars.some(fc => fc.expression.includes('readFnReturns'))
-  if (needsReadFnArgs) codegenImports.push('readFnArgs')
-  if (needsReadFnReturns) codegenImports.push('readFnReturns')
-  if (codegenImports.length > 0) {
-    imports.push(`import { ${codegenImports.join(', ')} } from 'zodvex/codegen'`)
+  if (needsReadFnArgs) coreImports.push('readFnArgs')
+  if (needsReadFnReturns) coreImports.push('readFnReturns')
+  if (coreImports.length > 0) {
+    imports.push(`import { ${coreImports.join(', ')} } from 'zodvex/core'`)
   }
 
   for (const exportName of neededModelImports) {
