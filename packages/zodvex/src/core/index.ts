@@ -20,6 +20,8 @@ export * from '../mapping'
 export * from '../meta'
 // Client-safe model definitions
 export * from '../model'
+// Codec error path normalization (safeEncode, normalizeCodecPaths)
+export { normalizeCodecPaths, safeEncode } from '../normalizeCodecPaths'
 // JSON Schema overrides and registry
 export * from '../registry'
 // Result types
