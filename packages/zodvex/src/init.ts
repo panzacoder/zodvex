@@ -46,6 +46,16 @@ export type ZodvexMutationCtx<
 export type ZodvexActionCtx<DM extends GenericDataModel> = GenericActionCtx<DM>
 
 /**
+ * Empty codec context — used when the codec layer adds nothing to ctx (e.g. actions, wrapDb:false).
+ *
+ * MUST be {} not Record<string, never>. Record<string, never> has keyof = string (index signature),
+ * causing Overwrite<Ctx, Record<string, never>> to strip all properties via Omit<Ctx, string>.
+ * The {} type has keyof = never, so Overwrite passes through correctly.
+ */
+// biome-ignore lint/complexity/noBannedTypes: {} is semantically correct here — see comment above
+type NoCodecCtx = {}
+
+/**
  * A zodvex builder: callable CustomBuilder + .withContext() for composing
  * user customizations on top of the codec layer.
  *
@@ -103,12 +113,12 @@ export function initZodvex<DM extends GenericDataModel>(
   },
   options: { wrapDb: false; registry?: () => AnyRegistry }
 ): {
-  zq: ZodvexBuilder<'query', Record<string, never>, GenericQueryCtx<DM>, 'public'>
-  zm: ZodvexBuilder<'mutation', Record<string, never>, GenericMutationCtx<DM>, 'public'>
-  za: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'public'>
-  ziq: ZodvexBuilder<'query', Record<string, never>, GenericQueryCtx<DM>, 'internal'>
-  zim: ZodvexBuilder<'mutation', Record<string, never>, GenericMutationCtx<DM>, 'internal'>
-  zia: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'internal'>
+  zq: ZodvexBuilder<'query', NoCodecCtx, GenericQueryCtx<DM>, 'public'>
+  zm: ZodvexBuilder<'mutation', NoCodecCtx, GenericMutationCtx<DM>, 'public'>
+  za: ZodvexBuilder<'action', NoCodecCtx, GenericActionCtx<DM>, 'public'>
+  ziq: ZodvexBuilder<'query', NoCodecCtx, GenericQueryCtx<DM>, 'internal'>
+  zim: ZodvexBuilder<'mutation', NoCodecCtx, GenericMutationCtx<DM>, 'internal'>
+  zia: ZodvexBuilder<'action', NoCodecCtx, GenericActionCtx<DM>, 'internal'>
 }
 
 // Overload 2: wrapDb: true (default) — codec DB wrapping with decoded types
@@ -136,7 +146,7 @@ export function initZodvex<
     GenericMutationCtx<DM>,
     'public'
   >
-  za: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'public'>
+  za: ZodvexBuilder<'action', NoCodecCtx, GenericActionCtx<DM>, 'public'>
   ziq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'internal'>
   zim: ZodvexBuilder<
     'mutation',
@@ -144,7 +154,7 @@ export function initZodvex<
     GenericMutationCtx<DM>,
     'internal'
   >
-  zia: ZodvexBuilder<'action', Record<string, never>, GenericActionCtx<DM>, 'internal'>
+  zia: ZodvexBuilder<'action', NoCodecCtx, GenericActionCtx<DM>, 'internal'>
 }
 
 // Implementation
