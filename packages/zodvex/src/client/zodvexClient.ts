@@ -2,7 +2,7 @@ import type { AuthTokenFetcher } from 'convex/browser'
 import { ConvexClient } from 'convex/browser'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import { getFunctionName } from 'convex/server'
-import { z } from 'zod'
+import { safeEncode } from '../normalizeCodecPaths'
 import type { AnyRegistry } from '../types'
 import { stripUndefined } from '../utils'
 
@@ -29,7 +29,7 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
   private encodeArgs(ref: FunctionReference<any, any, any, any>, args: any): any {
     const path = getFunctionName(ref)
     const entry = this.registry[path]
-    return entry?.args && args ? stripUndefined(z.encode(entry.args, args)) : args
+    return entry?.args && args ? stripUndefined(safeEncode(entry.args, args)) : args
   }
 
   private decodeResult(ref: FunctionReference<any, any, any, any>, wireResult: any): any {

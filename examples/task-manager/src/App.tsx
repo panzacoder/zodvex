@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
+import { useQuery } from 'convex/react'
 import { api } from '../convex/_generated/api'
+import { useZodMutation } from '../convex/_zodvex/client'
+import { ZodError } from 'zod'
 
 export default function App() {
   return (
@@ -14,7 +16,9 @@ export default function App() {
 function UserPanel() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const createUser = useMutation(api.users.create)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string | null>(null)
+  const createUser = useZodMutation(api.users.create)
 
   return (
     <div style={{ flex: 1 }}>
@@ -22,14 +26,37 @@ function UserPanel() {
       <form
         onSubmit={async (e) => {
           e.preventDefault()
-          await createUser({ name, email })
-          setName('')
-          setEmail('')
+          setFieldErrors({})
+          setError(null)
+          try {
+            await createUser({ name, email })
+            setName('')
+            setEmail('')
+          } catch (err) {
+            if (err instanceof ZodError) {
+              // safeEncode normalizes codec paths — no wire-internal segments
+              const errors: Record<string, string> = {}
+              for (const issue of err.issues) {
+                const field = issue.path.join('.')
+                errors[field] = issue.message
+              }
+              setFieldErrors(errors)
+            } else {
+              setError(err instanceof Error ? err.message : 'Unknown error')
+            }
+          }
         }}
       >
-        <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <div>
+          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          {fieldErrors.name && <div style={{ color: 'red', fontSize: '0.8em' }}>{fieldErrors.name}</div>}
+        </div>
+        <div>
+          <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          {fieldErrors.email && <div style={{ color: 'red', fontSize: '0.8em' }}>{fieldErrors.email}</div>}
+        </div>
         <button type="submit">Create User</button>
+        {error && <div style={{ color: 'red' }}>{error}</div>}
       </form>
     </div>
   )
@@ -40,8 +67,10 @@ function TaskPanel() {
     paginationOpts: { numItems: 10, cursor: null },
   })
   const [title, setTitle] = useState('')
-  const createTask = useMutation(api.tasks.create)
-  const completeTask = useMutation(api.tasks.complete)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string | null>(null)
+  const createTask = useZodMutation(api.tasks.create)
+  const completeTask = useZodMutation(api.tasks.complete)
 
   // Need a user ID to create tasks — for demo, use the first user
   const userByEmail = useQuery(api.users.getByEmail, { email: 'demo@example.com' })
@@ -55,12 +84,31 @@ function TaskPanel() {
         <form
           onSubmit={async (e) => {
             e.preventDefault()
-            await createTask({ title, ownerId, estimate: 60 })
-            setTitle('')
+            setFieldErrors({})
+            setError(null)
+            try {
+              await createTask({ title, ownerId, estimate: 60 })
+              setTitle('')
+            } catch (err) {
+              if (err instanceof ZodError) {
+                const errors: Record<string, string> = {}
+                for (const issue of err.issues) {
+                  const field = issue.path.join('.')
+                  errors[field] = issue.message
+                }
+                setFieldErrors(errors)
+              } else {
+                setError(err instanceof Error ? err.message : 'Unknown error')
+              }
+            }
           }}
         >
-          <input placeholder="Task title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <div>
+            <input placeholder="Task title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            {fieldErrors.title && <div style={{ color: 'red', fontSize: '0.8em' }}>{fieldErrors.title}</div>}
+          </div>
           <button type="submit">Add Task</button>
+          {error && <div style={{ color: 'red' }}>{error}</div>}
         </form>
       )}
 

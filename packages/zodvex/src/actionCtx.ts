@@ -1,6 +1,7 @@
 import type { GenericActionCtx, GenericDataModel } from 'convex/server'
 import { getFunctionName } from 'convex/server'
 import { z } from 'zod'
+import { safeEncode } from './normalizeCodecPaths'
 import type { AnyRegistry } from './types'
 import { stripUndefined } from './utils'
 
@@ -23,10 +24,9 @@ export function createZodvexActionCtx<DM extends GenericDataModel>(
     runQuery: async (ref: any, ...restArgs: any[]) => {
       const path = getFunctionName(ref)
       const entry = registry[path]
-      // Handle the args - restArgs[0] is the args object if present
       const args = restArgs[0]
       const wireArgs =
-        entry?.args && args != null ? stripUndefined(z.encode(entry.args, args)) : args
+        entry?.args && args != null ? stripUndefined(safeEncode(entry.args, args)) : args
       const wireResult = await ctx.runQuery(ref, wireArgs)
       if (!entry?.returns) return wireResult
       return entry.returns.parse(wireResult)
@@ -36,7 +36,7 @@ export function createZodvexActionCtx<DM extends GenericDataModel>(
       const entry = registry[path]
       const args = restArgs[0]
       const wireArgs =
-        entry?.args && args != null ? stripUndefined(z.encode(entry.args, args)) : args
+        entry?.args && args != null ? stripUndefined(safeEncode(entry.args, args)) : args
       const wireResult = await ctx.runMutation(ref, wireArgs)
       if (!entry?.returns) return wireResult
       return entry.returns.parse(wireResult)
