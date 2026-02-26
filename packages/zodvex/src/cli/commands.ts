@@ -29,10 +29,10 @@ export async function generate(convexDir?: string): Promise<void> {
   const serverContent = generateServerFile()
 
   fs.mkdirSync(zodvexDir, { recursive: true })
-  fs.writeFileSync(path.join(zodvexDir, 'schema.ts'), schemaContent)
-  fs.writeFileSync(path.join(zodvexDir, 'api.ts'), apiContent)
-  fs.writeFileSync(path.join(zodvexDir, 'client.ts'), clientContent)
-  fs.writeFileSync(path.join(zodvexDir, 'server.ts'), serverContent)
+  writeIfChanged(path.join(zodvexDir, 'schema.ts'), schemaContent)
+  writeIfChanged(path.join(zodvexDir, 'api.ts'), apiContent)
+  writeIfChanged(path.join(zodvexDir, 'client.ts'), clientContent)
+  writeIfChanged(path.join(zodvexDir, 'server.ts'), serverContent)
 
   const totalCodecs =
     result.codecs.length + result.modelCodecs.length + result.functionCodecs.length
@@ -80,6 +80,17 @@ export async function dev(convexDir?: string): Promise<void> {
     watcher.close()
     process.exit(0)
   })
+}
+
+/** Only write if content differs from what's on disk — prevents file watcher loops. */
+function writeIfChanged(filePath: string, content: string): void {
+  try {
+    const existing = fs.readFileSync(filePath, 'utf-8')
+    if (existing === content) return
+  } catch {
+    // File doesn't exist yet — write it
+  }
+  fs.writeFileSync(filePath, content)
 }
 
 function resolveConvexDir(dir?: string): string {
