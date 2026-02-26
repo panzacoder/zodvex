@@ -1,6 +1,6 @@
 import type { AuthTokenFetcher } from 'convex/browser'
 import { ConvexClient } from 'convex/browser'
-import type { FunctionReference } from 'convex/server'
+import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import { getFunctionName } from 'convex/server'
 import { z } from 'zod'
 import type { AnyRegistry } from '../types'
@@ -26,42 +26,47 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
     if (options.token) this.inner.setAuth(tokenToFetcher(options.token))
   }
 
-  async query(ref: FunctionReference<'query', any, any, any>, args?: any): Promise<any> {
+  private encodeArgs(ref: FunctionReference<any, any, any, any>, args: any): any {
     const path = getFunctionName(ref)
     const entry = this.registry[path]
-    const wireArgs = entry?.args && args ? stripUndefined(z.encode(entry.args, args)) : args
-    const wireResult = await this.inner.query(ref, wireArgs)
+    return entry?.args && args ? stripUndefined(z.encode(entry.args, args)) : args
+  }
+
+  private decodeResult(ref: FunctionReference<any, any, any, any>, wireResult: any): any {
+    const path = getFunctionName(ref)
+    const entry = this.registry[path]
     if (!entry?.returns) return wireResult
     return entry.returns.parse(wireResult)
   }
 
-  async mutate(ref: FunctionReference<'mutation', any, any, any>, args?: any): Promise<any> {
-    const path = getFunctionName(ref)
-    const entry = this.registry[path]
-    const wireArgs = entry?.args && args ? stripUndefined(z.encode(entry.args, args)) : args
-    const wireResult = await this.inner.mutation(ref, wireArgs)
-    if (!entry?.returns) return wireResult
-    return entry.returns.parse(wireResult)
+  async query<Q extends FunctionReference<'query', any, any, any>>(
+    ref: Q,
+    args: Q['_args']
+  ): Promise<Q['_returnType']> {
+    const wireResult = await this.inner.query(ref, this.encodeArgs(ref, args) as FunctionArgs<Q>)
+    return this.decodeResult(ref, wireResult)
   }
 
-  subscribe(
-    ref: FunctionReference<'query', any, any, any>,
-    args: any,
-    callback: (result: any) => void
+  async mutate<M extends FunctionReference<'mutation', any, any, any>>(
+    ref: M,
+    args: M['_args']
+  ): Promise<M['_returnType']> {
+    const wireResult = await this.inner.mutation(ref, this.encodeArgs(ref, args) as FunctionArgs<M>)
+    return this.decodeResult(ref, wireResult)
+  }
+
+  subscribe<Q extends FunctionReference<'query', any, any, any>>(
+    ref: Q,
+    args: Q['_args'],
+    callback: (result: Q['_returnType']) => void
   ): () => void {
-    const path = getFunctionName(ref)
-    const entry = this.registry[path]
-    const wireArgs = entry?.args && args ? stripUndefined(z.encode(entry.args, args)) : args
-
-    return this.inner.onUpdate(ref, wireArgs, (wireResult: any) => {
-      const decoded = entry?.returns ? entry.returns.parse(wireResult) : wireResult
-      callback(decoded)
+    const wireArgs = this.encodeArgs(ref, args) as FunctionArgs<Q>
+    return this.inner.onUpdate(ref, wireArgs, (wireResult: FunctionReturnType<Q>) => {
+      callback(this.decodeResult(ref, wireResult))
     })
   }
 
   setAuth(token: string | null) {
-    // Wrap token string as an AuthTokenFetcher.
-    // null → fetcher returns null, which tells Convex auth is cleared.
     this.inner.setAuth(async () => token)
   }
 
