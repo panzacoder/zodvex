@@ -50,6 +50,8 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
     // in remote_query_set.ts, but returns the same reference for repeated
     // reads within a single transition window.
     // See: convex/src/browser/sync/optimistic_updates_impl.ts
+    //   TODO(CX-733) — Convex internal tracker for client-side result
+    //   memoization (not yet public).
     let lastWire: unknown
     let lastDecoded: unknown
 

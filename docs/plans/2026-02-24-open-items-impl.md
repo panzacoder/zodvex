@@ -1,8 +1,12 @@
-# Pre-Hotpot Open Items Implementation Plan
+# Pre-Hotpot Open Items Implementation Plan — COMPLETE
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+**Status:** All items implemented and shipped.
 
 **Goal:** Close three open items before starting the hotpot migration: watch mode debouncing, `schema.paginatedDoc`, and `defineZodModel` union overload.
+
+- [x] **Watch mode debouncing** — 300ms debounce timer in `zodvex dev` (shipped beta.20)
+- [x] **`schema.paginatedDoc`** — added to `defineZodModel`, `zodTable`, `ZodTableSchemas`, `ZodvexModelMeta`, and codegen identity map
+- [x] **`defineZodModel` union overload** — accepts `z.discriminatedUnion()` or `z.union()` via `createUnionModel` helper
 
 **Architecture:** Each item is independent. Item 1 is a simple CLI fix. Item 2 adds `paginatedDoc` to both model/table schema namespaces, the `ZodTableSchemas` type, and the codegen identity map. Item 3 adds a union overload to `defineZodModel` reusing existing union utilities from `tables.ts`.
 
