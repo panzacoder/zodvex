@@ -26,11 +26,12 @@
     },
     "packages/zodvex": {
       "name": "zodvex",
-      "version": "0.6.0-beta.8",
+      "version": "0.6.0-beta.22",
       "bin": {
         "zodvex": "./dist/cli/index.js",
       },
       "dependencies": {
+        "tinyglobby": "^0.2.15",
         "tsup": "^8.5.0",
         "typescript": "^5.9.3",
       },

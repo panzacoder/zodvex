@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.6.0-beta.22",
+  "version": "0.6.0-beta.23",
   "description": "Zod <=> Convex integration, supporting Zod 4",
   "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
   "homepage": "https://github.com/panzacoder/zodvex#readme",
@@ -80,6 +80,7 @@
     }
   },
   "dependencies": {
+    "tinyglobby": "^0.2.15",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3"
   },
