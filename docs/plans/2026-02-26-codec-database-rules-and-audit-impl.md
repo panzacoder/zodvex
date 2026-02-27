@@ -119,12 +119,14 @@ export type CodecRulesConfig = {
 
 /**
  * Describes a completed write operation for audit callbacks.
+ * Generic over Doc so audit events carry decoded types.
+ * Default `any` for untyped usage.
  */
-export type WriteEvent =
-  | { type: 'insert'; id: GenericId<any>; value: any }
-  | { type: 'patch'; id: GenericId<any>; doc: any; value: any }
-  | { type: 'replace'; id: GenericId<any>; doc: any; value: any }
-  | { type: 'delete'; id: GenericId<any>; doc: any }
+export type WriteEvent<Doc = any> =
+  | { type: 'insert'; id: GenericId<any>; value: InsertDoc<Doc> }
+  | { type: 'patch'; id: GenericId<any>; doc: Doc; value: Partial<Doc> }
+  | { type: 'replace'; id: GenericId<any>; doc: Doc; value: Doc }
+  | { type: 'delete'; id: GenericId<any>; doc: Doc }
 
 /**
  * Audit configuration for .audit() on a reader.
@@ -135,10 +137,17 @@ export type ReaderAuditConfig = {
 
 /**
  * Audit configuration for .audit() on a writer.
+ * Generic over DataModel and DecodedDocs so afterWrite events carry decoded types.
  */
-export type WriterAuditConfig = {
+export type WriterAuditConfig<
+  DataModel extends GenericDataModel = GenericDataModel,
+  DecodedDocs extends Record<string, any> = Record<string, any>,
+> = {
   afterRead?: (table: string, doc: any) => void | Promise<void>
-  afterWrite?: (table: string, event: WriteEvent) => void | Promise<void>
+  afterWrite?: <T extends TableNamesInDataModel<DataModel>>(
+    table: T,
+    event: WriteEvent<ResolveDecodedDocForRules<DataModel, DecodedDocs, T>>,
+  ) => void | Promise<void>
 }
 ```
 

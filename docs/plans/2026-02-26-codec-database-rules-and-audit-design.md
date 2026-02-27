@@ -135,16 +135,16 @@ class CodecDatabaseWriter<DataModel, DecodedDocs> {
     ) => void | Promise<void>
     afterWrite?: <T extends TableNamesInDataModel<DataModel>>(
       table: T,
-      event: WriteEvent,
+      event: WriteEvent<ResolveDecodedDoc<DataModel, DecodedDocs, T>>,
     ) => void | Promise<void>
   }): CodecDatabaseWriter<DataModel, DecodedDocs>
 }
 
-type WriteEvent =
-  | { type: 'insert'; id: GenericId<any>; value: any }
-  | { type: 'patch'; id: GenericId<any>; doc: any; value: any }
-  | { type: 'replace'; id: GenericId<any>; doc: any; value: any }
-  | { type: 'delete'; id: GenericId<any>; doc: any }
+type WriteEvent<Doc = any> =
+  | { type: 'insert'; id: GenericId<any>; value: InsertDoc<Doc> }
+  | { type: 'patch'; id: GenericId<any>; doc: Doc; value: Partial<Doc> }
+  | { type: 'replace'; id: GenericId<any>; doc: Doc; value: Doc }
+  | { type: 'delete'; id: GenericId<any>; doc: Doc }
 ```
 
 ## Internal Implementation
