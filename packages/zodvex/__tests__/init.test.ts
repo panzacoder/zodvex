@@ -555,3 +555,23 @@ describe('initZodvex with registry', () => {
     expect(result.user).toBe('AuthUser')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Type-level regression: Overwrite<T, {}> must preserve T, not collapse it.
+// See: https://github.com/panzacoder/zodvex/issues — za.withContext() bug
+// where Record<string, never> collapsed ActionCtx to { [k: string]: never }.
+// ---------------------------------------------------------------------------
+import type { Overwrite } from '../src/types'
+
+type ActionCtxLike = { auth: { getUserIdentity: () => Promise<null> }; runQuery: () => void }
+
+// Empty overlay must preserve the original type
+// biome-ignore lint/complexity/noBannedTypes: {} is the exact type under test — this is the regression guard
+type WithEmpty = Overwrite<ActionCtxLike, {}>
+const _checkAuth: WithEmpty['auth'] = {} as ActionCtxLike['auth']
+const _checkRunQuery: WithEmpty['runQuery'] = {} as ActionCtxLike['runQuery']
+
+// Non-empty overlay should still work (replace auth, keep runQuery)
+type WithOverlay = Overwrite<ActionCtxLike, { auth: string }>
+const _checkOverlayAuth: WithOverlay['auth'] = 'overridden'
+const _checkOverlayRunQuery: WithOverlay['runQuery'] = {} as ActionCtxLike['runQuery']

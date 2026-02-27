@@ -124,8 +124,10 @@ export type ZodvexCodec<Wire extends z.ZodTypeAny, Runtime extends z.ZodTypeAny>
 /**
  * Overwrites properties of T with properties of U.
  * Properties in U replace same-named properties in T.
+ * Guard clause: when U has no keys (e.g. {}), returns T unchanged —
+ * prevents collapse when U is an empty context type.
  */
-export type Overwrite<T, U> = Omit<T, keyof U> & U
+export type Overwrite<T, U> = keyof U extends never ? T : Omit<T, keyof U> & U
 
 /**
  * Registry shape: maps function paths (e.g. "tasks:list") to optional
