@@ -10,10 +10,14 @@ import { zx } from '../src/zx'
 
 // Shared state that tests can configure before each call
 let mockQueryResult: any = undefined
+let mockQueryArgs: any = undefined
 let mockMutateImpl: ((args: any) => any) | undefined = undefined
 
 mock.module('convex/react', () => ({
-  useQuery: (_ref: any, ..._args: any[]) => mockQueryResult,
+  useQuery: (_ref: any, ...args: any[]) => {
+    mockQueryArgs = args[0]
+    return mockQueryResult
+  },
   useMutation: (_ref: any) => {
     // Return a function that simulates calling the server mutation
     return async (args: any) => {
@@ -81,6 +85,7 @@ describe('createZodvexHooks', () => {
 
   beforeEach(() => {
     mockQueryResult = undefined
+    mockQueryArgs = undefined
     mockMutateImpl = undefined
   })
 
@@ -120,6 +125,28 @@ describe('createZodvexHooks', () => {
 
       const result = useZodQuery(fakeRef('plain:noCodec'))
       expect(result).toEqual(raw)
+    })
+
+    it('encodes args through the args schema (Date -> number)', () => {
+      const dueDate = new Date('2026-06-15T00:00:00Z')
+      mockQueryResult = { _id: 'x', title: 'Test', createdAt: Date.now() }
+
+      useZodQuery(fakeRef('tasks:create'), { title: 'Test', dueAt: dueDate })
+
+      // Args passed to useQuery should be encoded: Date -> timestamp number
+      expect(mockQueryArgs).toBeDefined()
+      expect(mockQueryArgs.title).toBe('Test')
+      expect(typeof mockQueryArgs.dueAt).toBe('number')
+      expect(mockQueryArgs.dueAt).toBe(dueDate.getTime())
+    })
+
+    it('passes args through when function has no args schema', () => {
+      const rawArgs = { raw: 'data' }
+      mockQueryResult = { data: 42 }
+
+      useZodQuery(fakeRef('plain:noCodec'), rawArgs)
+
+      expect(mockQueryArgs).toEqual(rawArgs)
     })
 
     it('decodes a single object with zx.date() fields', () => {

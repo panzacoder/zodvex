@@ -56,9 +56,11 @@ export function createZodvexHooks<R extends AnyRegistry>(registry: R) {
   // Implementation
   function useZodQuery(ref: FunctionReference<'query', any, any, any>, ...restArgs: any[]) {
     const args = restArgs[0]
+    // Encode args: runtime types -> wire format (e.g., Date -> timestamp)
+    const wireArgs = args === 'skip' ? 'skip' : codec.encodeArgs(ref, args)
     const wireResult = useQuery(
       ref,
-      ...((args === 'skip' ? ['skip'] : [args]) as OptionalRestArgsOrSkip<typeof ref>)
+      ...((wireArgs === 'skip' ? ['skip'] : [wireArgs]) as OptionalRestArgsOrSkip<typeof ref>)
     )
 
     // Loading state — Convex returns undefined while the subscription is pending
