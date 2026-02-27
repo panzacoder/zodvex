@@ -1,5 +1,12 @@
-import type { GenericDataModel, TableNamesInDataModel } from 'convex/server'
+import type {
+  GenericDataModel,
+  GenericTableInfo,
+  PaginationOptions,
+  PaginationResult,
+  TableNamesInDataModel
+} from 'convex/server'
 import type { GenericId } from 'convex/values'
+import { CodecQueryChain } from './db'
 
 /**
  * Per-document rule function. Gates and optionally transforms documents.
@@ -112,4 +119,106 @@ export type WriterAuditConfig<
     table: T,
     event: WriteEvent<ResolveDecodedDocForRules<DataModel, DecodedDocs, T>>
   ) => void | Promise<void>
+}
+
+/**
+ * Normalize a read rule result: true -> doc (pass-through), false/null -> null (deny), Doc -> Doc (transform).
+ */
+export function normalizeReadResult<Doc>(
+  result: Doc | null | boolean,
+  originalDoc: Doc
+): Doc | null {
+  if (result === true) return originalDoc
+  if (result === false) return null
+  return result
+}
+
+/**
+ * Extends CodecQueryChain, applying a read rule at every terminal method.
+ * Intermediate methods are inherited from the base class via createChain().
+ * Only terminals and createChain() are overridden.
+ */
+export class RulesCodecQueryChain<TableInfo extends GenericTableInfo, Doc> extends CodecQueryChain<
+  TableInfo,
+  Doc
+> {
+  private readRule: ReadRule<any, Doc>
+  private rulesConfig: CodecRulesConfig
+  private ctx: any
+
+  constructor(
+    inner: any,
+    schema: any,
+    readRule: ReadRule<any, Doc>,
+    config: CodecRulesConfig,
+    ctx: any = {}
+  ) {
+    super(inner, schema)
+    this.readRule = readRule
+    this.rulesConfig = config
+    this.ctx = ctx
+  }
+
+  protected createChain(inner: any): RulesCodecQueryChain<TableInfo, Doc> {
+    return new RulesCodecQueryChain(inner, this.schema, this.readRule, this.rulesConfig, this.ctx)
+  }
+
+  // --- Terminal overrides: apply read rule ---
+
+  async first(): Promise<Doc | null> {
+    for await (const doc of this) {
+      return doc
+    }
+    return null
+  }
+
+  async unique(): Promise<Doc | null> {
+    const doc = await super.unique()
+    if (doc === null) return null
+    return normalizeReadResult(await this.readRule(this.ctx, doc), doc)
+  }
+
+  async collect(): Promise<Doc[]> {
+    const results: Doc[] = []
+    for await (const doc of this) {
+      results.push(doc)
+    }
+    return results
+  }
+
+  async take(n: number): Promise<Doc[]> {
+    const results: Doc[] = []
+    for await (const doc of this) {
+      if (results.length >= n) break
+      results.push(doc)
+    }
+    return results
+  }
+
+  async paginate(opts: PaginationOptions): Promise<PaginationResult<Doc>> {
+    const result = await super.paginate(opts)
+    const filtered: Doc[] = []
+    for (const doc of result.page) {
+      const allowed = normalizeReadResult(await this.readRule(this.ctx, doc), doc)
+      if (allowed !== null) filtered.push(allowed)
+    }
+    return { ...result, page: filtered }
+  }
+
+  async count(): Promise<number> {
+    if (!this.rulesConfig.allowCounting) {
+      throw new Error('count is not allowed with rules')
+    }
+    return super.count()
+  }
+
+  async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
+    const iter = super[Symbol.asyncIterator]()
+    while (true) {
+      const { value, done } = await iter.next()
+      if (done) break
+      const result = normalizeReadResult(await this.readRule(this.ctx, value), value)
+      if (result !== null) yield result
+    }
+  }
 }

@@ -45,9 +45,14 @@ import type { ZodTableMap } from './schema'
  */
 export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentByInfo<TableInfo>> {
   constructor(
-    private inner: any,
-    private schema: z.ZodTypeAny
+    protected inner: any,
+    protected schema: z.ZodTypeAny
   ) {}
+
+  /** Factory method for intermediate methods. Subclasses override to return their own type. */
+  protected createChain(inner: any): CodecQueryChain<TableInfo, Doc> {
+    return new CodecQueryChain(inner, this.schema)
+  }
 
   /** Decode a wire-format doc and cast to the decoded document type. */
   private decode(doc: any): Doc {
@@ -57,7 +62,7 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentB
   // --- Intermediate methods: wire-typed TableInfo for Convex machinery ---
 
   fullTableScan(): CodecQueryChain<TableInfo, Doc> {
-    return new CodecQueryChain<TableInfo, Doc>(this.inner.fullTableScan(), this.schema)
+    return this.createChain(this.inner.fullTableScan())
   }
 
   withIndex<IndexName extends IndexNames<TableInfo>>(
@@ -66,10 +71,7 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentB
       q: IndexRangeBuilder<DocumentByInfo<TableInfo>, NamedIndex<TableInfo, IndexName>>
     ) => IndexRange
   ): CodecQueryChain<TableInfo, Doc> {
-    return new CodecQueryChain<TableInfo, Doc>(
-      this.inner.withIndex(indexName, indexRange),
-      this.schema
-    )
+    return this.createChain(this.inner.withIndex(indexName, indexRange))
   }
 
   withSearchIndex<IndexName extends SearchIndexNames<TableInfo>>(
@@ -78,24 +80,21 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentB
       q: SearchFilterBuilder<DocumentByInfo<TableInfo>, NamedSearchIndex<TableInfo, IndexName>>
     ) => SearchFilter
   ): CodecQueryChain<TableInfo, Doc> {
-    return new CodecQueryChain<TableInfo, Doc>(
-      this.inner.withSearchIndex(indexName, searchFilter),
-      this.schema
-    )
+    return this.createChain(this.inner.withSearchIndex(indexName, searchFilter))
   }
 
   order(order: 'asc' | 'desc'): CodecQueryChain<TableInfo, Doc> {
-    return new CodecQueryChain<TableInfo, Doc>(this.inner.order(order), this.schema)
+    return this.createChain(this.inner.order(order))
   }
 
   filter(
     predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
   ): CodecQueryChain<TableInfo, Doc> {
-    return new CodecQueryChain<TableInfo, Doc>(this.inner.filter(predicate), this.schema)
+    return this.createChain(this.inner.filter(predicate))
   }
 
   limit(n: number): CodecQueryChain<TableInfo, Doc> {
-    return new CodecQueryChain<TableInfo, Doc>(this.inner.limit(n), this.schema)
+    return this.createChain(this.inner.limit(n))
   }
 
   count(): Promise<number> {
