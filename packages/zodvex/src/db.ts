@@ -22,6 +22,7 @@ import type {
 import type { GenericId } from 'convex/values'
 import type { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
+import type { CodecRulesConfig } from './rules'
 import type { ZodTableMap } from './schema'
 
 /**
@@ -243,6 +244,23 @@ export class CodecDatabaseReader<
       NamedTableInfo<DataModel, TableName>,
       ResolveDecodedDoc<DataModel, DecodedDocs, TableName>
     >(innerQuery, schemas.doc)
+  }
+
+  /**
+   * Returns a new CodecDatabaseReader that applies per-table read rules.
+   * The returned reader is also a CodecDatabaseReader, so `.withRules()` can be chained.
+   *
+   * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
+   * rules.ts extends CodecQueryChain (from db.ts), so the import must be lazy.
+   */
+  withRules<Ctx>(
+    ctx: Ctx,
+    rules: Record<string, any>,
+    config?: CodecRulesConfig
+  ): CodecDatabaseReader<DataModel, DecodedDocs> {
+    // Deferred import breaks the circular dependency (rules.ts extends CodecQueryChain from db.ts)
+    const { createRulesCodecDatabaseReader } = require('./rules')
+    return createRulesCodecDatabaseReader(this, ctx, rules, config)
   }
 }
 

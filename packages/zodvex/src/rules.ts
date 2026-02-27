@@ -6,7 +6,7 @@ import type {
   TableNamesInDataModel
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import { CodecQueryChain } from './db'
+import { CodecDatabaseReader, CodecQueryChain } from './db'
 
 /**
  * Per-document rule function. Gates and optionally transforms documents.
@@ -221,4 +221,107 @@ export class RulesCodecQueryChain<TableInfo extends GenericTableInfo, Doc> exten
       if (result !== null) yield result
     }
   }
+}
+
+/**
+ * Wraps a CodecDatabaseReader with per-table read rules.
+ * Extends CodecDatabaseReader so it can be used anywhere a reader is expected,
+ * including chained `.withRules()` calls.
+ *
+ * - `get()` delegates to the inner reader (which decodes), then applies the read rule.
+ * - `query()` builds a RulesCodecQueryChain from the raw Convex query + doc schema,
+ *   so decoding and rule-checking happen together in the chain's terminal methods.
+ */
+class RulesCodecDatabaseReader<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> extends CodecDatabaseReader<DataModel, DecodedDocs> {
+  constructor(
+    private inner: CodecDatabaseReader<DataModel, DecodedDocs>,
+    private ctx: any,
+    private rules: Record<string, TableRules<any, any>>,
+    private rulesConfig: CodecRulesConfig
+  ) {
+    // Pass the inner's protected db + tableMap to super.
+    super((inner as any).db, (inner as any).tableMap)
+    this.system = inner.system
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    const doc = await this.inner.get(idOrTable, maybeId)
+    if (doc === null) return null
+
+    // Resolve table name for rule lookup
+    const tableName =
+      maybeId !== undefined ? (idOrTable as string) : this.resolveTableFromId(idOrTable)
+
+    if (!tableName) return doc
+    return this.applyReadRule(tableName, doc)
+  }
+
+  query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
+    const tableRules = this.rules[tableName as string]
+
+    if (!tableRules?.read && (this.rulesConfig.defaultPolicy ?? 'allow') === 'allow') {
+      // No rule + allow policy -> delegate to inner (preserves any upstream rules)
+      return this.inner.query(tableName)
+    }
+
+    // Delegate to inner.query() which returns a decoded (and possibly rule-filtered) chain.
+    // Wrap with a passthrough schema since inner already decoded the docs.
+    const innerChain = this.inner.query(tableName)
+    const readRule = tableRules?.read ?? (async () => null) // deny if no rule + deny policy
+    const passthroughSchema = { parse: (x: any) => x }
+    return new RulesCodecQueryChain(
+      innerChain,
+      passthroughSchema,
+      readRule,
+      this.rulesConfig,
+      this.ctx
+    )
+  }
+
+  private resolveTableFromId(id: any): string | null {
+    for (const tableName of Object.keys(this.rules)) {
+      if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
+        return tableName
+      }
+    }
+    // If not found in rules, check ALL tables from tableMap for defaultPolicy: deny
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      for (const tableName of Object.keys(this.tableMap)) {
+        if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
+          return tableName
+        }
+      }
+    }
+    return null
+  }
+
+  private async applyReadRule(tableName: string, doc: any): Promise<any> {
+    const tableRules = this.rules[tableName]
+    if (!tableRules?.read) {
+      if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') return null
+      return doc
+    }
+    const result = await tableRules.read(this.ctx, doc)
+    return normalizeReadResult(result, doc)
+  }
+}
+
+/**
+ * Factory function for creating a RulesCodecDatabaseReader.
+ * Breaks the circular dependency between db.ts (which imports this) and rules.ts
+ * (which imports CodecDatabaseReader from db.ts).
+ */
+export function createRulesCodecDatabaseReader<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+>(
+  inner: CodecDatabaseReader<DataModel, DecodedDocs>,
+  ctx: any,
+  rules: Record<string, TableRules<any, any>>,
+  config?: CodecRulesConfig
+): CodecDatabaseReader<DataModel, DecodedDocs> {
+  return new RulesCodecDatabaseReader(inner, ctx, rules, config ?? {})
 }

@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
+import { CodecDatabaseReader } from '../src/db'
 import type {
   CodecRules,
   CodecRulesConfig,
+  ReaderAuditConfig,
   TableRules,
   WriteEvent,
-  ReaderAuditConfig,
   WriterAuditConfig
 } from '../src/rules'
 import { RulesCodecQueryChain } from '../src/rules'
+import type { ZodTableSchemas } from '../src/schema'
 import { zx } from '../src/zx'
 
 describe('rules types', () => {
@@ -193,5 +195,196 @@ describe('RulesCodecQueryChain', () => {
       .filter(() => true)
       .collect()
     expect(results).toHaveLength(1)
+  })
+})
+
+// ============================================================================
+// CodecDatabaseReader.withRules() tests
+// ============================================================================
+
+const userDocSchema = z.object({
+  _id: z.string(),
+  _creationTime: z.number(),
+  name: z.string(),
+  createdAt: zx.date(),
+  role: z.string()
+})
+
+const userInsertSchema = z.object({
+  name: z.string(),
+  createdAt: zx.date(),
+  role: z.string()
+})
+
+const userSchemas: ZodTableSchemas = {
+  doc: userDocSchema,
+  docArray: z.array(userDocSchema),
+  paginatedDoc: z.object({
+    page: z.array(userDocSchema),
+    isDone: z.boolean(),
+    continueCursor: z.string()
+  }),
+  base: userInsertSchema,
+  insert: userInsertSchema,
+  update: userInsertSchema.partial().extend({ _id: z.string() })
+}
+
+function createMockDbReader(tables: Record<string, any[]>) {
+  const mockDb: any = {
+    system: { get: async () => null, query: () => ({}), normalizeId: () => null },
+    normalizeId: (tableName: string, id: string) => {
+      return id.startsWith(`${tableName}:`) ? id : null
+    },
+    get: async (idOrTable: string, maybeId?: string) => {
+      if (maybeId !== undefined) {
+        const docs = tables[idOrTable] ?? []
+        return docs.find((d: any) => d._id === maybeId) ?? null
+      }
+      for (const docs of Object.values(tables)) {
+        const doc = docs.find((d: any) => d._id === idOrTable)
+        if (doc) return doc
+      }
+      return null
+    },
+    query: (tableName: string) => {
+      const docs = tables[tableName] ?? []
+      return createMockQuery(docs)
+    }
+  }
+  return mockDb
+}
+
+const tableMap = { users: userSchemas }
+const tableData = {
+  users: [
+    { _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000, role: 'admin' },
+    { _id: 'users:2', _creationTime: 200, name: 'Bob', createdAt: 1700100000000, role: 'user' }
+  ]
+}
+
+describe('CodecDatabaseReader.withRules()', () => {
+  it('get() applies read rule and returns allowed doc', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async (_ctx: any, doc: any) => doc }
+      }
+    )
+    const user = await secureDb.get('users:1' as any)
+    expect(user).not.toBeNull()
+    expect(user?.name).toBe('Alice')
+    expect(user?.createdAt).toBeInstanceOf(Date)
+  })
+
+  it('get() returns null when read rule denies', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async () => null }
+      }
+    )
+    const user = await secureDb.get('users:1' as any)
+    expect(user).toBeNull()
+  })
+
+  it('get() passes context to read rule', async () => {
+    const ctx = { clinicId: 'c1' }
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules(ctx, {
+      users: {
+        read: async (ctx: any, doc: any) => {
+          expect(ctx.clinicId).toBe('c1')
+          return doc
+        }
+      }
+    })
+    await secureDb.get('users:1' as any)
+  })
+
+  it('query().collect() filters through read rule', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async (_ctx: any, doc: any) => (doc.role === 'admin' ? doc : null) }
+      }
+    )
+    const results = await secureDb.query('users' as any).collect()
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('Alice')
+  })
+
+  it('read rule can transform documents', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async (_ctx: any, doc: any) => ({ ...doc, name: doc.name.toUpperCase() }) }
+      }
+    )
+    const user = await secureDb.get('users:1' as any)
+    expect(user?.name).toBe('ALICE')
+  })
+
+  it('read rule boolean shorthand: true passes doc through', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async () => true }
+      }
+    )
+    const user = await secureDb.get('users:1' as any)
+    expect(user).not.toBeNull()
+    expect(user?.name).toBe('Alice')
+  })
+
+  it('read rule boolean shorthand: false denies', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async () => false }
+      }
+    )
+    const user = await secureDb.get('users:1' as any)
+    expect(user).toBeNull()
+  })
+
+  it('tables without rules pass through unchanged', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules({}, {})
+    const user = await secureDb.get('users:1' as any)
+    expect(user).not.toBeNull()
+    expect(user?.name).toBe('Alice')
+  })
+
+  it('normalizeId and system pass through', () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules({}, {})
+    expect(secureDb.normalizeId('users' as any, 'users:1')).toBe('users:1')
+    expect(secureDb.system).toBeDefined()
+  })
+
+  it('chaining withRules() layers rules', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db
+      .withRules(
+        {},
+        {
+          users: { read: async (_ctx: any, doc: any) => (doc.role === 'admin' ? doc : null) }
+        }
+      )
+      .withRules(
+        {},
+        {
+          users: { read: async (_ctx: any, doc: any) => ({ ...doc, name: doc.name.toUpperCase() }) }
+        }
+      )
+    const results = await secureDb.query('users' as any).collect()
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('ALICE')
   })
 })
