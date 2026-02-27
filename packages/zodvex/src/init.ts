@@ -65,7 +65,7 @@ type NoCodecCtx = {}
 export type ZodvexBuilder<
   FuncType extends 'query' | 'mutation' | 'action',
   CodecCtx extends Record<string, any>,
-  InputCtx,
+  InputCtx extends Record<string, any>,
   Visibility extends FunctionVisibility
 > = CustomBuilder<
   FuncType,
