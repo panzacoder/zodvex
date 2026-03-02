@@ -1,4 +1,5 @@
 import type { GenericActionCtx, GenericDataModel } from 'convex/server'
+import type { CodecHelpersOptions } from './codecHelpers'
 import { createCodecHelpers } from './codecHelpers'
 import type { AnyRegistry } from './types'
 
@@ -14,9 +15,10 @@ import type { AnyRegistry } from './types'
  */
 export function createZodvexActionCtx<DM extends GenericDataModel>(
   registry: AnyRegistry,
-  ctx: GenericActionCtx<DM>
+  ctx: GenericActionCtx<DM>,
+  options?: CodecHelpersOptions
 ): GenericActionCtx<DM> {
-  const codec = createCodecHelpers(registry)
+  const codec = createCodecHelpers(registry, options)
 
   return {
     ...ctx,
