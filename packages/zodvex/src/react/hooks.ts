@@ -75,7 +75,7 @@ export function createZodvexHooks<R extends AnyRegistry>(
         console.warn(
           `[zodvex] Encode args failed for ${path}, auto-skipping query: ${err instanceof Error ? err.message : String(err)}`
         )
-        return undefined
+        // wireArgs stays 'skip' — DO NOT early-return, useQuery must run every render
       }
     }
 

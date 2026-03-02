@@ -16,6 +16,8 @@ let mockMutateImpl: ((args: any) => any) | undefined = undefined
 mock.module('convex/react', () => ({
   useQuery: (_ref: any, ...args: any[]) => {
     mockQueryArgs = args[0]
+    // Convex returns undefined for skipped queries
+    if (args[0] === 'skip') return undefined
     return mockQueryResult
   },
   useMutation: (_ref: any) => {
