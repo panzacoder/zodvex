@@ -1,6 +1,7 @@
 import type { OptionalRestArgsOrSkip } from 'convex/react'
 import { useMutation, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
+import { getFunctionName } from 'convex/server'
 import type { CodecHelpersOptions } from '../codecHelpers'
 import { createCodecHelpers } from '../codecHelpers'
 import type { AnyRegistry } from '../types'
@@ -60,8 +61,24 @@ export function createZodvexHooks<R extends AnyRegistry>(
   // Implementation
   function useZodQuery(ref: FunctionReference<'query', any, any, any>, ...restArgs: any[]) {
     const args = restArgs[0]
-    // Encode args: runtime types -> wire format (e.g., Date -> timestamp)
-    const wireArgs = args === 'skip' ? 'skip' : codec.encodeArgs(ref, args)
+
+    // Encode args: runtime types -> wire format (e.g., Date -> timestamp).
+    // Unlike mutations (imperative, user-triggered), hooks fire synchronously
+    // during render — an encode error would crash the page. On failure, warn
+    // and auto-skip the query (return undefined = loading state).
+    let wireArgs: any = 'skip'
+    if (args !== 'skip') {
+      try {
+        wireArgs = codec.encodeArgs(ref, args)
+      } catch (err) {
+        const path = getFunctionName(ref)
+        console.warn(
+          `[zodvex] Encode args failed for ${path}, auto-skipping query: ${err instanceof Error ? err.message : String(err)}`
+        )
+        return undefined
+      }
+    }
+
     const wireResult = useQuery(
       ref,
       ...((wireArgs === 'skip' ? ['skip'] : [wireArgs]) as OptionalRestArgsOrSkip<typeof ref>)

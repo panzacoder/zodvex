@@ -179,6 +179,26 @@ describe('createZodvexHooks', () => {
       mockQueryResult = [{ _id: 'abc', title: 123, createdAt: Date.now() }]
       expect(() => throwHooks.useZodQuery(fakeRef('tasks:list'))).toThrow()
     })
+
+    it('auto-skips query and warns when encodeArgs fails', () => {
+      // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+      mockQueryResult = { _id: 'x', title: 'Test', createdAt: Date.now() }
+
+      // Pass invalid args — dueAt should be a Date, passing a string triggers encode failure
+      const result = useZodQuery(fakeRef('tasks:create'), {
+        title: 'Test',
+        dueAt: 'not-a-date'
+      })
+
+      // Should auto-skip: return undefined (loading state), not throw
+      expect(result).toBeUndefined()
+      expect(warnSpy).toHaveBeenCalled()
+      const msg = warnSpy.mock.calls[0][0] as string
+      expect(msg).toContain('tasks:create')
+      expect(msg).toContain('auto-skipping')
+      warnSpy.mockRestore()
+    })
   })
 
   // ---- useZodMutation -----------------------------------------------------
