@@ -1,17 +1,19 @@
 import type { AuthTokenFetcher } from 'convex/browser'
 import { ConvexReactClient } from 'convex/react'
 import type { FunctionReference, FunctionReturnType } from 'convex/server'
+import type { CodecHelpersOptions } from '../codecHelpers'
 import { createCodecHelpers } from '../codecHelpers'
 import type { AnyRegistry } from '../types'
 
-export type ZodvexReactClientOptions = { url: string } | { client: ConvexReactClient }
+export type ZodvexReactClientOptions = ({ url: string } | { client: ConvexReactClient }) &
+  CodecHelpersOptions
 
 export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
   readonly convex: ConvexReactClient
   private codec: ReturnType<typeof createCodecHelpers>
 
   constructor(registry: R, options: ZodvexReactClientOptions) {
-    this.codec = createCodecHelpers(registry)
+    this.codec = createCodecHelpers(registry, { onDecodeError: options.onDecodeError })
     if ('client' in options) {
       this.convex = options.client
     } else {
