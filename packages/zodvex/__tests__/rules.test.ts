@@ -809,4 +809,157 @@ describe('CodecDatabaseWriter.audit()', () => {
     expect(auditLog[0].event.type).toBe('insert')
     expect(auditLog[0].event.value.name).toBe('Charlie')
   })
+
+  it('afterWrite fires after successful replace', async () => {
+    const auditLog: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      afterWrite: (table: string, event: any) => {
+        auditLog.push({ table, event })
+      }
+    })
+    await auditedDb.replace(
+      'users:1' as any,
+      {
+        name: 'Alice Replaced',
+        createdAt: new Date(1700000000000),
+        role: 'admin'
+      } as any
+    )
+    expect(auditLog).toHaveLength(1)
+    expect(auditLog[0].event.type).toBe('replace')
+    expect(auditLog[0].event.value.name).toBe('Alice Replaced')
+  })
+})
+
+// ============================================================================
+// Edge cases
+// ============================================================================
+
+describe('edge cases', () => {
+  it('defaultPolicy deny blocks ALL tables including unmentioned ones', async () => {
+    const extendedData = {
+      ...tableData,
+      logs: [{ _id: 'logs:1', _creationTime: 100, message: 'hello' }]
+    }
+    const db = new CodecDatabaseReader(createMockDbReader(extendedData), { ...tableMap })
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async (_ctx: any, doc: any) => doc } // explicitly allow users
+      },
+      { defaultPolicy: 'deny' }
+    )
+    // users allowed by explicit rule
+    const user = await secureDb.get('users:1' as any)
+    expect(user).not.toBeNull()
+    // logs NOT listed in rules — denied by defaultPolicy
+    const logResults = await secureDb.query('logs' as any).collect()
+    expect(logResults).toHaveLength(0)
+  })
+
+  it('defaultPolicy deny blocks listed table with no read rule', async () => {
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {} // listed but no read rule
+      },
+      { defaultPolicy: 'deny' }
+    )
+    const user = await secureDb.get('users:1' as any)
+    expect(user).toBeNull()
+  })
+
+  it('defaultPolicy allow passes unmentioned tables through', async () => {
+    const extendedData = {
+      ...tableData,
+      logs: [{ _id: 'logs:1', _creationTime: 100, message: 'hello' }]
+    }
+    const db = new CodecDatabaseReader(createMockDbReader(extendedData), { ...tableMap })
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async () => null } // deny all users
+      }
+    ) // defaultPolicy is 'allow' by default
+    // users denied by explicit rule
+    const user = await secureDb.get('users:1' as any)
+    expect(user).toBeNull()
+    // logs NOT listed in rules — allowed by defaultPolicy
+    const logResults = await secureDb.query('logs' as any).collect()
+    expect(logResults).toHaveLength(1)
+  })
+
+  it('patch rule receives decoded doc (not wire)', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    let docCreatedAt: any
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {
+          read: async (_ctx: any, doc: any) => doc,
+          patch: async (_ctx: any, doc: any, value: any) => {
+            docCreatedAt = doc.createdAt
+            return value
+          }
+        }
+      }
+    )
+    await secureDb.patch('users:1' as any, { name: 'Updated' } as any)
+    expect(docCreatedAt).toBeInstanceOf(Date)
+  })
+
+  it('audit afterWrite receives pre-encode value', async () => {
+    const auditLog: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      afterWrite: (_table: string, event: any) => {
+        auditLog.push(event)
+      }
+    })
+    await auditedDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    // The audit event should contain the runtime value (Date), not wire (number)
+    expect(auditLog[0].value.createdAt).toBeInstanceOf(Date)
+  })
+
+  it('afterRead fires per-doc via async iterator', async () => {
+    const auditLog: any[] = []
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const auditedDb = db.audit({
+      afterRead: (table: string, doc: any) => {
+        auditLog.push({ table, doc })
+      }
+    })
+    const results: any[] = []
+    for await (const doc of auditedDb.query('users' as any)) {
+      results.push(doc)
+    }
+    expect(results).toHaveLength(2)
+    expect(auditLog).toHaveLength(2)
+  })
+
+  it('afterRead does not fire when first() returns null on empty set', async () => {
+    const auditLog: any[] = []
+    const emptyData = { users: [] }
+    const db = new CodecDatabaseReader(createMockDbReader(emptyData), tableMap)
+    const auditedDb = db.audit({
+      afterRead: (table: string, doc: any) => {
+        auditLog.push({ table, doc })
+      }
+    })
+    const result = await auditedDb.query('users' as any).first()
+    expect(result).toBeNull()
+    expect(auditLog).toHaveLength(0)
+  })
 })
