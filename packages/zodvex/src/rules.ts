@@ -6,7 +6,7 @@ import type {
   TableNamesInDataModel
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import { CodecDatabaseReader, CodecQueryChain } from './db'
+import { CodecDatabaseReader, CodecDatabaseWriter, CodecQueryChain } from './db'
 
 /**
  * Per-document rule function. Gates and optionally transforms documents.
@@ -324,4 +324,200 @@ export function createRulesCodecDatabaseReader<
   config?: CodecRulesConfig
 ): CodecDatabaseReader<DataModel, DecodedDocs> {
   return new RulesCodecDatabaseReader(inner, ctx, rules, config ?? {})
+}
+
+/**
+ * Wraps a CodecDatabaseWriter with per-table read and write rules.
+ * Extends CodecDatabaseWriter so it can be used anywhere a writer is expected.
+ *
+ * - Read operations (get, query) delegate through an internal RulesCodecDatabaseReader.
+ * - Write operations (insert, patch, replace, delete) apply per-operation rules
+ *   that can transform values or throw to deny.
+ * - Write operations delegate to `this.inner` (the original CodecDatabaseWriter),
+ *   NOT to `super`. Rules transform decoded values; the inner writer handles encoding.
+ */
+class RulesCodecDatabaseWriter<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> extends CodecDatabaseWriter<DataModel, DecodedDocs> {
+  private rulesReader: CodecDatabaseReader<DataModel, DecodedDocs>
+
+  constructor(
+    private inner: CodecDatabaseWriter<DataModel, DecodedDocs>,
+    private ctx: any,
+    private rules: Record<string, TableRules<any, any>>,
+    private rulesConfig: CodecRulesConfig
+  ) {
+    // Pass the inner's protected db + tableMap to super.
+    super((inner as any).db, (inner as any).tableMap)
+    // Build a rules-aware reader from the inner writer's reader for read operations.
+    const innerReader = (inner as any).reader as CodecDatabaseReader<DataModel, DecodedDocs>
+    this.rulesReader = new RulesCodecDatabaseReader(innerReader, ctx, rules, rulesConfig)
+    this.system = inner.system
+  }
+
+  // --- Read methods: delegate through rules-aware reader ---
+
+  normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
+    tableName: TableName,
+    id: string
+  ): GenericId<TableName> | null {
+    return this.rulesReader.normalizeId(tableName, id)
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    return this.rulesReader.get(idOrTable, maybeId)
+  }
+
+  query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
+    return this.rulesReader.query(tableName)
+  }
+
+  // --- Write methods: apply rules, then delegate to inner writer ---
+
+  async insert(table: any, value: any): Promise<any> {
+    const tableName = table as string
+    const tableRules = this.rules[tableName]
+
+    if (tableRules?.insert) {
+      const transformed = await tableRules.insert(this.ctx, value)
+      return this.inner.insert(table, transformed)
+    }
+
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      throw new Error(`insert not allowed on ${tableName}`)
+    }
+
+    return this.inner.insert(table, value)
+  }
+
+  async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    // Resolve arguments: support both patch(id, value) and patch(table, id, value)
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+    }
+
+    // Fetch current doc via rules-aware reader (applies read rules)
+    const doc = await this.rulesReader.get(id)
+    if (doc === null) {
+      throw new Error('no read access or doc does not exist')
+    }
+
+    const tableName = this.resolveTableFromId(id)
+    const tableRules = tableName ? this.rules[tableName] : undefined
+
+    if (tableRules?.patch) {
+      const transformed = await tableRules.patch(this.ctx, doc, value)
+      return this.inner.patch(id, transformed)
+    }
+
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      throw new Error(`patch not allowed on ${tableName}`)
+    }
+
+    return this.inner.patch(id, value)
+  }
+
+  async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+    }
+
+    // Fetch current doc via rules-aware reader (applies read rules)
+    const doc = await this.rulesReader.get(id)
+    if (doc === null) {
+      throw new Error('no read access or doc does not exist')
+    }
+
+    const tableName = this.resolveTableFromId(id)
+    const tableRules = tableName ? this.rules[tableName] : undefined
+
+    if (tableRules?.replace) {
+      const transformed = await tableRules.replace(this.ctx, doc, value)
+      return this.inner.replace(id, transformed)
+    }
+
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      throw new Error(`replace not allowed on ${tableName}`)
+    }
+
+    return this.inner.replace(id, value)
+  }
+
+  async delete(idOrTable: any, maybeId?: any): Promise<void> {
+    let id: any
+
+    if (maybeId !== undefined) {
+      id = maybeId
+    } else {
+      id = idOrTable
+    }
+
+    // Fetch current doc via rules-aware reader (applies read rules)
+    const doc = await this.rulesReader.get(id)
+    if (doc === null) {
+      throw new Error('no read access or doc does not exist')
+    }
+
+    const tableName = this.resolveTableFromId(id)
+    const tableRules = tableName ? this.rules[tableName] : undefined
+
+    if (tableRules?.delete) {
+      await tableRules.delete(this.ctx, doc)
+      return this.inner.delete(id)
+    }
+
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      throw new Error(`delete not allowed on ${tableName}`)
+    }
+
+    return this.inner.delete(id)
+  }
+
+  private resolveTableFromId(id: any): string | null {
+    for (const tableName of Object.keys(this.rules)) {
+      if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
+        return tableName
+      }
+    }
+    // If not found in rules, check ALL tables from tableMap for defaultPolicy: deny
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      for (const tableName of Object.keys((this.inner as any).tableMap)) {
+        if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
+          return tableName
+        }
+      }
+    }
+    return null
+  }
+}
+
+/**
+ * Factory function for creating a RulesCodecDatabaseWriter.
+ * Breaks the circular dependency between db.ts and rules.ts.
+ */
+export function createRulesCodecDatabaseWriter<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+>(
+  inner: CodecDatabaseWriter<DataModel, DecodedDocs>,
+  ctx: any,
+  rules: Record<string, TableRules<any, any>>,
+  config?: CodecRulesConfig
+): CodecDatabaseWriter<DataModel, DecodedDocs> {
+  return new RulesCodecDatabaseWriter(inner, ctx, rules, config ?? {})
 }

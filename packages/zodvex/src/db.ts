@@ -379,6 +379,23 @@ export class CodecDatabaseWriter<
     }
     return this.db.delete(idOrTable)
   }
+
+  /**
+   * Returns a new CodecDatabaseWriter that applies per-table read and write rules.
+   * The returned writer is also a CodecDatabaseWriter, so `.withRules()` can be chained.
+   *
+   * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
+   * rules.ts extends CodecDatabaseWriter (from db.ts), so the import must be lazy.
+   */
+  withRules<Ctx>(
+    ctx: Ctx,
+    rules: Record<string, any>,
+    config?: CodecRulesConfig
+  ): CodecDatabaseWriter<DataModel, DecodedDocs> {
+    // Deferred import breaks the circular dependency (rules.ts extends CodecDatabaseWriter from db.ts)
+    const { createRulesCodecDatabaseWriter } = require('./rules')
+    return createRulesCodecDatabaseWriter(this, ctx, rules, config)
+  }
 }
 
 /**

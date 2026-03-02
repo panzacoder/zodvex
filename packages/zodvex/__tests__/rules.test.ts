@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { CodecDatabaseReader } from '../src/db'
+import { CodecDatabaseReader, CodecDatabaseWriter } from '../src/db'
 import type {
   CodecRules,
   CodecRulesConfig,
@@ -386,5 +386,257 @@ describe('CodecDatabaseReader.withRules()', () => {
     const results = await secureDb.query('users' as any).collect()
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('ALICE')
+  })
+})
+
+// ============================================================================
+// CodecDatabaseWriter.withRules() tests
+// ============================================================================
+
+function createMockDbWriter(tables: Record<string, any[]>) {
+  const calls: { method: string; args: any[] }[] = []
+  const reader = createMockDbReader(tables)
+  const mockDb: any = {
+    ...reader,
+    insert: async (table: string, value: any) => {
+      calls.push({ method: 'insert', args: [table, value] })
+      return `${table}:new`
+    },
+    patch: async (...args: any[]) => {
+      calls.push({ method: 'patch', args })
+    },
+    replace: async (...args: any[]) => {
+      calls.push({ method: 'replace', args })
+    },
+    delete: async (...args: any[]) => {
+      calls.push({ method: 'delete', args })
+    }
+  }
+  return { db: mockDb, calls }
+}
+
+describe('CodecDatabaseWriter.withRules()', () => {
+  it('insert() calls insert rule and uses transformed value', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {
+          insert: async (_ctx: any, value: any) => ({ ...value, name: 'INJECTED' })
+        }
+      }
+    )
+    await secureDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    expect(calls).toHaveLength(1)
+    // The rule transformed name to 'INJECTED', then the inner writer encoded it
+    expect(calls[0].args[1].name).toBe('INJECTED')
+  })
+
+  it('insert() throws when insert rule throws', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {
+          insert: async () => {
+            throw new Error('insert denied')
+          }
+        }
+      }
+    )
+    await expect(
+      secureDb.insert(
+        'users' as any,
+        {
+          name: 'X',
+          createdAt: new Date(),
+          role: 'user'
+        } as any
+      )
+    ).rejects.toThrow('insert denied')
+  })
+
+  it('patch() calls patch rule with current doc and patch value', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    let receivedDoc: any
+    let receivedValue: any
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {
+          read: async (_ctx: any, doc: any) => doc,
+          patch: async (_ctx: any, doc: any, value: any) => {
+            receivedDoc = doc
+            receivedValue = value
+            return value
+          }
+        }
+      }
+    )
+    await secureDb.patch('users:1' as any, { name: 'Alice Updated' } as any)
+    expect(receivedDoc.name).toBe('Alice')
+    expect(receivedDoc.createdAt).toBeInstanceOf(Date) // decoded doc
+    expect(receivedValue.name).toBe('Alice Updated')
+    expect(calls).toHaveLength(1)
+  })
+
+  it('patch() throws when doc not found (no read access)', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async () => null }
+      }
+    )
+    await expect(secureDb.patch('users:1' as any, { name: 'X' } as any)).rejects.toThrow(
+      'no read access or doc does not exist'
+    )
+  })
+
+  it('patch() throws when patch rule throws', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {
+          read: async (_ctx: any, doc: any) => doc,
+          patch: async () => {
+            throw new Error('modify denied')
+          }
+        }
+      }
+    )
+    await expect(secureDb.patch('users:1' as any, { name: 'X' } as any)).rejects.toThrow(
+      'modify denied'
+    )
+  })
+
+  it('delete() calls delete rule with current doc', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    let receivedDoc: any
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {
+          read: async (_ctx: any, doc: any) => doc,
+          delete: async (_ctx: any, doc: any) => {
+            receivedDoc = doc
+          }
+        }
+      }
+    )
+    await secureDb.delete('users:1' as any)
+    expect(receivedDoc.name).toBe('Alice')
+    expect(calls).toHaveLength(1)
+  })
+
+  it('delete() throws when delete rule throws', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {
+          read: async (_ctx: any, doc: any) => doc,
+          delete: async () => {
+            throw new Error('delete denied')
+          }
+        }
+      }
+    )
+    await expect(secureDb.delete('users:1' as any)).rejects.toThrow('delete denied')
+  })
+
+  it('replace() calls replace rule with current doc and replacement', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: {
+          read: async (_ctx: any, doc: any) => doc,
+          replace: async (_ctx: any, _doc: any, value: any) => value
+        }
+      }
+    )
+    await secureDb.replace(
+      'users:1' as any,
+      {
+        name: 'Alice Replaced',
+        createdAt: new Date(1700000000000),
+        role: 'admin'
+      } as any
+    )
+    expect(calls).toHaveLength(1)
+  })
+
+  it('defaultPolicy deny blocks operations without rules', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async (_ctx: any, doc: any) => doc }
+      },
+      { defaultPolicy: 'deny' }
+    )
+    await expect(
+      secureDb.insert(
+        'users' as any,
+        {
+          name: 'X',
+          createdAt: new Date(),
+          role: 'user'
+        } as any
+      )
+    ).rejects.toThrow('insert not allowed on users')
+  })
+
+  it('defaultPolicy allow passes operations without rules', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async (_ctx: any, doc: any) => doc }
+      },
+      { defaultPolicy: 'allow' }
+    )
+    await secureDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    expect(calls).toHaveLength(1)
+  })
+
+  it('read methods delegate through rules', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db.withRules(
+      {},
+      {
+        users: { read: async (_ctx: any, doc: any) => (doc.role === 'admin' ? doc : null) }
+      }
+    )
+    const results = await secureDb.query('users' as any).collect()
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('Alice')
   })
 })
