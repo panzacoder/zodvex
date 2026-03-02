@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Release script: bumps version, builds, tests, commits, tags, and pushes.
+# Usage: bin/release <patch|minor|major|<explicit-version>>
+#
+# Examples:
+#   bin/release patch          # 0.6.0-beta.29 -> 0.6.0-beta.30
+#   bin/release 0.7.0          # set version explicitly
+#   bin/release                 # auto-increment prerelease number
+
+PKG="packages/zodvex/package.json"
+CURRENT=$(grep '"version"' "$PKG" | sed 's/.*": "\(.*\)".*/\1/')
+
+echo "Current version: $CURRENT"
+
+# --- Determine next version ---
+if [[ $# -eq 0 ]]; then
+  # Auto-increment: bump the trailing number
+  if [[ "$CURRENT" =~ ^(.+\.)([0-9]+)$ ]]; then
+    PREFIX="${BASH_REMATCH[1]}"
+    NUM="${BASH_REMATCH[2]}"
+    NEXT="${PREFIX}$((NUM + 1))"
+  else
+    echo "Error: cannot auto-increment '$CURRENT'. Pass an explicit version." >&2
+    exit 1
+  fi
+else
+  NEXT="$1"
+fi
+
+echo "Next version:    $NEXT"
+echo ""
+
+# --- Pre-release checks ---
+echo "==> Running build..."
+bun run build
+echo ""
+
+echo "==> Running tests..."
+bun test
+echo ""
+
+echo "==> Running lint..."
+bun run lint
+echo ""
+
+echo "All checks passed."
+echo ""
+
+# --- Bump, commit, tag, push ---
+sed -i '' "s/\"version\": \"$CURRENT\"/\"version\": \"$NEXT\"/" "$PKG"
+
+git add "$PKG"
+git commit -m "chore: bump version to $NEXT"
+git tag "v$NEXT"
+git push
+git push origin "v$NEXT"
+
+echo ""
+echo "Released v$NEXT"
