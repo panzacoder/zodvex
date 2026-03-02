@@ -30,6 +30,20 @@ export {
   type ZodvexMutationCtx,
   type ZodvexQueryCtx
 } from '../init'
+// Rule and audit types for .withRules() and .audit()
+export type {
+  CodecRules,
+  CodecRulesConfig,
+  DeleteRule,
+  InsertRule,
+  PatchRule,
+  ReaderAuditConfig,
+  ReadRule,
+  ReplaceRule,
+  TableRules,
+  WriteEvent,
+  WriterAuditConfig
+} from '../rules'
 // Schema definition (defineZodSchema)
 export * from '../schema'
 // Table creation and helpers
