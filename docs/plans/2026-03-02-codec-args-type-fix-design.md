@@ -1,4 +1,4 @@
-# Skip Convex Args Validator for Codec Schemas — Design
+# Fix Codec Args Wire Types in Custom Builders — Design
 
 ## Problem
 
@@ -20,47 +20,47 @@ Meanwhile, return types correctly show `SensitiveField<string>`. The asymmetry c
 
 ## Root Cause
 
-In `wrappers.ts`, zodvex's `zQuery`/`zMutation`/`zAction` pass both args and returns validators to the Convex builder. Convex's `ApiFromModules` uses validator types for `FunctionReference._args` and `._returnType`.
+In `custom.ts`, the `ArgsInput` type helper uses `z.input` (wire type) while the corresponding `ReturnValueOutput` type helper uses `z.output` (runtime type).
 
-For **returns**, there's an existing `containsCustom()` check that skips the Convex validator when the schema contains `z.custom` types (codecs use `z.custom` for runtime schemas). Without a validator, `ApiFromModules` falls back to zodvex's declared `RegisteredQuery<V, ..., Promise<InferReturns<R>>>` phantom types, which use `z.output` = runtime types.
+For ZodCodec schemas, `z.input` resolves to the wire schema's type (e.g., `{ value: string | null; status: "full" | "hidden" }`), while `z.output` resolves to the runtime type (e.g., `SensitiveField<string>`).
 
-For **args**, no such skip exists. `zodToConvexFields()` always produces a Convex validator carrying wire types, which `ApiFromModules` uses, overriding zodvex's declared runtime types.
+The `CustomBuilder` type uses `ArgsInput` for the `Registration` type's args parameter. Since hotpot's functions are built via `zCustomQuery` (which produces a `CustomBuilder`), the args in the published `FunctionReference._args` carry wire types.
+
+Returns are unaffected because `ReturnValueOutput` already uses `z.output`.
+
+### Why the initial theory was wrong
+
+The earlier hypothesis blamed `containsCustom()` in `wrappers.ts` for skipping the Convex validator on returns but not args. Investigation showed that Convex validators play **zero role** in `_args`/`_returnType` — those types come entirely from zodvex's `RegisteredQuery` phantom params, which are derived from the `ArgsInput`/`ReturnValueOutput` type helpers.
 
 ## Fix
 
-Apply the same `containsCustom` treatment to args. When the Zod args schema contains codec/custom types, pass `args: {}` to the Convex builder instead of wire-typed validators.
-
-### Runtime Safety
-
-zodvex already validates args through `zodSchema.parse(argsObject)` in the handler (wrappers.ts line 110). The Convex validator is redundant for codec-containing schemas. Non-codec schemas are unaffected — their Convex validators continue to work normally.
-
-### Type Effect
-
-Without a Convex validator constraining the args type, `ApiFromModules` uses zodvex's declared `RegisteredQuery<V, ZodToConvexArgs<A>, ...>` where `ZodToConvexArgs<A>` uses `z.output<A>` = runtime types. This is exactly how returns already work.
-
-## Scope
-
-### Change: `packages/zodvex/src/wrappers.ts`
-
-In `zQuery`, `zMutation`, `zAction` (and their `zInternal*` variants), add `containsCustom` check for args:
+Change `z.input` to `z.output` in `ArgsInput` (`custom.ts` lines 55-61):
 
 ```typescript
-// Before (zQuery, ZodObject branch):
-args = zodToConvexFields(getObjectShape(zodObj))
+// Before:
+type ArgsInput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
+  ArgsValidator
+] extends [z.ZodObject<any>]
+  ? [z.input<ArgsValidator>]
+  : [ArgsValidator] extends [ZodValidator]
+    ? [z.input<z.ZodObject<ArgsValidator>>]
+    : OneArgArray
 
 // After:
-args = containsCustom(zodObj) ? {} : zodToConvexFields(getObjectShape(zodObj))
+type ArgsInput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
+  ArgsValidator
+] extends [z.ZodObject<any>]
+  ? [z.output<ArgsValidator>]
+  : [ArgsValidator] extends [ZodValidator]
+    ? [z.output<z.ZodObject<ArgsValidator>>]
+    : OneArgArray
 ```
 
-Same pattern for the `Record<string, z.ZodTypeAny>` branch and single-schema branch. The `zInternal*` variants delegate to the main functions, so they inherit the fix.
+This is correct because callers pass runtime types — encoding to wire format happens inside the wrapper at runtime.
 
-### Test
+## Verification
 
-Verify that functions with codec args produce runtime-typed function references in the declared return type.
-
-### Verification
-
-1. `bun test` — existing tests pass
-2. `bun run build` — build succeeds
-3. `bun run type-check` — no type errors
+1. `bun run type-check` — no type errors
+2. `bun test` — all 837 tests pass
+3. `bun run build` — build succeeds
 4. Regenerate hotpot's `_zodvex/` and rebuild — `.d.ts` output shows `SensitiveField<string>` for args

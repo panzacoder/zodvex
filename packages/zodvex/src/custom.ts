@@ -51,13 +51,15 @@ type ReturnValueOutput<ReturnsValidator extends z.ZodTypeAny | ZodValidator | vo
     ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
     : any
 
-// The args before they've been validated: passed from the client
+// The args as seen by the caller: runtime types (z.output), not wire types (z.input).
+// For codecs (e.g., SensitiveField), z.output = runtime class, z.input = wire object.
+// Callers pass runtime types; encoding to wire format happens inside the wrapper.
 type ArgsInput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
   ArgsValidator
 ] extends [z.ZodObject<any>]
-  ? [z.input<ArgsValidator>]
+  ? [z.output<ArgsValidator>]
   : [ArgsValidator] extends [ZodValidator]
-    ? [z.input<z.ZodObject<ArgsValidator>>]
+    ? [z.output<z.ZodObject<ArgsValidator>>]
     : OneArgArray
 
 // The args after they've been validated: passed to the handler

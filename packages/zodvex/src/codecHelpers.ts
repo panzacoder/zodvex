@@ -68,7 +68,8 @@ export function createCodecHelpers(registry: AnyRegistry, options?: CodecHelpers
   function encodeArgs(ref: FunctionReference<any, any, any, any>, args: any): any {
     const path = getFunctionName(ref)
     const entry = registry[path]
-    return entry?.args && args != null ? stripUndefined(safeEncode(entry.args, args)) : args
+    if (!entry?.args || args == null) return args
+    return stripUndefined(safeEncode(entry.args, args))
   }
 
   /**
