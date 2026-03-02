@@ -11,7 +11,7 @@
 // Codec utilities
 export * from '../codec'
 // Codec helpers (shared encode/decode for client wrappers)
-export { createCodecHelpers, ZodvexDecodeError, type CodecHelpersOptions } from '../codecHelpers'
+export { type CodecHelpersOptions, createCodecHelpers, ZodvexDecodeError } from '../codecHelpers'
 // Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
 export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
 // ID utilities

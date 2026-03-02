@@ -41,6 +41,7 @@ describe('ZodvexDecodeError', () => {
 describe('decodeResult', () => {
   it('default (warn): logs warning and returns raw wire data on decode failure', () => {
     const codec = createCodecHelpers(registry)
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
     const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
 
     // Pass invalid data — title should be string, not number
