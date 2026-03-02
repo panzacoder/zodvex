@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
 import { z } from 'zod'
 import { stripUndefined } from '../src/utils'
 import { zx } from '../src/zx'
@@ -162,6 +162,22 @@ describe('createZodvexHooks', () => {
 
       expect(result.createdAt).toBeInstanceOf(Date)
       expect(result.createdAt.getTime()).toBe(ts)
+    })
+
+    it('default: warns and returns raw wire data on decode failure', () => {
+      // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+      mockQueryResult = [{ _id: 'abc', title: 123, createdAt: Date.now() }]
+      const result = useZodQuery(fakeRef('tasks:list'))
+      expect(result).toBe(mockQueryResult)
+      expect(warnSpy).toHaveBeenCalled()
+      warnSpy.mockRestore()
+    })
+
+    it('throw mode: throws ZodvexDecodeError on decode failure', () => {
+      const throwHooks = createZodvexHooks(registry as any, { onDecodeError: 'throw' })
+      mockQueryResult = [{ _id: 'abc', title: 123, createdAt: Date.now() }]
+      expect(() => throwHooks.useZodQuery(fakeRef('tasks:list'))).toThrow()
     })
   })
 

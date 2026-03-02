@@ -1,6 +1,7 @@
 import type { OptionalRestArgsOrSkip } from 'convex/react'
 import { useMutation, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
+import type { CodecHelpersOptions } from '../codecHelpers'
 import { createCodecHelpers } from '../codecHelpers'
 import type { AnyRegistry } from '../types'
 
@@ -26,8 +27,11 @@ import type { AnyRegistry } from '../types'
  * //    ^? Task[] — createdAt is Date, not number
  * ```
  */
-export function createZodvexHooks<R extends AnyRegistry>(registry: R) {
-  const codec = createCodecHelpers(registry)
+export function createZodvexHooks<R extends AnyRegistry>(
+  registry: R,
+  options?: CodecHelpersOptions
+) {
+  const codec = createCodecHelpers(registry, options)
 
   /**
    * Drop-in replacement for Convex's `useQuery` with automatic codec decode.
