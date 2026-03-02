@@ -22,7 +22,7 @@ import type {
 import type { GenericId } from 'convex/values'
 import type { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
-import type { CodecRulesConfig, ReaderAuditConfig, WriterAuditConfig } from './rules'
+import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './rules'
 import type { ZodTableMap } from './schema'
 
 /**
@@ -38,21 +38,21 @@ import type { ZodTableMap } from './schema'
  *   (e.g., `createdAt: Date`).
  *
  * Consumer code never passes these generics manually — they're inferred
- * from CodecDatabaseReader.query() which gets them from defineZodSchema's
+ * from ZodvexDatabaseReader.query() which gets them from defineZodSchema's
  * captured type parameter.
  *
  * Does NOT implement QueryInitializer<TableInfo> because terminal methods
  * return Doc (decoded) instead of DocumentByInfo<TableInfo> (wire).
  */
-export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentByInfo<TableInfo>> {
+export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentByInfo<TableInfo>> {
   constructor(
     protected inner: any,
     protected schema: z.ZodTypeAny
   ) {}
 
   /** Factory method for intermediate methods. Subclasses override to return their own type. */
-  protected createChain(inner: any): CodecQueryChain<TableInfo, Doc> {
-    return new CodecQueryChain(inner, this.schema)
+  protected createChain(inner: any): ZodvexQueryChain<TableInfo, Doc> {
+    return new ZodvexQueryChain(inner, this.schema)
   }
 
   /** Decode a wire-format doc and cast to the decoded document type. */
@@ -62,7 +62,7 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentB
 
   // --- Intermediate methods: wire-typed TableInfo for Convex machinery ---
 
-  fullTableScan(): CodecQueryChain<TableInfo, Doc> {
+  fullTableScan(): ZodvexQueryChain<TableInfo, Doc> {
     return this.createChain(this.inner.fullTableScan())
   }
 
@@ -71,7 +71,7 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentB
     indexRange?: (
       q: IndexRangeBuilder<DocumentByInfo<TableInfo>, NamedIndex<TableInfo, IndexName>>
     ) => IndexRange
-  ): CodecQueryChain<TableInfo, Doc> {
+  ): ZodvexQueryChain<TableInfo, Doc> {
     return this.createChain(this.inner.withIndex(indexName, indexRange))
   }
 
@@ -80,21 +80,21 @@ export class CodecQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentB
     searchFilter: (
       q: SearchFilterBuilder<DocumentByInfo<TableInfo>, NamedSearchIndex<TableInfo, IndexName>>
     ) => SearchFilter
-  ): CodecQueryChain<TableInfo, Doc> {
+  ): ZodvexQueryChain<TableInfo, Doc> {
     return this.createChain(this.inner.withSearchIndex(indexName, searchFilter))
   }
 
-  order(order: 'asc' | 'desc'): CodecQueryChain<TableInfo, Doc> {
+  order(order: 'asc' | 'desc'): ZodvexQueryChain<TableInfo, Doc> {
     return this.createChain(this.inner.order(order))
   }
 
   filter(
     predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
-  ): CodecQueryChain<TableInfo, Doc> {
+  ): ZodvexQueryChain<TableInfo, Doc> {
     return this.createChain(this.inner.filter(predicate))
   }
 
-  limit(n: number): CodecQueryChain<TableInfo, Doc> {
+  limit(n: number): ZodvexQueryChain<TableInfo, Doc> {
     return this.createChain(this.inner.limit(n))
   }
 
@@ -179,14 +179,14 @@ function resolveTableName<DataModel extends GenericDataModel>(
  *
  * DecodedDocs is a phantom type carrying the decoded document types for each
  * table (computed by DecodedDocFor<T> from defineZodSchema). It's never
- * accessed at runtime — it only drives the Doc generic on CodecQueryChain
+ * accessed at runtime — it only drives the Doc generic on ZodvexQueryChain
  * so terminal methods return decoded types (e.g., Date instead of number).
  *
  * Does NOT implement GenericDatabaseReader<DataModel> because query() returns
- * CodecQueryChain (with decoded terminal types) instead of QueryInitializer
+ * ZodvexQueryChain (with decoded terminal types) instead of QueryInitializer
  * (with wire terminal types).
  */
-export class CodecDatabaseReader<
+export class ZodvexDatabaseReader<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any> = Record<string, any>
 > {
@@ -228,7 +228,7 @@ export class CodecDatabaseReader<
 
   query<TableName extends TableNamesInDataModel<DataModel>>(
     tableName: TableName
-  ): CodecQueryChain<
+  ): ZodvexQueryChain<
     NamedTableInfo<DataModel, TableName>,
     ResolveDecodedDoc<DataModel, DecodedDocs, TableName>
   > {
@@ -240,54 +240,54 @@ export class CodecDatabaseReader<
       // ResolveDecodedDoc falls back to DocumentByInfo (wire) here.
       return innerQuery as any
     }
-    return new CodecQueryChain<
+    return new ZodvexQueryChain<
       NamedTableInfo<DataModel, TableName>,
       ResolveDecodedDoc<DataModel, DecodedDocs, TableName>
     >(innerQuery, schemas.doc)
   }
 
   /**
-   * Returns a new CodecDatabaseReader that applies per-table read rules.
-   * The returned reader is also a CodecDatabaseReader, so `.withRules()` can be chained.
+   * Returns a new ZodvexDatabaseReader that applies per-table read rules.
+   * The returned reader is also a ZodvexDatabaseReader, so `.withRules()` can be chained.
    *
    * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
-   * rules.ts extends CodecQueryChain (from db.ts), so the import must be lazy.
+   * rules.ts extends ZodvexQueryChain (from db.ts), so the import must be lazy.
    */
   withRules<Ctx>(
     ctx: Ctx,
     rules: Record<string, any>,
-    config?: CodecRulesConfig
-  ): CodecDatabaseReader<DataModel, DecodedDocs> {
-    // Deferred import breaks the circular dependency (rules.ts extends CodecQueryChain from db.ts)
-    const { createRulesCodecDatabaseReader } = require('./rules')
-    return createRulesCodecDatabaseReader(this, ctx, rules, config)
+    config?: ZodvexRulesConfig
+  ): ZodvexDatabaseReader<DataModel, DecodedDocs> {
+    // Deferred import breaks the circular dependency (rules.ts extends ZodvexQueryChain from db.ts)
+    const { createRulesDatabaseReader } = require('./rules')
+    return createRulesDatabaseReader(this, ctx, rules, config)
   }
 
   /**
-   * Returns a new CodecDatabaseReader that fires audit callbacks on reads.
-   * The returned reader is also a CodecDatabaseReader, so `.audit()` can be chained
+   * Returns a new ZodvexDatabaseReader that fires audit callbacks on reads.
+   * The returned reader is also a ZodvexDatabaseReader, so `.audit()` can be chained
    * with `.withRules()`.
    *
    * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
    */
-  audit(config: ReaderAuditConfig): CodecDatabaseReader<DataModel, DecodedDocs> {
-    const { createAuditCodecDatabaseReader } = require('./rules')
-    return createAuditCodecDatabaseReader(this, config)
+  audit(config: ReaderAuditConfig): ZodvexDatabaseReader<DataModel, DecodedDocs> {
+    const { createAuditDatabaseReader } = require('./rules')
+    return createAuditDatabaseReader(this, config)
   }
 }
 
 /**
  * Wraps a GenericDatabaseWriter with automatic Zod codec encoding on writes
- * and decoding on reads. Delegates read operations to a CodecDatabaseReader.
+ * and decoding on reads. Delegates read operations to a ZodvexDatabaseReader.
  *
  * Does NOT implement GenericDatabaseWriter<DataModel> because query() returns
- * CodecQueryChain (decoded types) instead of QueryInitializer (wire types).
+ * ZodvexQueryChain (decoded types) instead of QueryInitializer (wire types).
  */
-export class CodecDatabaseWriter<
+export class ZodvexDatabaseWriter<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any> = Record<string, any>
 > {
-  private reader: CodecDatabaseReader<DataModel, DecodedDocs>
+  private reader: ZodvexDatabaseReader<DataModel, DecodedDocs>
   system: GenericDatabaseWriter<DataModel>['system']
 
   constructor(
@@ -295,7 +295,7 @@ export class CodecDatabaseWriter<
     private tableMap: ZodTableMap
   ) {
     // DecodedDocs is phantom — the cast propagates the type through delegation.
-    this.reader = new CodecDatabaseReader(db, tableMap) as CodecDatabaseReader<
+    this.reader = new ZodvexDatabaseReader(db, tableMap) as ZodvexDatabaseReader<
       DataModel,
       DecodedDocs
     >
@@ -317,7 +317,7 @@ export class CodecDatabaseWriter<
 
   query<TableName extends TableNamesInDataModel<DataModel>>(
     tableName: TableName
-  ): CodecQueryChain<
+  ): ZodvexQueryChain<
     NamedTableInfo<DataModel, TableName>,
     ResolveDecodedDoc<DataModel, DecodedDocs, TableName>
   > {
@@ -393,37 +393,37 @@ export class CodecDatabaseWriter<
   }
 
   /**
-   * Returns a new CodecDatabaseWriter that applies per-table read and write rules.
-   * The returned writer is also a CodecDatabaseWriter, so `.withRules()` can be chained.
+   * Returns a new ZodvexDatabaseWriter that applies per-table read and write rules.
+   * The returned writer is also a ZodvexDatabaseWriter, so `.withRules()` can be chained.
    *
    * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
-   * rules.ts extends CodecDatabaseWriter (from db.ts), so the import must be lazy.
+   * rules.ts extends ZodvexDatabaseWriter (from db.ts), so the import must be lazy.
    */
   withRules<Ctx>(
     ctx: Ctx,
     rules: Record<string, any>,
-    config?: CodecRulesConfig
-  ): CodecDatabaseWriter<DataModel, DecodedDocs> {
-    // Deferred import breaks the circular dependency (rules.ts extends CodecDatabaseWriter from db.ts)
-    const { createRulesCodecDatabaseWriter } = require('./rules')
-    return createRulesCodecDatabaseWriter(this, ctx, rules, config)
+    config?: ZodvexRulesConfig
+  ): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+    // Deferred import breaks the circular dependency (rules.ts extends ZodvexDatabaseWriter from db.ts)
+    const { createRulesDatabaseWriter } = require('./rules')
+    return createRulesDatabaseWriter(this, ctx, rules, config)
   }
 
   /**
-   * Returns a new CodecDatabaseWriter that fires audit callbacks on reads and writes.
-   * The returned writer is also a CodecDatabaseWriter, so `.audit()` can be chained
+   * Returns a new ZodvexDatabaseWriter that fires audit callbacks on reads and writes.
+   * The returned writer is also a ZodvexDatabaseWriter, so `.audit()` can be chained
    * with `.withRules()`.
    *
    * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
    */
-  audit(config: WriterAuditConfig): CodecDatabaseWriter<DataModel, DecodedDocs> {
-    const { createAuditCodecDatabaseWriter } = require('./rules')
-    return createAuditCodecDatabaseWriter(this, config)
+  audit(config: WriterAuditConfig): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+    const { createAuditDatabaseWriter } = require('./rules')
+    return createAuditDatabaseWriter(this, config)
   }
 }
 
 /**
- * Creates a CodecDatabaseReader from a Convex DatabaseReader and a schema
+ * Creates a ZodvexDatabaseReader from a Convex DatabaseReader and a schema
  * with __zodTableMap (as returned by defineZodSchema).
  *
  * When the schema carries __decodedDocs (from defineZodSchema), DD is inferred
@@ -435,12 +435,12 @@ export function createZodDbReader<
 >(
   db: GenericDatabaseReader<DataModel>,
   schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD }
-): CodecDatabaseReader<DataModel, DD> {
-  return new CodecDatabaseReader(db, schema.__zodTableMap) as CodecDatabaseReader<DataModel, DD>
+): ZodvexDatabaseReader<DataModel, DD> {
+  return new ZodvexDatabaseReader(db, schema.__zodTableMap) as ZodvexDatabaseReader<DataModel, DD>
 }
 
 /**
- * Creates a CodecDatabaseWriter from a Convex DatabaseWriter and a schema
+ * Creates a ZodvexDatabaseWriter from a Convex DatabaseWriter and a schema
  * with __zodTableMap (as returned by defineZodSchema).
  *
  * When the schema carries __decodedDocs (from defineZodSchema), DD is inferred
@@ -452,6 +452,6 @@ export function createZodDbWriter<
 >(
   db: GenericDatabaseWriter<DataModel>,
   schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD }
-): CodecDatabaseWriter<DataModel, DD> {
-  return new CodecDatabaseWriter(db, schema.__zodTableMap) as CodecDatabaseWriter<DataModel, DD>
+): ZodvexDatabaseWriter<DataModel, DD> {
+  return new ZodvexDatabaseWriter(db, schema.__zodTableMap) as ZodvexDatabaseWriter<DataModel, DD>
 }

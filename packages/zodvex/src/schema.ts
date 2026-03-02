@@ -20,7 +20,7 @@ export type ZodTableSchemas = {
 
 /**
  * Maps table names to their full schema set.
- * Used by CodecDatabaseReader/Writer to look up decode/encode schemas.
+ * Used by ZodvexDatabaseReader/Writer to look up decode/encode schemas.
  */
 export type ZodTableMap = Record<string, ZodTableSchemas>
 

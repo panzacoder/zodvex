@@ -18,9 +18,9 @@ describe('zodvex/core exports', () => {
     expect(zodToConvexFields).toBeDefined()
   })
 
-  it('exports createCodecHelpers', async () => {
-    const { createCodecHelpers } = await import('../src/core')
-    expect(createCodecHelpers).toBeDefined()
+  it('exports createBoundaryHelpers', async () => {
+    const { createBoundaryHelpers } = await import('../src/core')
+    expect(createBoundaryHelpers).toBeDefined()
   })
 
   it('exports codec utilities', async () => {
@@ -113,22 +113,22 @@ describe('zodvex/server exports', () => {
     expect(initZodvex).toBeDefined()
   })
 
-  it('exports createCodecCustomization', async () => {
-    const { createCodecCustomization } = await import('../src/server')
-    expect(createCodecCustomization).toBeDefined()
+  it('exports createZodvexCustomization', async () => {
+    const { createZodvexCustomization } = await import('../src/server')
+    expect(createZodvexCustomization).toBeDefined()
   })
 
   it('exports DB wrapper classes and factories', async () => {
     const {
-      CodecDatabaseReader,
-      CodecDatabaseWriter,
-      CodecQueryChain,
+      ZodvexDatabaseReader,
+      ZodvexDatabaseWriter,
+      ZodvexQueryChain,
       createZodDbReader,
       createZodDbWriter
     } = await import('../src/server')
-    expect(CodecDatabaseReader).toBeDefined()
-    expect(CodecDatabaseWriter).toBeDefined()
-    expect(CodecQueryChain).toBeDefined()
+    expect(ZodvexDatabaseReader).toBeDefined()
+    expect(ZodvexDatabaseWriter).toBeDefined()
+    expect(ZodvexQueryChain).toBeDefined()
     expect(createZodDbReader).toBeDefined()
     expect(createZodDbWriter).toBeDefined()
   })
@@ -159,6 +159,6 @@ describe('zodvex (root) exports', () => {
     expect(zodvex.createZodDbReader).toBeDefined()
     expect(zodvex.createZodDbWriter).toBeDefined()
     expect(zodvex.initZodvex).toBeDefined()
-    expect(zodvex.createCodecCustomization).toBeDefined()
+    expect(zodvex.createZodvexCustomization).toBeDefined()
   })
 })

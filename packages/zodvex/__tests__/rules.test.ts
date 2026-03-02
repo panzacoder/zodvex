@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
-import { CodecDatabaseReader, CodecDatabaseWriter } from '../src/db'
+import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/db'
 import type {
-  CodecRules,
-  CodecRulesConfig,
   ReaderAuditConfig,
   TableRules,
   WriteEvent,
-  WriterAuditConfig
+  WriterAuditConfig,
+  ZodvexRules,
+  ZodvexRulesConfig
 } from '../src/rules'
-import { RulesCodecQueryChain } from '../src/rules'
+import { RulesQueryChain } from '../src/rules'
 import type { ZodTableSchemas } from '../src/schema'
 import { zx } from '../src/zx'
 
@@ -17,7 +17,7 @@ describe('rules types', () => {
   it('exports all public types', () => {
     // Type-level assertions — if this compiles, the types are correctly exported.
     // Runtime assertion just confirms the test ran.
-    const config: CodecRulesConfig = { defaultPolicy: 'allow', allowCounting: false }
+    const config: ZodvexRulesConfig = { defaultPolicy: 'allow', allowCounting: false }
     expect(config.defaultPolicy).toBe('allow')
   })
 
@@ -35,7 +35,7 @@ const docSchema = z.object({
   role: z.string()
 })
 
-// Helper: creates a raw mock query (RulesCodecQueryChain extends CodecQueryChain directly)
+// Helper: creates a raw mock query (RulesQueryChain extends ZodvexQueryChain directly)
 function createMockQuery(docs: any[]) {
   const mockQuery: any = {
     fullTableScan: () => mockQuery,
@@ -71,48 +71,48 @@ const wireDocs = [
   { _id: 'u:3', _creationTime: 300, name: 'Charlie', createdAt: 1700200000000, role: 'user' }
 ]
 
-describe('RulesCodecQueryChain', () => {
+describe('RulesQueryChain', () => {
   const allowAll = async (_ctx: any, doc: any) => doc
   const denyAll = async (_ctx: any, _doc: any) => null
   const adminsOnly = async (_ctx: any, doc: any) => (doc.role === 'admin' ? doc : null)
 
   it('collect() returns all docs when rule allows all', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {})
     const results = await chain.collect()
     expect(results).toHaveLength(3)
     expect(results[0].createdAt).toBeInstanceOf(Date)
   })
 
   it('collect() filters docs through read rule', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
     const results = await chain.collect()
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('Alice')
   })
 
   it('collect() returns empty array when rule denies all', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, denyAll, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, denyAll, {})
     const results = await chain.collect()
     expect(results).toHaveLength(0)
   })
 
   it('first() returns first allowed doc, skipping denied', async () => {
     const usersOnly = async (_ctx: any, doc: any) => (doc.role === 'user' ? doc : null)
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, usersOnly, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, usersOnly, {})
     const result = await chain.first()
     expect(result).not.toBeNull()
     expect(result?.name).toBe('Bob')
   })
 
   it('first() returns null when no docs pass the rule', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, denyAll, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, denyAll, {})
     const result = await chain.first()
     expect(result).toBeNull()
   })
 
   it('take(n) collects n allowed docs, skipping denied', async () => {
     const usersOnly = async (_ctx: any, doc: any) => (doc.role === 'user' ? doc : null)
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, usersOnly, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, usersOnly, {})
     const results = await chain.take(1)
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('Bob')
@@ -120,7 +120,7 @@ describe('RulesCodecQueryChain', () => {
 
   it('unique() applies rule and returns doc if allowed', async () => {
     const singleDoc = [wireDocs[0]]
-    const chain = new RulesCodecQueryChain(createMockQuery(singleDoc), docSchema, allowAll, {})
+    const chain = new RulesQueryChain(createMockQuery(singleDoc), docSchema, allowAll, {})
     const result = await chain.unique()
     expect(result).not.toBeNull()
     expect(result?.name).toBe('Alice')
@@ -128,13 +128,13 @@ describe('RulesCodecQueryChain', () => {
 
   it('unique() returns null when rule denies', async () => {
     const singleDoc = [wireDocs[0]]
-    const chain = new RulesCodecQueryChain(createMockQuery(singleDoc), docSchema, denyAll, {})
+    const chain = new RulesQueryChain(createMockQuery(singleDoc), docSchema, denyAll, {})
     const result = await chain.unique()
     expect(result).toBeNull()
   })
 
   it('paginate() post-filters the page (page may shrink)', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
     const result = await chain.paginate({ numItems: 10, cursor: null })
     expect(result.page).toHaveLength(1)
     expect(result.page[0].name).toBe('Alice')
@@ -142,14 +142,14 @@ describe('RulesCodecQueryChain', () => {
   })
 
   it('count() throws when allowCounting is false', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {
       allowCounting: false
     })
     await expect(chain.count()).rejects.toThrow('count is not allowed with rules')
   })
 
   it('count() delegates when allowCounting is true', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {
       allowCounting: true
     })
     const count = await chain.count()
@@ -158,14 +158,14 @@ describe('RulesCodecQueryChain', () => {
 
   it('read rule can transform documents', async () => {
     const transform = async (_ctx: any, doc: any) => ({ ...doc, name: doc.name.toUpperCase() })
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, transform, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, transform, {})
     const results = await chain.collect()
     expect(results[0].name).toBe('ALICE')
   })
 
   it('read rule boolean shorthand: true passes doc through unchanged', async () => {
     const allowBoolean = async (_ctx: any, _doc: any) => true
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, allowBoolean, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, allowBoolean, {})
     const results = await chain.collect()
     expect(results).toHaveLength(3)
     expect(results[0].createdAt).toBeInstanceOf(Date)
@@ -173,13 +173,13 @@ describe('RulesCodecQueryChain', () => {
 
   it('read rule boolean shorthand: false denies', async () => {
     const denyBoolean = async (_ctx: any, _doc: any) => false
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, denyBoolean, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, denyBoolean, {})
     const results = await chain.collect()
     expect(results).toHaveLength(0)
   })
 
   it('async iteration filters through rule', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
     const results: any[] = []
     for await (const doc of chain) {
       results.push(doc)
@@ -189,7 +189,7 @@ describe('RulesCodecQueryChain', () => {
   })
 
   it('intermediate methods delegate and re-wrap', async () => {
-    const chain = new RulesCodecQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
+    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
     const results = await chain
       .order('asc')
       .filter(() => true)
@@ -199,7 +199,7 @@ describe('RulesCodecQueryChain', () => {
 })
 
 // ============================================================================
-// CodecDatabaseReader.withRules() tests
+// ZodvexDatabaseReader.withRules() tests
 // ============================================================================
 
 const userDocSchema = z.object({
@@ -262,9 +262,9 @@ const tableData = {
   ]
 }
 
-describe('CodecDatabaseReader.withRules()', () => {
+describe('ZodvexDatabaseReader.withRules()', () => {
   it('get() applies read rule and returns allowed doc', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -278,7 +278,7 @@ describe('CodecDatabaseReader.withRules()', () => {
   })
 
   it('get() returns null when read rule denies', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -291,7 +291,7 @@ describe('CodecDatabaseReader.withRules()', () => {
 
   it('get() passes context to read rule', async () => {
     const ctx = { clinicId: 'c1' }
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules(ctx, {
       users: {
         read: async (ctx: any, doc: any) => {
@@ -304,7 +304,7 @@ describe('CodecDatabaseReader.withRules()', () => {
   })
 
   it('query().collect() filters through read rule', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -317,7 +317,7 @@ describe('CodecDatabaseReader.withRules()', () => {
   })
 
   it('read rule can transform documents', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -329,7 +329,7 @@ describe('CodecDatabaseReader.withRules()', () => {
   })
 
   it('read rule boolean shorthand: true passes doc through', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -342,7 +342,7 @@ describe('CodecDatabaseReader.withRules()', () => {
   })
 
   it('read rule boolean shorthand: false denies', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -354,7 +354,7 @@ describe('CodecDatabaseReader.withRules()', () => {
   })
 
   it('tables without rules pass through unchanged', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules({}, {})
     const user = await secureDb.get('users:1' as any)
     expect(user).not.toBeNull()
@@ -362,14 +362,14 @@ describe('CodecDatabaseReader.withRules()', () => {
   })
 
   it('normalizeId and system pass through', () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules({}, {})
     expect(secureDb.normalizeId('users' as any, 'users:1')).toBe('users:1')
     expect(secureDb.system).toBeDefined()
   })
 
   it('chaining withRules() layers rules', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db
       .withRules(
         {},
@@ -390,7 +390,7 @@ describe('CodecDatabaseReader.withRules()', () => {
 })
 
 // ============================================================================
-// CodecDatabaseWriter.withRules() tests
+// ZodvexDatabaseWriter.withRules() tests
 // ============================================================================
 
 function createMockDbWriter(tables: Record<string, any[]>) {
@@ -415,10 +415,10 @@ function createMockDbWriter(tables: Record<string, any[]>) {
   return { db: mockDb, calls }
 }
 
-describe('CodecDatabaseWriter.withRules()', () => {
+describe('ZodvexDatabaseWriter.withRules()', () => {
   it('insert() calls insert rule and uses transformed value', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -442,7 +442,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('insert() throws when insert rule throws', async () => {
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -467,7 +467,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('patch() calls patch rule with current doc and patch value', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     let receivedDoc: any
     let receivedValue: any
     const secureDb = db.withRules(
@@ -492,7 +492,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('patch() throws when doc not found (no read access)', async () => {
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -506,7 +506,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('patch() throws when patch rule throws', async () => {
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -525,7 +525,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('delete() calls delete rule with current doc', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     let receivedDoc: any
     const secureDb = db.withRules(
       {},
@@ -545,7 +545,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('delete() throws when delete rule throws', async () => {
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -562,7 +562,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('replace() calls replace rule with current doc and replacement', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -585,7 +585,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('defaultPolicy deny blocks operations without rules', async () => {
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -607,7 +607,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('defaultPolicy allow passes operations without rules', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -628,7 +628,7 @@ describe('CodecDatabaseWriter.withRules()', () => {
 
   it('read methods delegate through rules', async () => {
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -642,13 +642,13 @@ describe('CodecDatabaseWriter.withRules()', () => {
 })
 
 // ============================================================================
-// CodecDatabaseReader.audit() tests
+// ZodvexDatabaseReader.audit() tests
 // ============================================================================
 
-describe('CodecDatabaseReader.audit()', () => {
+describe('ZodvexDatabaseReader.audit()', () => {
   it('afterRead fires for each doc returned by get()', async () => {
     const auditLog: any[] = []
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const auditedDb = db.audit({
       afterRead: (table: string, doc: any) => {
         auditLog.push({ table, doc })
@@ -662,7 +662,7 @@ describe('CodecDatabaseReader.audit()', () => {
 
   it('afterRead does not fire when get() returns null', async () => {
     const auditLog: any[] = []
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const auditedDb = db.audit({
       afterRead: (table: string, doc: any) => {
         auditLog.push({ table, doc })
@@ -674,7 +674,7 @@ describe('CodecDatabaseReader.audit()', () => {
 
   it('afterRead fires for each doc from query().collect()', async () => {
     const auditLog: any[] = []
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const auditedDb = db.audit({
       afterRead: (table: string, doc: any) => {
         auditLog.push({ table, doc })
@@ -686,7 +686,7 @@ describe('CodecDatabaseReader.audit()', () => {
 
   it('composes with withRules() — audit sees rules-processed docs', async () => {
     const auditLog: any[] = []
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db
       .withRules(
         {},
@@ -707,14 +707,14 @@ describe('CodecDatabaseReader.audit()', () => {
 })
 
 // ============================================================================
-// CodecDatabaseWriter.audit() tests
+// ZodvexDatabaseWriter.audit() tests
 // ============================================================================
 
-describe('CodecDatabaseWriter.audit()', () => {
+describe('ZodvexDatabaseWriter.audit()', () => {
   it('afterWrite fires after successful insert', async () => {
     const auditLog: any[] = []
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const auditedDb = db.audit({
       afterWrite: (table: string, event: any) => {
         auditLog.push({ table, event })
@@ -737,7 +737,7 @@ describe('CodecDatabaseWriter.audit()', () => {
   it('afterWrite fires after successful patch', async () => {
     const auditLog: any[] = []
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const auditedDb = db.audit({
       afterWrite: (table: string, event: any) => {
         auditLog.push({ table, event })
@@ -751,7 +751,7 @@ describe('CodecDatabaseWriter.audit()', () => {
   it('afterWrite fires after successful delete', async () => {
     const auditLog: any[] = []
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const auditedDb = db.audit({
       afterWrite: (table: string, event: any) => {
         auditLog.push({ table, event })
@@ -765,7 +765,7 @@ describe('CodecDatabaseWriter.audit()', () => {
   it('afterRead fires on writer read methods', async () => {
     const auditLog: any[] = []
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const auditedDb = db.audit({
       afterRead: (table: string, doc: any) => {
         auditLog.push({ table, doc })
@@ -778,7 +778,7 @@ describe('CodecDatabaseWriter.audit()', () => {
   it('composes with withRules() — audit fires after rules-mediated write', async () => {
     const auditLog: any[] = []
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const secureDb = db
       .withRules(
         {},
@@ -813,7 +813,7 @@ describe('CodecDatabaseWriter.audit()', () => {
   it('afterWrite fires after successful replace', async () => {
     const auditLog: any[] = []
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const auditedDb = db.audit({
       afterWrite: (table: string, event: any) => {
         auditLog.push({ table, event })
@@ -843,7 +843,7 @@ describe('edge cases', () => {
       ...tableData,
       logs: [{ _id: 'logs:1', _creationTime: 100, message: 'hello' }]
     }
-    const db = new CodecDatabaseReader(createMockDbReader(extendedData), { ...tableMap })
+    const db = new ZodvexDatabaseReader(createMockDbReader(extendedData), { ...tableMap })
     const secureDb = db.withRules(
       {},
       {
@@ -860,7 +860,7 @@ describe('edge cases', () => {
   })
 
   it('defaultPolicy deny blocks listed table with no read rule', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const secureDb = db.withRules(
       {},
       {
@@ -877,7 +877,7 @@ describe('edge cases', () => {
       ...tableData,
       logs: [{ _id: 'logs:1', _creationTime: 100, message: 'hello' }]
     }
-    const db = new CodecDatabaseReader(createMockDbReader(extendedData), { ...tableMap })
+    const db = new ZodvexDatabaseReader(createMockDbReader(extendedData), { ...tableMap })
     const secureDb = db.withRules(
       {},
       {
@@ -894,7 +894,7 @@ describe('edge cases', () => {
 
   it('patch rule receives decoded doc (not wire)', async () => {
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     let docCreatedAt: any
     const secureDb = db.withRules(
       {},
@@ -915,7 +915,7 @@ describe('edge cases', () => {
   it('audit afterWrite receives pre-encode value', async () => {
     const auditLog: any[] = []
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
     const auditedDb = db.audit({
       afterWrite: (_table: string, event: any) => {
         auditLog.push(event)
@@ -935,7 +935,7 @@ describe('edge cases', () => {
 
   it('afterRead fires per-doc via async iterator', async () => {
     const auditLog: any[] = []
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const auditedDb = db.audit({
       afterRead: (table: string, doc: any) => {
         auditLog.push({ table, doc })
@@ -952,7 +952,7 @@ describe('edge cases', () => {
   it('afterRead does not fire when first() returns null on empty set', async () => {
     const auditLog: any[] = []
     const emptyData = { users: [] }
-    const db = new CodecDatabaseReader(createMockDbReader(emptyData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(emptyData), tableMap)
     const auditedDb = db.audit({
       afterRead: (table: string, doc: any) => {
         auditLog.push({ table, doc })

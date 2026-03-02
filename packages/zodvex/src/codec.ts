@@ -6,6 +6,7 @@ import { assertNoNativeZodDate, stripUndefined } from './utils'
 // Re-export ZodvexCodec type for convenience
 export { type ZodvexCodec } from './types'
 
+/** @deprecated Use `initZodvex` or `decodeDoc`/`encodeDoc` instead. Will be removed in a future release. */
 export type ConvexCodec<T> = {
   validator: any
   encode: (value: T) => any
@@ -13,6 +14,7 @@ export type ConvexCodec<T> = {
   pick: <K extends keyof T>(keys: K[]) => ConvexCodec<Pick<T, K>>
 }
 
+/** @deprecated Use `initZodvex` or `decodeDoc`/`encodeDoc` instead. Will be removed in a future release. */
 export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
   // Fail fast if z.date() is used - it won't encode correctly
   // Use zx.date() instead for Date ↔ timestamp conversion

@@ -7,7 +7,7 @@ mock.module('convex/server', () => ({
   getFunctionName: (ref: any) => ref._testPath
 }))
 
-const { createCodecHelpers, ZodvexDecodeError } = await import('../src/codecHelpers')
+const { createBoundaryHelpers, ZodvexDecodeError } = await import('../src/boundaryHelpers')
 
 function fakeRef(path: string) {
   return { _testPath: path } as any
@@ -40,7 +40,7 @@ describe('ZodvexDecodeError', () => {
 
 describe('decodeResult', () => {
   it('default (warn): logs warning and returns raw wire data on decode failure', () => {
-    const codec = createCodecHelpers(registry)
+    const codec = createBoundaryHelpers(registry)
     // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
     const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
 
@@ -56,7 +56,7 @@ describe('decodeResult', () => {
   })
 
   it('throw mode: throws ZodvexDecodeError on decode failure', () => {
-    const codec = createCodecHelpers(registry, { onDecodeError: 'throw' })
+    const codec = createBoundaryHelpers(registry, { onDecodeError: 'throw' })
     const wire = { _id: 'x', title: 123, createdAt: 1700000000000 }
 
     try {
@@ -71,7 +71,7 @@ describe('decodeResult', () => {
   })
 
   it('successful decode still works normally', () => {
-    const codec = createCodecHelpers(registry)
+    const codec = createBoundaryHelpers(registry)
     const wire = { _id: 'x', title: 'Hello', createdAt: 1700000000000 }
     const result = codec.decodeResult(fakeRef('tasks:get'), wire)
 
@@ -80,7 +80,7 @@ describe('decodeResult', () => {
   })
 
   it('passthrough when function not in registry (unchanged)', () => {
-    const codec = createCodecHelpers(registry)
+    const codec = createBoundaryHelpers(registry)
     const wire = { anything: 'goes' }
     const result = codec.decodeResult(fakeRef('unknown:fn'), wire)
     expect(result).toBe(wire)

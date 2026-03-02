@@ -19,8 +19,8 @@ export * from '../builders'
 // Custom function utilities (zCustomQuery, zCustomMutation, zCustomAction, etc.)
 export * from '../custom'
 // Codec customization (manual composition escape hatch)
-export { createCodecCustomization } from '../customization'
-// Database wrappers (CodecDatabaseReader, CodecDatabaseWriter, etc.)
+export { createZodvexCustomization } from '../customization'
+// Database wrappers (ZodvexDatabaseReader, ZodvexDatabaseWriter, etc.)
 export * from '../db'
 // One-time setup + types
 export {
@@ -32,8 +32,6 @@ export {
 } from '../init'
 // Rule and audit types for .withRules() and .audit()
 export type {
-  CodecRules,
-  CodecRulesConfig,
   DeleteRule,
   InsertRule,
   PatchRule,
@@ -42,7 +40,9 @@ export type {
   ReplaceRule,
   TableRules,
   WriteEvent,
-  WriterAuditConfig
+  WriterAuditConfig,
+  ZodvexRules,
+  ZodvexRulesConfig
 } from '../rules'
 // Schema definition (defineZodSchema)
 export * from '../schema'

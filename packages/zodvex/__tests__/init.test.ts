@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test'
 import { z } from 'zod'
 import { zCustomQuery } from '../src/custom'
-import { composeCodecAndUser, createZodvexBuilder, initZodvex } from '../src/init'
+import { composeCustomizations, createZodvexBuilder, initZodvex } from '../src/init'
 import { zx } from '../src/zx'
 import {
   createMockDbReader,
@@ -17,7 +17,7 @@ mock.module('convex/server', () => ({
   getFunctionName: (ref: any) => ref._testPath
 }))
 
-describe('composeCodecAndUser', () => {
+describe('composeCustomizations', () => {
   // Minimal codec customization mock — wraps ctx.db
   const mockCodecCust = {
     args: {} as Record<string, never>,
@@ -37,7 +37,7 @@ describe('composeCodecAndUser', () => {
       }
     }
 
-    const composed = composeCodecAndUser(mockCodecCust, userCust)
+    const composed = composeCustomizations(mockCodecCust, userCust)
     await composed.input({ db: { original: true } }, {})
 
     // User should see the codec-wrapped db, not the original
@@ -54,7 +54,7 @@ describe('composeCodecAndUser', () => {
       })
     }
 
-    const composed = composeCodecAndUser(mockCodecCust, userCust)
+    const composed = composeCustomizations(mockCodecCust, userCust)
     const result = await composed.input({ db: { original: true } }, {})
 
     expect(result.ctx.db.wrapped).toBe(true)
@@ -70,14 +70,14 @@ describe('composeCodecAndUser', () => {
       })
     }
 
-    const composed = composeCodecAndUser(mockCodecCust, userCust)
+    const composed = composeCustomizations(mockCodecCust, userCust)
     expect(composed.args).toEqual({ sessionId: { type: 'id' } })
   })
 
   it('works when user customization has no input', async () => {
     const userCust = { args: {} }
 
-    const composed = composeCodecAndUser(mockCodecCust, userCust)
+    const composed = composeCustomizations(mockCodecCust, userCust)
     const result = await composed.input({ db: { original: true } }, {})
 
     // Should still get codec ctx
@@ -97,7 +97,7 @@ describe('composeCodecAndUser', () => {
       })
     }
 
-    const composed = composeCodecAndUser(mockCodecCust, userCust)
+    const composed = composeCustomizations(mockCodecCust, userCust)
     const result = await composed.input({}, {})
 
     expect(result.onSuccess).toBe(onSuccessFn)

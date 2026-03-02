@@ -8,10 +8,14 @@
  * - Any code that runs in the browser
  */
 
+// Codec helpers (shared encode/decode for client wrappers)
+export {
+  type BoundaryHelpersOptions,
+  createBoundaryHelpers,
+  ZodvexDecodeError
+} from '../boundaryHelpers'
 // Codec utilities
 export * from '../codec'
-// Codec helpers (shared encode/decode for client wrappers)
-export { type CodecHelpersOptions, createCodecHelpers, ZodvexDecodeError } from '../codecHelpers'
 // Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
 export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
 // ID utilities

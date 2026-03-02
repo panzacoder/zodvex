@@ -1,4 +1,4 @@
-import { CodecDatabaseReader, CodecDatabaseWriter } from './db'
+import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from './db'
 import type { ZodTableMap } from './schema'
 
 /**
@@ -8,7 +8,7 @@ import type { ZodTableMap } from './schema'
  *
  * @example
  * ```typescript
- * const codec = createCodecCustomization(schema.__zodTableMap)
+ * const codec = createZodvexCustomization(schema.__zodTableMap)
  * const authQuery = zCustomQuery(query, {
  *   args: {},
  *   input: async (ctx) => {
@@ -19,19 +19,19 @@ import type { ZodTableMap } from './schema'
  * })
  * ```
  */
-export function createCodecCustomization(tableMap: ZodTableMap) {
+export function createZodvexCustomization(tableMap: ZodTableMap) {
   return {
     query: {
       args: {} as Record<string, never>,
       input: async (ctx: any, _args: any, _extra?: any) => ({
-        ctx: { db: new CodecDatabaseReader(ctx.db, tableMap) },
+        ctx: { db: new ZodvexDatabaseReader(ctx.db, tableMap) },
         args: {}
       })
     },
     mutation: {
       args: {} as Record<string, never>,
       input: async (ctx: any, _args: any, _extra?: any) => ({
-        ctx: { db: new CodecDatabaseWriter(ctx.db, tableMap) },
+        ctx: { db: new ZodvexDatabaseWriter(ctx.db, tableMap) },
         args: {}
       })
     }

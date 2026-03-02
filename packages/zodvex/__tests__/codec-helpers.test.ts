@@ -11,7 +11,7 @@ mock.module('convex/server', () => ({
 }))
 
 // Import AFTER mocks are set up (bun:test hoists mock.module)
-const { createCodecHelpers } = await import('../src/codecHelpers')
+const { createBoundaryHelpers } = await import('../src/boundaryHelpers')
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,8 +54,8 @@ const registry = {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('createCodecHelpers', () => {
-  const { encodeArgs, decodeResult } = createCodecHelpers(registry as any)
+describe('createBoundaryHelpers', () => {
+  const { encodeArgs, decodeResult } = createBoundaryHelpers(registry as any)
 
   // ---- encodeArgs ----------------------------------------------------------
 
@@ -77,7 +77,7 @@ describe('createCodecHelpers', () => {
       const optionalRegistry = {
         'notes:create': { args: optionalArgsSchema }
       }
-      const helpers = createCodecHelpers(optionalRegistry)
+      const helpers = createBoundaryHelpers(optionalRegistry)
 
       // Pass data without the optional field — z.encode may produce explicit undefined
       const encoded = helpers.encodeArgs(fakeRef('notes:create'), { title: 'Hello' })

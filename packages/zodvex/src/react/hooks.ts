@@ -2,8 +2,8 @@ import type { OptionalRestArgsOrSkip } from 'convex/react'
 import { useMutation, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import { getFunctionName } from 'convex/server'
-import type { CodecHelpersOptions } from '../codecHelpers'
-import { createCodecHelpers } from '../codecHelpers'
+import type { BoundaryHelpersOptions } from '../boundaryHelpers'
+import { createBoundaryHelpers } from '../boundaryHelpers'
 import type { AnyRegistry } from '../types'
 
 /**
@@ -30,9 +30,9 @@ import type { AnyRegistry } from '../types'
  */
 export function createZodvexHooks<R extends AnyRegistry>(
   registry: R,
-  options?: CodecHelpersOptions
+  options?: BoundaryHelpersOptions
 ) {
-  const codec = createCodecHelpers(registry, options)
+  const codec = createBoundaryHelpers(registry, options)
 
   /**
    * Drop-in replacement for Convex's `useQuery` with automatic codec decode.

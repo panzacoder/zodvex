@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { createCodecCustomization } from '../src/customization'
+import { createZodvexCustomization } from '../src/customization'
 import {
   createMockDbReader,
   createMockDbWriter,
@@ -7,9 +7,9 @@ import {
   userTableMap
 } from './fixtures/mock-db'
 
-describe('createCodecCustomization', () => {
+describe('createZodvexCustomization', () => {
   it('returns query and mutation customization objects', () => {
-    const codec = createCodecCustomization(userTableMap)
+    const codec = createZodvexCustomization(userTableMap)
     expect(codec.query).toBeDefined()
     expect(codec.query.args).toEqual({})
     expect(codec.query.input).toBeTypeOf('function')
@@ -18,8 +18,8 @@ describe('createCodecCustomization', () => {
     expect(codec.mutation.input).toBeTypeOf('function')
   })
 
-  it('query customization wraps ctx.db with CodecDatabaseReader', async () => {
-    const codec = createCodecCustomization(userTableMap)
+  it('query customization wraps ctx.db with ZodvexDatabaseReader', async () => {
+    const codec = createZodvexCustomization(userTableMap)
     const mockCtx = { db: createMockDbReader(userTableData) }
 
     const result = await codec.query.input(mockCtx, {})
@@ -30,7 +30,7 @@ describe('createCodecCustomization', () => {
   })
 
   it('query customization wraps ctx.db.query() with decoding', async () => {
-    const codec = createCodecCustomization(userTableMap)
+    const codec = createZodvexCustomization(userTableMap)
     const mockCtx = { db: createMockDbReader(userTableData) }
 
     const result = await codec.query.input(mockCtx, {})
@@ -40,8 +40,8 @@ describe('createCodecCustomization', () => {
     expect(users[0].createdAt).toBeInstanceOf(Date)
   })
 
-  it('mutation customization wraps ctx.db with CodecDatabaseWriter', async () => {
-    const codec = createCodecCustomization(userTableMap)
+  it('mutation customization wraps ctx.db with ZodvexDatabaseWriter', async () => {
+    const codec = createZodvexCustomization(userTableMap)
     const { db, calls } = createMockDbWriter(userTableData)
     const mockCtx = { db }
 

@@ -232,7 +232,7 @@ describe('generateClientFile', () => {
     expect(content).toContain(
       "import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'"
     )
-    expect(content).toContain("import { createCodecHelpers } from 'zodvex/core'")
+    expect(content).toContain("import { createBoundaryHelpers } from 'zodvex/core'")
     expect(content).toContain("import { zodvexRegistry } from './api'")
     expect(content).toContain('useZodQuery')
     expect(content).toContain('useZodMutation')

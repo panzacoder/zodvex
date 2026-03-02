@@ -6,7 +6,7 @@ import type {
   TableNamesInDataModel
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import { CodecDatabaseReader, CodecDatabaseWriter, CodecQueryChain } from './db'
+import { ZodvexDatabaseReader, ZodvexDatabaseWriter, ZodvexQueryChain } from './db'
 
 /**
  * Per-document rule function. Gates and optionally transforms documents.
@@ -57,7 +57,7 @@ export type TableRules<Ctx, Doc> = {
  * With defaultPolicy: 'deny', ALL tables are denied by default (including unmentioned ones).
  * With defaultPolicy: 'allow' (default), unmentioned tables pass through.
  */
-export type CodecRules<
+export type ZodvexRules<
   Ctx,
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
@@ -81,7 +81,7 @@ export type ResolveDecodedDocForRules<
 /**
  * Configuration for .withRules().
  */
-export type CodecRulesConfig = {
+export type ZodvexRulesConfig = {
   /** Default policy for all operations. 'deny' applies to ALL tables including unmentioned ones. Default: 'allow'. */
   defaultPolicy?: 'allow' | 'deny'
   /** Allow count() when rules are present. Default: false. */
@@ -134,23 +134,23 @@ export function normalizeReadResult<Doc>(
 }
 
 /**
- * Extends CodecQueryChain, applying a read rule at every terminal method.
+ * Extends ZodvexQueryChain, applying a read rule at every terminal method.
  * Intermediate methods are inherited from the base class via createChain().
  * Only terminals and createChain() are overridden.
  */
-export class RulesCodecQueryChain<TableInfo extends GenericTableInfo, Doc> extends CodecQueryChain<
+export class RulesQueryChain<TableInfo extends GenericTableInfo, Doc> extends ZodvexQueryChain<
   TableInfo,
   Doc
 > {
   private readRule: ReadRule<any, Doc>
-  private rulesConfig: CodecRulesConfig
+  private rulesConfig: ZodvexRulesConfig
   private ctx: any
 
   constructor(
     inner: any,
     schema: any,
     readRule: ReadRule<any, Doc>,
-    config: CodecRulesConfig,
+    config: ZodvexRulesConfig,
     ctx: any = {}
   ) {
     super(inner, schema)
@@ -159,8 +159,8 @@ export class RulesCodecQueryChain<TableInfo extends GenericTableInfo, Doc> exten
     this.ctx = ctx
   }
 
-  protected createChain(inner: any): RulesCodecQueryChain<TableInfo, Doc> {
-    return new RulesCodecQueryChain(inner, this.schema, this.readRule, this.rulesConfig, this.ctx)
+  protected createChain(inner: any): RulesQueryChain<TableInfo, Doc> {
+    return new RulesQueryChain(inner, this.schema, this.readRule, this.rulesConfig, this.ctx)
   }
 
   // --- Terminal overrides: apply read rule ---
@@ -224,23 +224,23 @@ export class RulesCodecQueryChain<TableInfo extends GenericTableInfo, Doc> exten
 }
 
 /**
- * Wraps a CodecDatabaseReader with per-table read rules.
- * Extends CodecDatabaseReader so it can be used anywhere a reader is expected,
+ * Wraps a ZodvexDatabaseReader with per-table read rules.
+ * Extends ZodvexDatabaseReader so it can be used anywhere a reader is expected,
  * including chained `.withRules()` calls.
  *
  * - `get()` delegates to the inner reader (which decodes), then applies the read rule.
- * - `query()` builds a RulesCodecQueryChain from the raw Convex query + doc schema,
+ * - `query()` builds a RulesQueryChain from the raw Convex query + doc schema,
  *   so decoding and rule-checking happen together in the chain's terminal methods.
  */
-class RulesCodecDatabaseReader<
+class RulesDatabaseReader<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
-> extends CodecDatabaseReader<DataModel, DecodedDocs> {
+> extends ZodvexDatabaseReader<DataModel, DecodedDocs> {
   constructor(
-    private inner: CodecDatabaseReader<DataModel, DecodedDocs>,
+    private inner: ZodvexDatabaseReader<DataModel, DecodedDocs>,
     private ctx: any,
     private rules: Record<string, TableRules<any, any>>,
-    private rulesConfig: CodecRulesConfig
+    private rulesConfig: ZodvexRulesConfig
   ) {
     // Pass the inner's protected db + tableMap to super.
     super((inner as any).db, (inner as any).tableMap)
@@ -272,13 +272,7 @@ class RulesCodecDatabaseReader<
     const innerChain = this.inner.query(tableName)
     const readRule = tableRules?.read ?? (async () => null) // deny if no rule + deny policy
     const passthroughSchema = { parse: (x: any) => x }
-    return new RulesCodecQueryChain(
-      innerChain,
-      passthroughSchema,
-      readRule,
-      this.rulesConfig,
-      this.ctx
-    )
+    return new RulesQueryChain(innerChain, passthroughSchema, readRule, this.rulesConfig, this.ctx)
   }
 
   private resolveTableFromId(id: any): string | null {
@@ -310,49 +304,49 @@ class RulesCodecDatabaseReader<
 }
 
 /**
- * Factory function for creating a RulesCodecDatabaseReader.
+ * Factory function for creating a RulesDatabaseReader.
  * Breaks the circular dependency between db.ts (which imports this) and rules.ts
- * (which imports CodecDatabaseReader from db.ts).
+ * (which imports ZodvexDatabaseReader from db.ts).
  */
-export function createRulesCodecDatabaseReader<
+export function createRulesDatabaseReader<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
 >(
-  inner: CodecDatabaseReader<DataModel, DecodedDocs>,
+  inner: ZodvexDatabaseReader<DataModel, DecodedDocs>,
   ctx: any,
   rules: Record<string, TableRules<any, any>>,
-  config?: CodecRulesConfig
-): CodecDatabaseReader<DataModel, DecodedDocs> {
-  return new RulesCodecDatabaseReader(inner, ctx, rules, config ?? {})
+  config?: ZodvexRulesConfig
+): ZodvexDatabaseReader<DataModel, DecodedDocs> {
+  return new RulesDatabaseReader(inner, ctx, rules, config ?? {})
 }
 
 /**
- * Wraps a CodecDatabaseWriter with per-table read and write rules.
- * Extends CodecDatabaseWriter so it can be used anywhere a writer is expected.
+ * Wraps a ZodvexDatabaseWriter with per-table read and write rules.
+ * Extends ZodvexDatabaseWriter so it can be used anywhere a writer is expected.
  *
- * - Read operations (get, query) delegate through an internal RulesCodecDatabaseReader.
+ * - Read operations (get, query) delegate through an internal RulesDatabaseReader.
  * - Write operations (insert, patch, replace, delete) apply per-operation rules
  *   that can transform values or throw to deny.
- * - Write operations delegate to `this.inner` (the original CodecDatabaseWriter),
+ * - Write operations delegate to `this.inner` (the original ZodvexDatabaseWriter),
  *   NOT to `super`. Rules transform decoded values; the inner writer handles encoding.
  */
-class RulesCodecDatabaseWriter<
+class RulesDatabaseWriter<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
-> extends CodecDatabaseWriter<DataModel, DecodedDocs> {
-  private rulesReader: CodecDatabaseReader<DataModel, DecodedDocs>
+> extends ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+  private rulesReader: ZodvexDatabaseReader<DataModel, DecodedDocs>
 
   constructor(
-    private inner: CodecDatabaseWriter<DataModel, DecodedDocs>,
+    private inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>,
     private ctx: any,
     private rules: Record<string, TableRules<any, any>>,
-    private rulesConfig: CodecRulesConfig
+    private rulesConfig: ZodvexRulesConfig
   ) {
     // Pass the inner's protected db + tableMap to super.
     super((inner as any).db, (inner as any).tableMap)
     // Build a rules-aware reader from the inner writer's reader for read operations.
-    const innerReader = (inner as any).reader as CodecDatabaseReader<DataModel, DecodedDocs>
-    this.rulesReader = new RulesCodecDatabaseReader(innerReader, ctx, rules, rulesConfig)
+    const innerReader = (inner as any).reader as ZodvexDatabaseReader<DataModel, DecodedDocs>
+    this.rulesReader = new RulesDatabaseReader(innerReader, ctx, rules, rulesConfig)
     this.system = inner.system
   }
 
@@ -507,19 +501,19 @@ class RulesCodecDatabaseWriter<
 }
 
 /**
- * Factory function for creating a RulesCodecDatabaseWriter.
+ * Factory function for creating a RulesDatabaseWriter.
  * Breaks the circular dependency between db.ts and rules.ts.
  */
-export function createRulesCodecDatabaseWriter<
+export function createRulesDatabaseWriter<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
 >(
-  inner: CodecDatabaseWriter<DataModel, DecodedDocs>,
+  inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>,
   ctx: any,
   rules: Record<string, TableRules<any, any>>,
-  config?: CodecRulesConfig
-): CodecDatabaseWriter<DataModel, DecodedDocs> {
-  return new RulesCodecDatabaseWriter(inner, ctx, rules, config ?? {})
+  config?: ZodvexRulesConfig
+): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+  return new RulesDatabaseWriter(inner, ctx, rules, config ?? {})
 }
 
 // ============================================================================
@@ -527,14 +521,14 @@ export function createRulesCodecDatabaseWriter<
 // ============================================================================
 
 /**
- * Extends CodecQueryChain to fire an afterRead callback for each document
+ * Extends ZodvexQueryChain to fire an afterRead callback for each document
  * returned by terminal methods. Intermediate methods are inherited via
  * createChain(). Only terminals and createChain() are overridden.
  *
  * The tableName is captured at construction so the afterRead callback
  * knows which table each document came from.
  */
-class AuditCodecQueryChain<TableInfo extends GenericTableInfo, Doc> extends CodecQueryChain<
+class AuditQueryChain<TableInfo extends GenericTableInfo, Doc> extends ZodvexQueryChain<
   TableInfo,
   Doc
 > {
@@ -552,8 +546,8 @@ class AuditCodecQueryChain<TableInfo extends GenericTableInfo, Doc> extends Code
     this.tableName = tableName
   }
 
-  protected createChain(inner: any): AuditCodecQueryChain<TableInfo, Doc> {
-    return new AuditCodecQueryChain(inner, this.schema, this.afterRead, this.tableName)
+  protected createChain(inner: any): AuditQueryChain<TableInfo, Doc> {
+    return new AuditQueryChain(inner, this.schema, this.afterRead, this.tableName)
   }
 
   // --- Terminal overrides: fire afterRead for each returned doc ---
@@ -608,22 +602,22 @@ class AuditCodecQueryChain<TableInfo extends GenericTableInfo, Doc> extends Code
 }
 
 /**
- * Wraps a CodecDatabaseReader with afterRead audit callbacks.
- * Extends CodecDatabaseReader so it can be used anywhere a reader is expected,
+ * Wraps a ZodvexDatabaseReader with afterRead audit callbacks.
+ * Extends ZodvexDatabaseReader so it can be used anywhere a reader is expected,
  * including chained `.audit()` and `.withRules()` calls.
  *
  * - `get()` delegates to the inner reader, fires afterRead if doc is non-null.
- * - `query()` wraps the inner chain in an AuditCodecQueryChain with a passthrough
+ * - `query()` wraps the inner chain in an AuditQueryChain with a passthrough
  *   schema (inner already decoded).
  */
-class AuditCodecDatabaseReader<
+class AuditDatabaseReader<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
-> extends CodecDatabaseReader<DataModel, DecodedDocs> {
-  private inner: CodecDatabaseReader<DataModel, DecodedDocs>
+> extends ZodvexDatabaseReader<DataModel, DecodedDocs> {
+  private inner: ZodvexDatabaseReader<DataModel, DecodedDocs>
   private afterRead: (table: string, doc: any) => void | Promise<void>
 
-  constructor(inner: CodecDatabaseReader<DataModel, DecodedDocs>, config: ReaderAuditConfig) {
+  constructor(inner: ZodvexDatabaseReader<DataModel, DecodedDocs>, config: ReaderAuditConfig) {
     // Pass the inner's protected db + tableMap to super.
     super((inner as any).db, (inner as any).tableMap)
     this.inner = inner
@@ -653,12 +647,7 @@ class AuditCodecDatabaseReader<
     const innerChain = this.inner.query(tableName)
     // Passthrough schema since inner already decoded
     const passthroughSchema = { parse: (x: any) => x }
-    return new AuditCodecQueryChain(
-      innerChain,
-      passthroughSchema,
-      this.afterRead,
-      tableName as string
-    )
+    return new AuditQueryChain(innerChain, passthroughSchema, this.afterRead, tableName as string)
   }
 
   /**
@@ -677,47 +666,47 @@ class AuditCodecDatabaseReader<
 }
 
 /**
- * Factory function for creating an AuditCodecDatabaseReader.
- * Called via deferred require() from CodecDatabaseReader.audit() in db.ts.
+ * Factory function for creating an AuditDatabaseReader.
+ * Called via deferred require() from ZodvexDatabaseReader.audit() in db.ts.
  */
-export function createAuditCodecDatabaseReader<
+export function createAuditDatabaseReader<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
 >(
-  inner: CodecDatabaseReader<DataModel, DecodedDocs>,
+  inner: ZodvexDatabaseReader<DataModel, DecodedDocs>,
   config: ReaderAuditConfig
-): CodecDatabaseReader<DataModel, DecodedDocs> {
-  return new AuditCodecDatabaseReader(inner, config)
+): ZodvexDatabaseReader<DataModel, DecodedDocs> {
+  return new AuditDatabaseReader(inner, config)
 }
 
 /**
- * Wraps a CodecDatabaseWriter with afterRead and afterWrite audit callbacks.
- * Extends CodecDatabaseWriter so it can be used anywhere a writer is expected.
+ * Wraps a ZodvexDatabaseWriter with afterRead and afterWrite audit callbacks.
+ * Extends ZodvexDatabaseWriter so it can be used anywhere a writer is expected.
  *
- * - Read operations delegate through an internal AuditCodecDatabaseReader for afterRead.
+ * - Read operations delegate through an internal AuditDatabaseReader for afterRead.
  * - Write operations delegate to `this.inner` (not super) so encoding happens via
  *   the original writer. Audit observes decoded values (pre-encoding).
  * - For patch/replace/delete, the current doc is fetched via `this.inner.get()` (not the
  *   audited reader) to avoid audit-of-audit recursion for reads triggered by writes.
  */
-class AuditCodecDatabaseWriter<
+class AuditDatabaseWriter<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
-> extends CodecDatabaseWriter<DataModel, DecodedDocs> {
-  private inner: CodecDatabaseWriter<DataModel, DecodedDocs>
-  private auditReader: CodecDatabaseReader<DataModel, DecodedDocs>
+> extends ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+  private inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>
+  private auditReader: ZodvexDatabaseReader<DataModel, DecodedDocs>
   private afterWrite: ((table: string, event: WriteEvent) => void | Promise<void>) | undefined
 
-  constructor(inner: CodecDatabaseWriter<DataModel, DecodedDocs>, config: WriterAuditConfig) {
+  constructor(inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>, config: WriterAuditConfig) {
     // Pass the inner's protected db + tableMap to super.
     super((inner as any).db, (inner as any).tableMap)
     this.inner = inner
     this.afterWrite = config.afterWrite as any
 
     // Build an audit-aware reader from the inner writer's reader for read operations.
-    const innerReader = (inner as any).reader as CodecDatabaseReader<DataModel, DecodedDocs>
+    const innerReader = (inner as any).reader as ZodvexDatabaseReader<DataModel, DecodedDocs>
     this.auditReader = config.afterRead
-      ? new AuditCodecDatabaseReader(innerReader, { afterRead: config.afterRead })
+      ? new AuditDatabaseReader(innerReader, { afterRead: config.afterRead })
       : innerReader
     this.system = inner.system
   }
@@ -848,15 +837,15 @@ class AuditCodecDatabaseWriter<
 }
 
 /**
- * Factory function for creating an AuditCodecDatabaseWriter.
- * Called via deferred require() from CodecDatabaseWriter.audit() in db.ts.
+ * Factory function for creating an AuditDatabaseWriter.
+ * Called via deferred require() from ZodvexDatabaseWriter.audit() in db.ts.
  */
-export function createAuditCodecDatabaseWriter<
+export function createAuditDatabaseWriter<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
 >(
-  inner: CodecDatabaseWriter<DataModel, DecodedDocs>,
+  inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>,
   config: WriterAuditConfig
-): CodecDatabaseWriter<DataModel, DecodedDocs> {
-  return new AuditCodecDatabaseWriter(inner, config)
+): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+  return new AuditDatabaseWriter(inner, config)
 }

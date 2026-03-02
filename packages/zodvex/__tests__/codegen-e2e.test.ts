@@ -67,7 +67,7 @@ describe('codegen e2e', () => {
     expect(clientContent).toContain(
       "import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'"
     )
-    expect(clientContent).toContain("import { createCodecHelpers } from 'zodvex/core'")
+    expect(clientContent).toContain("import { createBoundaryHelpers } from 'zodvex/core'")
     expect(clientContent).toContain("import { zodvexRegistry } from './api'")
     expect(clientContent).toContain('useZodQuery')
     expect(clientContent).toContain('useZodMutation')

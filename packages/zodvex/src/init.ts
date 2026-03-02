@@ -15,28 +15,28 @@ import type { z } from 'zod'
 import { createZodvexActionCtx } from './actionCtx'
 import type { CustomBuilder } from './custom'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
-import { createCodecCustomization } from './customization'
-import type { CodecDatabaseReader, CodecDatabaseWriter } from './db'
+import { createZodvexCustomization } from './customization'
+import type { ZodvexDatabaseReader, ZodvexDatabaseWriter } from './db'
 import type { ZodTableMap } from './schema'
 import type { AnyRegistry, Overwrite } from './types'
 
 /**
  * The context type received by query handlers when wrapDb: true.
- * Replaces ctx.db with CodecDatabaseReader while preserving auth, storage, etc.
+ * Replaces ctx.db with ZodvexDatabaseReader while preserving auth, storage, etc.
  */
 export type ZodvexQueryCtx<
   DM extends GenericDataModel,
   DD extends Record<string, any> = Record<string, any>
-> = Overwrite<GenericQueryCtx<DM>, { db: CodecDatabaseReader<DM, DD> }>
+> = Overwrite<GenericQueryCtx<DM>, { db: ZodvexDatabaseReader<DM, DD> }>
 
 /**
  * The context type received by mutation handlers when wrapDb: true.
- * Replaces ctx.db with CodecDatabaseWriter while preserving auth, storage, etc.
+ * Replaces ctx.db with ZodvexDatabaseWriter while preserving auth, storage, etc.
  */
 export type ZodvexMutationCtx<
   DM extends GenericDataModel,
   DD extends Record<string, any> = Record<string, any>
-> = Overwrite<GenericMutationCtx<DM>, { db: CodecDatabaseWriter<DM, DD> }>
+> = Overwrite<GenericMutationCtx<DM>, { db: ZodvexDatabaseWriter<DM, DD> }>
 
 /**
  * The context type received by action handlers.
@@ -139,18 +139,18 @@ export function initZodvex<
   },
   options?: { wrapDb?: true; registry?: () => AnyRegistry }
 ): {
-  zq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
+  zq: ZodvexBuilder<'query', { db: ZodvexDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<
     'mutation',
-    { db: CodecDatabaseWriter<DM, DD> },
+    { db: ZodvexDatabaseWriter<DM, DD> },
     GenericMutationCtx<DM>,
     'public'
   >
   za: ZodvexBuilder<'action', NoCodecCtx, GenericActionCtx<DM>, 'public'>
-  ziq: ZodvexBuilder<'query', { db: CodecDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'internal'>
+  ziq: ZodvexBuilder<'query', { db: ZodvexDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'internal'>
   zim: ZodvexBuilder<
     'mutation',
-    { db: CodecDatabaseWriter<DM, DD> },
+    { db: ZodvexDatabaseWriter<DM, DD> },
     GenericMutationCtx<DM>,
     'internal'
   >
@@ -170,7 +170,7 @@ export function initZodvex(
   },
   options?: { wrapDb?: boolean; registry?: () => AnyRegistry }
 ) {
-  const codec = createCodecCustomization(schema.__zodTableMap)
+  const codec = createZodvexCustomization(schema.__zodTableMap)
   const noOp = { args: {} as Record<string, never>, input: NoOp.input }
   const wrap = options?.wrapDb !== false
 
@@ -213,7 +213,7 @@ export function initZodvex(
  *
  * @internal Exported for testing only -- not part of the public API.
  */
-export function composeCodecAndUser(
+export function composeCustomizations(
   codecCust: { args: Record<string, never>; input: (ctx: any, args: any, extra?: any) => any },
   userCust: { args?: any; input?: (ctx: any, args: any, extra?: any) => any }
 ) {
@@ -258,7 +258,7 @@ export function createZodvexBuilder(
   const base: any = customFn(rawBuilder as any, codecCust as any)
 
   base.withContext = (userCust: any) => {
-    const composed = composeCodecAndUser(codecCust, userCust)
+    const composed = composeCustomizations(codecCust, userCust)
     return customFn(rawBuilder as any, composed as any)
   }
 

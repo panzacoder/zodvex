@@ -397,6 +397,8 @@ const fields = zodToConvexFields({
 
 ### Codecs
 
+> **Deprecated:** `convexCodec()` is deprecated. Use `initZodvex` for automatic codec handling, or `decodeDoc`/`encodeDoc` for manual control.
+
 Convert between Zod-shaped data and Convex-safe JSON:
 
 ```ts

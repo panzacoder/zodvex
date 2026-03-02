@@ -6,7 +6,7 @@
  *   1. zodvexCodec() creates the codec (like hotpot's sensitive())
  *   2. extractCodec() extracts it from a model schema (like codegen does)
  *   3. z.object({ email: extracted }) builds the registry args schema
- *   4. createCodecHelpers(registry).encodeArgs() encodes at the client boundary
+ *   4. createBoundaryHelpers(registry).encodeArgs() encodes at the client boundary
  */
 
 import { describe, expect, it, mock } from 'bun:test'
@@ -24,7 +24,7 @@ mock.module('convex/server', () => ({
   getFunctionName: (ref: any) => ref._testPath
 }))
 
-const { createCodecHelpers } = await import('../src/codecHelpers')
+const { createBoundaryHelpers } = await import('../src/boundaryHelpers')
 
 function fakeRef(path: string) {
   return { _testPath: path } as any
@@ -202,8 +202,8 @@ describe('Exact hotpot encode pipeline reproduction', () => {
     })
   })
 
-  describe('createCodecHelpers.encodeArgs (full pipeline)', () => {
-    const { encodeArgs } = createCodecHelpers(registry as any)
+  describe('createBoundaryHelpers.encodeArgs (full pipeline)', () => {
+    const { encodeArgs } = createBoundaryHelpers(registry as any)
 
     it('encodes valid email through full pipeline', () => {
       const args = { email: SensitiveWrapper.full('test@example.com') }

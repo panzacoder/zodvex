@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import {
-  CodecDatabaseReader,
-  CodecDatabaseWriter,
-  CodecQueryChain,
   createZodDbReader,
-  createZodDbWriter
+  createZodDbWriter,
+  ZodvexDatabaseReader,
+  ZodvexDatabaseWriter,
+  ZodvexQueryChain
 } from '../src/db'
 import type { ZodTableSchemas } from '../src/schema'
 import { zx } from '../src/zx'
@@ -85,14 +85,14 @@ function createMockDbReader(tables: Record<string, any[]>) {
   return mockDb
 }
 
-describe('CodecQueryChain', () => {
+describe('ZodvexQueryChain', () => {
   const wireDocs = [
     { _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 },
     { _id: 'users:2', _creationTime: 200, name: 'Bob', createdAt: 1700100000000 }
   ]
 
   it('collect() decodes all documents', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const results = await chain.collect()
 
     expect(results).toHaveLength(2)
@@ -102,7 +102,7 @@ describe('CodecQueryChain', () => {
   })
 
   it('first() decodes a single document', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const result = await chain.first()
 
     expect(result).not.toBeNull()
@@ -111,14 +111,14 @@ describe('CodecQueryChain', () => {
   })
 
   it('first() returns null for empty results', async () => {
-    const chain = new CodecQueryChain(createMockQuery([]), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery([]), userDocSchema)
     const result = await chain.first()
 
     expect(result).toBeNull()
   })
 
   it('unique() decodes a single document', async () => {
-    const chain = new CodecQueryChain(createMockQuery([wireDocs[0]]), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery([wireDocs[0]]), userDocSchema)
     const result = await chain.unique()
 
     expect(result).not.toBeNull()
@@ -126,7 +126,7 @@ describe('CodecQueryChain', () => {
   })
 
   it('take(n) decodes n documents', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const results = await chain.take(1)
 
     expect(results).toHaveLength(1)
@@ -134,7 +134,7 @@ describe('CodecQueryChain', () => {
   })
 
   it('paginate() decodes page items', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const result = await chain.paginate({ numItems: 10, cursor: null })
 
     expect(result.page).toHaveLength(2)
@@ -144,43 +144,43 @@ describe('CodecQueryChain', () => {
   })
 
   it('intermediate methods return wrapped chains', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const results = await chain.order('asc').collect()
     expect(results[0].createdAt).toBeInstanceOf(Date)
   })
 
   it('fullTableScan() returns wrapped chain', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const results = await chain.fullTableScan().collect()
     expect(results[0].createdAt).toBeInstanceOf(Date)
   })
 
   it('filter() returns wrapped chain', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const results = await chain.filter(() => true).collect()
     expect(results[0].createdAt).toBeInstanceOf(Date)
   })
 
   it('limit() returns wrapped chain', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const results = await chain.limit(1).collect()
     expect(results[0].createdAt).toBeInstanceOf(Date)
   })
 
   it('count() passes through without decoding', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const count = await chain.count()
     expect(count).toBe(2)
   })
 
   it('propagates ZodError when document fails schema validation', async () => {
     const badDocs = [{ _id: 'users:1', _creationTime: 100, name: 123, createdAt: 'not-a-number' }]
-    const chain = new CodecQueryChain(createMockQuery(badDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(badDocs), userDocSchema)
     await expect(chain.first()).rejects.toThrow()
   })
 
   it('async iteration decodes each document', async () => {
-    const chain = new CodecQueryChain(createMockQuery(wireDocs), userDocSchema)
+    const chain = new ZodvexQueryChain(createMockQuery(wireDocs), userDocSchema)
     const results: any[] = []
 
     for await (const doc of chain) {
@@ -192,7 +192,7 @@ describe('CodecQueryChain', () => {
   })
 })
 
-describe('CodecDatabaseReader', () => {
+describe('ZodvexDatabaseReader', () => {
   const tableMap = {
     users: userSchemas
   }
@@ -205,7 +205,7 @@ describe('CodecDatabaseReader', () => {
   }
 
   it('get(id) decodes the document', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const user = await db.get('users:1' as any)
 
     expect(user).not.toBeNull()
@@ -214,22 +214,22 @@ describe('CodecDatabaseReader', () => {
   })
 
   it('get(id) returns null for missing documents', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const user = await db.get('users:missing' as any)
 
     expect(user).toBeNull()
   })
 
   it('get(table, id) decodes the document', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const user = await db.get('users' as any, 'users:1' as any)
 
     expect(user).not.toBeNull()
     expect(user?.createdAt).toBeInstanceOf(Date)
   })
 
-  it('query() returns a CodecQueryChain', async () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+  it('query() returns a ZodvexQueryChain', async () => {
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const results = await db.query('users' as any).collect()
 
     expect(results).toHaveLength(2)
@@ -237,7 +237,7 @@ describe('CodecDatabaseReader', () => {
   })
 
   it('passes through for tables not in the zodTableMap', async () => {
-    const db = new CodecDatabaseReader(
+    const db = new ZodvexDatabaseReader(
       createMockDbReader({
         ...tableData,
         logs: [{ _id: 'logs:1', _creationTime: 100, message: 'hello' }]
@@ -250,14 +250,14 @@ describe('CodecDatabaseReader', () => {
   })
 
   it('normalizeId passes through to inner db', () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     const result = db.normalizeId('users' as any, 'users:1')
 
     expect(result).toBe('users:1')
   })
 
   it('system property passes through to inner db', () => {
-    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
     expect(db.system).toBeDefined()
   })
 })
@@ -287,7 +287,7 @@ function createMockDbWriter(tables: Record<string, any[]>) {
   return { db: mockDb, calls }
 }
 
-describe('CodecDatabaseWriter', () => {
+describe('ZodvexDatabaseWriter', () => {
   const tableMap = {
     users: userSchemas
   }
@@ -298,7 +298,7 @@ describe('CodecDatabaseWriter', () => {
 
   it('insert() encodes runtime values to wire format', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
 
     const id = await db.insert(
       'users' as any,
@@ -318,7 +318,7 @@ describe('CodecDatabaseWriter', () => {
 
   it('patch(id, value) encodes partial runtime values', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
 
     await db.patch(
       'users:1' as any,
@@ -334,7 +334,7 @@ describe('CodecDatabaseWriter', () => {
 
   it('replace(id, value) encodes full runtime document', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
 
     await db.replace(
       'users:1' as any,
@@ -351,7 +351,7 @@ describe('CodecDatabaseWriter', () => {
 
   it('delete() passes through without encoding', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
 
     await db.delete('users:1' as any)
 
@@ -360,9 +360,9 @@ describe('CodecDatabaseWriter', () => {
     expect(calls[0].args[0]).toBe('users:1')
   })
 
-  it('read methods delegate to CodecDatabaseReader', async () => {
+  it('read methods delegate to ZodvexDatabaseReader', async () => {
     const { db: mockDb } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
 
     const user = await db.get('users:1' as any)
     expect(user).not.toBeNull()
@@ -374,7 +374,7 @@ describe('CodecDatabaseWriter', () => {
 
   it('passes through writes for tables not in zodTableMap', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
-    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
 
     await db.insert('logs' as any, { message: 'hello' } as any)
 
@@ -388,7 +388,7 @@ describe('createZodDbReader', () => {
     users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
   }
 
-  it('creates a CodecDatabaseReader from schema with __zodTableMap', async () => {
+  it('creates a ZodvexDatabaseReader from schema with __zodTableMap', async () => {
     const schema = { __zodTableMap: { users: userSchemas } }
     const db = createZodDbReader(createMockDbReader(tableData) as any, schema)
 
@@ -403,7 +403,7 @@ describe('createZodDbWriter', () => {
     users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
   }
 
-  it('creates a CodecDatabaseWriter from schema with __zodTableMap', async () => {
+  it('creates a ZodvexDatabaseWriter from schema with __zodTableMap', async () => {
     const schema = { __zodTableMap: { users: userSchemas } }
     const { db: mockDb, calls } = createMockDbWriter(tableData)
     const db = createZodDbWriter(mockDb as any, schema)

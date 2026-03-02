@@ -1,15 +1,15 @@
 import type { AuthTokenFetcher } from 'convex/browser'
 import { ConvexClient } from 'convex/browser'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
-import type { CodecHelpersOptions } from '../codecHelpers'
-import { createCodecHelpers } from '../codecHelpers'
+import type { BoundaryHelpersOptions } from '../boundaryHelpers'
+import { createBoundaryHelpers } from '../boundaryHelpers'
 import type { AnyRegistry } from '../types'
 
 export type ZodvexClientOptions = (
   | { url: string; token?: string | null }
   | { client: ConvexClient }
 ) &
-  CodecHelpersOptions
+  BoundaryHelpersOptions
 
 /** Wrap a static token string as an AuthTokenFetcher for ConvexClient */
 function tokenToFetcher(token: string): AuthTokenFetcher {
@@ -18,10 +18,10 @@ function tokenToFetcher(token: string): AuthTokenFetcher {
 
 export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
   readonly convex: ConvexClient
-  private codec: ReturnType<typeof createCodecHelpers>
+  private codec: ReturnType<typeof createBoundaryHelpers>
 
   constructor(registry: R, options: ZodvexClientOptions) {
-    this.codec = createCodecHelpers(registry, { onDecodeError: options.onDecodeError })
+    this.codec = createBoundaryHelpers(registry, { onDecodeError: options.onDecodeError })
     if ('client' in options) {
       this.convex = options.client
     } else {
