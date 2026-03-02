@@ -521,3 +521,342 @@ export function createRulesCodecDatabaseWriter<
 ): CodecDatabaseWriter<DataModel, DecodedDocs> {
   return new RulesCodecDatabaseWriter(inner, ctx, rules, config ?? {})
 }
+
+// ============================================================================
+// Audit wrapping — afterRead and afterWrite callbacks
+// ============================================================================
+
+/**
+ * Extends CodecQueryChain to fire an afterRead callback for each document
+ * returned by terminal methods. Intermediate methods are inherited via
+ * createChain(). Only terminals and createChain() are overridden.
+ *
+ * The tableName is captured at construction so the afterRead callback
+ * knows which table each document came from.
+ */
+class AuditCodecQueryChain<TableInfo extends GenericTableInfo, Doc> extends CodecQueryChain<
+  TableInfo,
+  Doc
+> {
+  private afterRead: (table: string, doc: any) => void | Promise<void>
+  private tableName: string
+
+  constructor(
+    inner: any,
+    schema: any,
+    afterRead: (table: string, doc: any) => void | Promise<void>,
+    tableName: string
+  ) {
+    super(inner, schema)
+    this.afterRead = afterRead
+    this.tableName = tableName
+  }
+
+  protected createChain(inner: any): AuditCodecQueryChain<TableInfo, Doc> {
+    return new AuditCodecQueryChain(inner, this.schema, this.afterRead, this.tableName)
+  }
+
+  // --- Terminal overrides: fire afterRead for each returned doc ---
+
+  async first(): Promise<Doc | null> {
+    const doc = await super.first()
+    if (doc !== null) await this.afterRead(this.tableName, doc)
+    return doc
+  }
+
+  async unique(): Promise<Doc | null> {
+    const doc = await super.unique()
+    if (doc !== null) await this.afterRead(this.tableName, doc)
+    return doc
+  }
+
+  async collect(): Promise<Doc[]> {
+    const docs = await super.collect()
+    for (const doc of docs) {
+      await this.afterRead(this.tableName, doc)
+    }
+    return docs
+  }
+
+  async take(n: number): Promise<Doc[]> {
+    const docs = await super.take(n)
+    for (const doc of docs) {
+      await this.afterRead(this.tableName, doc)
+    }
+    return docs
+  }
+
+  async paginate(opts: PaginationOptions): Promise<PaginationResult<Doc>> {
+    const result = await super.paginate(opts)
+    for (const doc of result.page) {
+      await this.afterRead(this.tableName, doc)
+    }
+    return result
+  }
+
+  // count() passes through — no docs to audit
+
+  async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
+    const iter = super[Symbol.asyncIterator]()
+    while (true) {
+      const { value, done } = await iter.next()
+      if (done) break
+      await this.afterRead(this.tableName, value)
+      yield value
+    }
+  }
+}
+
+/**
+ * Wraps a CodecDatabaseReader with afterRead audit callbacks.
+ * Extends CodecDatabaseReader so it can be used anywhere a reader is expected,
+ * including chained `.audit()` and `.withRules()` calls.
+ *
+ * - `get()` delegates to the inner reader, fires afterRead if doc is non-null.
+ * - `query()` wraps the inner chain in an AuditCodecQueryChain with a passthrough
+ *   schema (inner already decoded).
+ */
+class AuditCodecDatabaseReader<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> extends CodecDatabaseReader<DataModel, DecodedDocs> {
+  private inner: CodecDatabaseReader<DataModel, DecodedDocs>
+  private afterRead: (table: string, doc: any) => void | Promise<void>
+
+  constructor(inner: CodecDatabaseReader<DataModel, DecodedDocs>, config: ReaderAuditConfig) {
+    // Pass the inner's protected db + tableMap to super.
+    super((inner as any).db, (inner as any).tableMap)
+    this.inner = inner
+    this.afterRead =
+      config.afterRead ??
+      (() => {
+        /* noop */
+      })
+    this.system = inner.system
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    const doc = await this.inner.get(idOrTable, maybeId)
+    if (doc !== null) {
+      const tableName = this.resolveTableFromId(
+        maybeId !== undefined ? maybeId : idOrTable,
+        maybeId !== undefined ? idOrTable : undefined
+      )
+      if (tableName) {
+        await this.afterRead(tableName, doc)
+      }
+    }
+    return doc
+  }
+
+  query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
+    const innerChain = this.inner.query(tableName)
+    // Passthrough schema since inner already decoded
+    const passthroughSchema = { parse: (x: any) => x }
+    return new AuditCodecQueryChain(
+      innerChain,
+      passthroughSchema,
+      this.afterRead,
+      tableName as string
+    )
+  }
+
+  /**
+   * Resolves table name from an ID by trying normalizeId against known tables.
+   * If explicitTable is provided (for the 2-arg get form), use it directly.
+   */
+  private resolveTableFromId(id: any, explicitTable?: string): string | null {
+    if (explicitTable) return explicitTable
+    for (const tableName of Object.keys(this.tableMap)) {
+      if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
+        return tableName
+      }
+    }
+    return null
+  }
+}
+
+/**
+ * Factory function for creating an AuditCodecDatabaseReader.
+ * Called via deferred require() from CodecDatabaseReader.audit() in db.ts.
+ */
+export function createAuditCodecDatabaseReader<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+>(
+  inner: CodecDatabaseReader<DataModel, DecodedDocs>,
+  config: ReaderAuditConfig
+): CodecDatabaseReader<DataModel, DecodedDocs> {
+  return new AuditCodecDatabaseReader(inner, config)
+}
+
+/**
+ * Wraps a CodecDatabaseWriter with afterRead and afterWrite audit callbacks.
+ * Extends CodecDatabaseWriter so it can be used anywhere a writer is expected.
+ *
+ * - Read operations delegate through an internal AuditCodecDatabaseReader for afterRead.
+ * - Write operations delegate to `this.inner` (not super) so encoding happens via
+ *   the original writer. Audit observes decoded values (pre-encoding).
+ * - For patch/replace/delete, the current doc is fetched via `this.inner.get()` (not the
+ *   audited reader) to avoid audit-of-audit recursion for reads triggered by writes.
+ */
+class AuditCodecDatabaseWriter<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> extends CodecDatabaseWriter<DataModel, DecodedDocs> {
+  private inner: CodecDatabaseWriter<DataModel, DecodedDocs>
+  private auditReader: CodecDatabaseReader<DataModel, DecodedDocs>
+  private afterWrite: ((table: string, event: WriteEvent) => void | Promise<void>) | undefined
+
+  constructor(inner: CodecDatabaseWriter<DataModel, DecodedDocs>, config: WriterAuditConfig) {
+    // Pass the inner's protected db + tableMap to super.
+    super((inner as any).db, (inner as any).tableMap)
+    this.inner = inner
+    this.afterWrite = config.afterWrite as any
+
+    // Build an audit-aware reader from the inner writer's reader for read operations.
+    const innerReader = (inner as any).reader as CodecDatabaseReader<DataModel, DecodedDocs>
+    this.auditReader = config.afterRead
+      ? new AuditCodecDatabaseReader(innerReader, { afterRead: config.afterRead })
+      : innerReader
+    this.system = inner.system
+  }
+
+  // --- Read methods: delegate through audit-aware reader ---
+
+  normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
+    tableName: TableName,
+    id: string
+  ): GenericId<TableName> | null {
+    return this.auditReader.normalizeId(tableName, id)
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    return this.auditReader.get(idOrTable, maybeId)
+  }
+
+  query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
+    return this.auditReader.query(tableName)
+  }
+
+  // --- Write methods: delegate to inner, then fire afterWrite ---
+
+  async insert(table: any, value: any): Promise<any> {
+    const id = await this.inner.insert(table, value)
+    if (this.afterWrite) {
+      await this.afterWrite(table as string, { type: 'insert', id, value })
+    }
+    return id
+  }
+
+  async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    // Resolve arguments
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+    }
+
+    // Fetch current doc via inner (not audited) to avoid audit recursion
+    const doc = await this.inner.get(id)
+
+    // Delegate the actual write to inner
+    if (maybeValue !== undefined) {
+      await this.inner.patch(idOrTable, idOrValue, maybeValue)
+    } else {
+      await this.inner.patch(id, value)
+    }
+
+    if (this.afterWrite) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        await this.afterWrite(tableName, { type: 'patch', id, doc, value })
+      }
+    }
+  }
+
+  async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+    }
+
+    // Fetch current doc via inner to avoid audit recursion
+    const doc = await this.inner.get(id)
+
+    // Delegate the actual write to inner
+    if (maybeValue !== undefined) {
+      await this.inner.replace(idOrTable, idOrValue, maybeValue)
+    } else {
+      await this.inner.replace(id, value)
+    }
+
+    if (this.afterWrite) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        await this.afterWrite(tableName, { type: 'replace', id, doc, value })
+      }
+    }
+  }
+
+  async delete(idOrTable: any, maybeId?: any): Promise<void> {
+    let id: any
+
+    if (maybeId !== undefined) {
+      id = maybeId
+    } else {
+      id = idOrTable
+    }
+
+    // Fetch current doc via inner to avoid audit recursion
+    const doc = await this.inner.get(id)
+
+    // Delegate the actual delete to inner
+    if (maybeId !== undefined) {
+      await this.inner.delete(idOrTable, maybeId)
+    } else {
+      await this.inner.delete(id)
+    }
+
+    if (this.afterWrite) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        await this.afterWrite(tableName, { type: 'delete', id, doc })
+      }
+    }
+  }
+
+  private resolveTableFromId(id: any): string | null {
+    for (const tableName of Object.keys((this.inner as any).tableMap)) {
+      if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
+        return tableName
+      }
+    }
+    return null
+  }
+}
+
+/**
+ * Factory function for creating an AuditCodecDatabaseWriter.
+ * Called via deferred require() from CodecDatabaseWriter.audit() in db.ts.
+ */
+export function createAuditCodecDatabaseWriter<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+>(
+  inner: CodecDatabaseWriter<DataModel, DecodedDocs>,
+  config: WriterAuditConfig
+): CodecDatabaseWriter<DataModel, DecodedDocs> {
+  return new AuditCodecDatabaseWriter(inner, config)
+}

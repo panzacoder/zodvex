@@ -640,3 +640,173 @@ describe('CodecDatabaseWriter.withRules()', () => {
     expect(results[0].name).toBe('Alice')
   })
 })
+
+// ============================================================================
+// CodecDatabaseReader.audit() tests
+// ============================================================================
+
+describe('CodecDatabaseReader.audit()', () => {
+  it('afterRead fires for each doc returned by get()', async () => {
+    const auditLog: any[] = []
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const auditedDb = db.audit({
+      afterRead: (table: string, doc: any) => {
+        auditLog.push({ table, doc })
+      }
+    })
+    await auditedDb.get('users:1' as any)
+    expect(auditLog).toHaveLength(1)
+    expect(auditLog[0].table).toBe('users')
+    expect(auditLog[0].doc.name).toBe('Alice')
+  })
+
+  it('afterRead does not fire when get() returns null', async () => {
+    const auditLog: any[] = []
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const auditedDb = db.audit({
+      afterRead: (table: string, doc: any) => {
+        auditLog.push({ table, doc })
+      }
+    })
+    await auditedDb.get('users:missing' as any)
+    expect(auditLog).toHaveLength(0)
+  })
+
+  it('afterRead fires for each doc from query().collect()', async () => {
+    const auditLog: any[] = []
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const auditedDb = db.audit({
+      afterRead: (table: string, doc: any) => {
+        auditLog.push({ table, doc })
+      }
+    })
+    await auditedDb.query('users' as any).collect()
+    expect(auditLog).toHaveLength(2)
+  })
+
+  it('composes with withRules() — audit sees rules-processed docs', async () => {
+    const auditLog: any[] = []
+    const db = new CodecDatabaseReader(createMockDbReader(tableData), tableMap)
+    const secureDb = db
+      .withRules(
+        {},
+        {
+          users: { read: async (_ctx: any, doc: any) => (doc.role === 'admin' ? doc : null) }
+        }
+      )
+      .audit({
+        afterRead: (table: string, doc: any) => {
+          auditLog.push({ table, doc })
+        }
+      })
+    await secureDb.query('users' as any).collect()
+    // Only Alice passes the rule, so audit sees only 1 doc
+    expect(auditLog).toHaveLength(1)
+    expect(auditLog[0].doc.name).toBe('Alice')
+  })
+})
+
+// ============================================================================
+// CodecDatabaseWriter.audit() tests
+// ============================================================================
+
+describe('CodecDatabaseWriter.audit()', () => {
+  it('afterWrite fires after successful insert', async () => {
+    const auditLog: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      afterWrite: (table: string, event: any) => {
+        auditLog.push({ table, event })
+      }
+    })
+    await auditedDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    expect(auditLog).toHaveLength(1)
+    expect(auditLog[0].table).toBe('users')
+    expect(auditLog[0].event.type).toBe('insert')
+    expect(auditLog[0].event.id).toBe('users:new')
+  })
+
+  it('afterWrite fires after successful patch', async () => {
+    const auditLog: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      afterWrite: (table: string, event: any) => {
+        auditLog.push({ table, event })
+      }
+    })
+    await auditedDb.patch('users:1' as any, { name: 'Updated' } as any)
+    expect(auditLog).toHaveLength(1)
+    expect(auditLog[0].event.type).toBe('patch')
+  })
+
+  it('afterWrite fires after successful delete', async () => {
+    const auditLog: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      afterWrite: (table: string, event: any) => {
+        auditLog.push({ table, event })
+      }
+    })
+    await auditedDb.delete('users:1' as any)
+    expect(auditLog).toHaveLength(1)
+    expect(auditLog[0].event.type).toBe('delete')
+  })
+
+  it('afterRead fires on writer read methods', async () => {
+    const auditLog: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      afterRead: (table: string, doc: any) => {
+        auditLog.push({ table, doc })
+      }
+    })
+    await auditedDb.get('users:1' as any)
+    expect(auditLog).toHaveLength(1)
+  })
+
+  it('composes with withRules() — audit fires after rules-mediated write', async () => {
+    const auditLog: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new CodecDatabaseWriter(mockDb, tableMap)
+    const secureDb = db
+      .withRules(
+        {},
+        {
+          users: {
+            read: async (_ctx: any, doc: any) => doc,
+            insert: async (_ctx: any, value: any) => ({ ...value, name: 'INJECTED' })
+          }
+        }
+      )
+      .audit({
+        afterWrite: (table: string, event: any) => {
+          auditLog.push({ table, event })
+        }
+      })
+    await secureDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    // Audit wraps outside rules, so it observes the value as passed to it (pre-rule).
+    // The rules transform happens inside the inner writer.
+    expect(auditLog).toHaveLength(1)
+    expect(auditLog[0].table).toBe('users')
+    expect(auditLog[0].event.type).toBe('insert')
+    expect(auditLog[0].event.value.name).toBe('Charlie')
+  })
+})

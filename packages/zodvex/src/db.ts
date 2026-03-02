@@ -22,7 +22,7 @@ import type {
 import type { GenericId } from 'convex/values'
 import type { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
-import type { CodecRulesConfig } from './rules'
+import type { CodecRulesConfig, ReaderAuditConfig, WriterAuditConfig } from './rules'
 import type { ZodTableMap } from './schema'
 
 /**
@@ -262,6 +262,18 @@ export class CodecDatabaseReader<
     const { createRulesCodecDatabaseReader } = require('./rules')
     return createRulesCodecDatabaseReader(this, ctx, rules, config)
   }
+
+  /**
+   * Returns a new CodecDatabaseReader that fires audit callbacks on reads.
+   * The returned reader is also a CodecDatabaseReader, so `.audit()` can be chained
+   * with `.withRules()`.
+   *
+   * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
+   */
+  audit(config: ReaderAuditConfig): CodecDatabaseReader<DataModel, DecodedDocs> {
+    const { createAuditCodecDatabaseReader } = require('./rules')
+    return createAuditCodecDatabaseReader(this, config)
+  }
 }
 
 /**
@@ -395,6 +407,18 @@ export class CodecDatabaseWriter<
     // Deferred import breaks the circular dependency (rules.ts extends CodecDatabaseWriter from db.ts)
     const { createRulesCodecDatabaseWriter } = require('./rules')
     return createRulesCodecDatabaseWriter(this, ctx, rules, config)
+  }
+
+  /**
+   * Returns a new CodecDatabaseWriter that fires audit callbacks on reads and writes.
+   * The returned writer is also a CodecDatabaseWriter, so `.audit()` can be chained
+   * with `.withRules()`.
+   *
+   * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
+   */
+  audit(config: WriterAuditConfig): CodecDatabaseWriter<DataModel, DecodedDocs> {
+    const { createAuditCodecDatabaseWriter } = require('./rules')
+    return createAuditCodecDatabaseWriter(this, config)
   }
 }
 
