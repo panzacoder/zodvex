@@ -318,7 +318,7 @@ describe('model-embedded codec resolution', () => {
     }
   ]
 
-  it('resolves model-embedded codec in .partial() args', () => {
+  it('resolves model-embedded codec in .partial() args via partial matching', () => {
     const partialArgs = (codecModel.schemas.doc as z.ZodObject<any>).partial()
     const funcs: DiscoveredFunction[] = [
       {
@@ -331,12 +331,10 @@ describe('model-embedded codec resolution', () => {
     ]
     const output = generateApiFile(funcs, [codecModel], [], modelCodecs)
 
-    // Should NOT contain "transforms lost"
+    // Partial matching emits compact reference — codecs preserved implicitly
     expect(output).not.toContain('transforms lost')
-    // Should contain extractCodec import and helper var
-    expect(output).toContain("import { extractCodec } from 'zodvex/core'")
     expect(output).toContain("import { UserModel } from '../models/user'")
-    expect(output).toContain('extractCodec(UserModel.schema.doc.shape.email)')
+    expect(output).toContain('UserModel.schema.doc.partial()')
   })
 
   it('model-embedded codec in .extend() args preserves transforms', () => {
@@ -376,13 +374,13 @@ describe('model-embedded codec resolution', () => {
   })
 
   it('uses descriptive variable names derived from model and field path', () => {
-    const partialArgs = (codecModel.schemas.doc as z.ZodObject<any>).partial()
+    // Use a non-partial schema so it falls through to zodToSource (tests codec var naming)
     const funcs: DiscoveredFunction[] = [
       {
         functionPath: 'users:update',
         exportName: 'update',
         sourceFile: 'users.ts',
-        zodArgs: partialArgs,
+        zodArgs: z.object({ name: z.string(), email: testCodec }),
         zodReturns: undefined
       }
     ]
@@ -484,7 +482,8 @@ describe('model-embedded codec resolution', () => {
         functionPath: 'patients:update',
         exportName: 'update',
         sourceFile: 'patients.ts',
-        zodArgs: z.object({ firstName: codec.optional() }),
+        // Extra field prevents partial matching, so codec var naming is exercised
+        zodArgs: z.object({ firstName: codec.optional(), reason: z.string() }),
         zodReturns: undefined
       }
     ]
@@ -492,6 +491,26 @@ describe('model-embedded codec resolution', () => {
 
     expect(output).toContain('_patientsFirstName')
     expect(output).not.toMatch(/_mc\d/)
+  })
+})
+
+describe('partial-aware identity matching', () => {
+  it('matches .partial() of a model schema', () => {
+    const partialDoc = (sampleModels[0].schemas.doc as z.ZodObject<any>).partial()
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:update',
+        exportName: 'update',
+        sourceFile: 'users.ts',
+        zodArgs: partialDoc,
+        zodReturns: undefined
+      }
+    ]
+    const output = generateApiFile(funcs, sampleModels)
+
+    // Should emit .partial() reference, not distribute .optional() on each field
+    expect(output).toContain('UserModel.schema.doc.partial()')
+    expect(output).not.toContain('.optional().optional()')
   })
 })
 

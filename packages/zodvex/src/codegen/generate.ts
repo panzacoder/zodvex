@@ -85,6 +85,54 @@ function tryUnwrapToIdentity(
 }
 
 /**
+ * Checks if a ZodObject schema is structurally equivalent to
+ * someModelSchema.partial() by comparing field-by-field identity.
+ *
+ * Zod's .partial() wraps each field in ZodOptional, preserving
+ * the inner type identity. So we check: same keys, each field
+ * is ZodOptional, and each inner type === the original model field.
+ */
+function tryMatchPartial(
+  schema: z.ZodTypeAny,
+  identityMap: Map<z.ZodTypeAny, SchemaRef>
+): { ref: SchemaRef; suffix: string } | null {
+  if (!(schema instanceof z.ZodObject)) return null
+  const candidateShape = schema.shape as Record<string, z.ZodTypeAny>
+  const candidateKeys = Object.keys(candidateShape).sort()
+
+  for (const [modelSchema, ref] of identityMap) {
+    if (!(modelSchema instanceof z.ZodObject)) continue
+    const modelShape = modelSchema.shape as Record<string, z.ZodTypeAny>
+    const modelKeys = Object.keys(modelShape).sort()
+
+    // Same key count and same keys
+    if (candidateKeys.length !== modelKeys.length) continue
+    if (candidateKeys.some((k, i) => k !== modelKeys[i])) continue
+
+    // Every candidate field must be ZodOptional wrapping the model field by identity
+    let allMatch = true
+    for (const key of candidateKeys) {
+      const candidateField = candidateShape[key]
+      if (!(candidateField instanceof z.ZodOptional)) {
+        allMatch = false
+        break
+      }
+      const inner = (candidateField as any)._zod?.def?.innerType
+      if (inner !== modelShape[key]) {
+        allMatch = false
+        break
+      }
+    }
+
+    if (allMatch) {
+      return { ref, suffix: '.partial()' }
+    }
+  }
+
+  return null
+}
+
+/**
  * Derives a descriptive variable name for a model-embedded codec from
  * the model export name and the access path.
  *
@@ -216,7 +264,14 @@ export function generateApiFile(
       return `${unwrapped.ref.exportName}.schema.${unwrapped.ref.schemaKey}${unwrapped.suffix}`
     }
 
-    // 3. Fall back to zodToSource (with codec context)
+    // 3. Partial-aware match (detect .partial() of a model schema)
+    const partialMatch = tryMatchPartial(schema, identityMap)
+    if (partialMatch) {
+      neededModelImports.add(partialMatch.ref.exportName)
+      return `${partialMatch.ref.exportName}.schema.${partialMatch.ref.schemaKey}${partialMatch.suffix}`
+    }
+
+    // 4. Fall back to zodToSource (with codec context)
     const source = zodToSource(schema, zodToSourceCtx)
     if (source.includes('z.')) needsZod = true
     if (source.includes('zx.')) needsZx = true

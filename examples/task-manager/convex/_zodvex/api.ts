@@ -9,8 +9,6 @@ import { UserModel } from '../models/user'
 import { ActivityModel } from '../models/activity'
 import { zDuration } from '../codecs'
 
-const _activityPayloadEmail = extractCodec(ActivityModel.schema.doc.shape.payload._zod.def.options[1].shape.email)
-const _activityTags = extractCodec(ActivityModel.schema.doc.shape.tags._zod.def.innerType._zod.def.element)
 const _userEmail = extractCodec(UserModel.schema.doc.shape.email)
 
 export const zodvexRegistry = {
@@ -43,7 +41,7 @@ export const zodvexRegistry = {
     returns: UserModel.schema.doc.nullable(),
   },
   'users:update': {
-    args: z.object({ name: z.string().optional(), email: _userEmail.optional().optional(), avatarUrl: z.string().optional().optional(), createdAt: zx.date().optional(), _id: zx.id("users"), _creationTime: z.number().optional() }),
+    args: UserModel.schema.update,
     returns: undefined,
   },
   'tasks:complete': {
@@ -75,7 +73,7 @@ export const zodvexRegistry = {
     returns: ActivityModel.schema.docArray,
   },
   'activities:update': {
-    args: z.object({ actorId: zx.id("users").optional(), payload: z.union([z.object({ type: z.literal("task_completed"), taskId: zx.id("tasks"), duration: zDuration }), z.object({ type: z.literal("user_invited"), email: _activityPayloadEmail })]).optional(), tags: z.array(_activityTags).optional().optional(), createdAt: zx.date().optional(), _id: zx.id("activities"), _creationTime: z.number().optional() }),
+    args: ActivityModel.schema.update,
     returns: undefined,
   },
 } as const
