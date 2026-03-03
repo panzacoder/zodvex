@@ -11,4 +11,4 @@ export const userFields = {
 }
 
 export const UserModel = defineZodModel('users', userFields)
-  .index('by_email', ['email'])
+  .index('by_email', ['email.value'])

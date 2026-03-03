@@ -73,7 +73,11 @@ function TaskPanel() {
   const completeTask = useZodMutation(api.tasks.complete)
 
   // Need a user ID to create tasks — for demo, use the first user
-  const userByEmail = useQuery(api.users.getByEmail, { email: 'demo@example.com' })
+  // NOTE: Convex's useQuery sees runtime types for codec args (ArgsInput uses z.output).
+  // This is a known zodvex type gap — callers should ideally pass wire format { value, tag }.
+  const userByEmail = useQuery(api.users.getByEmail, {
+    email: { value: 'demo@example.com', tag: 'email', displayValue: '[email] demo@example.com' },
+  })
   const ownerId = userByEmail?._id
 
   return (
@@ -87,7 +91,7 @@ function TaskPanel() {
             setFieldErrors({})
             setError(null)
             try {
-              await createTask({ title, ownerId, estimate: 60 })
+              await createTask({ title, ownerId, estimate: { hours: 1, minutes: 0 } })
               setTitle('')
             } catch (err) {
               if (err instanceof ZodError) {

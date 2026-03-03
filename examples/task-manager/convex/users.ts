@@ -2,7 +2,7 @@ import { z } from "zod";
 import { zx } from "zodvex/core";
 import { zq, zm } from "./functions";
 import { UserModel } from "./models/user";
-import { tagged } from "./tagged"
+import { tagged } from "./tagged";
 
 export const get = zq({
   args: { id: zx.id("users") },
@@ -17,7 +17,7 @@ export const getByEmail = zq({
   handler: async (ctx, { email }) => {
     return await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", email.value))
+      .withIndex("by_email", (q) => q.eq("email.value", email.value))
       .unique();
   },
   returns: UserModel.schema.doc.nullable(),

@@ -5,7 +5,7 @@
  * Runtime tests validate the defineZodModel API and index accumulation.
  */
 
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { z } from 'zod'
 import { zodvexCodec } from '../src/codec'
 import { readMeta, type ZodvexModelMeta } from '../src/meta'
@@ -409,6 +409,8 @@ describe('defineZodModel .index()', () => {
       }
     )
 
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+
     const model = defineZodModel('patients', {
       clinicId: z.string(),
       email: customString
@@ -423,6 +425,7 @@ describe('defineZodModel .index()', () => {
     model.index('bad', ['email.bogus'])
 
     expect(true).toBe(true)
+    warnSpy.mockRestore()
   })
 
   it('handles optional custom fields', () => {
@@ -438,6 +441,8 @@ describe('defineZodModel .index()', () => {
       }
     )
 
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+
     const model = defineZodModel('contacts', {
       name: z.string(),
       email: customString.optional(),
@@ -449,9 +454,95 @@ describe('defineZodModel .index()', () => {
     model.index('byPhoneValue', ['phone.value'])
 
     expect(true).toBe(true)
+    warnSpy.mockRestore()
+  })
+
+  it('warns when indexing a codec field with object wire schema', () => {
+    const customString = zodvexCodec(
+      z.object({
+        value: z.string().nullable(),
+        status: z.enum(['full', 'hidden'])
+      }),
+      z.custom<{ _brand: 'CustomField' }>(() => true),
+      {
+        decode: _wire => ({ _brand: 'CustomField' as const }),
+        encode: () => ({ value: null, status: 'full' as const })
+      }
+    )
+
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+
+    defineZodModel('patients', {
+      clinicId: z.string(),
+      email: customString
+    }).index('byEmail', ['email'])
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('codec field "email"')
+    expect(warnSpy.mock.calls[0][0]).toContain('does not currently encode')
+    expect(warnSpy.mock.calls[0][0]).toContain('wire format')
+
+    warnSpy.mockRestore()
+  })
+
+  it('warns for any codec field including scalar codecs like zx.date()', () => {
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+
+    defineZodModel('events', {
+      title: z.string(),
+      startDate: zx.date()
+    }).index('byDate', ['startDate'])
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('codec field "startDate"')
+
+    warnSpy.mockRestore()
+  })
+
+  it('warns for codec subpaths too (parent codec applies)', () => {
+    const customString = zodvexCodec(
+      z.object({
+        value: z.string().nullable(),
+        status: z.enum(['full', 'hidden'])
+      }),
+      z.custom<{ _brand: 'CustomField' }>(() => true),
+      {
+        decode: _wire => ({ _brand: 'CustomField' as const }),
+        encode: () => ({ value: null, status: 'full' as const })
+      }
+    )
+
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+
+    defineZodModel('patients', {
+      clinicId: z.string(),
+      email: customString
+    }).index('byEmailValue', ['email.value'])
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('codec field "email.value"')
+
+    warnSpy.mockRestore()
+  })
+
+  it('does not warn for non-codec fields', () => {
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+
+    defineZodModel('users', {
+      name: z.string(),
+      email: z.string(),
+      address: z.object({ city: z.string() })
+    })
+      .index('byEmail', ['email'])
+      .index('byCity', ['address.city'])
+
+    expect(warnSpy).not.toHaveBeenCalled()
+
+    warnSpy.mockRestore()
   })
 
   it('treats zx.date() as leaf', () => {
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
     const model = defineZodModel('events', {
       title: z.string(),
       startDate: zx.date()
@@ -460,6 +551,7 @@ describe('defineZodModel .index()', () => {
     expect(model.indexes).toEqual({
       byDate: ['startDate', '_creationTime']
     })
+    warnSpy.mockRestore()
   })
 
   it('treats zx.id() as leaf', () => {

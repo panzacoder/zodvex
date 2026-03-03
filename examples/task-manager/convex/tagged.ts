@@ -20,12 +20,14 @@ export function tagged<T extends z.ZodTypeAny>(inner: T) {
     displayValue: z.string(),
   })
 
+  // any casts: generic T causes z.input<T> vs z.output<T> mismatch that TS can't resolve.
+  // Tracked as a dedicated task for tighter constraints on codec factory generics.
   return zx.codec(wireSchema, runtimeSchema, {
-    decode: (wire: z.output<typeof wireSchema>) => ({
+    decode: (wire: any) => ({
       ...wire,
       displayValue: `[${wire.tag}] ${wire.value}`,
     }),
-    encode: (runtime: z.output<typeof runtimeSchema>) => ({
+    encode: (runtime: any) => ({
       value: runtime.value,
       tag: runtime.tag,
     }),

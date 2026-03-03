@@ -87,7 +87,7 @@ async function main() {
     title: 'Smoke Test Task',
     ownerId: userId,
     priority: 'high',
-    estimate: 90,
+    estimate: { hours: 1, minutes: 30 },
   })
   assert(typeof taskId === 'string', `task created: ${taskId}`)
 

@@ -18,6 +18,27 @@ function ensureOptional(schema: z.ZodTypeAny): z.ZodOptional<any> {
   return schema instanceof z.ZodOptional ? (schema as z.ZodOptional<any>) : schema.optional()
 }
 
+/**
+ * Unwraps optional/nullable layers and checks if the schema contains a ZodCodec.
+ * Any codec field in an index is potentially problematic because .withIndex()
+ * does not currently encode runtime values to wire format.
+ */
+function isCodecField(schema: z.ZodTypeAny): boolean {
+  let current = schema
+  for (let i = 0; i < 10; i++) {
+    if (current instanceof z.ZodCodec) {
+      return true
+    }
+    if (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
+      const def = (current as any)._zod?.def as any
+      current = def.innerType
+      continue
+    }
+    break
+  }
+  return false
+}
+
 // ============================================================================
 // Field Path Types
 // ============================================================================
@@ -252,6 +273,23 @@ export function defineZodModel<Name extends string>(
     paginatedDoc: paginatedDocSchema
   }
 
+  function warnCodecIndexFields(indexName: string, indexFields: readonly string[]) {
+    for (const fieldPath of indexFields) {
+      // Resolve top-level field name (before any dot)
+      const topLevel = fieldPath.split('.')[0]
+      if (topLevel === '_creationTime') continue
+      const fieldSchema = fields[topLevel]
+      if (fieldSchema && isCodecField(fieldSchema as z.ZodTypeAny)) {
+        console.warn(
+          `[zodvex] Index "${indexName}" on table "${name}" includes codec field "${fieldPath}". ` +
+            `zodvex does not currently encode values passed to .withIndex() query comparisons, ` +
+            `so runtime values (e.g., Date) will not be converted to wire format (e.g., number) ` +
+            `automatically. You must pass pre-encoded wire values to .eq(), .gt(), etc.`
+        )
+      }
+    }
+  }
+
   function createModel(
     indexes: Record<string, readonly string[]>,
     searchIndexes: Record<string, SearchIndexConfig>,
@@ -265,6 +303,7 @@ export function defineZodModel<Name extends string>(
       searchIndexes,
       vectorIndexes,
       index(indexName: string, indexFields: readonly string[]) {
+        warnCodecIndexFields(indexName, indexFields)
         return createModel(
           { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
           searchIndexes,
