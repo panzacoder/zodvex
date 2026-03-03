@@ -81,9 +81,9 @@ describe('mantineResolver (mantine)', () => {
         args: z.object({
           name: z.string().min(1),
           secret: z.codec(z.object({ v: z.string() }), z.custom<{ expose: () => string }>(), {
-            decode: (wire) => ({ expose: () => wire.v }),
-            encode: (runtime) => ({ v: runtime.expose() }),
-          }),
+            decode: wire => ({ expose: () => wire.v }),
+            encode: runtime => ({ v: runtime.expose() })
+          })
         })
       }
     }
