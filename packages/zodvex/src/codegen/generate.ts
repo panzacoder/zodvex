@@ -294,18 +294,21 @@ export interface ClientFileOptions {
  * Generates the client.ts file content — pre-bound hooks and client factory.
  */
 export function generateClientFile(options: ClientFileOptions = {}): string {
-  const mantineSection = options.form?.mantine
-    ? `
-import { mantineResolver as _mantineResolver } from 'zodvex/form/mantine'
+  const mantineImports = options.form?.mantine
+    ? `import { mantineResolver as _mantineResolver } from 'zodvex/form/mantine'
 import type { FunctionReference } from 'convex/server'
+`
+    : ''
 
+  const mantineExports = options.form?.mantine
+    ? `
 export const mantineResolver = (ref: FunctionReference<any, any, any, any>) =>
   _mantineResolver(zodvexRegistry, ref)
 `
     : ''
 
   return `${HEADER}
-import { createZodvexHooks } from 'zodvex/react'
+${mantineImports}import { createZodvexHooks } from 'zodvex/react'
 import { createZodvexReactClient, type ZodvexReactClientOptions } from 'zodvex/react'
 import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'
 import { createBoundaryHelpers } from 'zodvex/core'
@@ -320,5 +323,5 @@ export const createReactClient = (options: ZodvexReactClientOptions) =>
   createZodvexReactClient(zodvexRegistry, options)
 
 export const { encodeArgs, decodeResult } = createBoundaryHelpers(zodvexRegistry)
-${mantineSection}`
+${mantineExports}`
 }
