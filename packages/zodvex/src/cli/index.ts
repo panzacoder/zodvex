@@ -18,6 +18,38 @@ async function main() {
       await init()
       break
     }
+    case 'migrate': {
+      const { migrate } = await import('./migrate')
+      const targetDir = process.argv[3] ?? '.'
+      const dryRun = process.argv.includes('--dry-run')
+      const result = migrate(targetDir, { dryRun })
+
+      if (dryRun) {
+        console.log(`[zodvex] Dry run: ${result.wouldChange} file(s) would be changed`)
+      } else {
+        console.log(`[zodvex] Migrated ${result.filesChanged} file(s)`)
+      }
+
+      if (result.remainingDeprecations.length > 0) {
+        console.log('')
+        console.log('[zodvex] Remaining deprecated API usage:')
+        const grouped = new Map<string, string[]>()
+        for (const d of result.remainingDeprecations) {
+          const key = d.symbol
+          if (!grouped.has(key)) grouped.set(key, [])
+          grouped.get(key)?.push(`  ${d.file}:${d.line}`)
+        }
+        for (const [symbol, locations] of grouped) {
+          console.log(`  ${symbol}:`)
+          for (const loc of locations) {
+            console.log(`    ${loc}`)
+          }
+        }
+        console.log('')
+        console.log('See docs/migration/v0.6.md for migration guidance on structural changes.')
+      }
+      break
+    }
     case 'help':
     case '--help':
     case '-h':
@@ -39,6 +71,8 @@ Usage:
   zodvex generate [convex-dir]  Generate schema and validator files
   zodvex dev [convex-dir]       Watch mode — regenerate on changes
   zodvex init                   Set up zodvex in an existing Convex project
+  zodvex migrate [dir]           Migrate pre-0.6 APIs (renames + import fixes)
+  zodvex migrate [dir] --dry-run Preview changes without writing
   zodvex help                   Show this help message
 `)
 }
