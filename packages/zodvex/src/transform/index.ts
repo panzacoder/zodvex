@@ -11,7 +11,7 @@
  * import { findFieldsWithMeta, transformBySchema } from 'zodvex/transform'
  *
  * // Find all fields with custom metadata
- * const sensitiveFields = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+ * const piiFields = findFieldsWithMeta(schema, meta => meta?.pii === true)
  *
  * // Transform values based on metadata
  * const masked = transformBySchema(value, schema, ctx, (val, info) => {

@@ -8,7 +8,7 @@
 import { z } from 'zod'
 import { zx } from '../src/core'
 
-// Factory-created codec (like hotpot's sensitive())
+// Factory-created codec (like a consumer's custom())
 function tagged<T extends z.ZodTypeAny>(inner: T) {
   return zx.codec(
     z.object({ value: inner, tag: z.string() }),

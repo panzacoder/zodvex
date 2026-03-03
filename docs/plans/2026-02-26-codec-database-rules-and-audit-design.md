@@ -2,7 +2,7 @@
 
 ## Problem
 
-zodvex's `CodecDatabaseReader`/`CodecDatabaseWriter` wrap Convex's raw DB with automatic codec encode/decode. Downstream consumers like hotpot need to interpose per-document security (RLS/FLS) on decoded documents. convex-helpers' `wrapDatabaseReader` wraps `GenericDatabaseReader`, but `CodecDatabaseReader` doesn't implement that interface (different terminal return types). So hotpot built its own `SecureQueryChainImpl` which redeclares every intermediate chain method with `any` types, destroying all index/filter type inference that `CodecQueryChain` provides.
+zodvex's `CodecDatabaseReader`/`CodecDatabaseWriter` wrap Convex's raw DB with automatic codec encode/decode. Downstream consumers need to interpose per-document security (RLS/FLS) on decoded documents. convex-helpers' `wrapDatabaseReader` wraps `GenericDatabaseReader`, but `CodecDatabaseReader` doesn't implement that interface (different terminal return types). So a consumer built its own `SecureQueryChainImpl` which redeclares every intermediate chain method with `any` types, destroying all index/filter type inference that `CodecQueryChain` provides.
 
 ## Solution
 
@@ -19,7 +19,7 @@ Both return the same type they're called on, making them chainable and composabl
 
 convex-helpers provides boolean predicates on a `GenericDatabaseReader` interface. zodvex's codec layer changes the equation:
 
-1. **Rich decoded types.** Documents have `SensitiveField`, `Date`, and other codec-decoded types. Per-document transformation (FLS field decisions) is as important as boolean gating. Boolean predicates can't transform.
+1. **Rich decoded types.** Documents have `CustomField`, `Date`, and other codec-decoded types. Per-document transformation (FLS field decisions) is as important as boolean gating. Boolean predicates can't transform.
 2. **No interface to implement.** `CodecDatabaseReader` is a class, not an interface like `GenericDatabaseReader`. Methods on the class are the natural extension point.
 3. **Operation-specific context.** convex-helpers groups `patch`/`replace`/`delete` into a single `modify` rule. But these operations have different inputs — `patch` has a partial value, `replace` has a full value, `delete` has nothing. Organizing by actual DB action types gives each rule exactly the context it needs.
 
@@ -41,7 +41,7 @@ A consumer might want audit without rules (they have their own RLS system) or ru
 
 ### RLS is a safety net, not the primary filter
 
-In practice (observed in hotpot), handlers use `.withIndex()` for performant scope-based filtering. RLS rules run per-document at terminals as defense-in-depth. Most documents that reach the rule will pass. zodvex's `.withRules()` provides correctness guarantees, not performance guarantees. Index discipline is the handler author's responsibility.
+In practice, handlers use `.withIndex()` for performant scope-based filtering. RLS rules run per-document at terminals as defense-in-depth. Most documents that reach the rule will pass. zodvex's `.withRules()` provides correctness guarantees, not performance guarantees. Index discipline is the handler author's responsibility.
 
 ## API Surface
 
@@ -239,10 +239,10 @@ This means `defaultPolicy: 'deny'` is a true lockdown — adding a new table to 
 
 ## Consumer Usage
 
-### Hotpot blessed function (target state)
+### Consumer blessed function (target state)
 
 ```ts
-export const hotpotQuery = zq.withContext({
+export const consumerQuery = zq.withContext({
   input: async (ctx) => {
     const securityCtx = await resolveContext(ctx)
     return {
@@ -251,7 +251,7 @@ export const hotpotQuery = zq.withContext({
           .withRules(securityCtx, rules)
           .audit({
             afterWrite: (table, event) => {
-              if (isHotpotSecurityContext(securityCtx)) {
+              if (isSecurityContext(securityCtx)) {
                 const fields = 'value' in event ? Object.keys(event.value) : []
                 produceWriteAuditLog(securityCtx, event.type, table, event.id, fields)
               }
@@ -264,7 +264,7 @@ export const hotpotQuery = zq.withContext({
 })
 ```
 
-### Hotpot rules definition
+### Consumer rules definition
 
 ```ts
 const rules = {
@@ -278,7 +278,7 @@ const rules = {
     insert: async (ctx, value) => {
       if (!checkScope(ctx, value)) throw new Error('insert denied')
       const wrapped = await applyFlsWriteRuntime(value, patientsSchema, ctx, resolver)
-      return { ...wrapped, sensitiveExpiresAt: calculateExpiresAt() }
+      return { ...wrapped, expiresAt: calculateExpiresAt() }
     },
     patch: async (ctx, doc, value) => {
       // Two-phase RLS
@@ -295,7 +295,7 @@ const rules = {
 }
 ```
 
-### What hotpot deletes
+### What the consumer deletes
 
 - `SecureQueryChainImpl` (~170 lines)
 - `SecureQueryChain` type (~30 lines)

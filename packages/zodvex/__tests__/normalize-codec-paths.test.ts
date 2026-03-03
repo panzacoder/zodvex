@@ -14,8 +14,8 @@ function makeZodError(issues: Array<{ path: (string | number)[]; message: string
   )
 }
 
-// A custom codec with nested wire schema (like hotpot's SensitiveField)
-const sensitiveString = zx.codec(z.object({ value: z.string(), status: z.string() }), z.string(), {
+// A custom codec with nested wire schema (like a consumer's CustomField)
+const customString = zx.codec(z.object({ value: z.string(), status: z.string() }), z.string(), {
   decode: wire => wire.value,
   encode: value => ({ value, status: 'full' })
 })
@@ -46,7 +46,7 @@ describe('normalizeCodecPaths', () => {
   describe('codec fields — wire-internal path segments truncated', () => {
     it('truncates nested wire path to codec field name', () => {
       const schema = z.object({
-        email: sensitiveString,
+        email: customString,
         name: z.string()
       })
       const error = makeZodError([{ path: ['email', 'value'], message: 'Invalid' }])
@@ -57,7 +57,7 @@ describe('normalizeCodecPaths', () => {
     })
 
     it('truncates deeper wire paths', () => {
-      const schema = z.object({ email: sensitiveString })
+      const schema = z.object({ email: customString })
       const error = makeZodError([{ path: ['email', 'status'], message: 'Invalid status' }])
 
       const normalized = normalizeCodecPaths(error, schema)
@@ -66,7 +66,7 @@ describe('normalizeCodecPaths', () => {
     })
 
     it('preserves message from original issue', () => {
-      const schema = z.object({ email: sensitiveString })
+      const schema = z.object({ email: customString })
       const error = makeZodError([{ path: ['email', 'value'], message: 'Too short' }])
 
       const normalized = normalizeCodecPaths(error, schema)
@@ -88,7 +88,7 @@ describe('normalizeCodecPaths', () => {
 
   describe('codecs inside wrappers', () => {
     it('optional codec field', () => {
-      const schema = z.object({ email: sensitiveString.optional() })
+      const schema = z.object({ email: customString.optional() })
       const error = makeZodError([{ path: ['email', 'value'], message: 'Invalid' }])
 
       const normalized = normalizeCodecPaths(error, schema)
@@ -97,7 +97,7 @@ describe('normalizeCodecPaths', () => {
     })
 
     it('nullable codec field', () => {
-      const schema = z.object({ email: sensitiveString.nullable() })
+      const schema = z.object({ email: customString.nullable() })
       const error = makeZodError([{ path: ['email', 'value'], message: 'Invalid' }])
 
       const normalized = normalizeCodecPaths(error, schema)
@@ -109,7 +109,7 @@ describe('normalizeCodecPaths', () => {
   describe('codecs inside arrays', () => {
     it('truncates wire-internal path after array index', () => {
       const schema = z.object({
-        contacts: z.array(z.object({ email: sensitiveString }))
+        contacts: z.array(z.object({ email: customString }))
       })
       const error = makeZodError([{ path: ['contacts', 0, 'email', 'value'], message: 'Invalid' }])
 
@@ -122,8 +122,8 @@ describe('normalizeCodecPaths', () => {
   describe('multiple issues', () => {
     it('normalizes all issues independently', () => {
       const schema = z.object({
-        email: sensitiveString,
-        phone: sensitiveString,
+        email: customString,
+        phone: customString,
         name: z.string()
       })
       const error = makeZodError([
@@ -144,7 +144,7 @@ describe('normalizeCodecPaths', () => {
   describe('mixed codec and non-codec nested objects', () => {
     it('truncates codec paths but preserves non-codec nested paths', () => {
       const schema = z.object({
-        email: sensitiveString,
+        email: customString,
         address: z.object({ street: z.string(), city: z.string() })
       })
       const error = makeZodError([
@@ -162,7 +162,7 @@ describe('normalizeCodecPaths', () => {
 
 describe('safeEncode', () => {
   it('encodes valid data through codec without error', () => {
-    const schema = z.object({ email: sensitiveString })
+    const schema = z.object({ email: customString })
     const result = safeEncode(schema, { email: 'test@example.com' })
 
     expect(result).toEqual({ email: { value: 'test@example.com', status: 'full' } })
@@ -170,7 +170,7 @@ describe('safeEncode', () => {
 
   it('throws ZodError with normalized paths on validation failure', () => {
     const schema = z.object({
-      email: sensitiveString,
+      email: customString,
       name: z.string()
     })
 

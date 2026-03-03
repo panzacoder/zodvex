@@ -10,21 +10,21 @@ import type { FieldInfo, SchemaVisitor, WalkSchemaOptions } from './types'
 const METADATA_CACHE = new WeakMap<z.ZodTypeAny, Record<string, unknown> | undefined>()
 
 /**
- * Metadata key for ZodSensitive wrappers.
+ * Metadata key for ZodCustom wrappers (custom field types).
  */
-const SENSITIVE_META_KEY = 'zodvex:sensitive'
+const CUSTOM_META_KEY = 'zodvex:custom'
 
 /**
- * Duck-type check for ZodSensitive wrapper.
+ * Duck-type check for custom wrapper schema types.
  */
-function isZodSensitiveDef(schema: any): boolean {
+function isCustomWrapperDef(schema: any): boolean {
   return schema?._def?.type === 'sensitive' && typeof schema?.unwrap === 'function'
 }
 
 /**
  * Get metadata from a Zod schema.
  *
- * Handles both Zod's native .meta() and ZodSensitive wrappers.
+ * Handles both Zod's native .meta() and custom wrapper types.
  *
  * @example
  * ```ts
@@ -45,10 +45,10 @@ export function getMetadata(schema: z.ZodTypeAny): Record<string, unknown> | und
     if (visited.has(current)) return undefined
     visited.add(current)
 
-    // Fast path: ZodSensitive wrapper stores metadata directly
-    if (isZodSensitiveDef(current)) {
-      const sensitiveMeta = (current as any)._def.sensitiveMetadata
-      const meta = { [SENSITIVE_META_KEY]: sensitiveMeta }
+    // Fast path: custom wrapper stores metadata directly
+    if (isCustomWrapperDef(current)) {
+      const customMeta = (current as any)._def.sensitiveMetadata
+      const meta = { [CUSTOM_META_KEY]: customMeta }
       METADATA_CACHE.set(schema, meta)
       return meta
     }
@@ -71,7 +71,7 @@ function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
 
   switch (defType) {
     case 'sensitive': {
-      // ZodSensitive wrapper - unwrap to inner schema
+      // Custom wrapper type - unwrap to inner schema
       if (typeof (schema as any).unwrap === 'function') {
         return (schema as any).unwrap()
       }
@@ -116,8 +116,8 @@ function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
  *
  * @example
  * ```ts
- * const schema = z.string().meta({ sensitive: true })
- * hasMetadata(schema, meta => meta.sensitive === true)
+ * const schema = z.string().meta({ encrypted: true })
+ * hasMetadata(schema, meta => meta.encrypted === true)
  * // => true
  * ```
  */
@@ -173,7 +173,7 @@ export function walkSchema(
       // Dispatch based on schema type
       switch (defType) {
         case 'sensitive': {
-          // ZodSensitive wrapper - already reported via onField, now traverse inner
+          // Custom wrapper - already reported via onField, now traverse inner
           const inner = (sch as any).unwrap?.() ?? (sch as any)._def?.innerType
           if (inner) {
             traverse(inner, currentPath, isOptional)
@@ -293,12 +293,12 @@ export function findFieldsWithMeta(
  *
  * @example
  * ```ts
- * // Find all fields with 'sensitive' metadata
- * const sensitiveFields = findFieldsWithMeta(
+ * // Find all fields with 'pii' metadata
+ * const piiFields = findFieldsWithMeta(
  *   userSchema,
- *   (meta) => meta?.sensitive === true
+ *   (meta) => meta?.pii === true
  * )
- * // => [{ path: 'email', schema: z.string(), meta: { sensitive: true } }, ...]
+ * // => [{ path: 'email', schema: z.string(), meta: { pii: true } }, ...]
  * ```
  */
 export function findFieldsWithMeta(

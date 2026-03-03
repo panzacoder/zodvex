@@ -17,12 +17,12 @@ describe('transform/transform.ts', () => {
     it('should transform matching fields', () => {
       const schema = z.object({
         name: z.string(),
-        secret: z.string().meta({ sensitive: true })
+        secret: z.string().meta({ pii: true })
       })
       const value = { name: 'John', secret: 'password123' }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val
@@ -48,14 +48,14 @@ describe('transform/transform.ts', () => {
       const schema = z.object({
         user: z.object({
           profile: z.object({
-            email: z.string().meta({ sensitive: true })
+            email: z.string().meta({ pii: true })
           })
         })
       })
       const value = { user: { profile: { email: 'john@example.com' } } }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[HIDDEN]'
         }
         return val
@@ -66,14 +66,14 @@ describe('transform/transform.ts', () => {
 
     it('should handle arrays with indexed paths', () => {
       const schema = z.object({
-        items: z.array(z.string().meta({ sensitive: true }))
+        items: z.array(z.string().meta({ pii: true }))
       })
       const value = { items: ['a', 'b', 'c'] }
       const paths: string[] = []
 
       transformBySchema(value, schema, null, (val, ctx) => {
         paths.push(ctx.path)
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return `[${val}]`
         }
         return val
@@ -120,12 +120,12 @@ describe('transform/transform.ts', () => {
 
     it('should handle optional fields that are present', () => {
       const schema = z.object({
-        email: z.string().meta({ sensitive: true }).optional()
+        email: z.string().meta({ pii: true }).optional()
       })
       const value = { email: 'john@example.com' }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val
@@ -181,13 +181,13 @@ describe('transform/transform.ts', () => {
         // Meta is on the inner string, but the schema node is wrapped.
         secret: z
           .string()
-          .meta({ sensitive: true })
+          .meta({ pii: true })
           .transform(v => v)
       })
       const value = { secret: 'password123' }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val
@@ -200,12 +200,12 @@ describe('transform/transform.ts', () => {
   describe('transformBySchemaAsync', () => {
     it('should support async transform functions', async () => {
       const schema = z.object({
-        secret: z.string().meta({ sensitive: true })
+        secret: z.string().meta({ pii: true })
       })
       const value = { secret: 'password' }
 
       const result = await transformBySchemaAsync(value, schema, null, async (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           // Simulate async operation
           await new Promise(resolve => setTimeout(resolve, 1))
           return '[ASYNC_REDACTED]'
@@ -260,21 +260,21 @@ describe('transform/transform.ts', () => {
     describe('discriminated unions', () => {
       it('should transform matching discriminated union variant', () => {
         const schema = z.discriminatedUnion('type', [
-          z.object({ type: z.literal('dog'), bark: z.string().meta({ sensitive: true }) }),
-          z.object({ type: z.literal('cat'), meow: z.string().meta({ sensitive: true }) })
+          z.object({ type: z.literal('dog'), bark: z.string().meta({ pii: true }) }),
+          z.object({ type: z.literal('cat'), meow: z.string().meta({ pii: true }) })
         ])
         const dogValue = { type: 'dog' as const, bark: 'woof' }
         const catValue = { type: 'cat' as const, meow: 'purr' }
 
         const dogResult = transformBySchema(dogValue, schema, null, (val, ctx) => {
-          if (ctx.meta?.sensitive === true) {
+          if (ctx.meta?.pii === true) {
             return '[REDACTED]'
           }
           return val
         })
 
         const catResult = transformBySchema(catValue, schema, null, (val, ctx) => {
-          if (ctx.meta?.sensitive === true) {
+          if (ctx.meta?.pii === true) {
             return '[REDACTED]'
           }
           return val
@@ -363,12 +363,12 @@ describe('transform/transform.ts', () => {
     describe('async union handling', () => {
       it('should handle async transforms in discriminated unions', async () => {
         const schema = z.discriminatedUnion('type', [
-          z.object({ type: z.literal('a'), secret: z.string().meta({ sensitive: true }) })
+          z.object({ type: z.literal('a'), secret: z.string().meta({ pii: true }) })
         ])
         const value = { type: 'a' as const, secret: 'password' }
 
         const result = await transformBySchemaAsync(value, schema, null, async (val, ctx) => {
-          if (ctx.meta?.sensitive === true) {
+          if (ctx.meta?.pii === true) {
             await new Promise(resolve => setTimeout(resolve, 1))
             return '[ASYNC]'
           }
@@ -397,10 +397,10 @@ describe('transform/transform.ts', () => {
     it('should skip transform callback when predicate returns false', () => {
       const schema = z.object({
         name: z.string(),
-        secret: z.string().meta({ sensitive: true })
+        secret: z.string().meta({ pii: true })
       })
       const value = { name: 'John', secret: 'password123' }
-      const callCount = { total: 0, sensitive: 0 }
+      const callCount = { total: 0, pii: 0 }
 
       const result = transformBySchema(
         value,
@@ -408,22 +408,22 @@ describe('transform/transform.ts', () => {
         null,
         (val, ctx) => {
           callCount.total++
-          if (ctx.meta?.sensitive === true) {
-            callCount.sensitive++
+          if (ctx.meta?.pii === true) {
+            callCount.pii++
             return '[REDACTED]'
           }
           return val
         },
         {
-          // Only call transform for schemas with sensitive metadata
-          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+          // Only call transform for schemas with pii metadata
+          shouldTransform: sch => getMetadata(sch)?.pii === true
         }
       )
 
       expect(result.name).toBe('John') // Unchanged (callback never called)
       expect(result.secret).toBe('[REDACTED]') // Transformed
-      expect(callCount.sensitive).toBe(1) // Called once for secret
-      // Should only call transform for sensitive fields, not all fields
+      expect(callCount.pii).toBe(1) // Called once for secret
+      // Should only call transform for pii fields, not all fields
       expect(callCount.total).toBe(1)
     })
 
@@ -431,7 +431,7 @@ describe('transform/transform.ts', () => {
       const schema = z.object({
         user: z.object({
           profile: z.object({
-            email: z.string().meta({ sensitive: true })
+            email: z.string().meta({ pii: true })
           })
         })
       })
@@ -442,17 +442,17 @@ describe('transform/transform.ts', () => {
         schema,
         null,
         (val, ctx) => {
-          if (ctx.meta?.sensitive === true) {
+          if (ctx.meta?.pii === true) {
             return '[HIDDEN]'
           }
           return val
         },
         {
-          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+          shouldTransform: sch => getMetadata(sch)?.pii === true
         }
       )
 
-      // Should still find and transform the deeply nested sensitive field
+      // Should still find and transform the deeply nested pii field
       expect(result.user.profile.email).toBe('[HIDDEN]')
     })
 
@@ -461,7 +461,7 @@ describe('transform/transform.ts', () => {
         items: z.array(
           z.object({
             public: z.string(),
-            secret: z.string().meta({ sensitive: true })
+            secret: z.string().meta({ pii: true })
           })
         )
       })
@@ -479,13 +479,13 @@ describe('transform/transform.ts', () => {
         null,
         (val, ctx) => {
           callCount++
-          if (ctx.meta?.sensitive === true) {
+          if (ctx.meta?.pii === true) {
             return '[HIDDEN]'
           }
           return val
         },
         {
-          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+          shouldTransform: sch => getMetadata(sch)?.pii === true
         }
       )
 
@@ -493,13 +493,13 @@ describe('transform/transform.ts', () => {
       expect(result.items[0].secret).toBe('[HIDDEN]')
       expect(result.items[1].public).toBe('b')
       expect(result.items[1].secret).toBe('[HIDDEN]')
-      expect(callCount).toBe(2) // Only 2 calls for the 2 sensitive fields
+      expect(callCount).toBe(2) // Only 2 calls for the 2 pii fields
     })
 
     it('should work with async transforms', async () => {
       const schema = z.object({
         name: z.string(),
-        secret: z.string().meta({ sensitive: true })
+        secret: z.string().meta({ pii: true })
       })
       const value = { name: 'John', secret: 'password' }
       let callCount = 0
@@ -510,14 +510,14 @@ describe('transform/transform.ts', () => {
         null,
         async (val, ctx) => {
           callCount++
-          if (ctx.meta?.sensitive === true) {
+          if (ctx.meta?.pii === true) {
             await new Promise(resolve => setTimeout(resolve, 1))
             return '[ASYNC_HIDDEN]'
           }
           return val
         },
         {
-          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+          shouldTransform: sch => getMetadata(sch)?.pii === true
         }
       )
 
@@ -549,12 +549,12 @@ describe('transform/transform.ts', () => {
         z.object({
           type: z.literal('user'),
           name: z.string(),
-          ssn: z.string().meta({ sensitive: true })
+          ssn: z.string().meta({ pii: true })
         }),
         z.object({
           type: z.literal('company'),
           name: z.string(),
-          taxId: z.string().meta({ sensitive: true })
+          taxId: z.string().meta({ pii: true })
         })
       ])
       const userValue = { type: 'user' as const, name: 'John', ssn: '123-45-6789' }
@@ -566,13 +566,13 @@ describe('transform/transform.ts', () => {
         null,
         (val, ctx) => {
           callCount++
-          if (ctx.meta?.sensitive === true) {
+          if (ctx.meta?.pii === true) {
             return '[REDACTED]'
           }
           return val
         },
         {
-          shouldTransform: sch => getMetadata(sch)?.sensitive === true
+          shouldTransform: sch => getMetadata(sch)?.pii === true
         }
       )
 
@@ -588,7 +588,7 @@ describe('transform/transform.ts', () => {
         levels: z.array(
           z.array(
             z.object({
-              secret: z.string().meta({ sensitive: true })
+              secret: z.string().meta({ pii: true })
             })
           )
         )
@@ -598,7 +598,7 @@ describe('transform/transform.ts', () => {
       }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return `[${val}]`
         }
         return val
@@ -609,14 +609,14 @@ describe('transform/transform.ts', () => {
       expect(result.levels[1][0].secret).toBe('[c]')
     })
 
-    it('should handle mixed optional/nullable/sensitive', () => {
+    it('should handle mixed optional/nullable/pii', () => {
       const schema = z.object({
-        field: z.string().meta({ sensitive: true }).nullable().optional()
+        field: z.string().meta({ pii: true }).nullable().optional()
       })
 
       // With value present
       const result1 = transformBySchema({ field: 'secret' }, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[HIDDEN]'
         }
         return val
@@ -635,7 +635,7 @@ describe('transform/transform.ts', () => {
     it('should not transform when transform returns same value', () => {
       const schema = z.object({
         nested: z.object({
-          deep: z.string().meta({ sensitive: true })
+          deep: z.string().meta({ pii: true })
         })
       })
       const value = { nested: { deep: 'secret' } }
@@ -660,13 +660,13 @@ describe('transform/transform.ts', () => {
       // Simple lazy wrapper (non-recursive)
       const lazySchema = z.lazy(() =>
         z.object({
-          secret: z.string().meta({ sensitive: true })
+          secret: z.string().meta({ pii: true })
         })
       )
       const value = { secret: 'password123' }
 
       const result = transformBySchema(value, lazySchema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val
@@ -681,7 +681,7 @@ describe('transform/transform.ts', () => {
       const personSchema: z.ZodType<Person> = z.lazy(() =>
         z.object({
           name: z.string(),
-          ssn: z.string().meta({ sensitive: true }),
+          ssn: z.string().meta({ pii: true }),
           friends: z.array(personSchema)
         })
       )
@@ -699,7 +699,7 @@ describe('transform/transform.ts', () => {
       }
 
       const result = transformBySchema(value, personSchema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val
@@ -749,7 +749,7 @@ describe('transform/transform.ts', () => {
       const personSchema: z.ZodType<Person> = z.lazy(() =>
         z.object({
           name: z.string(),
-          secret: z.string().meta({ sensitive: true }),
+          secret: z.string().meta({ pii: true }),
           friends: z.array(personSchema)
         })
       )
@@ -761,7 +761,7 @@ describe('transform/transform.ts', () => {
       }
 
       const result = await transformBySchemaAsync(value, personSchema, null, async (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           await new Promise(resolve => setTimeout(resolve, 1))
           return '[ASYNC_REDACTED]'
         }
@@ -802,12 +802,12 @@ describe('transform/transform.ts', () => {
         email: z
           .string()
           .transform(s => s.toLowerCase())
-          .meta({ sensitive: true })
+          .meta({ pii: true })
       })
       const value = { email: 'TEST@EXAMPLE.COM' }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val
@@ -822,12 +822,12 @@ describe('transform/transform.ts', () => {
         password: z
           .string()
           .refine(s => s.length >= 8, 'Password too short')
-          .meta({ sensitive: true })
+          .meta({ pii: true })
       })
       const value = { password: 'secret123' }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val
@@ -841,13 +841,13 @@ describe('transform/transform.ts', () => {
       const schema = z.object({
         email: z
           .string()
-          .meta({ sensitive: true })
+          .meta({ pii: true })
           .transform(s => s.toLowerCase())
       })
       const value = { email: 'TEST@EXAMPLE.COM' }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val
@@ -862,13 +862,13 @@ describe('transform/transform.ts', () => {
       const schema = z.object({
         password: z
           .string()
-          .meta({ sensitive: true })
+          .meta({ pii: true })
           .refine(s => s.length >= 8)
       })
       const value = { password: 'secret123' }
 
       const result = transformBySchema(value, schema, null, (val, ctx) => {
-        if (ctx.meta?.sensitive === true) {
+        if (ctx.meta?.pii === true) {
           return '[REDACTED]'
         }
         return val

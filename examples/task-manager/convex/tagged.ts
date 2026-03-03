@@ -4,7 +4,7 @@ import { zx } from 'zodvex/core'
 /**
  * Tagged codec factory — wraps any value with a { value, tag } wire format.
  *
- * Each call creates a NEW ZodCodec instance (like hotpot's `sensitive()`).
+ * Each call creates a NEW ZodCodec instance (like a consumer's `custom()`).
  * This is the pattern that breaks codegen discovery, which only finds
  * module-level exports.
  */

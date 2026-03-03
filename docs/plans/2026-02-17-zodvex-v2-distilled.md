@@ -41,7 +41,7 @@ zodvex owns codec correctness at all six. It is NOT a general Zod wrapper or con
 
 ### 2c. onSuccess must fire before Zod encode
 
-`onSuccess` callbacks need to see **runtime types** (Date, SensitiveWrapper), not wire types (timestamp, string). This means onSuccess must run before `z.encode(returns, result)`.
+`onSuccess` callbacks need to see **runtime types** (Date, CustomWrapper), not wire types (timestamp, string). This means onSuccess must run before `z.encode(returns, result)`.
 
 convex-helpers' own `customFnBuilder` (non-Zod, in `customFunctions.ts`) runs onSuccess before returning — but the Zod `customFnBuilder` runs `returns.parse(ret)` (which encodes) BEFORE `onSuccess`. This means:
 
@@ -89,7 +89,7 @@ const {
 The one-arg factories pre-compose codec + the user's customization. Consumer usage:
 
 ```typescript
-const hotpotQuery = zCustomQuery({
+const consumerQuery = zCustomQuery({
   args: { sessionId: zx.id("sessions") },  // Zod validators
   input: async (ctx, { sessionId }) => {
     const user = await getUser(ctx)
@@ -108,7 +108,7 @@ const codec = createCodecCustomization(zodTables)
 // codec.mutation — wraps ctx.db with writer
 
 // User must manually compose
-const zq = zCustomQuery(server.query, composeCustomizations(codec.query, hotpotCust))
+const zq = zCustomQuery(server.query, composeCustomizations(codec.query, consumerCust))
 ```
 
 **Open question:** Do we need a `composeCustomizations` utility, or is manual composition sufficient?
@@ -149,7 +149,7 @@ Key: onSuccess (step 5) always before encode (step 6).
 
 ### Consumer DB wrappers
 
-hotpot (and others) write their own wrappers following Convex's `wrapDatabaseReader` pattern. zodvex provides the codec layer; consumers add security/RLS/FLS on top. zodvex does NOT provide hook points, compose utilities, or middleware APIs for this.
+Downstream consumers write their own wrappers following Convex's `wrapDatabaseReader` pattern. zodvex provides the codec layer; consumers add security/RLS/FLS on top. zodvex does NOT provide hook points, compose utilities, or middleware APIs for this.
 
 ---
 

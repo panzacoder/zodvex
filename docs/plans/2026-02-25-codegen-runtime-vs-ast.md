@@ -89,9 +89,9 @@ const _fc0 = extractCodec(readFnArgs(getByEmail).shape.email)
 
 ### 1. Codec Identity Matching
 
-The core insight: codecs created by factory functions like `sensitive()` or `tagged()` are unique object instances. Two calls to `sensitive(z.string())` produce two different objects. Runtime identity (`===`) is the only reliable way to track "which codec is this?" across a codebase.
+The core insight: codecs created by factory functions like `custom()` or `tagged()` are unique object instances. Two calls to `custom(z.string())` produce two different objects. Runtime identity (`===`) is the only reliable way to track "which codec is this?" across a codebase.
 
-An AST approach would see `sensitive(z.string())` as text and could match it structurally, but couldn't distinguish between two different `sensitive()` calls with the same arguments that happen to produce different codec behaviors.
+An AST approach would see `custom(z.string())` as text and could match it structurally, but couldn't distinguish between two different `custom()` calls with the same arguments that happen to produce different codec behaviors.
 
 ### 2. Works With Any Code Pattern
 

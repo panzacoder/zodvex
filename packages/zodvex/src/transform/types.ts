@@ -96,13 +96,13 @@ export type TransformOptions = {
    *
    * This optimization avoids callback overhead for schemas that don't need
    * transformation, which is useful when only a small subset of fields
-   * require processing (e.g., only sensitive fields).
+   * require processing (e.g., only fields with custom metadata).
    *
    * @example
    * ```ts
-   * // Only call transform for schemas with sensitive metadata
+   * // Only call transform for schemas with custom metadata
    * transformBySchema(value, schema, ctx, transform, {
-   *   shouldTransform: (sch) => getSensitiveMetadata(sch) !== undefined
+   *   shouldTransform: (sch) => getCustomMetadata(sch) !== undefined
    * })
    * ```
    */

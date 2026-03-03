@@ -78,7 +78,7 @@ function truncateAtCodecBoundary(
  * Normalizes ZodError paths by truncating at codec boundaries.
  *
  * When z.encode() throws a ZodError, the paths reflect the wire schema
- * structure (e.g., ["email", "value"] for a SensitiveField codec).
+ * structure (e.g., ["email", "value"] for a custom codec).
  * This function strips the wire-internal segments so consumers see
  * clean field-level paths (e.g., ["email"]).
  */

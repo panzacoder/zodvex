@@ -537,35 +537,35 @@ expectNotAny(arrayCodecDoc.events[0].occurredAt)
 // --- Test 33: Custom codec wire type is preserved in Convex validator ---
 
 // Create a custom codec that transforms between wire and runtime
-type SensitiveWire = { encrypted: string }
-type SensitiveRuntime = string
+type EncryptedWire = { encrypted: string }
+type EncryptedRuntime = string
 
-const sensitiveCodec = zx.codec(
+const encryptedCodec = zx.codec(
   z.object({ encrypted: z.string() }),
-  z.custom<SensitiveRuntime>(() => true),
+  z.custom<EncryptedRuntime>(() => true),
   {
-    decode: (wire: SensitiveWire) => atob(wire.encrypted),
-    encode: (value: SensitiveRuntime) => ({ encrypted: btoa(value) })
+    decode: (wire: EncryptedWire) => atob(wire.encrypted),
+    encode: (value: EncryptedRuntime) => ({ encrypted: btoa(value) })
   }
 )
 
-const SensitiveTable = zodTable('sensitive', {
+const EncryptedTable = zodTable('encrypted', {
   name: z.string(),
-  secret: sensitiveCodec
+  secret: encryptedCodec
 })
 
 // Note: z.infer uses Zod's native inference which gives runtime types
 // The WireInfer fix is for Convex validator document types (VObject<DocType, ...>)
-type SensitiveDoc = z.infer<typeof SensitiveTable.zDoc>
-declare const sensitiveDoc: SensitiveDoc
+type EncryptedDoc = z.infer<typeof EncryptedTable.zDoc>
+declare const encryptedDoc: EncryptedDoc
 
-expectNotAny(sensitiveDoc.name)
-expectNotAny(sensitiveDoc.secret)
+expectNotAny(encryptedDoc.name)
+expectNotAny(encryptedDoc.secret)
 
 // The Convex validator type should use wire format
 // We verify this by checking the validator is not any
-type SensitiveValidator = typeof SensitiveTable.doc
-expectNotAny({} as SensitiveValidator)
+type EncryptedValidator = typeof EncryptedTable.doc
+expectNotAny({} as EncryptedValidator)
 
 // --- Test 34: Union with codec variants uses wire types ---
 

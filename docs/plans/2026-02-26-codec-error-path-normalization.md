@@ -10,7 +10,7 @@ When zodvex runs `z.encode()` on the client side (arg encoding before network ca
 ZodErrors propagate with paths that reflect the **wire schema structure**, not the
 runtime schema the consumer authored.
 
-Example: hotpot's `SensitiveField` has wire format `{ value: string, status: string }`.
+Example: a consumer's `CustomField` has wire format `{ value: string, status: string }`.
 A validation error on the email field produces path `["email", "value"]` instead of
 `["email"]`. A form author shouldn't need to know about wire internals.
 
@@ -42,7 +42,7 @@ wire representations.
 | `utils.ts:69` — `validateReturns()` | Only call site with try/catch |
 | `wrappers.ts:117,194,271` — zQuery/zMutation/zAction | Delegates to validateReturns |
 
-### hotpot-demo Form State
+### Example App Form State
 
 - **UI library:** Mantine (`@mantine/core` v8.3.13)
 - **Form library:** None — plain React `useState` + native `<form>`
@@ -209,12 +209,12 @@ function zodvexResolver<F extends FunctionReference<any, any, any, any>>(
 
 ### Target: Mantine Form (first consumer)
 
-hotpot-demo already uses Mantine (`@mantine/core` v8.3.13) with plain React state
+The example app already uses Mantine (`@mantine/core` v8.3.13) with plain React state
 and no form library. `@mantine/form` has `zodResolver` support via
 `mantine-form-zod-resolver`.
 
 ```bash
-# hotpot-demo would add:
+# the example app would add:
 bun add @mantine/form mantine-form-zod-resolver
 ```
 
@@ -238,7 +238,7 @@ export function zodvexResolver<F extends FunctionReference<any, any, any, any>>(
 }
 ```
 
-Consumer usage in hotpot-demo:
+Consumer usage in the example app:
 
 ```tsx
 import { useForm } from '@mantine/form'
@@ -252,7 +252,7 @@ function PatientForm() {
   })
 
   return (
-    <form onSubmit={form.onSubmit((values) => hotpot.patients.create(values))}>
+    <form onSubmit={form.onSubmit((values) => consumer.patients.create(values))}>
       <TextInput {...form.getInputProps('firstName')} />
       <TextInput {...form.getInputProps('email')} />
       {/* field errors shown automatically by Mantine */}
@@ -285,9 +285,9 @@ export function zodvexResolver<F extends FunctionReference<any, any, any, any>>(
    (user types) — but `entry.args` in the registry is the full codec schema. Need to
    confirm that Mantine/RHF's zodResolver calls `.parse()` (runtime) not `.encode()`
    (wire). If it calls `.parse()`, paths will be clean without normalization.
-2. **SensitiveField in forms:** hotpot's `SensitiveTextInput` works with `SensitiveField`
+2. **CustomField in forms:** A consumer's `CustomTextInput` works with `CustomField`
    instances. The resolver needs to validate against the form-facing type (which includes
-   `SensitiveField`), not the raw string. This might need hotpot-level schema adaptation.
+   `CustomField`), not the raw string. This might need consumer-level schema adaptation.
 3. **Shared utilities in `zodvex/form`:** Likely candidates: codec-aware error type
    narrowing, `isZodvexValidationError()` guard, field error mapping helpers. Keep this
    minimal until real consumer patterns emerge.
@@ -302,9 +302,9 @@ export function zodvexResolver<F extends FunctionReference<any, any, any, any>>(
 3. **Apply to client encode sites** — wrap the 4 call sites with try/catch + normalize
 4. **Integration test** — test with a real codec (e.g., `zx.date()` and a nested object
    codec) to verify path truncation
-5. **hotpot-demo validation** — verify the normalized errors work with PatientForm's
+5. **Example app validation** — verify the normalized errors work with PatientForm's
    existing error handling
 6. **(Follow-on) `zodvex/form` package** — shared types + Mantine resolver in
    `zodvex/form/mantine`
-7. **(Follow-on) hotpot-demo adoption** — wire up `@mantine/form` + zodvexResolver
+7. **(Follow-on) Example app adoption** — wire up `@mantine/form` + zodvexResolver
 8. **(Follow-on) hookform resolver** — `zodvex/form/hookform` when a consumer needs it

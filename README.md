@@ -561,7 +561,7 @@ For complex type transformations beyond the built-in `zx.date()` and `zx.id()`, 
 
 #### When to Use Custom Codecs
 
-- **Sensitive data**: Encrypt/decrypt fields before storage
+- **Encrypted data**: Encrypt/decrypt fields before storage
 - **Complex objects**: Serialize/deserialize custom class instances
 - **Wire format transformations**: Convert between API formats and internal representations
 
@@ -572,12 +572,12 @@ import { z } from 'zod'
 import { zx, type ZodvexCodec } from 'zodvex'
 
 // Define wire (storage) and runtime schemas
-type SensitiveCodec = ZodvexCodec<
+type EncryptedCodec = ZodvexCodec<
   z.ZodObject<{ encrypted: z.ZodString }>,
   z.ZodCustom<string>
 >
 
-function sensitiveString(): SensitiveCodec {
+function encryptedString(): EncryptedCodec {
   return zx.codec(
     z.object({ encrypted: z.string() }),  // Wire format (stored in Convex)
     z.custom<string>(() => true),          // Runtime format (used in code)
@@ -591,7 +591,7 @@ function sensitiveString(): SensitiveCodec {
 // Use in your schema
 const userShape = {
   name: z.string(),
-  ssn: sensitiveString()  // Automatically encrypted/decrypted
+  ssn: encryptedString()  // Automatically encrypted/decrypted
 }
 ```
 
@@ -603,7 +603,7 @@ zodvex automatically detects codecs created with `zx.codec()` and native `z.code
 import { z } from 'zod'
 import { zodToConvex } from 'zodvex'
 
-const codec = sensitiveString()
+const codec = encryptedString()
 
 // Validator generation - uses wire schema automatically
 const validator = zodToConvex(codec)
@@ -625,7 +625,7 @@ Codecs work correctly when nested in object schemas:
 ```ts
 const schema = z.object({
   id: z.string(),
-  secret: sensitiveString(),  // Custom codec
+  secret: encryptedString(),  // Custom codec
   createdAt: zx.date()        // Built-in zx.date() codec
 })
 

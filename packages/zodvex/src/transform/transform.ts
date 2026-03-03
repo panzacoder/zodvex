@@ -63,7 +63,7 @@ export function transformBySchema<T, TCtx>(
     // Dispatch based on schema type
     switch (defType) {
       case 'sensitive': {
-        // ZodSensitive wrapper - transform was already called above, now recurse into inner
+        // Custom wrapper - transform was already called above, now recurse into inner
         const inner = (sch as any).unwrap?.() ?? (sch as any)._def?.innerType
         if (inner) {
           return recurse(val, inner, currentPath)
@@ -154,7 +154,7 @@ export function transformBySchema<T, TCtx>(
  * ```ts
  * // Apply security policies (async entitlement checks)
  * const limited = await transformBySchemaAsync(doc, schema, ctx, async (value, info) => {
- *   if (isSensitive(info.meta)) {
+ *   if (isCustomField(info.meta)) {
  *     const decision = await resolvePolicy(info, ctx)
  *     return applyDecision(value, decision)
  *   }
@@ -198,7 +198,7 @@ export async function transformBySchemaAsync<T, TCtx>(
     // Dispatch based on schema type
     switch (defType) {
       case 'sensitive': {
-        // ZodSensitive wrapper - transform was already called above, now recurse into inner
+        // Custom wrapper - transform was already called above, now recurse into inner
         const inner = (sch as any).unwrap?.() ?? (sch as any)._def?.innerType
         if (inner) {
           return recurse(val, inner, currentPath)

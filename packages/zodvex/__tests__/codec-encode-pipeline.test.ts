@@ -1,9 +1,9 @@
 /**
- * Reproduces the exact hotpot encode pipeline to diagnose why SensitiveField
+ * Reproduces an exact consumer encode pipeline to diagnose why CustomField
  * reaches Convex's useQuery unencoded.
  *
  * Pipeline under test:
- *   1. zodvexCodec() creates the codec (like hotpot's sensitive())
+ *   1. zodvexCodec() creates the codec (like a consumer's custom())
  *   2. extractCodec() extracts it from a model schema (like codegen does)
  *   3. z.object({ email: extracted }) builds the registry args schema
  *   4. createBoundaryHelpers(registry).encodeArgs() encodes at the client boundary
@@ -31,12 +31,12 @@ function fakeRef(path: string) {
 }
 
 // ---------------------------------------------------------------------------
-// SensitiveWrapper — minimal reproduction of hotpot's SensitiveField
+// CustomWrapper — minimal reproduction of a consumer's CustomField
 // ---------------------------------------------------------------------------
 
-const PRIVATE_VALUES = new WeakMap<SensitiveWrapper<unknown>, unknown>()
+const PRIVATE_VALUES = new WeakMap<CustomWrapper<unknown>, unknown>()
 
-class SensitiveWrapper<T> {
+class CustomWrapper<T> {
   public readonly status: 'full' | 'hidden'
 
   private constructor(value: T | null, status: 'full' | 'hidden') {
@@ -44,17 +44,17 @@ class SensitiveWrapper<T> {
     this.status = status
   }
 
-  static full<T>(value: T): SensitiveWrapper<T> {
-    return new SensitiveWrapper(value, 'full')
+  static full<T>(value: T): CustomWrapper<T> {
+    return new CustomWrapper(value, 'full')
   }
 
-  static hidden<T>(): SensitiveWrapper<T> {
-    return new SensitiveWrapper<T>(null, 'hidden')
+  static hidden<T>(): CustomWrapper<T> {
+    return new CustomWrapper<T>(null, 'hidden')
   }
 
-  static fromWire<T>(wire: { value: T | null; status: 'full' | 'hidden' }): SensitiveWrapper<T> {
-    if (wire.status === 'hidden') return SensitiveWrapper.hidden<T>()
-    return new SensitiveWrapper<T>(wire.value, wire.status)
+  static fromWire<T>(wire: { value: T | null; status: 'full' | 'hidden' }): CustomWrapper<T> {
+    if (wire.status === 'hidden') return CustomWrapper.hidden<T>()
+    return new CustomWrapper<T>(wire.value, wire.status)
   }
 
   expose(): T {
@@ -69,7 +69,7 @@ class SensitiveWrapper<T> {
     }
   }
 
-  // Anti-coercion guards (like hotpot's SensitiveField)
+  // Anti-coercion guards (like a consumer's CustomField)
   toJSON() {
     return '❌❌❌❌❌'
   }
@@ -82,48 +82,46 @@ class SensitiveWrapper<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Create sensitive codec (matches hotpot's sensitive() pattern)
+// Create custom codec (matches a consumer's custom() pattern)
 // ---------------------------------------------------------------------------
 
-function createSensitiveCodec<T extends z.ZodTypeAny>(inner: T) {
+function createCustomCodec<T extends z.ZodTypeAny>(inner: T) {
   const wireSchema = z.object({
     value: inner.nullable(),
     status: z.enum(['full', 'hidden'])
   })
 
-  const fieldSchema = z.custom<SensitiveWrapper<z.output<T>>>(
-    val => val instanceof SensitiveWrapper
-  )
+  const fieldSchema = z.custom<CustomWrapper<z.output<T>>>(val => val instanceof CustomWrapper)
 
   return zodvexCodec(wireSchema, fieldSchema, {
-    decode: wire => SensitiveWrapper.fromWire(wire),
+    decode: wire => CustomWrapper.fromWire(wire),
     encode: field => field.toWire()
   })
 }
 
 // ---------------------------------------------------------------------------
-// Model schema (like hotpot's patients model)
+// Model schema (like a consumer's data model)
 // ---------------------------------------------------------------------------
 
-const sensitiveEmail = createSensitiveCodec(z.string().email())
-const sensitiveName = createSensitiveCodec(z.string())
+const customEmail = createCustomCodec(z.string().email())
+const customName = createCustomCodec(z.string())
 
-const patientDocSchema = z.object({
+const userDocSchema = z.object({
   _id: z.string(),
   _creationTime: z.number(),
-  clinicId: z.string(),
-  email: sensitiveEmail.optional(),
-  firstName: sensitiveName.optional(),
-  lastName: sensitiveName.optional()
+  orgId: z.string(),
+  email: customEmail.optional(),
+  firstName: customName.optional(),
+  lastName: customName.optional()
 })
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('Exact hotpot encode pipeline reproduction', () => {
+describe('Exact consumer encode pipeline reproduction', () => {
   // Step 1: extractCodec from model schema (like codegen does)
-  const _mc0 = extractCodec(patientDocSchema.shape.email)
+  const _mc0 = extractCodec(userDocSchema.shape.email)
 
   it('extractCodec returns a ZodCodec', () => {
     expect(_mc0).toBeInstanceOf(z.ZodCodec)
@@ -134,23 +132,23 @@ describe('Exact hotpot encode pipeline reproduction', () => {
 
   // Step 3: Build registry (like generated api.ts)
   const registry = {
-    'patients/index:getByEmail': {
+    'users/index:getByEmail': {
       args: argsSchema,
-      returns: patientDocSchema.nullable()
+      returns: userDocSchema.nullable()
     }
   }
 
   describe('z.encode directly on args schema', () => {
-    it('encodes SensitiveWrapper to wire format', () => {
-      const runtimeArgs = { email: SensitiveWrapper.full('test@example.com') }
+    it('encodes CustomWrapper to wire format', () => {
+      const runtimeArgs = { email: CustomWrapper.full('test@example.com') }
       const wire = z.encode(argsSchema, runtimeArgs)
 
       expect(wire.email).toEqual({ value: 'test@example.com', status: 'full' })
     })
 
-    it('encodes SensitiveWrapper with empty string', () => {
-      // This is the exact failing case: SensitiveField.full('')
-      const runtimeArgs = { email: SensitiveWrapper.full('') }
+    it('encodes CustomWrapper with empty string', () => {
+      // This is the exact failing case: CustomField.full('')
+      const runtimeArgs = { email: CustomWrapper.full('') }
 
       // Empty string fails z.string().email() validation in the wire schema
       // Does z.encode throw here?
@@ -167,15 +165,15 @@ describe('Exact hotpot encode pipeline reproduction', () => {
         console.log('z.encode THREW for empty email — try/catch in useZodQuery would catch this')
       } else {
         console.log('z.encode SUCCEEDED:', JSON.stringify(result))
-        // If it succeeded, check if the result still has SensitiveWrapper
-        expect(result.email).not.toBeInstanceOf(SensitiveWrapper)
+        // If it succeeded, check if the result still has CustomWrapper
+        expect(result.email).not.toBeInstanceOf(CustomWrapper)
       }
     })
   })
 
   describe('safeEncode on args schema', () => {
-    it('encodes SensitiveWrapper via safeEncode', () => {
-      const runtimeArgs = { email: SensitiveWrapper.full('test@example.com') }
+    it('encodes CustomWrapper via safeEncode', () => {
+      const runtimeArgs = { email: CustomWrapper.full('test@example.com') }
       const wire = stripUndefined(safeEncode(argsSchema, runtimeArgs))
 
       expect(wire).toHaveProperty('email')
@@ -183,7 +181,7 @@ describe('Exact hotpot encode pipeline reproduction', () => {
     })
 
     it('handles empty email through safeEncode', () => {
-      const runtimeArgs = { email: SensitiveWrapper.full('') }
+      const runtimeArgs = { email: CustomWrapper.full('') }
 
       let threw = false
       let result: any
@@ -206,20 +204,20 @@ describe('Exact hotpot encode pipeline reproduction', () => {
     const { encodeArgs } = createBoundaryHelpers(registry as any)
 
     it('encodes valid email through full pipeline', () => {
-      const args = { email: SensitiveWrapper.full('test@example.com') }
-      const result = encodeArgs(fakeRef('patients/index:getByEmail'), args)
+      const args = { email: CustomWrapper.full('test@example.com') }
+      const result = encodeArgs(fakeRef('users/index:getByEmail'), args)
 
       expect(result.email).toEqual({ value: 'test@example.com', status: 'full' })
-      expect(result.email).not.toBeInstanceOf(SensitiveWrapper)
+      expect(result.email).not.toBeInstanceOf(CustomWrapper)
     })
 
     it('encodes empty email through full pipeline', () => {
-      const args = { email: SensitiveWrapper.full('') }
+      const args = { email: CustomWrapper.full('') }
 
       let threw = false
       let result: any
       try {
-        result = encodeArgs(fakeRef('patients/index:getByEmail'), args)
+        result = encodeArgs(fakeRef('users/index:getByEmail'), args)
       } catch (e) {
         threw = true
         console.log('encodeArgs threw:', e)
@@ -229,22 +227,20 @@ describe('Exact hotpot encode pipeline reproduction', () => {
 
       if (!threw) {
         // If it didn't throw, did it passthrough or actually encode?
-        const isPassthrough = result.email instanceof SensitiveWrapper
-        console.log('Is passthrough (SensitiveWrapper still in result):', isPassthrough)
+        const isPassthrough = result.email instanceof CustomWrapper
+        console.log('Is passthrough (CustomWrapper still in result):', isPassthrough)
         if (isPassthrough) {
-          console.log(
-            'BUG: encodeArgs returned raw SensitiveWrapper — this causes the Convex error'
-          )
+          console.log('BUG: encodeArgs returned raw CustomWrapper — this causes the Convex error')
         }
       }
     })
 
     it('passthrough check: unknown function path', () => {
-      const args = { email: SensitiveWrapper.full('test@example.com') }
+      const args = { email: CustomWrapper.full('test@example.com') }
       const result = encodeArgs(fakeRef('unknown/path:fn'), args)
 
       // Should passthrough unchanged
-      expect(result.email).toBeInstanceOf(SensitiveWrapper)
+      expect(result.email).toBeInstanceOf(CustomWrapper)
     })
   })
 })

@@ -1,6 +1,6 @@
-# Open Items Design: Pre-Hotpot Cleanup
+# Open Items Design: Pre-Consumer Cleanup
 
-> Three items to close before starting the hotpot migration.
+> Three items to close before starting the consumer migration.
 
 **Date:** 2026-02-24
 **Branch:** `feat/codec-end-to-end`
@@ -111,7 +111,7 @@ Since `paginatedDoc` is now in the model's schema namespace, the identity map (b
 
 ### Problem
 
-`defineZodModel` only accepts `z.ZodRawShape` (plain object fields). Hotpot's visits table uses a discriminated union pattern. Without a union overload, `defineZodModel` can't fully replace `zodTable` for polymorphic tables.
+`defineZodModel` only accepts `z.ZodRawShape` (plain object fields). A consumer's visits table uses a discriminated union pattern. Without a union overload, `defineZodModel` can't fully replace `zodTable` for polymorphic tables.
 
 `zodTable()` already has full union support via 3 overloads. `defineZodModel` needs parity.
 

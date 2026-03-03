@@ -5,7 +5,7 @@
 
 ## Problem
 
-`decodeResult()` calls `.parse()` on wire data with zero error handling. If the data doesn't match the schema (e.g., invalid email in a SensitiveField codec, stale seed data), a ZodError propagates synchronously into React render and crashes the page.
+`decodeResult()` calls `.parse()` on wire data with zero error handling. If the data doesn't match the schema (e.g., invalid email in a CustomField codec, stale seed data), a ZodError propagates synchronously into React render and crashes the page.
 
 ## Design
 
@@ -13,7 +13,7 @@
 
 `decodeResult()` switches from `.parse()` to `.safeParse()`. On failure:
 
-- **`'warn'` (default):** `console.warn` with function path, Zod issues, and truncated wire data preview. Returns raw `wireResult` untransformed. Page stays alive; types degrade gracefully (e.g., timestamps stay as numbers, SensitiveField stays as wire representation).
+- **`'warn'` (default):** `console.warn` with function path, Zod issues, and truncated wire data preview. Returns raw `wireResult` untransformed. Page stays alive; types degrade gracefully (e.g., timestamps stay as numbers, CustomField stays as wire representation).
 
 - **`'throw'` (opt-in):** Throws a `ZodvexDecodeError` (extends `z.ZodError`) with `functionPath` and `wireData` attached. Extends ZodError to preserve compatibility with existing Zod tooling (`instanceof ZodError` still works).
 

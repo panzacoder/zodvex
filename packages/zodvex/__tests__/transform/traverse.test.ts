@@ -45,7 +45,7 @@ describe('transform/traverse.ts', () => {
     })
 
     it('should find metadata through Zod wrapper/effect types (Option 1)', () => {
-      const base = z.string().meta({ sensitive: true })
+      const base = z.string().meta({ pii: true })
 
       const schemas: Array<z.ZodTypeAny> = [
         base.optional(),
@@ -62,29 +62,29 @@ describe('transform/traverse.ts', () => {
 
       for (const sch of schemas) {
         const meta = getMetadata(sch)
-        expect(meta?.sensitive).toBe(true)
+        expect(meta?.pii).toBe(true)
       }
     })
   })
 
   describe('hasMetadata', () => {
     it('should return true when predicate matches', () => {
-      const schema = z.string().meta({ sensitive: true })
-      const result = hasMetadata(schema, meta => meta.sensitive === true)
+      const schema = z.string().meta({ pii: true })
+      const result = hasMetadata(schema, meta => meta.pii === true)
 
       expect(result).toBe(true)
     })
 
     it('should return false when predicate does not match', () => {
-      const schema = z.string().meta({ sensitive: false })
-      const result = hasMetadata(schema, meta => meta.sensitive === true)
+      const schema = z.string().meta({ pii: false })
+      const result = hasMetadata(schema, meta => meta.pii === true)
 
       expect(result).toBe(false)
     })
 
     it('should return false when no metadata', () => {
       const schema = z.string()
-      const result = hasMetadata(schema, meta => meta.sensitive === true)
+      const result = hasMetadata(schema, meta => meta.pii === true)
 
       expect(result).toBe(false)
     })
@@ -362,11 +362,11 @@ describe('transform/traverse.ts', () => {
     it('should find fields with matching metadata', () => {
       const schema = z.object({
         name: z.string(),
-        email: z.string().meta({ sensitive: true }),
-        phone: z.string().meta({ sensitive: true })
+        email: z.string().meta({ pii: true }),
+        phone: z.string().meta({ pii: true })
       })
 
-      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(schema, meta => meta?.pii === true)
 
       expect(results.length).toBe(2)
       expect(results.map(r => r.path)).toContain('email')
@@ -379,21 +379,21 @@ describe('transform/traverse.ts', () => {
         age: z.number()
       })
 
-      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(schema, meta => meta?.pii === true)
 
       expect(results).toEqual([])
     })
 
-    it('should find nested sensitive fields', () => {
+    it('should find nested pii fields', () => {
       const schema = z.object({
         user: z.object({
           profile: z.object({
-            email: z.string().meta({ sensitive: true })
+            email: z.string().meta({ pii: true })
           })
         })
       })
 
-      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(schema, meta => meta?.pii === true)
 
       expect(results.length).toBe(1)
       expect(results[0].path).toBe('user.profile.email')
@@ -403,12 +403,12 @@ describe('transform/traverse.ts', () => {
       const schema = z.object({
         contacts: z.array(
           z.object({
-            email: z.string().meta({ sensitive: true })
+            email: z.string().meta({ pii: true })
           })
         )
       })
 
-      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(schema, meta => meta?.pii === true)
 
       expect(results.length).toBe(1)
       expect(results[0].path).toBe('contacts[].email')
@@ -416,11 +416,11 @@ describe('transform/traverse.ts', () => {
 
     it('should find fields in union variants', () => {
       const schema = z.union([
-        z.object({ type: z.literal('person'), ssn: z.string().meta({ sensitive: true }) }),
-        z.object({ type: z.literal('company'), ein: z.string().meta({ sensitive: true }) })
+        z.object({ type: z.literal('person'), ssn: z.string().meta({ pii: true }) }),
+        z.object({ type: z.literal('company'), ein: z.string().meta({ pii: true }) })
       ])
 
-      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(schema, meta => meta?.pii === true)
 
       expect(results.length).toBe(2)
       expect(results.map(r => r.path)).toContain('ssn')
@@ -432,12 +432,12 @@ describe('transform/traverse.ts', () => {
       const schema = z.object({
         wrapper: z
           .object({
-            inner: z.string().meta({ sensitive: true })
+            inner: z.string().meta({ pii: true })
           })
-          .meta({ sensitive: true })
+          .meta({ pii: true })
       })
 
-      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(schema, meta => meta?.pii === true)
 
       // Should find wrapper but not inner (because we stopped at wrapper)
       expect(results.length).toBe(1)
@@ -445,29 +445,29 @@ describe('transform/traverse.ts', () => {
     })
 
     it('should work with type guard predicate', () => {
-      type SensitiveMeta = { sensitive: true; level: string }
+      type PiiMeta = { pii: true; level: string }
 
-      const isSensitiveMeta = (meta: Record<string, unknown> | undefined): meta is SensitiveMeta =>
-        meta?.sensitive === true && typeof meta?.level === 'string'
+      const isPiiMeta = (meta: Record<string, unknown> | undefined): meta is PiiMeta =>
+        meta?.pii === true && typeof meta?.level === 'string'
 
       const schema = z.object({
-        email: z.string().meta({ sensitive: true, level: 'pii' }),
-        name: z.string().meta({ sensitive: true }) // Missing level - shouldn't match
+        email: z.string().meta({ pii: true, level: 'email' }),
+        name: z.string().meta({ pii: true }) // Missing level - shouldn't match
       })
 
-      const results = findFieldsWithMeta(schema, isSensitiveMeta)
+      const results = findFieldsWithMeta(schema, isPiiMeta)
 
       expect(results.length).toBe(1)
       expect(results[0].path).toBe('email')
-      expect(results[0].meta.level).toBe('pii')
+      expect(results[0].meta.level).toBe('email')
     })
 
     it('should find fields in optional wrappers', () => {
       const schema = z.object({
-        optionalEmail: z.string().meta({ sensitive: true }).optional()
+        optionalEmail: z.string().meta({ pii: true }).optional()
       })
 
-      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(schema, meta => meta?.pii === true)
 
       expect(results.length).toBe(1)
       expect(results[0].path).toBe('optionalEmail')
@@ -475,7 +475,7 @@ describe('transform/traverse.ts', () => {
 
     it('should traverse through wrapper/effect types to find nested metadata (Option 1)', () => {
       const inner = z.object({
-        email: z.string().meta({ sensitive: true })
+        email: z.string().meta({ pii: true })
       })
 
       const schema = z.object({
@@ -484,7 +484,7 @@ describe('transform/traverse.ts', () => {
         profileTransform: inner.transform(v => v)
       })
 
-      const results = findFieldsWithMeta(schema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(schema, meta => meta?.pii === true)
       const paths = results.map(r => r.path)
 
       expect(paths).toContain('profileDefault.email')
@@ -497,7 +497,7 @@ describe('transform/traverse.ts', () => {
       // Simple lazy wrapper (non-recursive)
       const lazySchema = z.lazy(() =>
         z.object({
-          name: z.string().meta({ sensitive: true })
+          name: z.string().meta({ pii: true })
         })
       )
       const visited: string[] = []
@@ -546,12 +546,12 @@ describe('transform/traverse.ts', () => {
     it('should find metadata in lazy schemas', () => {
       const lazySchema = z.lazy(() =>
         z.object({
-          email: z.string().meta({ sensitive: true }),
+          email: z.string().meta({ pii: true }),
           name: z.string()
         })
       )
 
-      const results = findFieldsWithMeta(lazySchema, meta => meta?.sensitive === true)
+      const results = findFieldsWithMeta(lazySchema, meta => meta?.pii === true)
 
       expect(results.length).toBe(1)
       expect(results[0].path).toBe('email')

@@ -76,7 +76,7 @@ export type VectorIndexConfig = {
  * Produced by defineZodModel(). Chainable via .index(), .searchIndex(), .vectorIndex().
  * Each chain call returns a new immutable model with accumulated metadata.
  *
- * Frameworks like hotpot wrap this to add domain metadata (e.g., security rules).
+ * Downstream consumers wrap this to add domain metadata (e.g., security rules).
  */
 export type ZodModel<
   Name extends string = string,

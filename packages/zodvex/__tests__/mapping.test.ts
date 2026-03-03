@@ -283,7 +283,7 @@ describe('zodToConvex native z.codec() handling', () => {
   })
 
   it('handles codec in object field', () => {
-    const sensitiveCodec = z.codec(
+    const encryptedCodec = z.codec(
       z.object({ encrypted: z.string(), iv: z.string() }),
       z.string(),
       {
@@ -294,7 +294,7 @@ describe('zodToConvex native z.codec() handling', () => {
 
     const schema = z.object({
       id: z.string(),
-      secret: sensitiveCodec
+      secret: encryptedCodec
     })
 
     const validator = zodToConvex(schema)

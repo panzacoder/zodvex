@@ -2,7 +2,7 @@
 
 ## Problem
 
-When downstream consumers need to chain indexes onto a ZodModel in a loop (e.g., hotpot's `defineHotpotModel`), each `.index()` call returns a new `ZodModel` with different generic type parameters. TypeScript can't accumulate type-level changes across loop iterations, forcing `let zodModel: any`.
+When downstream consumers need to chain indexes onto a ZodModel in a loop (e.g., a consumer's `defineConsumerModel`), each `.index()` call returns a new `ZodModel` with different generic type parameters. TypeScript can't accumulate type-level changes across loop iterations, forcing `let zodModel: any`.
 
 ```typescript
 // Current pattern — requires `any` to accumulate
@@ -43,4 +43,4 @@ The return type would compute all index generics at once from the config object 
 
 ## Priority
 
-Low — the `any` workaround is safe and well-understood. This is a DX enhancement for downstream framework authors (hotpot).
+Low — the `any` workaround is safe and well-understood. This is a DX enhancement for downstream framework authors.

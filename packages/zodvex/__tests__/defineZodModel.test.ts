@@ -84,50 +84,50 @@ type DatePaths = FieldPaths<z.input<DateSchema>>
 type _date1 = AssertEqual<DatePaths, 'title' | 'createdAt'>
 const _dateCheck: _date1 = true
 
-// --- Sensitive field codec (wire format = object, nested paths) ---
+// --- Custom field codec (wire format = object, nested paths) ---
 
 // biome-ignore lint/correctness/noUnusedVariables: documents the wire shape for this test section
-type SensitiveWire<T> = {
+type CustomWire<T> = {
   value: T | null
   status: 'full' | 'hidden'
-  __sensitiveField?: string
+  __customField?: string
   reason?: string
 }
 
-type SensitiveStringCodec = ZodvexCodec<
+type CustomStringCodec = ZodvexCodec<
   z.ZodObject<{
     value: z.ZodNullable<z.ZodString>
     status: z.ZodEnum<['full', 'hidden']>
-    __sensitiveField: z.ZodOptional<z.ZodString>
+    __customField: z.ZodOptional<z.ZodString>
     reason: z.ZodOptional<z.ZodString>
   }>,
-  z.ZodCustom<{ _brand: 'SensitiveField<string>' }>
+  z.ZodCustom<{ _brand: 'CustomField<string>' }>
 >
 
-type SensitiveSchema = z.ZodObject<{
+type CustomFieldSchema = z.ZodObject<{
   clinicId: z.ZodString
-  email: z.ZodOptional<SensitiveStringCodec>
+  email: z.ZodOptional<CustomStringCodec>
 }>
 
-type SensitivePaths = FieldPaths<z.input<SensitiveSchema>>
-type _sens1 = AssertAssignable<'clinicId', SensitivePaths>
-type _sens2 = AssertAssignable<'email', SensitivePaths>
-type _sens3 = AssertAssignable<'email.value', SensitivePaths>
-type _sens4 = AssertAssignable<'email.status', SensitivePaths>
-type _sens5 = AssertAssignable<'email.__sensitiveField', SensitivePaths>
-const _sensCheck1: _sens1 = true
-const _sensCheck2: _sens2 = true
-const _sensCheck3: _sens3 = true
-const _sensCheck4: _sens4 = true
-const _sensCheck5: _sens5 = true
+type CustomFieldPaths = FieldPaths<z.input<CustomFieldSchema>>
+type _cust1 = AssertAssignable<'clinicId', CustomFieldPaths>
+type _cust2 = AssertAssignable<'email', CustomFieldPaths>
+type _cust3 = AssertAssignable<'email.value', CustomFieldPaths>
+type _cust4 = AssertAssignable<'email.status', CustomFieldPaths>
+type _cust5 = AssertAssignable<'email.__customField', CustomFieldPaths>
+const _custCheck1: _cust1 = true
+const _custCheck2: _cust2 = true
+const _custCheck3: _cust3 = true
+const _custCheck4: _cust4 = true
+const _custCheck5: _cust5 = true
 
 // "email.bogus" should NOT be assignable
-type _sensBad = AssertAssignable<'email.bogus', SensitivePaths>
-const _sensBadCheck: _sensBad = false
+type _custBad = AssertAssignable<'email.bogus', CustomFieldPaths>
+const _custBadCheck: _custBad = false
 
 // --- ModelFieldPaths adds _creationTime ---
 
-type ModelPaths = ModelFieldPaths<SensitiveSchema>
+type ModelPaths = ModelFieldPaths<CustomFieldSchema>
 type _model1 = AssertAssignable<'_creationTime', ModelPaths>
 type _model2 = AssertAssignable<'clinicId', ModelPaths>
 const _modelCheck1: _model1 = true
@@ -371,17 +371,17 @@ describe('defineZodModel .index()', () => {
     expect(true).toBe(true)
   })
 
-  it('validates sensitive field wire-format paths', () => {
-    const sensitiveString = zodvexCodec(
+  it('validates custom field wire-format paths', () => {
+    const customString = zodvexCodec(
       z.object({
         value: z.string().nullable(),
         status: z.enum(['full', 'hidden']),
-        __sensitiveField: z.string().optional(),
+        __customField: z.string().optional(),
         reason: z.string().optional()
       }),
-      z.custom<{ _brand: 'SensitiveField' }>(() => true),
+      z.custom<{ _brand: 'CustomField' }>(() => true),
       {
-        decode: wire => ({ _brand: 'SensitiveField' as const, ...wire }),
+        decode: wire => ({ _brand: 'CustomField' as const, ...wire }),
         encode: _field => ({
           value: null,
           status: 'full' as const
@@ -391,37 +391,37 @@ describe('defineZodModel .index()', () => {
 
     const model = defineZodModel('patients', {
       clinicId: z.string(),
-      email: sensitiveString
+      email: customString
     })
 
-    // Wire-format paths into SensitiveWire structure
+    // Wire-format paths into CustomWire structure
     model.index('byClinic', ['clinicId'])
     model.index('byEmailValue', ['email.value'])
     model.index('byEmailStatus', ['email.status'])
 
-    // @ts-expect-error — 'email.bogus' doesn't exist in SensitiveWire
+    // @ts-expect-error — 'email.bogus' doesn't exist in CustomWire
     model.index('bad', ['email.bogus'])
 
     expect(true).toBe(true)
   })
 
-  it('handles optional sensitive fields', () => {
-    const sensitiveString = zodvexCodec(
+  it('handles optional custom fields', () => {
+    const customString = zodvexCodec(
       z.object({
         value: z.string().nullable(),
         status: z.enum(['full', 'hidden'])
       }),
-      z.custom<{ _brand: 'SensitiveField' }>(() => true),
+      z.custom<{ _brand: 'CustomField' }>(() => true),
       {
-        decode: _wire => ({ _brand: 'SensitiveField' as const }),
+        decode: _wire => ({ _brand: 'CustomField' as const }),
         encode: () => ({ value: null, status: 'full' as const })
       }
     )
 
     const model = defineZodModel('contacts', {
       name: z.string(),
-      email: sensitiveString.optional(),
-      phone: sensitiveString.nullable()
+      email: customString.optional(),
+      phone: customString.nullable()
     })
 
     // Optional/nullable don't block nested path access

@@ -52,7 +52,7 @@ type ReturnValueOutput<ReturnsValidator extends z.ZodTypeAny | ZodValidator | vo
     : any
 
 // The args as seen by the caller: runtime types (z.output), not wire types (z.input).
-// For codecs (e.g., SensitiveField), z.output = runtime class, z.input = wire object.
+// For codecs (e.g., custom field types), z.output = runtime class, z.input = wire object.
 // Callers pass runtime types; encoding to wire format happens inside the wrapper.
 type ArgsInput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
   ArgsValidator
@@ -257,8 +257,8 @@ export function customFnBuilder<
           const finalArgs = { ...baseArgs, ...addedArgs }
 
           const ret = await handler(finalCtx, finalArgs)
-          // Fire onSuccess before encoding — consumers see runtime types (Date, SensitiveField),
-          // not wire format (number, SensitiveWire). This matches the intent of audit logging.
+          // Fire onSuccess before encoding — consumers see runtime types (e.g., Date),
+          // not wire format (e.g., number). This matches the intent of audit logging.
           if (added?.onSuccess) {
             await added.onSuccess({ ctx, args: parsed.data, result: ret })
           }
@@ -294,8 +294,8 @@ export function customFnBuilder<
         const finalArgs = { ...baseArgs, ...addedArgs }
 
         const ret = await handler(finalCtx, finalArgs)
-        // Fire onSuccess before encoding — consumers see runtime types (Date, SensitiveField),
-        // not wire format (number, SensitiveWire). This matches the intent of audit logging.
+        // Fire onSuccess before encoding — consumers see runtime types (e.g., Date),
+        // not wire format (e.g., number). This matches the intent of audit logging.
         if (added?.onSuccess) {
           await added.onSuccess({ ctx, args: allArgs, result: ret })
         }

@@ -15,7 +15,7 @@ zodvex handles codecs at three client boundaries but misses a fourth:
 | Action context | `createZodvexActionCtx` | Covered |
 | **Imperative calls on a pre-existing Convex client** | **Nothing** | **Gap** |
 
-The gap surfaces when a consumer (e.g., hotpot) needs a `ConvexReactClient` for
+The gap surfaces when a consumer needs a `ConvexReactClient` for
 `ConvexProviderWithAuth` but also makes imperative calls (`client.query()`,
 `client.mutation()`) outside of React hooks. Those calls bypass codecs silently.
 
@@ -224,9 +224,9 @@ None. All changes are additive:
 | `ZodvexReactClient` | New class |
 | Codegen: `createReactClient`, `encodeArgs`, `decodeResult` | New exports |
 
-## Consumer impact (hotpot)
+## Consumer impact
 
-Hotpot replaces its manual `#encodeArgs`/`#decodeResult` in `HotpotBaseClient`
+A downstream consumer replaces its manual `#encodeArgs`/`#decodeResult` in `ConsumerBaseClient`
 with either:
 - `ZodvexReactClient` wrapping its existing `ConvexReactClient`, or
 - `encodeArgs`/`decodeResult` from the codec utility directly

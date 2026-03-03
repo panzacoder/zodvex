@@ -141,7 +141,7 @@ export function generateApiFile(
   }
 
   // Resolve function-embedded codecs against existing codecs by structural fingerprint.
-  // Factory-created codecs (like tagged(), sensitive()) produce new instances each call,
+  // Factory-created codecs (like tagged(), encrypted()) produce new instances each call,
   // so identity matching fails. Fingerprinting matches by wire+runtime schema structure,
   // allowing us to reference the model/standalone codec instead of importing the function.
   // This avoids circular imports: functions.ts → _zodvex/api.ts → functionFile.ts → functions.ts

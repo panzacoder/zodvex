@@ -117,8 +117,8 @@ function id<TableName extends string>(tableName: TableName): ZxId<TableName> {
  *
  * @example
  * ```typescript
- * // Sensitive data codec
- * const sensitiveString = zx.codec(
+ * // Encrypted data codec
+ * const encryptedString = zx.codec(
  *   z.object({ encrypted: z.string() }),  // Wire format
  *   z.custom<string>(() => true),          // Runtime format
  *   {

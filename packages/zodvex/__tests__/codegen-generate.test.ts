@@ -412,7 +412,7 @@ describe('function-embedded codec resolution', () => {
   })
 
   it('fingerprint-matches function codec to structurally equivalent model codec', () => {
-    // Two different instances of the same codec factory (like tagged() or sensitive())
+    // Two different instances of the same codec factory (like tagged() or encrypted())
     const modelCodecInstance = zx.codec(z.string(), z.string(), {
       decode: (w: string) => w.toUpperCase(),
       encode: (r: string) => r.toLowerCase()

@@ -202,7 +202,7 @@ describe('zodvexCodec', () => {
   })
 
   it('handles codec in object schema field', () => {
-    const sensitiveCodec = zodvexCodec(
+    const encryptedCodec = zodvexCodec(
       z.object({ encrypted: z.string() }),
       z.custom<string>(() => true),
       {
@@ -213,7 +213,7 @@ describe('zodvexCodec', () => {
 
     const schema = z.object({
       id: z.string(),
-      secret: sensitiveCodec
+      secret: encryptedCodec
     })
 
     const runtimeValue = {

@@ -50,21 +50,21 @@ RLS checks fields like `ownerId`, `teamId`, `clinicId` — plain string/ID field
 Runtime-side FLS is **actively better**. Instead of silently deleting fields (wire-side pattern), consumers can return typed hidden markers:
 
 ```typescript
-// Wire-side (current hotpot pattern): field disappears silently
+// Wire-side (current consumer pattern): field disappears silently
 delete wireDoc.email  // consumer sees undefined — no explanation
 
 // Runtime-side (proposed): typed, informative, safe
-doc.email = SensitiveWrapper.hidden("email", "insufficient_access")
-// consumer sees a SensitiveWrapper with status: "hidden" — clear signal
+doc.email = CustomWrapper.hidden("email", "insufficient_access")
+// consumer sees a CustomWrapper with status: "hidden" — clear signal
 ```
 
 ### Field-Level Security (FLS) — Write
 
-The handler provides runtime data (e.g., `SensitiveWrapper.full("new@example.com")`). Permission checks naturally operate on what the handler is trying to write — which is the runtime representation.
+The handler provides runtime data (e.g., `CustomWrapper.full("new@example.com")`). Permission checks naturally operate on what the handler is trying to write — which is the runtime representation.
 
 ### Audit Logging
 
-Hotpot's audit logging (via `transforms.output`) needs `SensitiveField` instances to know which fields are sensitive and what their access status is. This is exclusively a runtime-side concern — wire objects don't carry class identity.
+The consumer's audit logging (via `transforms.output`) needs `CustomField` instances to know which fields are custom-wrapped and what their access status is. This is exclusively a runtime-side concern — wire objects don't carry class identity.
 
 ### Single Representation Principle
 
@@ -72,25 +72,25 @@ With runtime-only middleware, every piece of consumer code operates on one repre
 
 ---
 
-## Why Hotpot Currently Uses Wire-Side Hooks
+## Why the Consumer Currently Uses Wire-Side Hooks
 
 ### Our Assessment of the Reasoning
 
-**1. Historical accident (most likely driver).** Hotpot's `createSecureReader` was built to wrap `ctx.db` directly, before zodvex had codecs. Wire format was the only format available. When zodvex added the hook system, `decode.before` was designed to accommodate hotpot's existing pattern. The wire-side choice wasn't a deliberate architectural decision — it was the path of least resistance to integrate what already existed.
+**1. Historical accident (most likely driver).** The consumer's `createSecureReader` was built to wrap `ctx.db` directly, before zodvex had codecs. Wire format was the only format available. When zodvex added the hook system, `decode.before` was designed to accommodate the consumer's existing pattern. The wire-side choice wasn't a deliberate architectural decision — it was the path of least resistance to integrate what already existed.
 
 **2. Wire format simplicity.** Wire docs are plain JSON objects. `doc.clinicId === ctx.clinicId` works without understanding codec types. But this is a false distinction for RLS — the fields RLS checks (IDs, strings) aren't codec fields and look identical in both representations.
 
 **3. "Least exposure" security argument.** If you never decode an unauthorized doc, the sensitive value never exists in memory, even briefly. This is theoretically valid but practically meaningless — the value exists in the Convex response payload regardless, the decode happens in the same server process, and discarded objects are garbage collected immediately. No attacker can observe the difference.
 
-### Convincing the Hotpot Team
+### Convincing the Consumer Team
 
 The key arguments:
 
 1. **RLS fields are plain types.** `clinicId`, `ownerId`, `teamId` are strings/IDs — identical in wire and runtime. Wire access gives you nothing here.
 
-2. **FLS is better runtime-side.** `SensitiveWrapper.hidden("email", "insufficient_access")` is a typed, informative signal. Silently deleted fields are a worse developer experience.
+2. **FLS is better runtime-side.** `CustomWrapper.hidden("email", "insufficient_access")` is a typed, informative signal. Silently deleted fields are a worse developer experience.
 
-3. **Audit logging already requires runtime types.** That's why `transforms.output` exists — hotpot needs `SensitiveField` instances, not wire objects.
+3. **Audit logging already requires runtime types.** That's why `transforms.output` exists — the consumer needs `CustomField` instances, not wire objects.
 
 4. **One representation to reason about.** Every piece of middleware code operates on runtime types. No "which side?" ambiguity. Better types, simpler mental model.
 
@@ -104,13 +104,13 @@ With runtime-only middleware, documents that RLS will filter get decoded before 
 
 ### Analysis
 
-Per-document decode cost for a realistic hotpot document (15 fields, 2 date codecs, 3 sensitive field codecs):
+Per-document decode cost for a realistic document (15 fields, 2 date codecs, 3 custom field codecs):
 
 | Operation | Cost per field | Fields | Total |
 |-----------|---------------|--------|-------|
 | Zod type check | ~0.001ms | 15 | ~0.015ms |
 | `new Date(timestamp)` | ~0.001ms | 2 | ~0.002ms |
-| `new SensitiveWrapper()` + `WeakMap.set()` | ~0.002ms | 3 | ~0.006ms |
+| `new CustomWrapper()` + `WeakMap.set()` | ~0.002ms | 3 | ~0.006ms |
 | Object allocation | ~0.001ms | 1 | ~0.001ms |
 | **Total per doc** | | | **~0.024ms** |
 
