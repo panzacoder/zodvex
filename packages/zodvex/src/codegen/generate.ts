@@ -85,6 +85,27 @@ function tryUnwrapToIdentity(
 }
 
 /**
+ * Derives a descriptive variable name for a model-embedded codec from
+ * the model export name and the access path.
+ *
+ * Examples:
+ *   ('UserModel', '.shape.email')                                      → '_userEmail'
+ *   ('ActivityModel', '.shape.payload._zod.def.options[0].shape.email') → '_activityPayloadEmail'
+ *   ('patients', '.shape.firstName')                                    → '_patientsFirstName'
+ */
+function deriveCodecVarName(modelExportName: string, accessPath: string): string {
+  const base = modelExportName.replace(/Model$/, '')
+  const prefix = base[0].toLowerCase() + base.slice(1)
+
+  const fields = [...accessPath.matchAll(/\.shape\.(\w+)/g)].map(m => m[1])
+  if (fields.length === 0) return `_${prefix}Codec`
+
+  const fieldPart = fields.map((f, i) => (i === 0 ? f : f[0].toUpperCase() + f.slice(1))).join('')
+
+  return `_${prefix}${fieldPart[0].toUpperCase() + fieldPart.slice(1)}`
+}
+
+/**
  * Generates the api.ts file content — function-to-schema registry.
  */
 export function generateApiFile(
@@ -125,12 +146,11 @@ export function generateApiFile(
   const modelCodecVars: { varName: string; expression: string; modelExportName: string }[] = []
   const MODEL_CODEC_SENTINEL = '__model_codec__'
   if (modelCodecs) {
-    let mcIndex = 0
     for (const mc of modelCodecs) {
       // Skip if this codec is already in codecMap (exported codec takes precedence)
       if (codecMap.has(mc.codec)) continue
 
-      const varName = `_mc${mcIndex++}`
+      const varName = deriveCodecVarName(mc.modelExportName, mc.accessPath)
       const expression = `extractCodec(${mc.modelExportName}.schema.${mc.schemaKey}${mc.accessPath})`
       modelCodecVars.push({ varName, expression, modelExportName: mc.modelExportName })
       codecMap.set(mc.codec, {

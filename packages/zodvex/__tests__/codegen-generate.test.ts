@@ -374,6 +374,125 @@ describe('model-embedded codec resolution', () => {
     expect(output).toContain('zTagged')
     expect(output).toContain("import { zTagged } from '../codecs'")
   })
+
+  it('uses descriptive variable names derived from model and field path', () => {
+    const partialArgs = (codecModel.schemas.doc as z.ZodObject<any>).partial()
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:update',
+        exportName: 'update',
+        sourceFile: 'users.ts',
+        zodArgs: partialArgs,
+        zodReturns: undefined
+      }
+    ]
+    const output = generateApiFile(funcs, [codecModel], [], modelCodecs)
+
+    // Should use descriptive name, not _mc0
+    expect(output).toContain('_userEmail')
+    expect(output).not.toMatch(/_mc\d/)
+  })
+
+  it('derives names from nested access paths', () => {
+    const nestedCodec = zx.codec(
+      z.object({ value: z.string() }),
+      z.object({ value: z.string(), display: z.string() }),
+      {
+        decode: (w: any) => ({ ...w, display: w.value }),
+        encode: (r: any) => ({ value: r.value })
+      }
+    )
+    const nestedModel: DiscoveredModel = {
+      exportName: 'ActivityModel',
+      tableName: 'activities',
+      sourceFile: 'models/activity.ts',
+      schemas: {
+        doc: z.object({
+          _id: z.string(),
+          payload: z.union([
+            z.object({ type: z.literal('a'), email: nestedCodec }),
+            z.object({ type: z.literal('b') })
+          ])
+        }),
+        insert: z.object({}),
+        update: z.object({}),
+        docArray: z.array(z.object({})),
+        paginatedDoc: z.object({
+          page: z.array(z.object({})),
+          isDone: z.boolean(),
+          continueCursor: z.string().nullable().optional()
+        })
+      }
+    }
+    const nestedModelCodecs: ModelEmbeddedCodec[] = [
+      {
+        codec: nestedCodec,
+        modelExportName: 'ActivityModel',
+        modelSourceFile: 'models/activity.ts',
+        schemaKey: 'doc',
+        accessPath: '.shape.payload._zod.def.options[0].shape.email'
+      }
+    ]
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'activities:update',
+        exportName: 'update',
+        sourceFile: 'activities.ts',
+        zodArgs: z.object({ email: nestedCodec }),
+        zodReturns: undefined
+      }
+    ]
+    const output = generateApiFile(funcs, [nestedModel], [], nestedModelCodecs)
+
+    // Should derive from model name + field path segments
+    expect(output).toContain('_activityPayloadEmail')
+    expect(output).not.toMatch(/_mc\d/)
+  })
+
+  it('handles models without Model suffix', () => {
+    const codec = zx.codec(z.string(), z.string(), {
+      decode: (w: string) => w.toUpperCase(),
+      encode: (r: string) => r.toLowerCase()
+    })
+    const model: DiscoveredModel = {
+      exportName: 'patients',
+      tableName: 'patients',
+      sourceFile: 'models/patients.ts',
+      schemas: {
+        doc: z.object({ _id: z.string(), firstName: codec }),
+        insert: z.object({ firstName: codec }),
+        update: z.object({ firstName: codec.optional() }),
+        docArray: z.array(z.object({ _id: z.string(), firstName: codec })),
+        paginatedDoc: z.object({
+          page: z.array(z.object({})),
+          isDone: z.boolean(),
+          continueCursor: z.string().nullable().optional()
+        })
+      }
+    }
+    const mCodecs: ModelEmbeddedCodec[] = [
+      {
+        codec,
+        modelExportName: 'patients',
+        modelSourceFile: 'models/patients.ts',
+        schemaKey: 'doc',
+        accessPath: '.shape.firstName'
+      }
+    ]
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'patients:update',
+        exportName: 'update',
+        sourceFile: 'patients.ts',
+        zodArgs: z.object({ firstName: codec.optional() }),
+        zodReturns: undefined
+      }
+    ]
+    const output = generateApiFile(funcs, [model], [], mCodecs)
+
+    expect(output).toContain('_patientsFirstName')
+    expect(output).not.toMatch(/_mc\d/)
+  })
 })
 
 describe('function-embedded codec resolution', () => {
