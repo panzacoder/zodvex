@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { detectFormIntegrations } from '../codegen/detect'
 import { discoverModules } from '../codegen/discover'
 import {
   generateApiFile,
@@ -30,7 +31,8 @@ export async function generate(convexDir?: string): Promise<void> {
     result.modelCodecs,
     result.functionCodecs
   )
-  const clientContent = generateClientFile()
+  const clientOptions = detectFormIntegrations(resolved)
+  const clientContent = generateClientFile(clientOptions)
   const serverContent = generateServerFile()
 
   fs.mkdirSync(zodvexDir, { recursive: true })

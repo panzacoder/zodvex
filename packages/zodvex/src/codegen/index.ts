@@ -1,3 +1,4 @@
+export { canResolve, detectFormIntegrations } from './detect'
 export {
   type DiscoveredCodec,
   type DiscoveredFunction,
