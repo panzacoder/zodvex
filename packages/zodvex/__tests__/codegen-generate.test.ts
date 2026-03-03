@@ -242,6 +242,25 @@ describe('generateClientFile', () => {
     expect(content).toContain('decodeResult')
     expect(content).toContain('AUTO-GENERATED')
   })
+
+  it('includes mantineResolver when mantine option is true', () => {
+    const content = generateClientFile({ form: { mantine: true } })
+    expect(content).toContain(
+      "import { mantineResolver as _mantineResolver } from 'zodvex/form/mantine'"
+    )
+    expect(content).toContain('export const mantineResolver')
+    expect(content).toContain('_mantineResolver(zodvexRegistry, ref)')
+  })
+
+  it('omits mantineResolver when mantine option is false', () => {
+    const content = generateClientFile({ form: { mantine: false } })
+    expect(content).not.toContain('mantineResolver')
+  })
+
+  it('omits mantineResolver when no options passed', () => {
+    const content = generateClientFile()
+    expect(content).not.toContain('mantineResolver')
+  })
 })
 
 describe('generateServerFile', () => {

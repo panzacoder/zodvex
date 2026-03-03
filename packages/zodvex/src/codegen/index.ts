@@ -7,6 +7,7 @@ export {
 } from './discover'
 export { extractCodec, readFnArgs, readFnReturns } from './extractCodec'
 export {
+  type ClientFileOptions,
   type CodecForGeneration,
   generateApiFile,
   generateClientFile,

@@ -286,10 +286,24 @@ export type ActionCtx = ZodvexActionCtx<DataModel>
 `
 }
 
+export interface ClientFileOptions {
+  form?: { mantine?: boolean }
+}
+
 /**
  * Generates the client.ts file content — pre-bound hooks and client factory.
  */
-export function generateClientFile(): string {
+export function generateClientFile(options: ClientFileOptions = {}): string {
+  const mantineSection = options.form?.mantine
+    ? `
+import { mantineResolver as _mantineResolver } from 'zodvex/form/mantine'
+import type { FunctionReference } from 'convex/server'
+
+export const mantineResolver = (ref: FunctionReference<any, any, any, any>) =>
+  _mantineResolver(zodvexRegistry, ref)
+`
+    : ''
+
   return `${HEADER}
 import { createZodvexHooks } from 'zodvex/react'
 import { createZodvexReactClient, type ZodvexReactClientOptions } from 'zodvex/react'
@@ -306,5 +320,5 @@ export const createReactClient = (options: ZodvexReactClientOptions) =>
   createZodvexReactClient(zodvexRegistry, options)
 
 export const { encodeArgs, decodeResult } = createBoundaryHelpers(zodvexRegistry)
-`
+${mantineSection}`
 }
