@@ -51,12 +51,6 @@ describe('zodvex/core exports', () => {
     expect(toJSONSchema).toBeDefined()
   })
 
-  it('exports meta utilities', async () => {
-    const { attachMeta, readMeta } = await import('../src/core')
-    expect(attachMeta).toBeDefined()
-    expect(readMeta).toBeDefined()
-  })
-
   it('does NOT export zodTable', async () => {
     const core = await import('../src/core')
     expect((core as any).zodTable).toBeUndefined()
@@ -75,6 +69,31 @@ describe('zodvex/core exports', () => {
   it('does NOT export zCustomQuery', async () => {
     const core = await import('../src/core')
     expect((core as any).zCustomQuery).toBeUndefined()
+  })
+
+  it('does NOT export internal meta utilities', async () => {
+    const core = await import('../src/core')
+    expect((core as any).attachMeta).toBeUndefined()
+    expect((core as any).readMeta).toBeUndefined()
+  })
+
+  it('does NOT export internal mapping helpers', async () => {
+    const core = await import('../src/core')
+    expect((core as any).makeUnion).toBeUndefined()
+  })
+
+  it('does NOT export internal utils', async () => {
+    const core = await import('../src/core')
+    expect((core as any).pick).toBeUndefined()
+    expect((core as any).formatZodIssues).toBeUndefined()
+    expect((core as any).handleZodValidationError).toBeUndefined()
+    expect((core as any).validateReturns).toBeUndefined()
+    expect((core as any).assertNoNativeZodDate).toBeUndefined()
+  })
+
+  it('does NOT export internal id helpers', async () => {
+    const core = await import('../src/core')
+    expect((core as any).registryHelpers).toBeUndefined()
   })
 })
 
@@ -132,6 +151,25 @@ describe('zodvex/server exports', () => {
     expect(createZodDbReader).toBeDefined()
     expect(createZodDbWriter).toBeDefined()
   })
+
+  it('does NOT export internal custom helpers', async () => {
+    const server = await import('../src/server')
+    expect((server as any).customFnBuilder).toBeUndefined()
+  })
+
+  it('does NOT export internal table helpers', async () => {
+    const server = await import('../src/server')
+    expect((server as any).isZodUnion).toBeUndefined()
+    expect((server as any).getUnionOptions).toBeUndefined()
+    expect((server as any).assertUnionOptions).toBeUndefined()
+    expect((server as any).createUnionFromOptions).toBeUndefined()
+  })
+
+  it('does NOT export internal init helpers', async () => {
+    const server = await import('../src/server')
+    expect((server as any).composeCustomizations).toBeUndefined()
+    expect((server as any).createZodvexBuilder).toBeUndefined()
+  })
 })
 
 describe('zodvex (root) exports', () => {
@@ -160,5 +198,25 @@ describe('zodvex (root) exports', () => {
     expect(zodvex.createZodDbWriter).toBeDefined()
     expect(zodvex.initZodvex).toBeDefined()
     expect(zodvex.createZodvexCustomization).toBeDefined()
+  })
+
+  it('does NOT export internal symbols', async () => {
+    const zodvex = await import('../src')
+    expect((zodvex as any).customFnBuilder).toBeUndefined()
+    expect((zodvex as any).attachMeta).toBeUndefined()
+    expect((zodvex as any).readMeta).toBeUndefined()
+    expect((zodvex as any).registryHelpers).toBeUndefined()
+    expect((zodvex as any).pick).toBeUndefined()
+    expect((zodvex as any).formatZodIssues).toBeUndefined()
+    expect((zodvex as any).handleZodValidationError).toBeUndefined()
+    expect((zodvex as any).validateReturns).toBeUndefined()
+    expect((zodvex as any).assertNoNativeZodDate).toBeUndefined()
+    expect((zodvex as any).makeUnion).toBeUndefined()
+    expect((zodvex as any).isZodUnion).toBeUndefined()
+    expect((zodvex as any).getUnionOptions).toBeUndefined()
+    expect((zodvex as any).assertUnionOptions).toBeUndefined()
+    expect((zodvex as any).createUnionFromOptions).toBeUndefined()
+    expect((zodvex as any).composeCustomizations).toBeUndefined()
+    expect((zodvex as any).createZodvexBuilder).toBeUndefined()
   })
 })

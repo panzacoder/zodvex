@@ -212,6 +212,8 @@ function asTableValidator<V extends { kind: string }>(validator: V): TableValida
  * Uses .extend() to preserve object-level options like .passthrough(), .strict(),
  * .catchall(), and object-level refinements.
  *
+ * @deprecated Use `defineZodModel` instead. See migration guide (TODO: link).
+ *
  * @param tableName - The Convex table name
  * @param schema - The Zod object schema for user fields
  * @returns A Zod object schema with _id and _creationTime added
@@ -226,7 +228,9 @@ export function zodDoc<TableName extends string, Shape extends z.ZodRawShape>(
   }) as z.ZodObject<Shape & DocSystemFields<TableName>>
 }
 
-// Helper to create nullable doc schema
+/**
+ * @deprecated Use `defineZodModel` instead. See migration guide (TODO: link).
+ */
 export function zodDocOrNull<
   TableName extends string,
   Shape extends z.ZodRawShape,
@@ -267,6 +271,8 @@ function isObjectShape(input: any): input is Record<string, z.ZodTypeAny> {
  * For union schemas, this enables polymorphic tables with discriminated unions.
  *
  * Returns the Table definition along with Zod schemas for documents and arrays.
+ *
+ * @deprecated Use `defineZodModel` instead. See migration guide (TODO: link).
  *
  * @param name - The table name
  * @param schemaOrShape - Either a raw object shape or a Zod union schema

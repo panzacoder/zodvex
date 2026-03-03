@@ -14,10 +14,17 @@
 export { customCtx } from 'convex-helpers/server/customFunctions'
 // Action context wrapping (auto-codec for runQuery/runMutation in actions)
 export { createZodvexActionCtx } from '../actionCtx'
-// Function builders (zQueryBuilder, zMutationBuilder, zActionBuilder, etc.)
-export * from '../builders'
-// Custom function utilities (zCustomQuery, zCustomMutation, zCustomAction, etc.)
-export * from '../custom'
+// Function builders (named — all deprecated)
+export {
+  zActionBuilder,
+  zCustomActionBuilder,
+  zCustomMutationBuilder,
+  zCustomQueryBuilder,
+  zMutationBuilder,
+  zQueryBuilder
+} from '../builders'
+// Custom function utilities (named — hide customFnBuilder, Overwrite re-export)
+export { type CustomBuilder, zCustomAction, zCustomMutation, zCustomQuery } from '../custom'
 // Codec customization (manual composition escape hatch)
 export { createZodvexCustomization } from '../customization'
 // Database wrappers (ZodvexDatabaseReader, ZodvexDatabaseWriter, etc.)
@@ -46,5 +53,5 @@ export type {
 } from '../rules'
 // Schema definition (defineZodSchema)
 export * from '../schema'
-// Table creation and helpers
-export * from '../tables'
+// Table creation and helpers (named — hide union internals)
+export { addSystemFields, zodDoc, zodDocOrNull, zodTable } from '../tables'

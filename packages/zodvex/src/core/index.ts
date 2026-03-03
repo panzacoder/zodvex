@@ -14,16 +14,29 @@ export {
   createBoundaryHelpers,
   ZodvexDecodeError
 } from '../boundaryHelpers'
-// Codec utilities
-export * from '../codec'
+// Codec utilities (named — hide internal re-exports)
+export {
+  type ConvexCodec,
+  convexCodec,
+  decodeDoc,
+  encodeDoc,
+  encodePartialDoc,
+  type ZodvexCodec,
+  zodvexCodec
+} from '../codec'
 // Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
 export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
-// ID utilities
-export * from '../ids'
-// Zod → Convex validator mapping
-export * from '../mapping'
-// Codegen metadata utilities
-export * from '../meta'
+// ID utilities (named — hide registryHelpers)
+export { type Zid, zid } from '../ids'
+// Zod → Convex validator mapping (named — hide makeUnion)
+export {
+  type ConvexValidatorFromZod,
+  type ConvexValidatorFromZodFieldsAuto,
+  getObjectShape,
+  type ZodValidator,
+  zodToConvex,
+  zodToConvexFields
+} from '../mapping'
 // Client-safe model definitions
 export * from '../model'
 // Codec error path normalization (safeEncode, normalizeCodecPaths)
@@ -38,7 +51,15 @@ export type { ZodTableMap, ZodTableSchemas } from '../schema'
 export * from '../transform'
 // Types (server imports are type-only and erased at compile time)
 export * from '../types'
-// Utilities (no server imports)
-export * from '../utils'
+// Utilities (named — hide internal helpers)
+export {
+  mapDateFieldToNumber,
+  pickShape,
+  returnsAs,
+  safeOmit,
+  safePick,
+  stripUndefined,
+  zPaginated
+} from '../utils'
 // Zod extensions for Convex
 export * from '../zx'

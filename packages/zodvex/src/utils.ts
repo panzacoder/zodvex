@@ -130,6 +130,8 @@ export function zPaginated<T extends z.ZodTypeAny>(item: T) {
  * Maps Date fields to number fields for docSchema generation.
  * Handles Date, Date.optional(), Date.nullable(), and Date.default() cases.
  * Returns the original field for non-Date types.
+ *
+ * @deprecated Use `zx.date()` instead for automatic Date ↔ timestamp conversion.
  */
 export function mapDateFieldToNumber(field: z.ZodTypeAny): z.ZodTypeAny {
   // Direct Date field

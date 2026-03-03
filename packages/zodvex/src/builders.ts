@@ -22,6 +22,8 @@ import { zAction, zMutation, zQuery } from './wrappers'
  * Creates a reusable query builder from a Convex query builder.
  * Returns a builder function that accepts Convex-style config objects with args, handler, and returns.
  *
+ * @deprecated Use `initZodvex()` which returns `{ zq }` with built-in codec DB wrapping.
+ *
  * @example
  * ```ts
  * import { query } from './_generated/server'
@@ -74,6 +76,8 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
 /**
  * Creates a reusable mutation builder from a Convex mutation builder.
  * Returns a builder function that accepts Convex-style config objects with args, handler, and returns.
+ *
+ * @deprecated Use `initZodvex()` which returns `{ zm }` with built-in codec DB wrapping.
  *
  * @example
  * ```ts
@@ -128,6 +132,8 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
  * Creates a reusable action builder from a Convex action builder.
  * Returns a builder function that accepts Convex-style config objects with args, handler, and returns.
  *
+ * @deprecated Use `initZodvex()` which returns `{ za }` with built-in codec DB wrapping.
+ *
  * @example
  * ```ts
  * import { action } from './_generated/server'
@@ -180,6 +186,8 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
 /**
  * Creates a custom query builder with context injection from a Convex query builder.
  * Allows you to add custom context (like auth, permissions, etc.) to your queries.
+ *
+ * @deprecated Use `initZodvex()` and `zq.withContext()` instead.
  *
  * @example
  * ```ts
@@ -234,6 +242,8 @@ export function zCustomQueryBuilder<
  * Creates a custom mutation builder with context injection from a Convex mutation builder.
  * Allows you to add custom context (like auth, permissions, etc.) to your mutations.
  *
+ * @deprecated Use `initZodvex()` and `zm.withContext()` instead.
+ *
  * @example
  * ```ts
  * import { type MutationCtx, mutation } from './_generated/server'
@@ -286,6 +296,8 @@ export function zCustomMutationBuilder<
 /**
  * Creates a custom action builder with context injection from a Convex action builder.
  * Allows you to add custom context (like auth, permissions, etc.) to your actions.
+ *
+ * @deprecated Use `initZodvex()` and `za.withContext()` instead.
  *
  * @example
  * ```ts
