@@ -75,11 +75,11 @@ describe('mantineResolver (mantine)', () => {
     expect(errors.title).toBe('Title is required')
   })
 
-  it('validates codec fields using encode direction (runtime values)', () => {
+  describe('codec field handling', () => {
     const registryWithCodec = {
       'items:create': {
         args: z.object({
-          name: z.string().min(1),
+          name: z.string().min(1, 'Name required'),
           secret: z.codec(z.object({ v: z.string() }), z.custom<{ expose: () => string }>(), {
             decode: wire => ({ expose: () => wire.v }),
             encode: runtime => ({ v: runtime.expose() })
@@ -87,14 +87,40 @@ describe('mantineResolver (mantine)', () => {
         })
       }
     }
-    const validate = mantineResolver(registryWithCodec, fakeRef('items:create'))
 
-    // Runtime values (not wire format) should pass
-    const noErrors = validate({ name: 'ok', secret: { expose: () => 'val' } })
-    expect(noErrors).toEqual({})
+    it('skips codec fields (validated server-side)', () => {
+      const validate = mantineResolver(registryWithCodec, fakeRef('items:create'))
 
-    // Missing required field should fail
-    const errors = validate({ name: '', secret: { expose: () => 'val' } })
-    expect(errors.name).toBeDefined()
+      // Broken clone (structuredClone strips methods) should NOT cause errors
+      const errors = validate({ name: 'ok', secret: { _v: 'val' } })
+      expect(errors).toEqual({})
+    })
+
+    it('still reports non-codec errors when codec fields are present', () => {
+      const validate = mantineResolver(registryWithCodec, fakeRef('items:create'))
+
+      // Invalid name + broken codec
+      const errors = validate({ name: '', secret: { _v: 'val' } })
+      expect(errors.name).toBe('Name required')
+      expect(errors.secret).toBeUndefined()
+    })
+
+    it('skips optional codec fields too', () => {
+      const registryOptionalCodec = {
+        'items:update': {
+          args: z.object({
+            name: z.string().min(1),
+            secret: z.codec(z.object({ v: z.string() }), z.custom<{ expose: () => string }>(), {
+              decode: wire => ({ expose: () => wire.v }),
+              encode: runtime => ({ v: runtime.expose() })
+            }).optional()
+          })
+        }
+      }
+      const validate = mantineResolver(registryOptionalCodec, fakeRef('items:update'))
+
+      const errors = validate({ name: 'ok' })
+      expect(errors).toEqual({})
+    })
   })
 })
