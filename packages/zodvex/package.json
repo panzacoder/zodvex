@@ -78,17 +78,13 @@
     "convex-helpers": "^0.1.104",
     "react": "^18.0.0 || ^19.0.0",
     "zod": "^4.3.6",
-    "@mantine/form": "^8.0.0",
-    "mantine-form-zod-resolver": "^1.2.1"
+    "@mantine/form": "^8.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
     },
     "@mantine/form": {
-      "optional": true
-    },
-    "mantine-form-zod-resolver": {
       "optional": true
     }
   },

@@ -74,4 +74,27 @@ describe('mantineResolver (mantine)', () => {
 
     expect(errors.title).toBe('Title is required')
   })
+
+  it('validates codec fields using encode direction (runtime values)', () => {
+    const registryWithCodec = {
+      'items:create': {
+        args: z.object({
+          name: z.string().min(1),
+          secret: z.codec(z.object({ v: z.string() }), z.custom<{ expose: () => string }>(), {
+            decode: (wire) => ({ expose: () => wire.v }),
+            encode: (runtime) => ({ v: runtime.expose() }),
+          }),
+        })
+      }
+    }
+    const validate = mantineResolver(registryWithCodec, fakeRef('items:create'))
+
+    // Runtime values (not wire format) should pass
+    const noErrors = validate({ name: 'ok', secret: { expose: () => 'val' } })
+    expect(noErrors).toEqual({})
+
+    // Missing required field should fail
+    const errors = validate({ name: '', secret: { expose: () => 'val' } })
+    expect(errors.name).toBeDefined()
+  })
 })

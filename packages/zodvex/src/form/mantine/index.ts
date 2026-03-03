@@ -1,14 +1,16 @@
+import { z } from 'zod'
 import type { FunctionReference } from 'convex/server'
 import { getFunctionName } from 'convex/server'
-import { zod4Resolver } from 'mantine-form-zod-resolver'
 import type { AnyRegistry } from '../../types'
 
 /**
  * Creates a Mantine form validator from the zodvex registry.
  *
- * Looks up the args schema for a Convex function reference and returns
- * a Mantine-compatible validation function. Single source of truth —
- * the same schema that drives server validation drives form validation.
+ * Uses `z.safeEncode` (runtime → wire direction) so that codec fields
+ * like `sensitive()` validate runtime values (e.g. SensitiveField instances)
+ * rather than expecting wire format input.
+ *
+ * For non-codec schemas, `safeEncode` behaves identically to `safeParse`.
  *
  * @example
  * ```tsx
@@ -30,5 +32,14 @@ export function mantineResolver<R extends AnyRegistry>(
   if (!entry?.args) {
     throw new Error(`zodvex: No args schema found for "${path}" in registry`)
   }
-  return zod4Resolver(entry.args)
+
+  return (values: Record<string, unknown>) => {
+    const result = z.safeEncode(entry.args, values)
+    if (result.success) return {}
+    const errors: Record<string, string> = {}
+    for (const issue of result.error.issues) {
+      errors[issue.path.join('.')] = issue.message
+    }
+    return errors
+  }
 }
