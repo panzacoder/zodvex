@@ -181,6 +181,22 @@ describe('codegen e2e', () => {
     expect(apiContent).toContain('extractCodec')
   })
 
+  it('schema.ts has no duplicate exports when barrel files exist', async () => {
+    const result = await discoverModules(fixtureDir)
+    const schemaContent = generateSchemaFile(result.models)
+
+    // Count occurrences of each export
+    const userExports = schemaContent.match(/export \{ UserModel \}/g)
+    const eventExports = schemaContent.match(/export \{ EventModel \}/g)
+    expect(userExports?.length).toBe(1)
+    expect(eventExports?.length).toBe(1)
+
+    // Should use direct module paths, not barrel
+    expect(schemaContent).toContain("from '../models/user'")
+    expect(schemaContent).toContain("from '../models/event'")
+    expect(schemaContent).not.toContain("from '../models/index'")
+  })
+
   it('skips _generated/ and _zodvex/ during discovery', async () => {
     // Create a dummy file in _zodvex/ to ensure it's skipped
     fs.mkdirSync(outputDir, { recursive: true })

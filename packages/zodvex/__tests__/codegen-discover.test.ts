@@ -87,6 +87,20 @@ describe('discoverModules', () => {
     expect(fnPaths).toContain('admin/audit/logs:list')
     expect(fnPaths).not.toContain('logs:list')
   })
+
+  it('deduplicates models re-exported from barrel files', async () => {
+    const result = await discoverModules(fixtureDir)
+
+    // Should still find exactly 2 models, not 4 (2 direct + 2 barrel)
+    expect(result.models.length).toBe(2)
+
+    // Each model should come from its direct file, not the barrel
+    const userModel = result.models.find(m => m.exportName === 'UserModel')
+    expect(userModel?.sourceFile).toBe('models/user.ts')
+
+    const eventModel = result.models.find(m => m.exportName === 'EventModel')
+    expect(eventModel?.sourceFile).toBe('models/event.ts')
+  })
 })
 
 describe('codec discovery', () => {

@@ -255,12 +255,28 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
       const meta = readMeta(value)
       if (meta) {
         if (meta.type === 'model') {
-          models.push({
-            exportName,
-            tableName: meta.tableName,
-            sourceFile: file,
-            schemas: meta.schemas
-          })
+          const isBarrel = /(?:^|[\\/])index\.(ts|js)$/.test(file)
+          const existing = models.findIndex(m => m.tableName === meta.tableName)
+          if (existing >= 0) {
+            // Replace barrel source with direct module source
+            const existingIsBarrel = /(?:^|[\\/])index\.(ts|js)$/.test(models[existing].sourceFile)
+            if (existingIsBarrel && !isBarrel) {
+              models[existing] = {
+                exportName,
+                tableName: meta.tableName,
+                sourceFile: file,
+                schemas: meta.schemas
+              }
+            }
+            // If existing is direct and new is barrel, skip
+          } else {
+            models.push({
+              exportName,
+              tableName: meta.tableName,
+              sourceFile: file,
+              schemas: meta.schemas
+            })
+          }
         } else if (meta.type === 'function') {
           functions.push({
             functionPath: `${moduleName}:${exportName}`,
