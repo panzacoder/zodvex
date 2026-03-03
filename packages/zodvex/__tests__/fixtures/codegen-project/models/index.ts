@@ -1,2 +1,2 @@
-export { UserModel } from './user'
 export { EventModel } from './event'
+export { UserModel } from './user'
