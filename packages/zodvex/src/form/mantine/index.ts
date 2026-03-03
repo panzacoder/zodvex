@@ -29,12 +29,13 @@ export function mantineResolver<R extends AnyRegistry>(
 ) {
   const path = getFunctionName(ref)
   const entry = registry[path]
-  if (!entry?.args) {
+  const schema = entry?.args
+  if (!schema) {
     throw new Error(`zodvex: No args schema found for "${path}" in registry`)
   }
 
   return (values: Record<string, unknown>) => {
-    const result = z.safeEncode(entry.args, values)
+    const result = z.safeEncode(schema, values)
     if (result.success) return {}
     const errors: Record<string, string> = {}
     for (const issue of result.error.issues) {
