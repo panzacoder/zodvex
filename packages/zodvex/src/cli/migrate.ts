@@ -220,7 +220,7 @@ export function migrate(dir: string, options: MigrateOptions): MigrateResult {
     }
 
     // Scan for remaining deprecations (on the post-transform content)
-    const contentToScan = changed && !options.dryRun ? content : changed ? content : original
+    const contentToScan = changed ? content : original
     const deprecations = scanDeprecations(filePath, contentToScan)
     allDeprecations.push(...deprecations)
   }
