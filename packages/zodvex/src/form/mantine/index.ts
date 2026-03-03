@@ -13,15 +13,15 @@ import type { AnyRegistry } from '../../types'
  * @example
  * ```tsx
  * import { useForm } from '@mantine/form'
- * import { zodvexResolver } from 'zodvex/form/mantine'
+ * import { mantineResolver } from 'zodvex/form/mantine'
  *
  * const form = useForm({
  *   initialValues: { name: '', email: '' },
- *   validate: zodvexResolver(registry, api.users.create),
+ *   validate: mantineResolver(registry, api.users.create),
  * })
  * ```
  */
-export function zodvexResolver<R extends AnyRegistry>(
+export function mantineResolver<R extends AnyRegistry>(
   registry: R,
   ref: FunctionReference<any, any, any, any>
 ) {

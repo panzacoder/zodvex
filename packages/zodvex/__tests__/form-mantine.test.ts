@@ -8,14 +8,14 @@ mock.module('convex/server', () => ({
 }))
 
 // Import AFTER mocks are set up
-const { zodvexResolver } = await import('../src/form/mantine')
+const { mantineResolver } = await import('../src/form/mantine')
 
 /** Create a fake FunctionReference with a _testPath property */
 function fakeRef(path: string) {
   return { _testPath: path } as any
 }
 
-describe('zodvexResolver (mantine)', () => {
+describe('mantineResolver (mantine)', () => {
   const registry = {
     'users:create': {
       args: z.object({
@@ -33,14 +33,14 @@ describe('zodvexResolver (mantine)', () => {
   }
 
   it('returns no errors for valid input', () => {
-    const validate = zodvexResolver(registry, fakeRef('users:create'))
+    const validate = mantineResolver(registry, fakeRef('users:create'))
     const errors = validate({ name: 'Alice', email: 'alice@example.com' })
 
     expect(errors).toEqual({})
   })
 
   it('returns field-level errors for invalid input', () => {
-    const validate = zodvexResolver(registry, fakeRef('users:create'))
+    const validate = mantineResolver(registry, fakeRef('users:create'))
     const errors = validate({ name: '', email: 'not-an-email' })
 
     expect(errors.name).toBeDefined()
@@ -48,7 +48,7 @@ describe('zodvexResolver (mantine)', () => {
   })
 
   it('maps errors to correct field paths', () => {
-    const validate = zodvexResolver(registry, fakeRef('users:create'))
+    const validate = mantineResolver(registry, fakeRef('users:create'))
     const errors = validate({ name: '', email: 'bad' })
 
     expect(errors.name).toBe('Name is required')
@@ -56,7 +56,7 @@ describe('zodvexResolver (mantine)', () => {
   })
 
   it('does not error on omitted optional fields', () => {
-    const validate = zodvexResolver(registry, fakeRef('users:create'))
+    const validate = mantineResolver(registry, fakeRef('users:create'))
     const errors = validate({ name: 'Alice', email: 'alice@example.com' })
 
     expect(errors.age).toBeUndefined()
@@ -64,12 +64,12 @@ describe('zodvexResolver (mantine)', () => {
 
   it('throws if function not found in registry', () => {
     expect(() => {
-      zodvexResolver(registry, fakeRef('nonexistent:fn'))
+      mantineResolver(registry, fakeRef('nonexistent:fn'))
     }).toThrow('No args schema found')
   })
 
   it('works with different registry entries', () => {
-    const validate = zodvexResolver(registry, fakeRef('tasks:create'))
+    const validate = mantineResolver(registry, fakeRef('tasks:create'))
     const errors = validate({ title: '' })
 
     expect(errors.title).toBe('Title is required')
