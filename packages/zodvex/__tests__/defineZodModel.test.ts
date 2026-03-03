@@ -257,6 +257,26 @@ describe('defineZodModel', () => {
     expect(bad.success).toBe(false)
   })
 
+  it('schema.update does not double-wrap already-optional fields', () => {
+    const model = defineZodModel('users', {
+      name: z.string(),
+      email: z.string().optional(), // already optional
+      age: z.number()
+    })
+
+    // Get the update schema's shape
+    const updateShape = (model.schema.update as z.ZodObject<any>).shape
+
+    // email was already optional — should be ZodOptional, not ZodOptional<ZodOptional>
+    const emailField = updateShape.email
+    expect(emailField).toBeInstanceOf(z.ZodOptional)
+
+    // The inner type should be ZodString, not another ZodOptional
+    const inner = (emailField as any)._zod.def.innerType
+    expect(inner).toBeInstanceOf(z.ZodString)
+    expect(inner).not.toBeInstanceOf(z.ZodOptional)
+  })
+
   it('schema.docArray validates array of docs', () => {
     const model = defineZodModel('users', {
       name: z.string()

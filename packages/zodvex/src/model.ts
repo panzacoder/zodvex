@@ -13,6 +13,11 @@ import { attachMeta } from './meta'
 import { addSystemFields, createUnionFromOptions, getUnionOptions, isZodUnion } from './tables'
 import { type ZxId, zx } from './zx'
 
+/** Wrap in .optional() only if not already optional. */
+function ensureOptional(schema: z.ZodTypeAny): z.ZodOptional<any> {
+  return schema instanceof z.ZodOptional ? (schema as z.ZodOptional<any>) : schema.optional()
+}
+
 // ============================================================================
 // Field Path Types
 // ============================================================================
@@ -222,7 +227,7 @@ export function defineZodModel<Name extends string>(
   // Create partial shape for update: _id required, _creationTime optional, user fields partial
   const partialShape: Record<string, z.ZodTypeAny> = {}
   for (const [key, value] of Object.entries(fields)) {
-    partialShape[key] = (value as z.ZodTypeAny).optional()
+    partialShape[key] = ensureOptional(value as z.ZodTypeAny)
   }
   const updateSchema = z.object({
     _id: zx.id(name),
@@ -308,7 +313,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: z.ZodTyp
       if (variant instanceof z.ZodObject) {
         const partialShape: Record<string, z.ZodTypeAny> = {}
         for (const [key, value] of Object.entries(variant.shape)) {
-          partialShape[key] = (value as z.ZodTypeAny).optional()
+          partialShape[key] = ensureOptional(value as z.ZodTypeAny)
         }
         return z.object({
           _id: zx.id(name),
@@ -322,7 +327,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: z.ZodTyp
   } else if (inputSchema instanceof z.ZodObject) {
     const partialShape: Record<string, z.ZodTypeAny> = {}
     for (const [key, value] of Object.entries(inputSchema.shape)) {
-      partialShape[key] = (value as z.ZodTypeAny).optional()
+      partialShape[key] = ensureOptional(value as z.ZodTypeAny)
     }
     updateSchema = z.object({
       _id: zx.id(name),

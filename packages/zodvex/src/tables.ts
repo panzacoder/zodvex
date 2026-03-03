@@ -5,6 +5,11 @@ import { z } from 'zod'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 import { type ZxId, zx } from './zx'
 
+/** Wrap in .optional() only if not already optional. */
+function ensureOptional(schema: z.ZodTypeAny): z.ZodOptional<any> {
+  return schema instanceof z.ZodOptional ? (schema as z.ZodOptional<any>) : schema.optional()
+}
+
 /**
  * Makes all properties of a Zod object shape optional.
  */
@@ -541,7 +546,7 @@ export function zodTable<
     // Create partial shape for user fields
     const partialShape: Record<string, z.ZodTypeAny> = {}
     for (const [key, value] of Object.entries(shape)) {
-      partialShape[key] = (value as z.ZodTypeAny).optional()
+      partialShape[key] = ensureOptional(value as z.ZodTypeAny)
     }
 
     // Create update schema: _id required, _creationTime optional, user fields partial
@@ -603,7 +608,7 @@ export function zodTable<
           // Create partial shape for user fields
           const partialShape: Record<string, z.ZodTypeAny> = {}
           for (const [key, value] of Object.entries(variant.shape)) {
-            partialShape[key] = (value as z.ZodTypeAny).optional()
+            partialShape[key] = ensureOptional(value as z.ZodTypeAny)
           }
           // Add system fields: _id required, _creationTime optional
           return z.object({
@@ -619,7 +624,7 @@ export function zodTable<
       // Create partial shape for user fields
       const partialShape: Record<string, z.ZodTypeAny> = {}
       for (const [key, value] of Object.entries(schema.shape)) {
-        partialShape[key] = (value as z.ZodTypeAny).optional()
+        partialShape[key] = ensureOptional(value as z.ZodTypeAny)
       }
       // Add system fields: _id required, _creationTime optional
       updateSchema = z.object({
