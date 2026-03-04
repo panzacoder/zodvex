@@ -512,6 +512,29 @@ describe('partial-aware identity matching', () => {
     expect(output).toContain('UserModel.schema.doc.partial()')
     expect(output).not.toContain('.optional().optional()')
   })
+
+  it('doc.partial().extend() double-wraps already-optional fields', () => {
+    // Zod's .partial() wraps every field in ZodOptional, even already-optional ones.
+    // .extend() then breaks tryMatchPartial (not all fields are optional-wrapped),
+    // forcing field-by-field serialization that faithfully emits both optional layers.
+    // Consumers should use Model.schema.update instead of doc.partial().extend().
+    const docSchema = z.object({
+      _id: z.string(),
+      _creationTime: z.number(),
+      name: z.string(),
+      email: z.string().optional()
+    })
+
+    const extended = (docSchema as z.ZodObject<any>).partial().extend({
+      _id: zx.id('users')
+    })
+    const shape = extended.shape as Record<string, z.ZodTypeAny>
+
+    // email is now ZodOptional<ZodOptional<ZodString>> — double wrapped
+    expect(shape.email).toBeInstanceOf(z.ZodOptional)
+    const inner = (shape.email as any)._zod?.def?.innerType
+    expect(inner).toBeInstanceOf(z.ZodOptional)
+  })
 })
 
 describe('function-embedded codec resolution', () => {
