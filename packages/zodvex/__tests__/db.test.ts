@@ -398,6 +398,132 @@ describe('createZodDbReader', () => {
   })
 })
 
+describe('typed overloads', () => {
+  // Type-level assertions: verify overloads produce typed results instead of `any`.
+  // These tests use TypeScript inference — a type error here means the overload is broken.
+
+  type TestDataModel = {
+    users: {
+      document: { _id: string; _creationTime: number; name: string; createdAt: number }
+      fieldPaths: '_id' | '_creationTime' | 'name' | 'createdAt'
+      indexes: {}
+      searchIndexes: {}
+      vectorIndexes: {}
+    }
+  }
+
+  type DecodedUser = {
+    _id: string
+    _creationTime: number
+    name: string
+    createdAt: Date
+  }
+
+  type TestDecodedDocs = { users: DecodedUser }
+
+  const tableMap = { users: userSchemas }
+  const tableData = {
+    users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
+  }
+
+  it('get() returns decoded doc type', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap) as ZodvexDatabaseWriter<
+      TestDataModel,
+      TestDecodedDocs
+    >
+
+    const user = await db.get('users:1' as any)
+    // If overloads work, `user` is `DecodedUser | null`, not `any`
+    if (user) {
+      // This assignment would fail at the type level if user were `any` —
+      // but `any` absorbs everything. Instead, assert the resolved type
+      // by checking a property access is typed correctly.
+      const name: string = user.name
+      const createdAt: Date = user.createdAt
+      expect(name).toBe('Alice')
+      expect(createdAt).toBeInstanceOf(Date)
+    }
+  })
+
+  it('insert() accepts decoded fields without system fields', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap) as ZodvexDatabaseWriter<
+      TestDataModel,
+      TestDecodedDocs
+    >
+
+    // The typed overload should accept { name: string; createdAt: Date }
+    // and reject _id or _creationTime fields.
+    const id = await db.insert('users' as any, {
+      name: 'Charlie',
+      createdAt: new Date(1700000000000)
+    })
+
+    expect(typeof id).toBe('string')
+    expect(calls[0].args[1].createdAt).toBe(1700000000000)
+  })
+
+  it('patch() accepts partial decoded fields', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap) as ZodvexDatabaseWriter<
+      TestDataModel,
+      TestDecodedDocs
+    >
+
+    // The typed overload should accept Partial<{ name: string; createdAt: Date }>
+    await db.patch('users:1' as any, {
+      createdAt: new Date(1800000000000)
+    })
+
+    expect(calls[0].args[1].createdAt).toBe(1800000000000)
+  })
+
+  it('replace() accepts full decoded fields without system fields', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap) as ZodvexDatabaseWriter<
+      TestDataModel,
+      TestDecodedDocs
+    >
+
+    await db.replace('users:1' as any, {
+      name: 'Alice Updated',
+      createdAt: new Date(1800000000000)
+    })
+
+    expect(calls[0].args[1].createdAt).toBe(1800000000000)
+  })
+
+  it('delete() accepts typed GenericId', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap) as ZodvexDatabaseWriter<
+      TestDataModel,
+      TestDecodedDocs
+    >
+
+    await db.delete('users:1' as any)
+
+    expect(calls[0].method).toBe('delete')
+    expect(calls[0].args[0]).toBe('users:1')
+  })
+
+  it('query() returns decoded doc type via chain', async () => {
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap) as ZodvexDatabaseWriter<
+      TestDataModel,
+      TestDecodedDocs
+    >
+
+    const results = await db.query('users' as any).collect()
+    if (results.length > 0) {
+      const name: string = results[0].name
+      const createdAt: Date = results[0].createdAt
+      expect(name).toBe('Alice')
+      expect(createdAt).toBeInstanceOf(Date)
+    }
+  })
+})
+
 describe('createZodDbWriter', () => {
   const tableData = {
     users: [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]

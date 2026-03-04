@@ -154,6 +154,23 @@ type ResolveDecodedDoc<
   ? DecodedDocs[TableName]
   : DocumentByInfo<NamedTableInfo<DataModel, TableName>>
 
+/** System fields auto-managed by Convex — not writable by consumers. */
+type SystemFields = '_id' | '_creationTime'
+
+/** Decoded doc without system fields — for insert and replace values. */
+type DecodedWriteValue<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>,
+  TableName extends TableNamesInDataModel<DataModel>
+> = Omit<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>, SystemFields>
+
+/** Partial decoded doc without system fields — for patch values. */
+type DecodedPatchValue<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>,
+  TableName extends TableNamesInDataModel<DataModel>
+> = Partial<Omit<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>, SystemFields>>
+
 /**
  * Resolves a table name from a GenericId by iterating the tableMap
  * and calling normalizeId. Same approach as convex-helpers' WrapReader.
@@ -206,6 +223,11 @@ export class ZodvexDatabaseReader<
     return this.db.normalizeId(tableName, id)
   }
 
+  get<TableName extends TableNamesInDataModel<DataModel>>(
+    id: GenericId<TableName>
+  ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
+  /** @internal 2-arg form for table-first lookups */
+  get(idOrTable: any, maybeId?: any): Promise<any>
   async get(idOrTable: any, maybeId?: any): Promise<any> {
     let tableName: string | null
     let doc: any
@@ -311,6 +333,11 @@ export class ZodvexDatabaseWriter<
     return this.reader.normalizeId(tableName, id)
   }
 
+  get<TableName extends TableNamesInDataModel<DataModel>>(
+    id: GenericId<TableName>
+  ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
+  /** @internal 2-arg form for table-first lookups */
+  get(idOrTable: any, maybeId?: any): Promise<any>
   get(idOrTable: any, maybeId?: any): Promise<any> {
     return this.reader.get(idOrTable, maybeId)
   }
@@ -326,12 +353,24 @@ export class ZodvexDatabaseWriter<
 
   // --- Write methods: encode before delegating ---
 
+  insert<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    value: DecodedWriteValue<DataModel, DecodedDocs, TableName>
+  ): Promise<GenericId<TableName>>
+  /** @internal untyped fallback */
+  insert(table: any, value: any): Promise<any>
   async insert(table: any, value: any): Promise<any> {
     const schemas = this.tableMap[table as string]
     const wireValue = schemas ? encodeDoc(schemas.insert, value) : value
     return this.db.insert(table, wireValue)
   }
 
+  patch<TableName extends TableNamesInDataModel<DataModel>>(
+    id: GenericId<TableName>,
+    value: DecodedPatchValue<DataModel, DecodedDocs, TableName>
+  ): Promise<void>
+  /** @internal 3-arg form for table-first patches */
+  patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void>
   async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
     let id: any
@@ -359,6 +398,12 @@ export class ZodvexDatabaseWriter<
     return this.db.patch(id, wireValue)
   }
 
+  replace<TableName extends TableNamesInDataModel<DataModel>>(
+    id: GenericId<TableName>,
+    value: DecodedWriteValue<DataModel, DecodedDocs, TableName>
+  ): Promise<void>
+  /** @internal 3-arg form for table-first replaces */
+  replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void>
   async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
     let id: any
@@ -384,6 +429,11 @@ export class ZodvexDatabaseWriter<
     return this.db.replace(id, wireValue)
   }
 
+  delete<TableName extends TableNamesInDataModel<DataModel>>(
+    id: GenericId<TableName>
+  ): Promise<void>
+  /** @internal 2-arg form for table-first deletes */
+  delete(idOrTable: any, maybeId?: any): Promise<void>
   async delete(idOrTable: any, maybeId?: any): Promise<void> {
     if (maybeId !== undefined) {
       // 2-arg form (table, id) is @internal in Convex types — cast required
