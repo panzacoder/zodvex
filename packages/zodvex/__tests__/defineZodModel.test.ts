@@ -409,7 +409,7 @@ describe('defineZodModel .index()', () => {
       }
     )
 
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
 
     const model = defineZodModel('patients', {
       clinicId: z.string(),
@@ -441,7 +441,7 @@ describe('defineZodModel .index()', () => {
       }
     )
 
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
 
     const model = defineZodModel('contacts', {
       name: z.string(),
@@ -470,7 +470,7 @@ describe('defineZodModel .index()', () => {
       }
     )
 
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
 
     defineZodModel('patients', {
       clinicId: z.string(),
@@ -486,7 +486,7 @@ describe('defineZodModel .index()', () => {
   })
 
   it('warns for any codec field including scalar codecs like zx.date()', () => {
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
 
     defineZodModel('events', {
       title: z.string(),
@@ -512,7 +512,7 @@ describe('defineZodModel .index()', () => {
       }
     )
 
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
 
     defineZodModel('patients', {
       clinicId: z.string(),
@@ -526,7 +526,7 @@ describe('defineZodModel .index()', () => {
   })
 
   it('does not warn for non-codec fields', () => {
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
 
     defineZodModel('users', {
       name: z.string(),
@@ -542,7 +542,7 @@ describe('defineZodModel .index()', () => {
   })
 
   it('treats zx.date() as leaf', () => {
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
     const model = defineZodModel('events', {
       title: z.string(),
       startDate: zx.date()

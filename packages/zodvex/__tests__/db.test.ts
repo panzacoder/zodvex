@@ -406,9 +406,9 @@ describe('typed overloads', () => {
     users: {
       document: { _id: string; _creationTime: number; name: string; createdAt: number }
       fieldPaths: '_id' | '_creationTime' | 'name' | 'createdAt'
-      indexes: {}
-      searchIndexes: {}
-      vectorIndexes: {}
+      indexes: Record<string, never>
+      searchIndexes: Record<string, never>
+      vectorIndexes: Record<string, never>
     }
   }
 
