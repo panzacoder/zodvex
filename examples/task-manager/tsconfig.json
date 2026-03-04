@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "preserveSymlinks": true,
+    "types": ["bun-types", "vite/client"],
     "outDir": "dist",
     "declaration": true,
     "paths": {}
