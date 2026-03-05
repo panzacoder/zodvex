@@ -346,11 +346,13 @@ export function generateApiFile(
  * These parallel Convex's _generated/server.ts exports (QueryCtx, MutationCtx, ActionCtx)
  * but with zodvex's codec-wrapped db types baked in.
  */
-export function generateServerFile(): string {
-  return `${HEADER}
-import type { DataModel } from '../_generated/dataModel'
+export function generateServerFile(): GeneratedFile {
+  const js = `${HEADER}`
+
+  const dts = `${HEADER}
+import type { DataModel } from '../_generated/dataModel.js'
 import type { ZodvexActionCtx, ZodvexMutationCtx, ZodvexQueryCtx } from 'zodvex/server'
-import type schema from '../schema'
+import type schema from '../schema.js'
 
 type DecodedDocs = (typeof schema)['__decodedDocs']
 
@@ -363,6 +365,8 @@ export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>
 /** Action context (no db, but runQuery/runMutation may be codec-wrapped). */
 export type ActionCtx = ZodvexActionCtx<DataModel>
 `
+
+  return { js, dts }
 }
 
 export interface ClientFileOptions {
