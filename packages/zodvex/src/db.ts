@@ -20,10 +20,52 @@ import type {
   TableNamesInDataModel
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import type { z } from 'zod'
+import { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
 import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './rules'
 import type { ZodTableMap } from './schema'
+
+/**
+ * Encodes a comparison value for an index field through its Zod schema.
+ *
+ * - Top-level fields: encoded through their schema (codec fields transform,
+ *   non-codec fields are identity).
+ * - Dot-paths: pass through unchanged (they target wire-format sub-fields
+ *   where the comparison value is already the correct primitive type).
+ */
+function encodeIndexValue(schema: z.ZodTypeAny, fieldPath: string, value: any): any {
+  // Dot-paths target wire-format sub-fields — value is already correct
+  if (fieldPath.includes('.')) return value
+  // Top-level: encode through the field's schema
+  if (schema instanceof z.ZodObject) {
+    const fieldSchema = (schema as z.ZodObject<any>).shape[fieldPath]
+    if (fieldSchema) return z.encode(fieldSchema, value)
+  }
+  return value
+}
+
+/**
+ * Wraps a Convex IndexRangeBuilder (or any builder with eq/gt/gte/lt/lte methods)
+ * with automatic value encoding. Each comparison method encodes its value through
+ * the table's doc schema before forwarding to the real builder.
+ *
+ * Returns another wrapped builder so chained calls (e.g., .eq().gte().lt()) are
+ * all encoded.
+ */
+function wrapIndexRangeBuilder(inner: any, schema: z.ZodTypeAny): any {
+  return new Proxy(inner, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string' && ['eq', 'gt', 'gte', 'lt', 'lte'].includes(prop)) {
+        return (fieldName: string, value: any) => {
+          const encoded = encodeIndexValue(schema, fieldName, value)
+          const result = target[prop](fieldName, encoded)
+          return wrapIndexRangeBuilder(result, schema)
+        }
+      }
+      return Reflect.get(target, prop, receiver)
+    }
+  })
+}
 
 /**
  * Wraps a Convex query chain, decoding documents through a Zod schema
@@ -72,7 +114,10 @@ export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = Document
       q: IndexRangeBuilder<DocumentByInfo<TableInfo>, NamedIndex<TableInfo, IndexName>>
     ) => IndexRange
   ): ZodvexQueryChain<TableInfo, Doc> {
-    return this.createChain(this.inner.withIndex(indexName, indexRange))
+    const wrappedRange = indexRange
+      ? (q: any) => indexRange(wrapIndexRangeBuilder(q, this.schema))
+      : undefined
+    return this.createChain(this.inner.withIndex(indexName, wrappedRange))
   }
 
   withSearchIndex<IndexName extends SearchIndexNames<TableInfo>>(

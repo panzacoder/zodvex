@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
+import { zodvexCodec } from '../src/codec'
 import {
   createZodDbReader,
   createZodDbWriter,
@@ -543,5 +544,128 @@ describe('createZodDbWriter', () => {
     )
 
     expect(calls[0].args[1].createdAt).toBe(1700000000000)
+  })
+})
+
+// --- withIndex encoding tests ---
+
+function createIndexCapturingMockQuery(docs: any[]) {
+  const captured: { method: string; field: string; value: any }[] = []
+
+  const mockIndexBuilder: any = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (['eq', 'gt', 'gte', 'lt', 'lte'].includes(prop as string)) {
+          return (fieldName: string, value: any) => {
+            captured.push({ method: prop as string, field: fieldName, value })
+            return mockIndexBuilder
+          }
+        }
+        return undefined
+      }
+    }
+  )
+
+  const mockQuery: any = {
+    fullTableScan: () => mockQuery,
+    withIndex: (_name: string, rangeFn?: (q: any) => any) => {
+      if (rangeFn) rangeFn(mockIndexBuilder)
+      return mockQuery
+    },
+    withSearchIndex: (_name: string, filterFn?: (q: any) => any) => {
+      if (filterFn) filterFn(mockIndexBuilder)
+      return mockQuery
+    },
+    order: () => mockQuery,
+    filter: () => mockQuery,
+    limit: () => mockQuery,
+    first: async () => docs[0] ?? null,
+    unique: async () => docs[0] ?? null,
+    collect: async () => docs,
+    take: async (n: number) => docs.slice(0, n),
+    paginate: async () => ({ page: docs, isDone: true, continueCursor: 'cursor' }),
+    [Symbol.asyncIterator]: async function* () {
+      for (const doc of docs) yield doc
+    }
+  }
+
+  return { mockQuery, captured }
+}
+
+describe('withIndex encoding', () => {
+  const wireDocs = [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
+
+  it('encodes a Date value to timestamp for a top-level codec field via .eq()', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery(wireDocs)
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain
+      .withIndex('byDate' as any, (q: any) => q.eq('createdAt', new Date(1700000000000)))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].method).toBe('eq')
+    expect(captured[0].field).toBe('createdAt')
+    expect(captured[0].value).toBe(1700000000000)
+  })
+
+  it('passes through non-codec field values unchanged via .eq()', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery(wireDocs)
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain.withIndex('byName' as any, (q: any) => q.eq('name', 'Alice')).first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].value).toBe('Alice')
+  })
+
+  it('passes through dot-path values unchanged (wire sub-field)', async () => {
+    const objectCodecDocSchema = z.object({
+      _id: z.string(),
+      _creationTime: z.number(),
+      email: zodvexCodec(
+        z.object({ value: z.string(), encrypted: z.string() }),
+        z.custom<{ expose: () => string }>(() => true),
+        {
+          decode: (wire: any) => ({ expose: () => wire.value }),
+          encode: (rt: any) => ({ value: rt.expose(), encrypted: 'enc' })
+        }
+      )
+    })
+
+    const { mockQuery, captured } = createIndexCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, objectCodecDocSchema)
+
+    await chain
+      .withIndex('byEmail' as any, (q: any) => q.eq('email.value', 'alice@example.com'))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].value).toBe('alice@example.com')
+  })
+
+  it('encodes values through .gt(), .gte(), .lt(), .lte()', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery(wireDocs)
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    const start = new Date(1700000000000)
+    const end = new Date(1700100000000)
+
+    await chain
+      .withIndex('byDate' as any, (q: any) => q.gte('createdAt', start).lt('createdAt', end))
+      .first()
+
+    expect(captured).toHaveLength(2)
+    expect(captured[0]).toEqual({ method: 'gte', field: 'createdAt', value: 1700000000000 })
+    expect(captured[1]).toEqual({ method: 'lt', field: 'createdAt', value: 1700100000000 })
+  })
+
+  it('passes through when no indexRange callback is provided', async () => {
+    const { mockQuery } = createIndexCapturingMockQuery(wireDocs)
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    const result = await chain.withIndex('byName' as any).first()
+    expect(result).not.toBeNull()
   })
 })
