@@ -10,7 +10,12 @@
 
 import { z } from 'zod'
 import { attachMeta } from './meta'
-import { addSystemFields, createUnionFromOptions, getUnionOptions, isZodUnion } from './tables'
+import {
+  addSystemFields,
+  createUnionFromOptions,
+  getUnionOptions,
+  isZodUnion
+} from './schemaHelpers'
 import { type ZxId, zx } from './zx'
 
 /** Wrap in .optional() only if not already optional. */

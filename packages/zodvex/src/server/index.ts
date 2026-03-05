@@ -53,5 +53,7 @@ export type {
 } from '../rules'
 // Schema definition (defineZodSchema)
 export * from '../schema'
+// Schema helpers (pure Zod, no server deps)
+export { addSystemFields } from '../schemaHelpers'
 // Table creation and helpers (named — hide union internals)
-export { addSystemFields, zodDoc, zodDocOrNull, zodTable } from '../tables'
+export { zodDoc, zodDocOrNull, zodTable } from '../tables'

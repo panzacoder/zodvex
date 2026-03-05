@@ -9,7 +9,7 @@ import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { readMeta, type ZodvexModelMeta } from '../src/meta'
 import { defineZodModel, type FieldPaths, type ModelFieldPaths } from '../src/model'
-import { isZodUnion } from '../src/tables'
+import { isZodUnion } from '../src/schemaHelpers'
 
 // ============================================================================
 // Type-Level Assertions

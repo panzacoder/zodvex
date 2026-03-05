@@ -5,7 +5,7 @@ import {
   createUnionFromOptions,
   getUnionOptions,
   isZodUnion
-} from '../src/tables'
+} from '../src/schemaHelpers'
 
 describe('union helpers', () => {
   describe('isZodUnion', () => {
