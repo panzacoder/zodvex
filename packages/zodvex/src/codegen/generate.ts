@@ -166,13 +166,13 @@ export function generateApiFile(
   codecs?: CodecForGeneration[],
   modelCodecs?: ModelEmbeddedCodec[],
   functionCodecs?: FunctionEmbeddedCodec[]
-): string {
+): GeneratedFile {
   // Build identity map: runtime schema object → model reference string
   const identityMap = new Map<z.ZodTypeAny, SchemaRef>()
   const neededModelImports = new Set<string>()
 
   for (const model of models) {
-    const importPath = `../${model.sourceFile.replace(/\.ts$/, '')}`
+    const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
     for (const key of ['doc', 'insert', 'update', 'docArray', 'paginatedDoc'] as const) {
       identityMap.set(model.schemas[key] as z.ZodTypeAny, {
         importPath,
@@ -186,7 +186,7 @@ export function generateApiFile(
   const codecMap = new Map<z.ZodTypeAny, CodecRef>()
   if (codecs) {
     for (const codec of codecs) {
-      const importPath = `../${codec.sourceFile.replace(/\.ts$/, '')}`
+      const importPath = `../${codec.sourceFile.replace(/\.ts$/, '.js')}`
       codecMap.set(codec.schema, {
         exportName: codec.exportName,
         sourceFile: importPath
@@ -319,7 +319,7 @@ export function generateApiFile(
   for (const exportName of neededModelImports) {
     const model = models.find(m => m.exportName === exportName)
     if (model) {
-      const importPath = `../${model.sourceFile.replace(/\.ts$/, '')}`
+      const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
       imports.push(`import { ${exportName} } from '${importPath}'`)
     }
   }
@@ -337,7 +337,15 @@ export function generateApiFile(
   const allCodecVars = usedModelCodecVars.map(mc => `const ${mc.varName} = ${mc.expression}`)
   const codecVarSection = allCodecVars.length > 0 ? `${allCodecVars.join('\n')}\n\n` : ''
 
-  return `${HEADER}\n${importSection}${codecVarSection}export const zodvexRegistry = {\n${entries},\n} as const\n`
+  const js = `${HEADER}\n${importSection}${codecVarSection}export const zodvexRegistry = {\n${entries},\n}\n`
+
+  const dts = `${HEADER}
+import type { ZodTypeAny } from 'zod'
+
+export declare const zodvexRegistry: Record<string, { args: ZodTypeAny; returns: ZodTypeAny | undefined }>
+`
+
+  return { js, dts }
 }
 
 /**
