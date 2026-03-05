@@ -150,6 +150,13 @@ function wrapIndexRangeBuilder(inner: any, schema: z.ZodTypeAny): any {
           return wrapIndexRangeBuilder(result, schema)
         }
       }
+      // Wrap .search() return value so SearchFilterFinalizer.eq() is encoded
+      if (prop === 'search') {
+        return (...args: any[]) => {
+          const result = target.search(...args)
+          return wrapIndexRangeBuilder(result, schema)
+        }
+      }
       return Reflect.get(target, prop, receiver)
     }
   })
@@ -213,7 +220,8 @@ export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = Document
       q: SearchFilterBuilder<DocumentByInfo<TableInfo>, NamedSearchIndex<TableInfo, IndexName>>
     ) => SearchFilter
   ): ZodvexQueryChain<TableInfo, Doc> {
-    return this.createChain(this.inner.withSearchIndex(indexName, searchFilter))
+    const wrappedFilter = (q: any) => searchFilter(wrapIndexRangeBuilder(q, this.schema))
+    return this.createChain(this.inner.withSearchIndex(indexName, wrappedFilter))
   }
 
   order(order: 'asc' | 'desc'): ZodvexQueryChain<TableInfo, Doc> {

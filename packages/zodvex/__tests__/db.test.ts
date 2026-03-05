@@ -562,6 +562,9 @@ function createIndexCapturingMockQuery(docs: any[]) {
             return mockIndexBuilder
           }
         }
+        if (prop === 'search') {
+          return (..._args: any[]) => mockIndexBuilder
+        }
         return undefined
       }
     }
@@ -667,5 +670,23 @@ describe('withIndex encoding', () => {
 
     const result = await chain.withIndex('byName' as any).first()
     expect(result).not.toBeNull()
+  })
+})
+
+describe('withSearchIndex encoding', () => {
+  const wireDocs = [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
+
+  it('encodes values in withSearchIndex .eq() filter fields', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery(wireDocs)
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain
+      .withSearchIndex('search' as any, (q: any) =>
+        q.search('name', 'Alice').eq('createdAt', new Date(1700000000000))
+      )
+      .first()
+
+    // .search() doesn't get captured (not an eq/gt/lt method), but .eq() does
+    expect(captured.some((c: any) => c.method === 'eq' && c.value === 1700000000000)).toBe(true)
   })
 })
