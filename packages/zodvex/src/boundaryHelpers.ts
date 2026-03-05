@@ -1,9 +1,28 @@
 import type { FunctionReference } from 'convex/server'
-import { getFunctionName } from 'convex/server'
 import { z } from 'zod'
 import { safeEncode } from './normalizeCodecPaths'
 import type { AnyRegistry } from './types'
 import { stripUndefined } from './utils'
+
+/**
+ * Resolves a Convex FunctionReference to its string path.
+ *
+ * Mirrors `getFunctionName` from `convex/server` but without the server import.
+ * Reads the well-known `Symbol.for('functionName')` that Convex attaches to all
+ * function references — the same symbol used by Convex's own browser client.
+ */
+const functionNameSymbol = Symbol.for('functionName')
+
+function resolveFunctionPath(ref: FunctionReference<any, any, any, any>): string {
+  if (typeof ref === 'string') return ref
+  const name = (ref as any)[functionNameSymbol]
+  if (!name) {
+    throw new Error(
+      `Expected a Convex function reference (e.g. api.file.func), but received ${JSON.stringify(ref)}`
+    )
+  }
+  return name
+}
 
 /**
  * Options for codec helper behavior.
@@ -66,7 +85,7 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
    * - registry entry has no args schema
    */
   function encodeArgs(ref: FunctionReference<any, any, any, any>, args: any): any {
-    const path = getFunctionName(ref)
+    const path = resolveFunctionPath(ref)
     const entry = registry[path]
     if (!entry?.args || args == null) return args
     return stripUndefined(safeEncode(entry.args, args))
@@ -84,7 +103,7 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
    * - registry entry has no returns schema
    */
   function decodeResult(ref: FunctionReference<any, any, any, any>, wireResult: any): any {
-    const path = getFunctionName(ref)
+    const path = resolveFunctionPath(ref)
     const entry = registry[path]
     if (!entry?.returns) return wireResult
 

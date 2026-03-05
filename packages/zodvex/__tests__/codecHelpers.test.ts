@@ -1,16 +1,13 @@
-import { describe, expect, it, mock, spyOn } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { z } from 'zod'
+import { createBoundaryHelpers, ZodvexDecodeError } from '../src/boundaryHelpers'
 import { zx } from '../src/zx'
 
-// Mock convex/server
-mock.module('convex/server', () => ({
-  getFunctionName: (ref: any) => ref._testPath
-}))
+const functionNameSymbol = Symbol.for('functionName')
 
-const { createBoundaryHelpers, ZodvexDecodeError } = await import('../src/boundaryHelpers')
-
+/** Create a fake FunctionReference with the well-known functionName symbol */
 function fakeRef(path: string) {
-  return { _testPath: path } as any
+  return { [functionNameSymbol]: path } as any
 }
 
 const registry = {

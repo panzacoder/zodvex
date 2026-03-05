@@ -29,15 +29,6 @@ mock.module('convex/react', () => ({
   }
 }))
 
-// Mock convex/server — we need getFunctionName to work
-mock.module('convex/server', () => ({
-  getFunctionName: (ref: any) => {
-    // In real code, getFunctionName reads Symbol.for("functionName").
-    // For tests, we use a simple _testPath property on our fake refs.
-    return ref._testPath
-  }
-}))
-
 // Import AFTER mocks are set up (bun:test hoists mock.module)
 const { createZodvexHooks } = await import('../src/react/hooks')
 
@@ -45,9 +36,11 @@ const { createZodvexHooks } = await import('../src/react/hooks')
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Create a fake FunctionReference with a _testPath property */
+const functionNameSymbol = Symbol.for('functionName')
+
+/** Create a fake FunctionReference with the well-known functionName symbol */
 function fakeRef(path: string) {
-  return { _testPath: path } as any
+  return { [functionNameSymbol]: path } as any
 }
 
 // ---------------------------------------------------------------------------

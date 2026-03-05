@@ -1,18 +1,13 @@
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
+import { mantineResolver } from '../src/form/mantine'
 import { zx } from '../src/zx'
 
-// Mock convex/server — needed for getFunctionName in resolver
-mock.module('convex/server', () => ({
-  getFunctionName: (ref: any) => ref._testPath
-}))
+const functionNameSymbol = Symbol.for('functionName')
 
-// Import AFTER mocks are set up
-const { mantineResolver } = await import('../src/form/mantine')
-
-/** Create a fake FunctionReference with a _testPath property */
+/** Create a fake FunctionReference with the well-known functionName symbol */
 function fakeRef(path: string) {
-  return { _testPath: path } as any
+  return { [functionNameSymbol]: path } as any
 }
 
 describe('mantineResolver (mantine)', () => {

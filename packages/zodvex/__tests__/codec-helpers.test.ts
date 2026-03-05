@@ -1,25 +1,17 @@
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
+import { createBoundaryHelpers } from '../src/boundaryHelpers'
 import { zx } from '../src/zx'
-
-// ---------------------------------------------------------------------------
-// Mock convex/server — we need getFunctionName to work
-// ---------------------------------------------------------------------------
-
-mock.module('convex/server', () => ({
-  getFunctionName: (ref: any) => ref._testPath
-}))
-
-// Import AFTER mocks are set up (bun:test hoists mock.module)
-const { createBoundaryHelpers } = await import('../src/boundaryHelpers')
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Create a fake FunctionReference with a _testPath property */
+const functionNameSymbol = Symbol.for('functionName')
+
+/** Create a fake FunctionReference with the well-known functionName symbol */
 function fakeRef(path: string) {
-  return { _testPath: path } as any
+  return { [functionNameSymbol]: path } as any
 }
 
 // ---------------------------------------------------------------------------

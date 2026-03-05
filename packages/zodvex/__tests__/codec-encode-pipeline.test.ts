@@ -9,25 +9,19 @@
  *   4. createBoundaryHelpers(registry).encodeArgs() encodes at the client boundary
  */
 
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
+import { createBoundaryHelpers } from '../src/boundaryHelpers'
 import { zodvexCodec } from '../src/codec'
 import { extractCodec } from '../src/codegen/extractCodec'
 import { safeEncode } from '../src/normalizeCodecPaths'
 import { stripUndefined } from '../src/utils'
 
-// ---------------------------------------------------------------------------
-// Mock convex/server
-// ---------------------------------------------------------------------------
+const functionNameSymbol = Symbol.for('functionName')
 
-mock.module('convex/server', () => ({
-  getFunctionName: (ref: any) => ref._testPath
-}))
-
-const { createBoundaryHelpers } = await import('../src/boundaryHelpers')
-
+/** Create a fake FunctionReference with the well-known functionName symbol */
 function fakeRef(path: string) {
-  return { _testPath: path } as any
+  return { [functionNameSymbol]: path } as any
 }
 
 // ---------------------------------------------------------------------------

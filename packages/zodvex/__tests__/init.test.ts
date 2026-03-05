@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 import { z } from 'zod'
 import { zCustomQuery } from '../src/custom'
 import { composeCustomizations, createZodvexBuilder, initZodvex } from '../src/init'
@@ -10,12 +10,7 @@ import {
   userTableData
 } from './fixtures/mock-db'
 
-// ---------------------------------------------------------------------------
-// Mock convex/server — needed for getFunctionName in action codec path
-// ---------------------------------------------------------------------------
-mock.module('convex/server', () => ({
-  getFunctionName: (ref: any) => ref._testPath
-}))
+const functionNameSymbol = Symbol.for('functionName')
 
 describe('composeCustomizations', () => {
   // Minimal codec customization mock — wraps ctx.db
@@ -406,9 +401,9 @@ describe('initZodvex with registry', () => {
     internalAction: (fn: any) => fn
   }
 
-  /** Create a fake FunctionReference with a _testPath property */
+  /** Create a fake FunctionReference with the well-known functionName symbol */
   function fakeRef(path: string) {
-    return { _testPath: path } as any
+    return { [functionNameSymbol]: path } as any
   }
 
   const taskReturnsSchema = z.object({
