@@ -1,8 +1,8 @@
-import {
-  type DefaultFunctionArgs,
-  type RegisteredAction,
-  type RegisteredMutation,
-  type RegisteredQuery
+import type {
+  DefaultFunctionArgs,
+  RegisteredAction,
+  RegisteredMutation,
+  RegisteredQuery
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import { z } from 'zod'

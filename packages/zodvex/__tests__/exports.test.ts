@@ -4,14 +4,30 @@ describe('zodvex/core has no server runtime imports', () => {
   it('does not import from convex/server or convex-helpers/server at runtime', async () => {
     const coreIndex = await Bun.file('packages/zodvex/src/core/index.ts').text()
 
-    // Extract all re-export source paths from core/index.ts
-    const reExportPaths = [...coreIndex.matchAll(/from ['"]([^'"]+)['"]/g)]
-      .map(m => m[1])
-      .filter(p => p.startsWith('../') || p.startsWith('./'))
+    // Extract all re-export source paths, tracking which are type-only
+    const typeOnlyPaths = new Set<string>()
+    const runtimePaths = new Set<string>()
+
+    for (const line of coreIndex.split('\n')) {
+      const trimmed = line.trim()
+      const match = trimmed.match(/from ['"]([^'"]+)['"]/)
+      if (!match) continue
+      const importPath = match[1]
+      if (!importPath.startsWith('../') && !importPath.startsWith('./')) continue
+
+      if (trimmed.startsWith('export type ') || trimmed.startsWith('import type ')) {
+        typeOnlyPaths.add(importPath)
+      } else {
+        runtimePaths.add(importPath)
+      }
+    }
+
+    // Only check files with runtime (non-type-only) references
+    const pathsToCheck = [...runtimePaths]
 
     // Resolve to actual file paths
     const srcDir = 'packages/zodvex/src'
-    const filesToCheck = reExportPaths.map(p => {
+    const filesToCheck = pathsToCheck.map(p => {
       const resolved = p.startsWith('../') ? `${srcDir}/${p.slice(3)}` : `${srcDir}/core/${p}`
       return resolved.endsWith('.ts') ? resolved : resolved + '.ts'
     })
@@ -29,9 +45,21 @@ describe('zodvex/core has no server runtime imports', () => {
       }
 
       const lines = content.split('\n')
+      let inTypeImport = false
       for (const line of lines) {
         const trimmed = line.trim()
-        if (trimmed.startsWith('import type ')) continue
+        // Track multi-line `import type { ... } from '...'` blocks
+        if (trimmed.startsWith('import type ')) {
+          if (!trimmed.includes('from ')) {
+            // Multi-line import type — skip until closing `from` line
+            inTypeImport = true
+          }
+          continue
+        }
+        if (inTypeImport) {
+          if (trimmed.includes('from ')) inTypeImport = false
+          continue
+        }
         if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*'))
           continue
 
