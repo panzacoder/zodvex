@@ -457,35 +457,7 @@ describe('defineZodModel .index()', () => {
     warnSpy.mockRestore()
   })
 
-  it('warns when indexing a codec field with object wire schema', () => {
-    const customString = zodvexCodec(
-      z.object({
-        value: z.string().nullable(),
-        status: z.enum(['full', 'hidden'])
-      }),
-      z.custom<{ _brand: 'CustomField' }>(() => true),
-      {
-        decode: _wire => ({ _brand: 'CustomField' as const }),
-        encode: () => ({ value: null, status: 'full' as const })
-      }
-    )
-
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
-
-    defineZodModel('patients', {
-      clinicId: z.string(),
-      email: customString
-    }).index('byEmail', ['email'])
-
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('codec field "email"')
-    expect(warnSpy.mock.calls[0][0]).toContain('does not currently encode')
-    expect(warnSpy.mock.calls[0][0]).toContain('wire format')
-
-    warnSpy.mockRestore()
-  })
-
-  it('warns for any codec field including scalar codecs like zx.date()', () => {
+  it('does not warn when indexing a codec field (encoding is now automatic)', () => {
     const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
 
     defineZodModel('events', {
@@ -493,13 +465,11 @@ describe('defineZodModel .index()', () => {
       startDate: zx.date()
     }).index('byDate', ['startDate'])
 
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('codec field "startDate"')
-
+    expect(warnSpy).not.toHaveBeenCalled()
     warnSpy.mockRestore()
   })
 
-  it('warns for codec subpaths too (parent codec applies)', () => {
+  it('does not warn when indexing a dot-path into a codec field', () => {
     const customString = zodvexCodec(
       z.object({
         value: z.string().nullable(),
@@ -507,7 +477,7 @@ describe('defineZodModel .index()', () => {
       }),
       z.custom<{ _brand: 'CustomField' }>(() => true),
       {
-        decode: _wire => ({ _brand: 'CustomField' as const }),
+        decode: (_wire: any) => ({ _brand: 'CustomField' as const }),
         encode: () => ({ value: null, status: 'full' as const })
       }
     )
@@ -517,11 +487,11 @@ describe('defineZodModel .index()', () => {
     defineZodModel('patients', {
       clinicId: z.string(),
       email: customString
-    }).index('byEmailValue', ['email.value'])
+    })
+      .index('byEmail', ['email'])
+      .index('byEmailValue', ['email.value'])
 
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('codec field "email.value"')
-
+    expect(warnSpy).not.toHaveBeenCalled()
     warnSpy.mockRestore()
   })
 
