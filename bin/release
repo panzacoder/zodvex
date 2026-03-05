@@ -38,7 +38,7 @@ bun run build
 echo ""
 
 echo "==> Running tests..."
-bun test
+bun run test
 echo ""
 
 echo "==> Running lint..."
