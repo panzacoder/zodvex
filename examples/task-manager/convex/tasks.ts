@@ -34,6 +34,17 @@ export const list = zq({
   returns: TaskModel.schema.paginatedDoc,
 })
 
+export const listByCreated = zq({
+  args: { after: zx.date() },
+  handler: async (ctx, { after }) => {
+    return await ctx.db
+      .query('tasks')
+      .withIndex('by_created', (q) => q.gte('createdAt', after))
+      .collect()
+  },
+  returns: z.array(TaskModel.schema.doc),
+})
+
 export const create = zm({
   args: {
     title: z.string(),
