@@ -3,11 +3,11 @@
 
 import { z } from 'zod'
 import { zx, extractCodec } from 'zodvex/core'
-import { CommentModel } from '../models/comment'
-import { TaskModel } from '../models/task'
-import { UserModel } from '../models/user'
-import { ActivityModel } from '../models/activity'
-import { zDuration } from '../codecs'
+import { CommentModel } from '../models/comment.js'
+import { TaskModel } from '../models/task.js'
+import { UserModel } from '../models/user.js'
+import { ActivityModel } from '../models/activity.js'
+import { zDuration } from '../codecs.js'
 
 const _userEmail = extractCodec(UserModel.schema.doc.shape.email)
 
@@ -60,6 +60,10 @@ export const zodvexRegistry = {
     args: z.object({ status: z.enum(["todo", "in_progress", "done"]).optional(), ownerId: zx.id("users").optional(), paginationOpts: z.object({ numItems: z.number(), cursor: z.string().nullable() }) }),
     returns: TaskModel.schema.paginatedDoc,
   },
+  'tasks:listByCreated': {
+    args: z.object({ after: zx.date() }),
+    returns: z.array(z.object({ title: z.string(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]), priority: z.enum(["low", "medium", "high"]).nullable(), ownerId: zx.id("users"), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), completedAt: zx.date().optional(), estimate: zDuration.optional(), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
+  },
   'tasks:update': {
     args: z.object({ id: zx.id("tasks"), title: z.string().optional(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), priority: z.enum(["low", "medium", "high"]).nullable().optional(), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), estimate: zDuration.optional() }),
     returns: undefined,
@@ -76,4 +80,4 @@ export const zodvexRegistry = {
     args: ActivityModel.schema.update,
     returns: undefined,
   },
-} as const
+}

@@ -8,7 +8,7 @@ import {
   internalAction,
 } from './_generated/server'
 import schema from './schema'
-import { zodvexRegistry } from './_zodvex/api'
+import { zodvexRegistry } from './_zodvex/api.js'
 
 export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   query,

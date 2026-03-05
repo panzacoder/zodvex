@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '../convex/_generated/api'
-import { useZodMutation } from '../convex/_zodvex/client'
+import { useZodMutation } from '../convex/_zodvex/client.js'
 import { ZodError } from 'zod'
 
 export default function App() {

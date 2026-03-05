@@ -2,22 +2,21 @@
 // Run `zodvex generate` to regenerate
 
 import { mantineResolver as _mantineResolver } from 'zodvex/form/mantine'
-import type { FunctionReference } from 'convex/server'
 import { createZodvexHooks } from 'zodvex/react'
-import { createZodvexReactClient, type ZodvexReactClientOptions } from 'zodvex/react'
-import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'
+import { createZodvexReactClient } from 'zodvex/react'
+import { createZodvexClient } from 'zodvex/client'
 import { createBoundaryHelpers } from 'zodvex/core'
-import { zodvexRegistry } from './api'
+import { zodvexRegistry } from './api.js'
 
 export const { useZodQuery, useZodMutation } = createZodvexHooks(zodvexRegistry)
 
-export const createClient = (options: ZodvexClientOptions) =>
+export const createClient = (options) =>
   createZodvexClient(zodvexRegistry, options)
 
-export const createReactClient = (options: ZodvexReactClientOptions) =>
+export const createReactClient = (options) =>
   createZodvexReactClient(zodvexRegistry, options)
 
 export const { encodeArgs, decodeResult } = createBoundaryHelpers(zodvexRegistry)
 
-export const mantineResolver = (ref: FunctionReference<any, any, any, any>) =>
+export const mantineResolver = (ref) =>
   _mantineResolver(zodvexRegistry, ref)
