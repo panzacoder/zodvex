@@ -14,51 +14,49 @@ afterEach(() => {
 })
 
 describe('generate()', () => {
-  it('creates _zodvex/schema.ts, _zodvex/api.ts, _zodvex/client.ts, and _zodvex/server.ts', async () => {
+  it('creates _zodvex/*.js and _zodvex/*.d.ts file pairs', async () => {
     await generate(fixtureDir)
 
-    expect(fs.existsSync(path.join(outputDir, 'schema.ts'))).toBe(true)
-    expect(fs.existsSync(path.join(outputDir, 'api.ts'))).toBe(true)
-    expect(fs.existsSync(path.join(outputDir, 'client.ts'))).toBe(true)
-    expect(fs.existsSync(path.join(outputDir, 'server.ts'))).toBe(true)
+    for (const name of ['schema', 'api', 'client', 'server']) {
+      expect(fs.existsSync(path.join(outputDir, `${name}.js`))).toBe(true)
+      expect(fs.existsSync(path.join(outputDir, `${name}.d.ts`))).toBe(true)
+    }
   })
 
-  it('generated schema.ts contains model re-exports', async () => {
+  it('generated schema.js contains model re-exports', async () => {
     await generate(fixtureDir)
 
-    const content = fs.readFileSync(path.join(outputDir, 'schema.ts'), 'utf-8')
+    const content = fs.readFileSync(path.join(outputDir, 'schema.js'), 'utf-8')
     expect(content).toContain('UserModel')
     expect(content).toContain('AUTO-GENERATED')
   })
 
-  it('generated api.ts contains function registry', async () => {
+  it('generated api.js contains function registry', async () => {
     await generate(fixtureDir)
 
-    const content = fs.readFileSync(path.join(outputDir, 'api.ts'), 'utf-8')
+    const content = fs.readFileSync(path.join(outputDir, 'api.js'), 'utf-8')
     expect(content).toContain('zodvexRegistry')
     expect(content).toContain('users:get')
     expect(content).toContain('users:list')
   })
 
-  it('generated client.ts contains pre-bound hooks and client factory', async () => {
+  it('generated client.js contains pre-bound hooks and client factory', async () => {
     await generate(fixtureDir)
 
-    const content = fs.readFileSync(path.join(outputDir, 'client.ts'), 'utf-8')
+    const content = fs.readFileSync(path.join(outputDir, 'client.js'), 'utf-8')
     expect(content).toContain('AUTO-GENERATED')
     expect(content).toContain("import { createZodvexHooks } from 'zodvex/react'")
-    expect(content).toContain(
-      "import { createZodvexClient, type ZodvexClientOptions } from 'zodvex/client'"
-    )
-    expect(content).toContain("import { zodvexRegistry } from './api'")
+    expect(content).toContain("import { createZodvexClient } from 'zodvex/client'")
+    expect(content).toContain("import { zodvexRegistry } from './api.js'")
     expect(content).toContain('useZodQuery')
     expect(content).toContain('useZodMutation')
     expect(content).toContain('createClient')
   })
 
-  it('generated server.ts contains concrete context types', async () => {
+  it('generated server.d.ts contains concrete context types', async () => {
     await generate(fixtureDir)
 
-    const content = fs.readFileSync(path.join(outputDir, 'server.ts'), 'utf-8')
+    const content = fs.readFileSync(path.join(outputDir, 'server.d.ts'), 'utf-8')
     expect(content).toContain('AUTO-GENERATED')
     expect(content).toContain('export type QueryCtx')
     expect(content).toContain('export type MutationCtx')
