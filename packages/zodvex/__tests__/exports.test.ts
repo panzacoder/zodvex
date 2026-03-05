@@ -1,5 +1,60 @@
 import { describe, expect, it } from 'bun:test'
 
+describe('zodvex/core has no server runtime imports', () => {
+  it('does not import from convex/server or convex-helpers/server at runtime', async () => {
+    const coreIndex = await Bun.file('packages/zodvex/src/core/index.ts').text()
+
+    // Extract all re-export source paths from core/index.ts
+    const reExportPaths = [...coreIndex.matchAll(/from ['"]([^'"]+)['"]/g)]
+      .map(m => m[1])
+      .filter(p => p.startsWith('../') || p.startsWith('./'))
+
+    // Resolve to actual file paths
+    const srcDir = 'packages/zodvex/src'
+    const filesToCheck = reExportPaths.map(p => {
+      const resolved = p.startsWith('../') ? `${srcDir}/${p.slice(3)}` : `${srcDir}/core/${p}`
+      return resolved.endsWith('.ts') ? resolved : resolved + '.ts'
+    })
+
+    for (const filePath of filesToCheck) {
+      let content: string
+      try {
+        content = await Bun.file(filePath).text()
+      } catch {
+        try {
+          content = await Bun.file(filePath.replace('.ts', '/index.ts')).text()
+        } catch {
+          continue
+        }
+      }
+
+      const lines = content.split('\n')
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (trimmed.startsWith('import type ')) continue
+        if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*'))
+          continue
+
+        if (trimmed.includes("from 'convex/server'") || trimmed.includes('from "convex/server"')) {
+          throw new Error(
+            `Runtime import from 'convex/server' found in ${filePath}:\n  ${trimmed}\n` +
+              `zodvex/core must be client-safe. Use 'import type' or move to zodvex/server.`
+          )
+        }
+        if (
+          trimmed.includes("from 'convex-helpers/server") ||
+          trimmed.includes('from "convex-helpers/server')
+        ) {
+          throw new Error(
+            `Runtime import from 'convex-helpers/server' found in ${filePath}:\n  ${trimmed}\n` +
+              `zodvex/core must be client-safe. Use 'import type' or move to zodvex/server.`
+          )
+        }
+      }
+    }
+  })
+})
+
 describe('zodvex/core exports', () => {
   it('exports zx namespace', async () => {
     const { zx } = await import('../src/core')
