@@ -1,14 +1,16 @@
 import type {
   DocumentByInfo,
   ExpressionOrValue,
+  FieldTypeFromFieldPath,
   FilterBuilder,
   GenericDatabaseReader,
   GenericDatabaseWriter,
   GenericDataModel,
+  GenericDocument,
+  GenericIndexFields,
   GenericTableInfo,
   IndexNames,
   IndexRange,
-  IndexRangeBuilder,
   NamedIndex,
   NamedSearchIndex,
   NamedTableInfo,
@@ -24,6 +26,92 @@ import { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
 import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './rules'
 import type { ZodTableMap } from './schema'
+
+// ============================================================================
+// Index builder types — decoded-aware replacements for Convex's IndexRangeBuilder
+// ============================================================================
+
+/**
+ * Resolves the accepted value type for an index field comparison.
+ *
+ * - Dot-paths (e.g., "email.value"): resolve through the wire document,
+ *   since dot-paths navigate into wire-format sub-structures.
+ * - Top-level fields present in DecodedDoc: use the decoded (runtime) type,
+ *   so codec fields accept decoded values (e.g., Date instead of number).
+ * - Everything else: fall back to wire type via FieldTypeFromFieldPath.
+ */
+type ZodvexIndexFieldValue<
+  WireDoc extends GenericDocument,
+  DecodedDoc,
+  FieldPath extends string
+> = FieldPath extends `${string}.${string}`
+  ? FieldTypeFromFieldPath<WireDoc, FieldPath>
+  : FieldPath extends keyof DecodedDoc
+    ? DecodedDoc[FieldPath]
+    : FieldTypeFromFieldPath<WireDoc, FieldPath>
+
+/** Increments a numeric type literal by 1 (up to 15). Mirrors Convex's internal PlusOne. */
+type PlusOne<N extends number> = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15][N]
+
+/**
+ * Decoded-aware index range builder. Mirrors Convex's IndexRangeBuilder but uses
+ * ZodvexIndexFieldValue for comparison value types, so codec fields accept
+ * decoded/runtime types (e.g., Date) instead of requiring wire types (e.g., number).
+ */
+export interface ZodvexIndexRangeBuilder<
+  WireDoc extends GenericDocument,
+  DecodedDoc,
+  IndexFields extends GenericIndexFields,
+  FieldNum extends number = 0
+> extends ZodvexLowerBoundBuilder<WireDoc, DecodedDoc, IndexFields[FieldNum]> {
+  eq(
+    fieldName: IndexFields[FieldNum],
+    value: ZodvexIndexFieldValue<WireDoc, DecodedDoc, IndexFields[FieldNum]>
+  ): ZodvexNextBuilder<WireDoc, DecodedDoc, IndexFields, FieldNum>
+}
+
+/** After .eq(), either another ZodvexIndexRangeBuilder (more fields) or IndexRange (done). */
+type ZodvexNextBuilder<
+  WireDoc extends GenericDocument,
+  DecodedDoc,
+  IndexFields extends GenericIndexFields,
+  FieldNum extends number
+> =
+  PlusOne<FieldNum> extends IndexFields['length']
+    ? IndexRange
+    : ZodvexIndexRangeBuilder<WireDoc, DecodedDoc, IndexFields, PlusOne<FieldNum>>
+
+/** Lower bound builder with decoded-aware value types. */
+export interface ZodvexLowerBoundBuilder<
+  WireDoc extends GenericDocument,
+  DecodedDoc,
+  IndexFieldName extends string
+> extends ZodvexUpperBoundBuilder<WireDoc, DecodedDoc, IndexFieldName> {
+  gt(
+    fieldName: IndexFieldName,
+    value: ZodvexIndexFieldValue<WireDoc, DecodedDoc, IndexFieldName>
+  ): ZodvexUpperBoundBuilder<WireDoc, DecodedDoc, IndexFieldName>
+  gte(
+    fieldName: IndexFieldName,
+    value: ZodvexIndexFieldValue<WireDoc, DecodedDoc, IndexFieldName>
+  ): ZodvexUpperBoundBuilder<WireDoc, DecodedDoc, IndexFieldName>
+}
+
+/** Upper bound builder with decoded-aware value types. */
+export interface ZodvexUpperBoundBuilder<
+  WireDoc extends GenericDocument,
+  DecodedDoc,
+  IndexFieldName extends string
+> extends IndexRange {
+  lt(
+    fieldName: IndexFieldName,
+    value: ZodvexIndexFieldValue<WireDoc, DecodedDoc, IndexFieldName>
+  ): IndexRange
+  lte(
+    fieldName: IndexFieldName,
+    value: ZodvexIndexFieldValue<WireDoc, DecodedDoc, IndexFieldName>
+  ): IndexRange
+}
 
 /**
  * Encodes a comparison value for an index field through its Zod schema.
@@ -73,11 +161,10 @@ function wrapIndexRangeBuilder(inner: any, schema: z.ZodTypeAny): any {
  *
  * Two type contexts (dual-generic design):
  * - `TableInfo`: Convex's wire-format table info. Used by intermediate methods
- *   (withIndex, filter, etc.) so IndexRangeBuilder and FilterBuilder see
- *   wire-format field types (e.g., `createdAt: number`).
+ *   (filter, etc.) so FilterBuilder sees wire-format field types.
  * - `Doc`: The decoded/runtime document type. Used by terminal methods
- *   (first, collect, paginate, etc.) so handlers see runtime types
- *   (e.g., `createdAt: Date`).
+ *   (first, collect, paginate, etc.) and by ZodvexIndexRangeBuilder in
+ *   withIndex, so codec fields accept decoded values (e.g., Date).
  *
  * Consumer code never passes these generics manually — they're inferred
  * from ZodvexDatabaseReader.query() which gets them from defineZodSchema's
@@ -111,7 +198,7 @@ export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = Document
   withIndex<IndexName extends IndexNames<TableInfo>>(
     indexName: IndexName,
     indexRange?: (
-      q: IndexRangeBuilder<DocumentByInfo<TableInfo>, NamedIndex<TableInfo, IndexName>>
+      q: ZodvexIndexRangeBuilder<DocumentByInfo<TableInfo>, Doc, NamedIndex<TableInfo, IndexName>>
     ) => IndexRange
   ): ZodvexQueryChain<TableInfo, Doc> {
     const wrappedRange = indexRange
