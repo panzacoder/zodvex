@@ -6,7 +6,159 @@
 
 **Architecture:** Custom builder interfaces (`ZodvexIndexRangeBuilder`, `ZodvexSearchFilterFinalizer`) mirror Convex's builder chain but use decoded types for top-level codec fields and wire types for dot-paths. A Proxy-based runtime wrapper intercepts `.eq()/.gt()/.lt()/.gte()/.lte()` and encodes values through the field's Zod schema before forwarding to Convex's real builder.
 
-**Tech Stack:** TypeScript (type-level builder interfaces), Zod v4 (`z.encode()`), ES Proxy (runtime wrapping)
+**Tech Stack:** TypeScript (type-level builder interfaces), Zod v4 (`z.encode()`), ES Proxy (runtime wrapping), convex-test + vitest (integration tests)
+
+---
+
+### Task 0: Set up convex-test integration tests in the example project
+
+The make-or-break for this feature is that codec-indexed queries actually work against a real Convex runtime. Mock-based unit tests prove our Proxy works, but only convex-test proves Convex accepts the encoded values.
+
+**Files:**
+- Modify: `examples/task-manager/package.json` (add convex-test, vitest, @edge-runtime/vm)
+- Create: `examples/task-manager/vitest.config.ts`
+- Modify: `examples/task-manager/convex/models/task.ts` (add `by_created` index on `createdAt`)
+- Create: `examples/task-manager/convex/withIndex.test.ts`
+
+**Step 1: Install dependencies**
+
+Run from `examples/task-manager/`:
+
+```bash
+cd examples/task-manager && bun add -d convex-test vitest @edge-runtime/vm
+```
+
+**Step 2: Create vitest config**
+
+Create `examples/task-manager/vitest.config.ts`:
+
+```ts
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    environment: "edge-runtime",
+    include: ["convex/**/*.test.ts"],
+  },
+});
+```
+
+**Step 3: Add a `by_created` index to TaskModel**
+
+In `examples/task-manager/convex/models/task.ts`, add a new index on the `createdAt` codec field:
+
+```ts
+export const TaskModel = defineZodModel('tasks', taskFields)
+  .index('by_owner', ['ownerId'])
+  .index('by_status', ['status'])
+  .index('by_assignee', ['assigneeId'])
+  .index('by_created', ['createdAt'])
+```
+
+This gives us a direct top-level index on a `zx.date()` codec field — the primary case we need to validate.
+
+**Step 4: Write the failing integration tests**
+
+Create `examples/task-manager/convex/withIndex.test.ts`:
+
+```ts
+import { convexTest } from "convex-test";
+import { expect, test, describe } from "vitest";
+import { api } from "./_generated/api";
+import schema from "./schema";
+
+const modules = import.meta.glob("./**/*.ts");
+
+describe("withIndex codec encoding", () => {
+  test("query tasks by createdAt using Date (top-level codec field)", async () => {
+    const t = convexTest(schema, modules);
+
+    // Create a user first (tasks require ownerId)
+    const userId = await t.mutation(api.users.create, {
+      name: "Alice",
+      email: "alice@example.com",
+    });
+
+    // Create a task — createdAt is set to new Date() inside the handler
+    const taskId = await t.mutation(api.tasks.create, {
+      title: "Test task",
+      ownerId: userId,
+    });
+
+    // Verify the task was created and createdAt is decoded to Date
+    const task = await t.query(api.tasks.get, { id: taskId });
+    expect(task).not.toBeNull();
+    expect(task!.createdAt).toBeInstanceOf(Date);
+
+    // Query by createdAt using the by_created index with a Date range
+    // This is the critical test: .withIndex('by_created', q => q.gte('createdAt', date))
+    // must encode the Date to a number before Convex sees it
+    const results = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("tasks")
+        .withIndex("by_created", (q) =>
+          q.gte("createdAt", new Date(0)) // all tasks after epoch
+        )
+        .collect();
+    });
+
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    // The result should be decoded (Date, not number)
+    expect(results[0].createdAt).toBeInstanceOf(Date);
+  });
+
+  test("query users by email.value (dot-path into codec, pass-through)", async () => {
+    const t = convexTest(schema, modules);
+
+    // Create a user
+    await t.mutation(api.users.create, {
+      name: "Bob",
+      email: "bob@example.com",
+    });
+
+    // Query by email.value — dot-path, should pass through unchanged
+    const user = await t.query(api.users.getByEmail, {
+      email: { value: "bob@example.com", tag: "work", displayValue: "[work] bob@example.com" },
+    });
+
+    expect(user).not.toBeNull();
+    expect(user!.name).toBe("Bob");
+  });
+});
+```
+
+**Important:** The `t.run()` test uses the raw `ctx.db` which is the zodvex-wrapped DB. This directly exercises `ZodvexQueryChain.withIndex()` with a Date value. If encoding doesn't work, Convex will reject the Date object and the test will error.
+
+The `getByEmail` test exercises the dot-path case via the existing query function.
+
+**Step 5: Run tests to verify they fail**
+
+Run: `cd examples/task-manager && bunx vitest run`
+
+Expected: The `by_created` test should fail because `withIndex` currently passes the Date through to Convex without encoding, and Convex will reject it (expects a number for the indexed field).
+
+The `email.value` test may or may not fail — it depends on whether the existing pass-through works with convex-test's mock runtime.
+
+**Step 6: Add test script to package.json**
+
+In `examples/task-manager/package.json`, add:
+
+```json
+"test": "vitest run",
+"test:watch": "vitest"
+```
+
+**Step 7: Commit**
+
+```
+test(example): add convex-test integration tests for withIndex encoding
+
+Sets up convex-test + vitest in the example project. Adds a by_created
+index on tasks.createdAt (zx.date() codec field) and integration tests
+that exercise .withIndex() with Date values and dot-path codec fields.
+
+These tests are expected to fail until the encoding implementation lands.
+```
 
 ---
 
@@ -623,29 +775,35 @@ schema, making the "must pass pre-encoded wire values" warning obsolete.
 
 ---
 
-### Task 5: Full test suite + type-check + lint
+### Task 5: Full test suite + type-check + lint + integration tests
 
 **Files:** None (verification only)
 
-**Step 1: Run the full test suite**
+**Step 1: Run the library test suite**
 
 Run: `bun test`
 
-Expected: All tests pass.
+Expected: All tests pass (unit + mock-based withIndex encoding tests).
 
-**Step 2: Run type-check**
+**Step 2: Run the convex-test integration tests**
+
+Run: `cd examples/task-manager && bunx vitest run`
+
+Expected: All integration tests pass — the `by_created` Date query and `email.value` dot-path query both succeed against convex-test's runtime. **This is the make-or-break moment:** if Convex accepts the encoded values and returns correct results, the feature works end-to-end.
+
+**Step 3: Run type-check**
 
 Run: `bun run type-check`
 
 Expected: No errors. If there are errors related to unused imports (e.g., `IndexRangeBuilder` no longer used in `db.ts`), remove them.
 
-**Step 3: Run lint**
+**Step 4: Run lint**
 
 Run: `bun run lint`
 
 Expected: No lint errors. Fix any that arise.
 
-**Step 4: Commit any fixes**
+**Step 5: Commit any fixes**
 
 ```
 chore: fix lint/type-check issues from withIndex encoding
