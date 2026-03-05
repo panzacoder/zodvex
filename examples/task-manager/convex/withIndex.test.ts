@@ -40,8 +40,8 @@ describe("withIndex codec encoding", () => {
     // Inside the handler, zodvex decodes the number to a Date, then the handler passes
     // that Date to .withIndex('by_created', q => q.gte('createdAt', after)).
     //
-    // WITHOUT withIndex encoding: passes Date to Convex (which expects number) — fails.
-    // WITH withIndex encoding: encodes Date → number before Convex sees it — works.
+    // WITHOUT withIndex encoding: passes Date to Convex (which expects number) — FAILS.
+    // WITH withIndex encoding (Task 1): encodes Date → number before Convex sees it — works.
     const results = await t.query(api.tasks.listByCreated, {
       after: 0, // wire format: epoch timestamp (number)
     });
