@@ -25,7 +25,7 @@ jobs:
         run: bun run type-check
 
       - name: Run tests
-        run: bun test
+        run: bun run test
 
       - name: Run build
         run: bun run build
