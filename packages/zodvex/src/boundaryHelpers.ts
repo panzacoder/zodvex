@@ -125,3 +125,5 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
 
   return { encodeArgs, decodeResult }
 }
+
+export type BoundaryHelpers = ReturnType<typeof createBoundaryHelpers>

@@ -10,6 +10,7 @@
 
 // Codec helpers (shared encode/decode for client wrappers)
 export {
+  type BoundaryHelpers,
   type BoundaryHelpersOptions,
   createBoundaryHelpers,
   ZodvexDecodeError
