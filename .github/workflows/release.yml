@@ -1,4 +1,4 @@
-name: Release
+name: Beta Release
 
 on:
   push:
@@ -72,22 +72,13 @@ jobs:
           elif [[ "$TAG" == *-rc* ]]; then
             echo "tag=rc" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            echo "Unexpected stable tag pushed to beta workflow. Stable releases go through release-please." >&2
+            exit 1
           fi
 
       - name: Publish to npm
+        env:
+          DIST_TAG: ${{ steps.dist-tag.outputs.tag }}
         run: |
           cd packages/zodvex
-          if [ "${{ steps.dist-tag.outputs.tag }}" = "latest" ]; then
-            npm publish --access public --provenance
-          else
-            npm publish --access public --provenance --tag ${{ steps.dist-tag.outputs.tag }}
-          fi
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          prerelease: ${{ steps.dist-tag.outputs.tag != 'latest' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm publish --access public --provenance --tag "$DIST_TAG"

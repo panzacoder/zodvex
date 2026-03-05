@@ -34,9 +34,20 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 - `bun run lint:fix` - Fix code issues with Biome
 - `bun run format` - Format code with Biome
 
-### Publishing
+### Releasing
 
-- `cd packages/zodvex && npm publish` - Publish to npm
+**Beta releases** (manual, fast):
+- `bin/release-beta` — auto-increments prerelease number, builds, tests, tags, pushes
+- `bin/release-beta 0.7.0-beta.0` — explicit version
+- Tag push triggers `.github/workflows/release.yml` → npm publish with `--tag beta`
+- No GitHub Release created for betas
+
+**Stable releases** (automated via release-please):
+- Conventional commits on `main` are accumulated by release-please into a persistent Release PR
+- Merge the Release PR → `.github/workflows/release-please.yml` → npm publish with `--tag latest` + GitHub Release + CHANGELOG
+- release-please config: `release-please-config.json`, manifest: `.release-please-manifest.json`
+
+**PR titles** must follow conventional commit format (`feat:`, `fix:`, `chore:`, etc.) — enforced by `.github/workflows/pr-title.yml`
 
 ## Architecture
 
