@@ -72,7 +72,7 @@ export function createZodvexHooks<R extends AnyRegistry>(
         wireArgs = codec.encodeArgs(ref, args)
       } catch (err) {
         const path = getFunctionName(ref)
-        console.warn(
+        console.debug(
           `[zodvex] Encode args failed for ${path}, auto-skipping query: ${err instanceof Error ? err.message : String(err)}`
         )
         // wireArgs stays 'skip' — DO NOT early-return, useQuery must run every render
