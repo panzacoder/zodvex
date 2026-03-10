@@ -1,46 +1,49 @@
-# Enhancement: defineZodModel with inline index config
+# Enhancement: Type-safe field paths for generic model wrappers
 
-## Problem
+**Status:** Deferred — not worth the lift yet. Revisit if more consumers hit this.
 
-When downstream consumers need to chain indexes onto a ZodModel in a loop (e.g., a consumer's `defineConsumerModel`), each `.index()` call returns a new `ZodModel` with different generic type parameters. TypeScript can't accumulate type-level changes across loop iterations, forcing `let zodModel: any`.
+## Actual Problem (revised 2026-03-10)
+
+The original plan described loop-based index accumulation, but hotpot's actual
+pattern is simpler: `defineHotpotModel()` injects a known field and chains
+`.index()` once. The `as any` is needed because `Fields` is generic — TypeScript
+can't resolve `ModelFieldPaths<InsertSchema>` when `InsertSchema` depends on an
+unresolved generic.
 
 ```typescript
-// Current pattern — requires `any` to accumulate
-let zodModel: any = defineZodModel(name, fields)
-for (const [indexName, indexFields] of Object.entries(indexes)) {
-  zodModel = zodModel.index(indexName, indexFields)
+// hotpot/convex/hotpot/model.ts line 230
+return defineZodModel(name, fieldsWithRetention)
+  .index(RETENTION_INDEX, [RETENTION_FIELD] as any)
+//                                          ^^^^^^ can't prove field exists through generic
+```
+
+## Potential Solution: `fieldPath()` helper
+
+Export an identity function from `zodvex/core` that centralizes the cast:
+
+```typescript
+// zodvex/core exports:
+export function fieldPath<F extends string>(field: F): F & ModelFieldPaths<any> {
+  return field as any // single centralized cast
 }
+
+// hotpot uses — no `as any` at call site:
+return defineZodModel(name, fieldsWithRetention)
+  .index(RETENTION_INDEX, [fieldPath(RETENTION_FIELD)])
 ```
 
-## Proposal
+**Trade-off:** This moves the `as any` from the consumer into zodvex, but
+doesn't add real validation. It's a blessed escape hatch — cleaner than raw
+`as any` but not fundamentally safer.
 
-Add an overload to `defineZodModel` that accepts index configuration inline:
+## Why deferred
 
-```typescript
-// New overload — no loop, no any
-const model = defineZodModel(name, fields, {
-  indexes: {
-    byClinic: ['clinicId'],
-    byEmail: ['email.value'],
-  },
-  searchIndexes: {
-    searchName: { searchField: 'name', filterFields: ['clinicId'] },
-  },
-  vectorIndexes: {
-    embeddings: { vectorField: 'embedding', dimensions: 1536 },
-  },
-})
-```
+One consumer, one call site, one `as any`. The current workaround is
+well-commented and safe. Not worth adding API surface until more consumers
+hit the same pattern.
 
-The return type would compute all index generics at once from the config object literal, preserving full type safety without iteration.
+## Original proposal (inline index config)
 
-## Scope
-
-- Add overload 3 to `defineZodModel` in `model.ts`
-- Existing overloads (raw shape, pre-built schema) remain unchanged
-- Chainable `.index()` / `.searchIndex()` / `.vectorIndex()` remain for incremental use
-- The inline config is sugar that computes the same result as chaining
-
-## Priority
-
-Low — the `any` workaround is safe and well-understood. This is a DX enhancement for downstream framework authors.
+Superseded. The inline config overload wouldn't fix the generic field path
+issue — it has the same TypeScript limitation. Loop-based accumulation isn't
+used in practice.
