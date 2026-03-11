@@ -85,9 +85,18 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
    * - registry entry has no args schema
    */
   function encodeArgs(ref: FunctionReference<any, any, any, any>, args: any): any {
+    if (args == null) return args
     const path = resolveFunctionPath(ref)
     const entry = registry[path]
-    if (!entry?.args || args == null) return args
+    if (!entry?.args) {
+      if (entry === undefined) {
+        console.warn(
+          `[zodvex] No registry entry for "${path}" — args will not be codec-encoded. ` +
+            'Run `zodvex generate` to update the registry.'
+        )
+      }
+      return args
+    }
     return stripUndefined(safeEncode(entry.args, args))
   }
 
