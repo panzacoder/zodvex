@@ -397,6 +397,8 @@ const fields = zodToConvexFields({
 
 ### Codecs
 
+> **Deprecated:** `convexCodec()` is deprecated. Use `initZodvex` for automatic codec handling, or `decodeDoc`/`encodeDoc` for manual control.
+
 Convert between Zod-shaped data and Convex-safe JSON:
 
 ```ts
@@ -528,79 +530,30 @@ export const updateProfile = authMutation({
 })
 ```
 
-#### Hooks and Transforms
+#### onSuccess Hook
 
-For advanced use cases like logging, analytics, or data transformations, use `customCtxWithHooks`:
+The `onSuccess` callback follows convex-helpers' `Customization` convention — return it from your customization's `input` function:
 
 ```ts
-import { zCustomMutationBuilder, customCtxWithHooks } from 'zodvex'
+import { zCustomMutationBuilder } from 'zodvex'
 import { type MutationCtx, mutation } from './_generated/server'
 
-export const secureMutation = zCustomMutationBuilder(
-  mutation,
-  customCtxWithHooks(async (ctx: MutationCtx) => {
+export const secureMutation = zCustomMutationBuilder(mutation, {
+  args: {},
+  input: async (ctx: MutationCtx) => {
     const securityCtx = await getSecurityContext(ctx)
-
     return {
-      // Custom context (same as customCtx)
       ctx: { securityCtx },
-
-      // Hooks: observe execution (side effects, no return value)
-      hooks: {
-        onSuccess: ({ ctx, args, result }) => {
-          // Called after successful execution
-          console.log('Mutation succeeded:', { args, result })
-          analytics.track('mutation_success', { userId: ctx.securityCtx.userId })
-        }
-      },
-
-      // Transforms: modify data in the flow
-      transforms: {
-        // Transform args after validation, before handler
-        input: (args, schema) => {
-          // e.g., Convert wire format to runtime objects
-          return transformIncomingArgs(args, securityCtx)
-        },
-        // Transform result after handler, before response
-        output: (result, schema) => {
-          // e.g., Mask sensitive fields based on permissions
-          return transformOutgoingResult(result, securityCtx)
-        }
+      args: {},
+      onSuccess: ({ ctx, args, result }) => {
+        console.log('Mutation succeeded:', { args, result })
       }
     }
-  })
-)
-```
-
-**Execution order:**
-
-1. Args received from client
-2. Zod validation on args
-3. `transforms.input` runs (if provided)
-4. Handler executes
-5. Zod validation on returns (if provided)
-6. `hooks.onSuccess` runs (if provided)
-7. `transforms.output` runs (if provided)
-8. Response sent to client
-
-**Use cases:**
-
-| Feature | Use Case |
-|---------|----------|
-| `hooks.onSuccess` | Logging, analytics, audit trails, cache invalidation |
-| `transforms.input` | Wire format → runtime objects, field decryption, data hydration |
-| `transforms.output` | Sensitive field masking, data redaction, format conversion |
-
-**Note:** Both `transforms.input` and `transforms.output` can be async:
-
-```ts
-transforms: {
-  input: async (args, schema) => {
-    const decrypted = await decrypt(args.sensitiveField)
-    return { ...args, sensitiveField: decrypted }
   }
-}
+})
 ```
+
+`onSuccess` runs after the handler and Zod return validation, seeing runtime types (e.g., `Date`, not timestamps).
 
 ### Custom Codecs
 
@@ -608,7 +561,7 @@ For complex type transformations beyond the built-in `zx.date()` and `zx.id()`, 
 
 #### When to Use Custom Codecs
 
-- **Sensitive data**: Encrypt/decrypt fields before storage
+- **Encrypted data**: Encrypt/decrypt fields before storage
 - **Complex objects**: Serialize/deserialize custom class instances
 - **Wire format transformations**: Convert between API formats and internal representations
 
@@ -619,12 +572,12 @@ import { z } from 'zod'
 import { zx, type ZodvexCodec } from 'zodvex'
 
 // Define wire (storage) and runtime schemas
-type SensitiveCodec = ZodvexCodec<
+type EncryptedCodec = ZodvexCodec<
   z.ZodObject<{ encrypted: z.ZodString }>,
   z.ZodCustom<string>
 >
 
-function sensitiveString(): SensitiveCodec {
+function encryptedString(): EncryptedCodec {
   return zx.codec(
     z.object({ encrypted: z.string() }),  // Wire format (stored in Convex)
     z.custom<string>(() => true),          // Runtime format (used in code)
@@ -638,7 +591,7 @@ function sensitiveString(): SensitiveCodec {
 // Use in your schema
 const userShape = {
   name: z.string(),
-  ssn: sensitiveString()  // Automatically encrypted/decrypted
+  ssn: encryptedString()  // Automatically encrypted/decrypted
 }
 ```
 
@@ -650,7 +603,7 @@ zodvex automatically detects codecs created with `zx.codec()` and native `z.code
 import { z } from 'zod'
 import { zodToConvex } from 'zodvex'
 
-const codec = sensitiveString()
+const codec = encryptedString()
 
 // Validator generation - uses wire schema automatically
 const validator = zodToConvex(codec)
@@ -672,7 +625,7 @@ Codecs work correctly when nested in object schemas:
 ```ts
 const schema = z.object({
   id: z.string(),
-  secret: sensitiveString(),  // Custom codec
+  secret: encryptedString(),  // Custom codec
   createdAt: zx.date()        // Built-in zx.date() codec
 })
 
