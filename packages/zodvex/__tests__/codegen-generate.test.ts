@@ -280,27 +280,7 @@ describe('generateClientFile', () => {
     expect(dts).toContain('export declare const decodeResult:')
   })
 
-  it('includes mantineResolver in both js and dts when mantine option is true', () => {
-    const { js, dts } = generateClientFile({ form: { mantine: true } })
-
-    // JS
-    expect(js).toContain(
-      "import { mantineResolver as _mantineResolver } from 'zodvex/form/mantine'"
-    )
-    expect(js).toContain('export const mantineResolver = (ref) =>')
-
-    // DTS
-    expect(dts).toContain('export declare const mantineResolver:')
-    expect(dts).toContain('FunctionReference')
-  })
-
-  it('omits mantineResolver from both js and dts when mantine option is false', () => {
-    const { js, dts } = generateClientFile({ form: { mantine: false } })
-    expect(js).not.toContain('mantineResolver')
-    expect(dts).not.toContain('mantineResolver')
-  })
-
-  it('omits mantineResolver when no options passed', () => {
+  it('does not include mantineResolver', () => {
     const { js, dts } = generateClientFile()
     expect(js).not.toContain('mantineResolver')
     expect(dts).not.toContain('mantineResolver')

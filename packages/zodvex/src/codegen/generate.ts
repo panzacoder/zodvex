@@ -377,29 +377,21 @@ export type ActionCtx = ZodvexActionCtx<DataModel>
   return { js, dts }
 }
 
-export interface ClientFileOptions {
-  form?: { mantine?: boolean }
-}
-
 /**
  * Generates the client file content — pre-bound hooks and client factory.
  * Returns { js, dts } for .js + .d.ts output.
  */
-export function generateClientFile(options: ClientFileOptions = {}): GeneratedFile {
+export function generateClientFile(): GeneratedFile {
   // --- JS ---
-  const jsImports: string[] = []
-  if (options.form?.mantine) {
-    jsImports.push("import { mantineResolver as _mantineResolver } from 'zodvex/form/mantine'")
-  }
-  jsImports.push(
+  const jsImports = [
     "import { createZodvexHooks } from 'zodvex/react'",
     "import { createZodvexReactClient } from 'zodvex/react'",
     "import { createZodvexClient } from 'zodvex/client'",
     "import { createBoundaryHelpers } from 'zodvex/core'",
     "import { zodvexRegistry } from './api.js'"
-  )
+  ]
 
-  const jsExports: string[] = [
+  const jsExports = [
     'export const { useZodQuery, useZodMutation } = createZodvexHooks(zodvexRegistry)',
     '',
     'export const createClient = (options) =>',
@@ -410,28 +402,18 @@ export function generateClientFile(options: ClientFileOptions = {}): GeneratedFi
     '',
     'export const { encodeArgs, decodeResult } = createBoundaryHelpers(zodvexRegistry)'
   ]
-  if (options.form?.mantine) {
-    jsExports.push(
-      '',
-      'export const mantineResolver = (ref) =>',
-      '  _mantineResolver(zodvexRegistry, ref)'
-    )
-  }
 
   const js = `${HEADER}\n${jsImports.join('\n')}\n\n${jsExports.join('\n')}\n`
 
   // --- DTS ---
-  const dtsImports: string[] = [
+  const dtsImports = [
     "import type { ZodvexHooks } from 'zodvex/react'",
     "import type { ZodvexClientOptions, ZodvexClient } from 'zodvex/client'",
     "import type { ZodvexReactClientOptions, ZodvexReactClient } from 'zodvex/react'",
     "import type { BoundaryHelpers } from 'zodvex/core'"
   ]
-  if (options.form?.mantine) {
-    dtsImports.push("import type { FunctionReference } from 'convex/server'")
-  }
 
-  const dtsDeclarations: string[] = [
+  const dtsDeclarations = [
     "export declare const useZodQuery: ZodvexHooks['useZodQuery']",
     "export declare const useZodMutation: ZodvexHooks['useZodMutation']",
     '',
@@ -442,12 +424,6 @@ export function generateClientFile(options: ClientFileOptions = {}): GeneratedFi
     "export declare const encodeArgs: BoundaryHelpers['encodeArgs']",
     "export declare const decodeResult: BoundaryHelpers['decodeResult']"
   ]
-  if (options.form?.mantine) {
-    dtsDeclarations.push(
-      '',
-      'export declare const mantineResolver: (ref: FunctionReference<any, any, any, any>) => (values: Record<string, unknown>) => Record<string, string>'
-    )
-  }
 
   const dts = `${HEADER}\n${dtsImports.join('\n')}\n\n${dtsDeclarations.join('\n')}\n`
 
