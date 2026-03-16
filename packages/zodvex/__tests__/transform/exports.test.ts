@@ -15,6 +15,7 @@ describe('transform module exports', () => {
       'hasMetadata',
       'transformBySchema',
       'transformBySchemaAsync',
+      'unwrapOnce',
       'walkSchema'
     ]
 
@@ -28,6 +29,7 @@ describe('transform module exports', () => {
     expect(typeof transform.hasMetadata).toBe('function')
     expect(typeof transform.transformBySchema).toBe('function')
     expect(typeof transform.transformBySchemaAsync).toBe('function')
+    expect(typeof transform.unwrapOnce).toBe('function')
     expect(typeof transform.walkSchema).toBe('function')
   })
 })

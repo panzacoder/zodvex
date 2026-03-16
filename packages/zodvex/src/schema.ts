@@ -1,7 +1,7 @@
 import { defineSchema, defineTable, type TableDefinition } from 'convex/server'
 import type { ObjectType, VObject } from 'convex/values'
 import type { z } from 'zod'
-import { type ConvexValidatorFromZodFieldsAuto, zodToConvexFields } from './mapping'
+import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 import type { SearchIndexConfig, VectorIndexConfig } from './model'
 
 /**
@@ -124,8 +124,11 @@ export type DecodedDocFor<T extends Record<string, { schema: { doc: z.ZodTypeAny
  * Creates a Convex table definition from a ZodModel's fields and index metadata.
  */
 function tableFromModel(model: ZodModelEntry) {
-  const convexFields = zodToConvexFields(model.fields)
-  let table = defineTable(convexFields)
+  // Union models have empty fields — use zodToConvex on the base schema instead
+  const isUnionModel = Object.keys(model.fields).length === 0
+  let table = isUnionModel
+    ? defineTable(zodToConvex(model.schema.base) as any)
+    : defineTable(zodToConvexFields(model.fields))
 
   for (const [indexName, indexFields] of Object.entries(model.indexes)) {
     // defineZodModel appends _creationTime to stored index fields,

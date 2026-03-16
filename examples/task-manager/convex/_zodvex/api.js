@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import { zx, extractCodec } from 'zodvex/core'
 import { CommentModel } from '../models/comment.js'
+import { NotificationModel } from '../models/notification.js'
 import { TaskModel } from '../models/task.js'
 import { UserModel } from '../models/user.js'
 import { ActivityModel } from '../models/activity.js'
@@ -19,6 +20,38 @@ export const zodvexRegistry = {
   'comments:list': {
     args: z.object({ taskId: zx.id("tasks") }),
     returns: CommentModel.schema.docArray,
+  },
+  'notifications:createEmail': {
+    args: z.object({ recipientId: zx.id("users"), subject: z.string(), body: z.string() }),
+    returns: zx.id("notifications"),
+  },
+  'notifications:createInApp': {
+    args: z.object({ recipientId: zx.id("users"), message: z.string(), linkTo: z.string().optional() }),
+    returns: zx.id("notifications"),
+  },
+  'notifications:createPush': {
+    args: z.object({ recipientId: zx.id("users"), title: z.string(), badge: z.number().optional() }),
+    returns: zx.id("notifications"),
+  },
+  'notifications:get': {
+    args: z.object({ id: zx.id("notifications") }),
+    returns: NotificationModel.schema.doc.nullable(),
+  },
+  'notifications:listByCreated': {
+    args: z.object({ after: zx.date() }),
+    returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.number().optional(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.string().optional(), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  },
+  'notifications:listByKind': {
+    args: z.object({ kind: z.enum(["email", "push", "in_app"]) }),
+    returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.number().optional(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.string().optional(), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  },
+  'notifications:listByRecipient': {
+    args: z.object({ recipientId: zx.id("users") }),
+    returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.number().optional(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.string().optional(), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  },
+  'notifications:listByRecipientAndKind': {
+    args: z.object({ recipientId: zx.id("users"), kind: z.enum(["email", "push", "in_app"]) }),
+    returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.number().optional(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.string().optional(), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
   },
   'api/reports:summary': {
     args: z.object({ ownerId: zx.id("users").optional() }),

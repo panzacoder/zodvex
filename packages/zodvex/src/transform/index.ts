@@ -25,7 +25,7 @@
 export { transformBySchema, transformBySchemaAsync } from './transform'
 
 // Traversal
-export { findFieldsWithMeta, getMetadata, hasMetadata, walkSchema } from './traverse'
+export { findFieldsWithMeta, getMetadata, hasMetadata, unwrapOnce, walkSchema } from './traverse'
 // Types
 export type {
   AsyncTransformFn,

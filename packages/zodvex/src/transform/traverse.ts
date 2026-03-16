@@ -66,7 +66,20 @@ export function getMetadata(schema: z.ZodTypeAny): Record<string, unknown> | und
   return undefined
 }
 
-function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
+/**
+ * Unwrap one layer of a Zod wrapper type.
+ *
+ * Peels off a single wrapper (optional, nullable, default, readonly, catch,
+ * prefault, nonoptional, lazy, pipe, or sensitive) and returns the inner schema.
+ * Returns `undefined` if the schema is not a wrapper.
+ *
+ * Zod v4 does not publicly type `_def` internals, so this function uses
+ * `as any` casts — this is expected and mirrors what Zod's own traversal does.
+ *
+ * @param schema - A Zod schema that may be wrapped
+ * @returns The inner schema, or `undefined` if not a wrapper type
+ */
+export function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
   const defType = (schema as any)._def?.type as string | undefined
 
   switch (defType) {

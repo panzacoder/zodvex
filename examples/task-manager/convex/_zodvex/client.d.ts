@@ -5,7 +5,6 @@ import type { ZodvexHooks } from 'zodvex/react'
 import type { ZodvexClientOptions, ZodvexClient } from 'zodvex/client'
 import type { ZodvexReactClientOptions, ZodvexReactClient } from 'zodvex/react'
 import type { BoundaryHelpers } from 'zodvex/core'
-import type { FunctionReference } from 'convex/server'
 
 export declare const useZodQuery: ZodvexHooks['useZodQuery']
 export declare const useZodMutation: ZodvexHooks['useZodMutation']
@@ -16,5 +15,3 @@ export declare const createReactClient: (options: ZodvexReactClientOptions) => Z
 
 export declare const encodeArgs: BoundaryHelpers['encodeArgs']
 export declare const decodeResult: BoundaryHelpers['decodeResult']
-
-export declare const mantineResolver: (ref: FunctionReference<any, any, any, any>) => (values: Record<string, unknown>) => Record<string, string>
