@@ -1,27 +1,28 @@
-# Hotpot: migrate to zodvex's `unwrapOnce`
+# Hotpot: `unwrapOnce` convergence (post-v0.6.0)
 
-zodvex now exports `unwrapOnce` from `zodvex/transform` (and `zodvex/core`).
+## Status: Deferred
 
-## What to do
+The implementations have diverged and a direct import won't work today.
 
-In `convex/hotpot/security/sensitive.ts`:
+## Why it's deferred
 
-1. **Replace the local `unwrapOnce` implementation** (lines ~266-314) with a single import:
+| | Hotpot local | zodvex internal |
+|---|---|---|
+| Exported? | Yes (used by `findSensitiveFields`) | No — private to `zodvex/src/transform/traverse.ts` |
+| Check method | `instanceof` (Zod v4 native classes) | `_def.type` string matching |
+| Sensitive handling | Via WeakMap metadata lookup | Explicit `'sensitive'` type case |
 
-```typescript
-import { unwrapOnce } from 'zodvex/transform'
-```
+Beyond the export gap, the detection strategies differ (`instanceof` vs string matching) and hotpot has purpose-built traversal (`findSensitiveFields()`, `traverseSchema()`) that doesn't map onto zodvex's `walkSchema()` / `findFieldsWithMeta()`.
 
-2. **Delete the local function** — it's an identical reimplementation of zodvex's internal helper, including the same Zod v4 `as any` casts and the same wrapper types (optional, nullable, default, readonly, catch, prefault, nonoptional, lazy, pipe).
+## What convergence would require
 
-3. **Verify** that `isSensitiveSchema()` and `findSensitiveFields()` (which call `unwrapOnce`) still work. The function signature is identical: `(schema: z.ZodTypeAny) => z.ZodTypeAny | undefined`.
+1. Align on detection strategy (instanceof vs string matching) — or make zodvex's version configurable
+2. Export `unwrapOnce` from `zodvex/transform` (and `zodvex/core`)
+3. Verify hotpot's `isSensitiveSchema()` and `findSensitiveFields()` still work with the zodvex version
+4. Consider whether zodvex should also export generic traversal utilities that hotpot could build on
 
-## What stays in hotpot
+## What stays in hotpot regardless
 
 - `isSensitiveCodecDirect` (WeakMap detection) — orthogonal to unwrapping
 - `SensitiveField` type and codec logic — hotpot-specific
-- Any hotpot-specific `sensitive` type detection that goes beyond generic unwrapping
-
-## Minimum zodvex version
-
-Requires zodvex `>=0.6.0-beta.51` (the next publish after this export lands).
+- Sensitive-field-specific traversal that goes beyond generic unwrapping
