@@ -673,6 +673,123 @@ describe('withIndex encoding', () => {
   })
 })
 
+describe('withIndex encoding — union schemas', () => {
+  const unionDocSchema = z.discriminatedUnion('kind', [
+    z.object({
+      _id: z.string(),
+      _creationTime: z.number(),
+      kind: z.literal('email'),
+      recipientId: z.string(),
+      createdAt: zx.date()
+    }),
+    z.object({
+      _id: z.string(),
+      _creationTime: z.number(),
+      kind: z.literal('push'),
+      recipientId: z.string(),
+      createdAt: zx.date()
+    }),
+    z.object({
+      _id: z.string(),
+      _creationTime: z.number(),
+      kind: z.literal('in_app'),
+      recipientId: z.string(),
+      createdAt: zx.date()
+    })
+  ])
+
+  it('encodes a codec field (zx.date) through a union schema via .eq()', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, unionDocSchema)
+
+    await chain
+      .withIndex('by_created' as any, (q: any) => q.eq('createdAt', new Date(1700000000000)))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].method).toBe('eq')
+    expect(captured[0].field).toBe('createdAt')
+    expect(captured[0].value).toBe(1700000000000)
+  })
+
+  it('encodes discriminator literals through a per-field union via .eq()', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, unionDocSchema)
+
+    await chain.withIndex('by_kind' as any, (q: any) => q.eq('kind', 'push')).first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].method).toBe('eq')
+    expect(captured[0].field).toBe('kind')
+    expect(captured[0].value).toBe('push')
+  })
+
+  it('encodes compound index fields on a union schema', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, unionDocSchema)
+
+    await chain
+      .withIndex('by_recipient_and_kind' as any, (q: any) =>
+        q.eq('recipientId', 'user123').eq('kind', 'email')
+      )
+      .first()
+
+    expect(captured).toHaveLength(2)
+    expect(captured[0]).toEqual({ method: 'eq', field: 'recipientId', value: 'user123' })
+    expect(captured[1]).toEqual({ method: 'eq', field: 'kind', value: 'email' })
+  })
+
+  it('encodes codec field through .gte() on a union schema', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, unionDocSchema)
+
+    await chain
+      .withIndex('by_created' as any, (q: any) => q.gte('createdAt', new Date(1700000000000)))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].method).toBe('gte')
+    expect(captured[0].value).toBe(1700000000000)
+  })
+
+  it('passes through non-codec fields unchanged on a union schema', async () => {
+    const { mockQuery, captured } = createIndexCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, unionDocSchema)
+
+    await chain.withIndex('by_recipient' as any, (q: any) => q.eq('recipientId', 'user123')).first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].value).toBe('user123')
+  })
+
+  it('handles plain z.union (non-discriminated) the same way', async () => {
+    const plainUnionSchema = z.union([
+      z.object({
+        _id: z.string(),
+        _creationTime: z.number(),
+        type: z.literal('a'),
+        timestamp: zx.date()
+      }),
+      z.object({
+        _id: z.string(),
+        _creationTime: z.number(),
+        type: z.literal('b'),
+        timestamp: zx.date()
+      })
+    ])
+
+    const { mockQuery, captured } = createIndexCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, plainUnionSchema)
+
+    await chain
+      .withIndex('by_timestamp' as any, (q: any) => q.eq('timestamp', new Date(1700000000000)))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].value).toBe(1700000000000)
+  })
+})
+
 describe('withSearchIndex encoding', () => {
   const wireDocs = [{ _id: 'users:1', _creationTime: 100, name: 'Alice', createdAt: 1700000000000 }]
 

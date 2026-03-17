@@ -124,11 +124,31 @@ export interface ZodvexUpperBoundBuilder<
 function encodeIndexValue(schema: z.ZodTypeAny, fieldPath: string, value: any): any {
   // Dot-paths target wire-format sub-fields — value is already correct
   if (fieldPath.includes('.')) return value
-  // Top-level: encode through the field's schema
+
+  // Object schemas: encode through the field's schema directly
   if (schema instanceof z.ZodObject) {
     const fieldSchema = (schema as z.ZodObject<any>).shape[fieldPath]
     if (fieldSchema) return z.encode(fieldSchema, value)
   }
+
+  // Union schemas (ZodDiscriminatedUnion extends ZodUnion): build a per-field
+  // union from all variants, then encode through that. Handles discriminator
+  // literals and codec fields (e.g., zx.date()) correctly.
+  // Non-object variants are skipped — union tables require object variants.
+  if (schema instanceof z.ZodUnion) {
+    const options = (schema as z.ZodUnion).options as z.ZodTypeAny[]
+    const fieldSchemas = options
+      .filter((v): v is z.ZodObject<any> => v instanceof z.ZodObject)
+      .map(v => v.shape[fieldPath])
+      .filter(Boolean)
+    if (fieldSchemas.length === 1) return z.encode(fieldSchemas[0], value)
+    if (fieldSchemas.length > 1)
+      return z.encode(
+        z.union(fieldSchemas as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]),
+        value
+      )
+  }
+
   return value
 }
 

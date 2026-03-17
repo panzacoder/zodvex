@@ -128,12 +128,12 @@ function id<TableName extends string>(tableName: TableName): ZxId<TableName> {
  * )
  * ```
  */
-function codec<W extends z.ZodTypeAny, R extends z.ZodTypeAny>(
+function codec<W extends z.ZodTypeAny, R extends z.ZodTypeAny, WO = z.output<W>, RI = z.output<R>>(
   wire: W,
   runtime: R,
   transforms: {
-    decode: (wire: z.output<W>) => z.input<R>
-    encode: (runtime: z.output<R>) => z.input<W>
+    decode: (wire: WO) => RI
+    encode: (runtime: RI) => WO
   }
 ): ZodvexCodec<W, R> {
   return zodvexCodec(wire, runtime, transforms)

@@ -96,12 +96,17 @@ export function encodePartialDoc<S extends z.ZodTypeAny>(
  * }
  * ```
  */
-export function zodvexCodec<W extends z.ZodTypeAny, R extends z.ZodTypeAny>(
+export function zodvexCodec<
+  W extends z.ZodTypeAny,
+  R extends z.ZodTypeAny,
+  WO = z.output<W>,
+  RI = z.output<R>
+>(
   wire: W,
   runtime: R,
   transforms: {
-    decode: (wire: z.output<W>) => z.input<R>
-    encode: (runtime: z.output<R>) => z.input<W>
+    decode: (wire: WO) => RI
+    encode: (runtime: RI) => WO
   }
 ): ZodvexCodec<W, R> {
   // Cast transforms to satisfy Zod's internal MaybeAsync typing while keeping our API simple

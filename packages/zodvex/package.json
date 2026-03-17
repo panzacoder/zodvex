@@ -65,7 +65,7 @@
   "scripts": {
     "build": "tsup && tsc --emitDeclarationOnly",
     "dev": "bun run tsup --watch",
-    "type-check": "bun run tsc --noEmit",
+    "type-check": "bun run tsc -p tsconfig.typecheck.json",
     "test": "bun test",
     "lint": "bun x biome check src __tests__",
     "lint:fix": "bun x biome check --write src __tests__",
