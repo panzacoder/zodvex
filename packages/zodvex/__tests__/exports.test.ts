@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 
 describe('zodvex/core has no server runtime imports', () => {
   it('does not import from convex/server or convex-helpers/server at runtime', async () => {
-    const coreIndex = await Bun.file('src/core/index.ts').text()
+    const coreIndex = await Bun.file(new URL('../src/core/index.ts', import.meta.url)).text()
 
     // Extract all re-export source paths, tracking which are type-only
     const typeOnlyPaths = new Set<string>()
@@ -25,10 +25,10 @@ describe('zodvex/core has no server runtime imports', () => {
     // Only check files with runtime (non-type-only) references
     const pathsToCheck = [...runtimePaths]
 
-    // Resolve to actual file paths
-    const srcDir = 'src'
+    // Resolve to actual file paths relative to this test file
+    const baseDir = new URL('../src/', import.meta.url).pathname
     const filesToCheck = pathsToCheck.map(p => {
-      const resolved = p.startsWith('../') ? `${srcDir}/${p.slice(3)}` : `${srcDir}/core/${p}`
+      const resolved = p.startsWith('../') ? `${baseDir}${p.slice(3)}` : `${baseDir}core/${p}`
       return resolved.endsWith('.ts') ? resolved : resolved + '.ts'
     })
 
