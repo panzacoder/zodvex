@@ -8,11 +8,13 @@ Extend the codec boundary to `.filter()` — the last query method that passes r
 
 ### Type constraint challenge
 
-Convex's `Expression<T>` constrains `T extends Value | undefined`, where `Value` is `null | bigint | number | boolean | string | ArrayBuffer | Value[] | { ... }`. `Date` does not satisfy `Value`, so `Expression<Date>` is invalid. This means we cannot simply override `field()` on `FilterBuilder` to return decoded types — the `Expression` wrapper rejects non-Value types.
+Convex's `Expression<T>` constrains `T extends Value | undefined`, where `Value` is `null | bigint | number | boolean | string | ArrayBuffer | Value[] | { ... }`. `Date` does not satisfy `Value`, so `Expression<Date>` is invalid. We cannot override `field()` on `FilterBuilder` to return decoded types — the `Expression` wrapper rejects non-Value types.
 
-The solution: define our own `ZodvexExpression<T>` with no `Value` constraint. At runtime, all values are still `ExpressionImpl` instances — `ZodvexExpression` is purely a type-level construct that the runtime never sees.
+The root cause: the index builder works because field name and value are in the same call (`eq("createdAt", value)`), so the value type is resolved per-field. The filter builder separates them (`eq(field("createdAt"), value)`) — the field identity is erased into `Expression<number>` and `T` must unify across both arguments.
 
-## Types: `ZodvexExpression` and `ZodvexFilterBuilder`
+The solution: define `ZodvexExpression<T>` with no `Value` constraint, and a `ZodvexFilterBuilder` that uses it. At runtime, all values are still `ExpressionImpl` instances — `ZodvexExpression` is purely type-level.
+
+## Types
 
 ### `ZodvexExpression<T>` — unconstrained expression type
 
@@ -29,20 +31,23 @@ type ZodvexExpression<T> = { readonly [_zodvexExpr]: T }
 type ZodvexExpressionOrValue<T> = ZodvexExpression<T> | T
 ```
 
-### `ZodvexFilterBuilder` — full interface replacement
+### `ZodvexFilterBuilder` — decoded-aware filter interface
 
-Replaces (not extends) Convex's `FilterBuilder`. Same method names and call patterns, but uses `ZodvexExpression`/`ZodvexExpressionOrValue` instead of Convex's constrained versions.
+Replaces (not extends) Convex's `FilterBuilder`. Same method names, same call patterns. Uses `ZodvexExpression`/`ZodvexExpressionOrValue` instead of Convex's constrained versions.
+
+Simplified generic shape consistent with `ZodvexQueryChain<TableInfo, Doc>`:
 
 ```typescript
+import type { NumericValue } from 'convex/values'  // bigint | number
+
 interface ZodvexFilterBuilder<
-  WireDoc extends GenericDocument,
-  DecodedDoc,
-  TableInfo extends GenericTableInfo
+  TableInfo extends GenericTableInfo,
+  Doc = DocumentByInfo<TableInfo>
 > {
-  // field() returns decoded types for codec fields via ZodvexIndexFieldValue
+  // field() returns decoded types for codec fields
   field<FP extends FieldPaths<TableInfo>>(
     fieldPath: FP
-  ): ZodvexExpression<ZodvexIndexFieldValue<WireDoc, DecodedDoc, FP>>
+  ): ZodvexExpression<ZodvexIndexFieldValue<DocumentByInfo<TableInfo>, Doc, FP>>
 
   // Comparisons — unconstrained T, inferred from arguments
   eq<T>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<boolean>
@@ -57,58 +62,123 @@ interface ZodvexFilterBuilder<
   or(...exprs: ZodvexExpressionOrValue<boolean>[]): ZodvexExpression<boolean>
   not(x: ZodvexExpressionOrValue<boolean>): ZodvexExpression<boolean>
 
-  // Arithmetic — stays numeric
-  add(l: ZodvexExpressionOrValue<number>, r: ZodvexExpressionOrValue<number>): ZodvexExpression<number>
-  sub(l: ZodvexExpressionOrValue<number>, r: ZodvexExpressionOrValue<number>): ZodvexExpression<number>
-  mul(l: ZodvexExpressionOrValue<number>, r: ZodvexExpressionOrValue<number>): ZodvexExpression<number>
-  div(l: ZodvexExpressionOrValue<number>, r: ZodvexExpressionOrValue<number>): ZodvexExpression<number>
-  mod(l: ZodvexExpressionOrValue<number>, r: ZodvexExpressionOrValue<number>): ZodvexExpression<number>
-  neg(x: ZodvexExpressionOrValue<number>): ZodvexExpression<number>
+  // Arithmetic — preserves Convex's NumericValue (bigint | number)
+  add<T extends NumericValue>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<T>
+  sub<T extends NumericValue>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<T>
+  mul<T extends NumericValue>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<T>
+  div<T extends NumericValue>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<T>
+  mod<T extends NumericValue>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<T>
+  neg<T extends NumericValue>(x: ZodvexExpressionOrValue<T>): ZodvexExpression<T>
 }
 ```
 
-Reuses `ZodvexIndexFieldValue` (db.ts:43-51) for the `field()` return type — decoded types for top-level codec fields, wire types for dot-paths and non-codec fields.
+`WireDoc` is derived internally as `DocumentByInfo<TableInfo>`. The public surface is `ZodvexFilterBuilder<TableInfo, Doc>`, consistent with `ZodvexQueryChain<TableInfo, Doc>`.
 
-### How type inference flows
+### `.filter()` overloads — compatibility superset
+
+`ZodvexQueryChain.filter()` accepts both Convex-native and decoded-aware predicates via overloads. This is the key compatibility promise — existing reusable filter helpers that type against `FilterBuilder<TableInfo>` continue to work unchanged.
 
 ```typescript
-// Codec field — Date
-.filter(q => q.eq(q.field("createdAt"), new Date()))
-// 1. q.field("createdAt") → ZodvexExpression<Date>  (via ZodvexIndexFieldValue)
-// 2. T inferred as Date from left side
-// 3. new Date() satisfies ZodvexExpressionOrValue<Date> = ZodvexExpression<Date> | Date  ✓
+// Overload 1: decoded-aware predicate (tried first)
+filter(
+  predicate: (q: ZodvexFilterBuilder<TableInfo, Doc>) => ZodvexExpressionOrValue<boolean>
+): ZodvexQueryChain<TableInfo, Doc>
 
-// Non-codec field — string
-.filter(q => q.eq(q.field("name"), "Alice"))
-// 1. q.field("name") → ZodvexExpression<string>  (no codec, wire = decoded)
-// 2. T = string, "Alice" satisfies string  ✓
-
-// Two field expressions
-.filter(q => q.eq(q.field("startDate"), q.field("endDate")))
-// Both sides are ZodvexExpression<Date>, T = Date  ✓
-
-// Compound filter with logical operators
-.filter(q => q.and(
-  q.gte(q.field("createdAt"), new Date("2024-01-01")),
-  q.eq(q.field("status"), "active")
-))
-// Each comparison resolves independently  ✓
+// Overload 2: Convex-native predicate (backwards compatible)
+filter(
+  predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
+): ZodvexQueryChain<TableInfo, Doc>
 ```
 
-### Boundary cast
+The decoded-aware overload is listed first so TypeScript tries it first. If the predicate uses `ZodvexFilterBuilder` features (decoded types), overload 1 matches. If it's a plain Convex `FilterBuilder` predicate, overload 2 matches.
 
-`ZodvexQueryChain.filter()` passes the predicate to Convex's inner `.filter()`. The cast is implicit via `(q: any)` — same pattern used by `wrapIndexRangeBuilder`:
+At runtime, the implementation is the same for both — the proxy wraps `filterBuilderImpl` and encodes raw values regardless of which overload matched:
 
 ```typescript
-filter(
-  predicate: (q: ZodvexFilterBuilder<DocumentByInfo<TableInfo>, Doc, TableInfo>) => ZodvexExpressionOrValue<boolean>
-): ZodvexQueryChain<TableInfo, Doc> {
+filter(predicate: any): ZodvexQueryChain<TableInfo, Doc> {
   const wrappedPredicate = (q: any) => predicate(wrapFilterBuilder(q, this.schema))
   return this.createChain(this.inner.filter(wrappedPredicate))
 }
 ```
 
-At runtime, `q` is `filterBuilderImpl` wrapped by our proxy, and the return value is `ExpressionImpl` — Convex's `serializeExpression` handles it via `instanceof ExpressionImpl`.
+### Schema-derived helper types
+
+Utility types for deriving table-specific types from the output of `defineZodSchema`. These are for reusable filter helpers — inline `.filter()` usage infers everything automatically from the query chain.
+
+```typescript
+import type { DataModelFromSchemaDefinition, NamedTableInfo, TableNamesInDataModel } from 'convex/server'
+
+/** Extract the DataModel from a defineZodSchema result */
+type InferDataModel<Schema extends ReturnType<typeof defineZodSchema>> =
+  DataModelFromSchemaDefinition<Schema>
+
+/** Extract TableInfo for a specific table */
+type InferTableInfo<
+  Schema extends ReturnType<typeof defineZodSchema>,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
+> = NamedTableInfo<InferDataModel<Schema>, TableName>
+
+/** Extract the decoded document type for a specific table */
+type InferDecodedDoc<
+  Schema extends ReturnType<typeof defineZodSchema>,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
+> = Schema extends { __decodedDocs: infer DD }
+  ? TableName extends keyof DD ? DD[TableName] : never
+  : never
+
+/** A ZodvexFilterBuilder typed for a specific table */
+type InferFilterBuilder<
+  Schema extends ReturnType<typeof defineZodSchema>,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
+> = ZodvexFilterBuilder<
+  InferTableInfo<Schema, TableName>,
+  InferDecodedDoc<Schema, TableName>
+>
+```
+
+### How type inference flows
+
+**Inline usage — no manual generics needed:**
+
+```typescript
+// Codec field — Date
+ctx.db.query("users")
+  .filter(q => q.gte(q.field("createdAt"), new Date()))
+// ZodvexQueryChain infers TableInfo + Doc, ZodvexFilterBuilder resolves field types  ✓
+
+// Non-codec field — string
+ctx.db.query("users")
+  .filter(q => q.eq(q.field("name"), "Alice"))
+// T = string, inferred from field expression  ✓
+```
+
+**Reusable helper — schema-derived types:**
+
+```typescript
+import type { InferFilterBuilder } from 'zodvex'
+import type schema from './schema'
+
+type UsersFilter = InferFilterBuilder<typeof schema, "users">
+
+const createdAfter = (q: UsersFilter, after: Date) =>
+  q.gte(q.field("createdAt"), after)
+
+// Usage in query:
+ctx.db.query("users").filter(q => createdAfter(q, new Date("2024-01-01")))
+```
+
+**Existing Convex-native helpers — still work via overload 2:**
+
+```typescript
+import type { FilterBuilder } from 'convex/server'
+
+// Legacy helper typed against Convex's FilterBuilder
+const isActive = <T extends GenericTableInfo>(q: FilterBuilder<T>) =>
+  q.eq(q.field("status"), "active")
+
+// Still works — overload 2 matches
+ctx.db.query("users").filter(q => isActive(q))
+```
 
 ## Runtime: `wrapFilterBuilder` proxy
 
@@ -162,19 +232,24 @@ function wrapFilterBuilder(inner: any, schema: z.ZodTypeAny): any {
 - `q.eq(q.field("a"), q.field("b"))` passes through unchanged (both sides are expressions)
 - `and()`, `or()`, `not()`, `field()`, arithmetic methods are not intercepted — they don't take raw comparison values
 
-### Known limitation
+### Known limitations
 
-Raw values nested inside arithmetic expressions (e.g., `q.add(q.field("x"), someDate)`) are not encoded, because arithmetic methods are not intercepted. Arithmetic on codec fields is not a realistic pattern.
+1. **Arithmetic on codec fields:** Raw values nested inside arithmetic expressions (e.g., `q.add(q.field("x"), someDate)`) are not encoded, because arithmetic methods are not intercepted. Arithmetic on codec fields is not a realistic pattern.
+
+2. **Both sides are raw decoded values:** `q.eq(new Date(), new Date())` without any field reference — neither side is encoded. The raw `Date` would reach `convexOrUndefinedToJson` and throw. This pattern is not useful in practice (comparing two literals without fields), but it is not guarded against.
 
 ## Affected files
 
-- `packages/zodvex/src/db.ts` — `ZodvexExpression`, `ZodvexExpressionOrValue`, `ZodvexFilterBuilder`, `extractFieldPath`, `wrapFilterBuilder`, updated `filter()` method signature and implementation. Add `FieldPaths` to the import from `convex/server`.
-- `packages/zodvex/__tests__/db.test.ts` — runtime tests
+- `packages/zodvex/src/db.ts` — `ZodvexExpression`, `ZodvexExpressionOrValue`, `ZodvexFilterBuilder`, `extractFieldPath`, `wrapFilterBuilder`, updated `filter()` method with overloads. Add `FieldPaths` to the import from `convex/server`.
+- `packages/zodvex/src/schema.ts` — `InferDataModel`, `InferTableInfo`, `InferDecodedDoc`, `InferFilterBuilder` helper types (these depend on `convex/server` types, so they belong in schema.ts, not types.ts which is client-safe)
+- `packages/zodvex/src/server/index.ts` — export new types (server-only, NOT from core/index.ts)
+- `packages/zodvex/__tests__/db.test.ts` — runtime tests (mock-based)
+- `examples/task-manager/convex/` — integration test with real Convex `ExpressionImpl`
 - `packages/zodvex/typechecks/filter-builder.test-d.ts` — type tests
 
 ## Tests
 
-### Runtime tests (db.test.ts)
+### Runtime tests — mock-based (db.test.ts)
 
 Using a mock FilterBuilder that simulates the expression API (`field()` returns objects with `serialize()`, comparison methods capture arguments):
 
@@ -188,6 +263,16 @@ Using a mock FilterBuilder that simulates the expression API (`field()` returns 
 8. `q.eq(new Date(...), q.field("createdAt"))` — reversed operand order, encodes the left side
 9. `q.eq(q.field("deletedAt"), null)` — null comparison passes through unchanged
 
+### Runtime tests — real Convex boundary (example app)
+
+At least one integration test using real Convex `ExpressionImpl` and `filterBuilderImpl` to validate `extractFieldPath` and the `serialize()` → `$field` detection against the actual Convex implementation, not just mocks. This test should:
+
+- Import `filterBuilderImpl` from Convex's impl module
+- Call `wrapFilterBuilder(filterBuilderImpl, schema)` with a real schema
+- Verify the returned expression serializes correctly (encoded values in `$literal` nodes)
+
+Note: example app integration tests currently blocked by `import.meta.glob` issue. This test can use a direct import of the Convex impl in the library's test suite instead.
+
 ### Type tests (filter-builder.test-d.ts)
 
 1. `q.field("createdAt")` returns `ZodvexExpression<Date>` when `createdAt` is `zx.date()`
@@ -197,3 +282,20 @@ Using a mock FilterBuilder that simulates the expression API (`field()` returns 
 5. `q.eq(new Date(), q.field("createdAt"))` — reversed operand order type-checks
 6. `q.eq(q.field("createdAt"), "not-a-date")` — `@ts-expect-error`, Date field rejects string
 7. `q.and(q.eq(...), q.gte(...))` returns `ZodvexExpression<boolean>`
+8. Convex-native `FilterBuilder<TableInfo>` predicate accepted by `.filter()` overload 2
+9. `InferFilterBuilder<typeof schema, "users">` resolves to correct `ZodvexFilterBuilder` type
+
+### Example app (examples/task-manager/)
+
+Demonstrate both usage patterns:
+
+```typescript
+// Inline — no manual generics
+ctx.db.query("users").filter(q => q.gte(q.field("createdAt"), new Date()))
+
+// Reusable helper — schema-derived type
+type UsersFilter = InferFilterBuilder<typeof schema, "users">
+const createdAfter = (q: UsersFilter, date: Date) =>
+  q.gte(q.field("createdAt"), date)
+ctx.db.query("users").filter(q => createdAfter(q, new Date()))
+```
