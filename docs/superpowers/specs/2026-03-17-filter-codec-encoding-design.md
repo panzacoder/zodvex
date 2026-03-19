@@ -33,7 +33,7 @@ type ZodvexExpressionOrValue<T> = ZodvexExpression<T> | T
 
 ### `ZodvexFilterBuilder` — decoded-aware filter interface
 
-Replaces (not extends) Convex's `FilterBuilder`. Same method names, same call patterns. Uses `ZodvexExpression`/`ZodvexExpressionOrValue` instead of Convex's constrained versions.
+A parallel interface to Convex's `FilterBuilder` with the same method names and call patterns, but using `ZodvexExpression`/`ZodvexExpressionOrValue` instead of Convex's constrained versions. It is not a drop-in substitute for `FilterBuilder` — the two are structurally incompatible because `ZodvexExpression<T>` and `Expression<T>` are different branded types. The compatibility story lives at the `.filter()` overload boundary, not at the builder type level.
 
 Simplified generic shape consistent with `ZodvexQueryChain<TableInfo, Doc>`:
 
@@ -234,9 +234,23 @@ function wrapFilterBuilder(inner: any, schema: z.ZodTypeAny): any {
 
 ### Known limitations
 
-1. **Arithmetic on codec fields:** Raw values nested inside arithmetic expressions (e.g., `q.add(q.field("x"), someDate)`) are not encoded, because arithmetic methods are not intercepted. Arithmetic on codec fields is not a realistic pattern.
+1. **Mixed composition within a single callback.** A callback cannot combine a legacy helper typed as `FilterBuilder<TableInfo>` with decoded-aware comparisons from `ZodvexFilterBuilder` in the same callback. `ZodvexFilterBuilder` and `FilterBuilder` are structurally incompatible (different expression brands), so `q` cannot satisfy both types simultaneously. For example:
 
-2. **Both sides are raw decoded values:** `q.eq(new Date(), new Date())` without any field reference — neither side is encoded. The raw `Date` would reach `convexOrUndefinedToJson` and throw. This pattern is not useful in practice (comparing two literals without fields), but it is not guarded against.
+   ```typescript
+   // ❌ Does NOT work — isActive expects FilterBuilder, but q is ZodvexFilterBuilder
+   const isActive = (q: FilterBuilder<TableInfo>) => q.eq(q.field("status"), "active")
+   ctx.db.query("users").filter(q => q.and(isActive(q), q.gte(q.field("createdAt"), new Date())))
+   ```
+
+   **Workarounds:**
+   - Re-type the helper to accept `ZodvexFilterBuilder` (or the table-specific `InferFilterBuilder` type)
+   - Use separate `.filter()` calls: `.filter(q => isActive(q)).filter(q => q.gte(q.field("createdAt"), new Date()))`
+
+   The overloaded `.filter()` ensures each callback works in its own mode — the limitation is only within a single callback that tries to use both type systems.
+
+2. **Arithmetic on codec fields:** Raw values nested inside arithmetic expressions (e.g., `q.add(q.field("x"), someDate)`) are not encoded, because arithmetic methods are not intercepted. Arithmetic on codec fields is not a realistic pattern.
+
+3. **Both sides are raw decoded values:** `q.eq(new Date(), new Date())` without any field reference — neither side is encoded. The raw `Date` would reach `convexOrUndefinedToJson` and throw. This pattern is not useful in practice (comparing two literals without fields), but it is not guarded against.
 
 ## Affected files
 
