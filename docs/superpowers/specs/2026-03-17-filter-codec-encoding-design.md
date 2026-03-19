@@ -177,7 +177,20 @@ const isActive = <T extends GenericTableInfo>(q: FilterBuilder<T>) =>
   q.eq(q.field("status"), "active")
 
 // Still works — overload 2 matches
-ctx.db.query("users").filter(q => isActive(q))
+ctx.db.query("users").filter(isActive)
+```
+
+**Chaining both modes — use separate `.filter()` calls:**
+
+```typescript
+import type { FilterBuilder, GenericTableInfo } from 'convex/server'
+
+const isActive = <T extends GenericTableInfo>(q: FilterBuilder<T>) =>
+  q.eq(q.field("status"), "active")
+
+ctx.db.query("users")
+  .filter(isActive) // Convex-native overload
+  .filter(q => q.gte(q.field("createdAt"), new Date("2024-01-01"))) // decoded-aware overload
 ```
 
 ## Runtime: `wrapFilterBuilder` proxy
@@ -244,9 +257,15 @@ function wrapFilterBuilder(inner: any, schema: z.ZodTypeAny): any {
 
    **Workarounds:**
    - Re-type the helper to accept `ZodvexFilterBuilder` (or the table-specific `InferFilterBuilder` type)
-   - Use separate `.filter()` calls: `.filter(q => isActive(q)).filter(q => q.gte(q.field("createdAt"), new Date()))`
+   - Use separate `.filter()` calls so each callback can resolve against its own overload:
 
-   The overloaded `.filter()` ensures each callback works in its own mode — the limitation is only within a single callback that tries to use both type systems.
+     ```typescript
+     ctx.db.query("users")
+       .filter(isActive)
+       .filter(q => q.gte(q.field("createdAt"), new Date()))
+     ```
+
+   This works because each `.filter()` call resolves independently: the first callback can use the Convex-native overload, and the second can use the decoded-aware overload. The limitation is only within a single callback that tries to use both type systems.
 
 2. **Arithmetic on codec fields:** Raw values nested inside arithmetic expressions (e.g., `q.add(q.field("x"), someDate)`) are not encoded, because arithmetic methods are not intercepted. Arithmetic on codec fields is not a realistic pattern.
 
@@ -296,8 +315,9 @@ Note: example app integration tests currently blocked by `import.meta.glob` issu
 5. `q.eq(new Date(), q.field("createdAt"))` — reversed operand order type-checks
 6. `q.eq(q.field("createdAt"), "not-a-date")` — `@ts-expect-error`, Date field rejects string
 7. `q.and(q.eq(...), q.gte(...))` returns `ZodvexExpression<boolean>`
-8. Convex-native `FilterBuilder<TableInfo>` predicate accepted by `.filter()` overload 2
-9. `InferFilterBuilder<typeof schema, "users">` resolves to correct `ZodvexFilterBuilder` type
+8. Convex-native `FilterBuilder<TableInfo>` predicate accepted by `.filter()` overload 2 when passed directly as `.filter(isActive)`
+9. Chained `.filter(isActive).filter(q => q.gte(...))` works because each callback resolves independently
+10. `InferFilterBuilder<typeof schema, "users">` resolves to correct `ZodvexFilterBuilder` type
 
 ### Example app (examples/task-manager/)
 
@@ -312,4 +332,11 @@ type UsersFilter = InferFilterBuilder<typeof schema, "users">
 const createdAfter = (q: UsersFilter, date: Date) =>
   q.gte(q.field("createdAt"), date)
 ctx.db.query("users").filter(q => createdAfter(q, new Date()))
+
+// Mix legacy + decoded-aware helpers by chaining filters
+const isActive = <T extends GenericTableInfo>(q: FilterBuilder<T>) =>
+  q.eq(q.field("status"), "active")
+ctx.db.query("users")
+  .filter(isActive)
+  .filter(q => q.gte(q.field("createdAt"), new Date()))
 ```
