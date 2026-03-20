@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-17-filter-codec-encoding-design.md`
 
-**Testing approach:** All runtime tests go through `ZodvexQueryChain.filter()` — the public API. No internal functions (`wrapFilterBuilder`, `extractFieldPath`) are exported or tested directly. This keeps the public API surface clean since `server/index.ts` does `export * from '../db'`.
+**Testing approach:** All runtime tests go through `ZodvexQueryChain.filter()` — the public API. No internal functions (`wrapFilterBuilder`, `extractFieldPath`) are exported or tested directly. This keeps the public API surface clean since `server/index.ts` does `export * from '../db'`. One test uses a real Convex `filterBuilderImpl` (passed to the predicate via a mock inner query) to validate the `$field` serialization contract.
 
 ---
 
@@ -312,6 +312,52 @@ describe('filter encoding', () => {
     expect(captured[0].right).toBeNull()
   })
 })
+
+describe('filter encoding — real Convex boundary', () => {
+  it('encodes Date to timestamp through real filterBuilderImpl and produces valid serialized expression', async () => {
+    // Use real Convex filterBuilderImpl via a mock inner query that passes it
+    // to the predicate. This validates the $field serialization contract.
+    const { filterBuilderImpl } = await import(
+      // Dynamic import — relative to this test file's location in __tests__/
+      '../node_modules/convex/dist/esm/server/impl/filter_builder_impl.js'
+    )
+
+    let capturedResult: any = null
+    const mockQuery: any = {
+      fullTableScan: () => mockQuery,
+      withIndex: () => mockQuery,
+      withSearchIndex: () => mockQuery,
+      order: () => mockQuery,
+      filter: (predicate: any) => {
+        // Pass the REAL filterBuilderImpl — the proxy wraps it
+        capturedResult = predicate(filterBuilderImpl)
+        return mockQuery
+      },
+      limit: () => mockQuery,
+      first: async () => null,
+      unique: async () => null,
+      collect: async () => [],
+      take: async () => [],
+      paginate: async () => ({ page: [], isDone: true, continueCursor: '' }),
+      [Symbol.asyncIterator]: async function* () {},
+    }
+
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain
+      .filter((q: any) => q.eq(q.field('createdAt'), new Date(1700000000000)))
+      .first()
+
+    // The result is a real ExpressionImpl — verify its serialized form
+    expect(capturedResult).toBeDefined()
+    expect(capturedResult.serialize()).toEqual({
+      $eq: [
+        { $field: 'createdAt' },
+        { $literal: 1700000000000 }, // Date encoded to timestamp, then $literal-wrapped by Convex
+      ],
+    })
+  })
+})
 ```
 
 - [ ] **Step 5: Run tests**
@@ -446,10 +492,8 @@ Create `packages/zodvex/typechecks/filter-builder.test-d.ts`:
 
 ```typescript
 import type {
-  DocumentByInfo,
   ExpressionOrValue,
   FilterBuilder,
-  GenericTableInfo,
 } from 'convex/server'
 import type {
   ZodvexExpression,
@@ -478,26 +522,48 @@ type _T1 = Expect<Equal<ReturnType<QB['eq']>, ZodvexExpression<boolean>>>
 // --- Test 2: and() returns ZodvexExpression<boolean> ---
 type _T2 = Expect<Equal<ReturnType<QB['and']>, ZodvexExpression<boolean>>>
 
-// --- Test 3: Overload 2 accepts Convex-native FilterBuilder predicates ---
-// A function typed against FilterBuilder should be assignable to the
-// second .filter() overload parameter type.
-type ConvexPredicate = (q: FilterBuilder<MockTableInfo>) => ExpressionOrValue<boolean>
-type Chain = ZodvexQueryChain<MockTableInfo, MockDecodedDoc>
+// ============================================================================
+// Call-site overload resolution tests
+// These use actual call expressions to prove overloads resolve correctly.
+// ============================================================================
 
-// The chain's filter method should accept ConvexPredicate
-// (via overload 2 — TypeScript tries overload 1 first, fails because
-// FilterBuilder is not assignable to ZodvexFilterBuilder, then matches overload 2)
-type FilterAcceptsConvex = Chain['filter'] extends (pred: ConvexPredicate) => any ? true : false
-type _T3 = Expect<Equal<FilterAcceptsConvex, true>>
+declare const chain: ZodvexQueryChain<MockTableInfo, MockDecodedDoc>
 
-// --- Test 4: Overload 1 accepts decoded-aware predicates ---
-type DecodedPredicate = (q: ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>) => ZodvexExpressionOrValue<boolean>
-type FilterAcceptsDecoded = Chain['filter'] extends (pred: DecodedPredicate) => any ? true : false
-type _T4 = Expect<Equal<FilterAcceptsDecoded, true>>
+// --- Test 3: Inline decoded-aware filter compiles (overload 1) ---
+const _inlineDecoded = chain.filter(
+  (q: ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>) =>
+    q.gte(q.field('createdAt'), new Date())
+)
 
-// --- Test 5: filter() returns ZodvexQueryChain (chainable) ---
-type FilterReturn = ReturnType<Chain['filter']>
-type _T5 = Expect<Equal<FilterReturn, ZodvexQueryChain<MockTableInfo, MockDecodedDoc>>>
+// --- Test 4: Convex-native predicate compiles when passed directly (overload 2) ---
+const isNamed = (q: FilterBuilder<MockTableInfo>) =>
+  q.neq(q.field('name'), null)
+const _nativeDirect = chain.filter(isNamed)
+
+// --- Test 5: Chained filters — legacy then decoded-aware ---
+const _chained = chain
+  .filter(isNamed)
+  .filter((q: ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>) =>
+    q.gte(q.field('createdAt'), new Date())
+  )
+
+// --- Test 6: Mixed composition in single callback does NOT compile ---
+// @ts-expect-error — isNamed expects FilterBuilder, but q is ZodvexFilterBuilder
+const _mixedFail = chain.filter(
+  (q: ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>) =>
+    q.and(isNamed(q), q.gte(q.field('createdAt'), new Date()))
+)
+
+// --- Test 7: filter() returns ZodvexQueryChain (chainable) ---
+type FilterReturn = typeof _inlineDecoded
+type _T7 = Expect<Equal<FilterReturn, ZodvexQueryChain<MockTableInfo, MockDecodedDoc>>>
+
+// --- Test 8: Type error for wrong value type ---
+// @ts-expect-error — createdAt resolves to Date, "not-a-date" is string
+const _wrongType = chain.filter(
+  (q: ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>) =>
+    q.eq(q.field('createdAt'), 'not-a-date')
+)
 ```
 
 - [ ] **Step 5: Run type-check**
@@ -628,9 +694,8 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 Create `examples/task-manager/convex/filters.ts`:
 
 ```typescript
-import { z } from 'zod'
-import type { FilterBuilder, GenericTableInfo } from 'convex/server'
-import type { InferFilterBuilder } from 'zodvex/server'
+import type { FilterBuilder } from 'convex/server'
+import type { InferFilterBuilder, InferTableInfo } from 'zodvex/server'
 import { zx } from 'zodvex/core'
 import { zq } from './functions'
 import schema from './schema'
@@ -664,16 +729,20 @@ export const recentUsersWithHelper = zq({
 })
 
 // --- Chained filters mixing legacy + decoded-aware ---
-// Legacy helper uses Convex's FilterBuilder — works on any table with a 'name' field
-const hasName = <T extends GenericTableInfo>(q: FilterBuilder<T>) =>
-  q.neq(q.field('name' as any), null)
+// Legacy helper typed against Convex's FilterBuilder for the users table.
+// Uses InferTableInfo so the field paths are correctly constrained —
+// no `as any` needed. This proves the overload compatibility story.
+type UsersTableInfo = InferTableInfo<typeof schema, 'users'>
 
-export const namedRecentUsers = zq({
+const hasEmail = (q: FilterBuilder<UsersTableInfo>) =>
+  q.neq(q.field('email.value'), null)
+
+export const usersWithEmailRecent = zq({
   args: { after: zx.date() },
   handler: async (ctx, { after }) => {
     return await ctx.db
       .query('users')
-      .filter(hasName)                                                // Convex-native overload
+      .filter(hasEmail)                                               // Convex-native overload
       .filter(q => q.gte(q.field('createdAt'), after))                // decoded-aware overload
       .collect()
   },
