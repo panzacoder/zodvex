@@ -529,23 +529,19 @@ type _T2 = Expect<Equal<ReturnType<QB['and']>, ZodvexExpression<boolean>>>
 
 declare const chain: ZodvexQueryChain<MockTableInfo, MockDecodedDoc>
 
-// --- Test 3: Inline decoded-aware filter compiles (overload 1) ---
-const _inlineDecoded = chain.filter(
-  (q: ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>) =>
-    q.gte(q.field('createdAt'), new Date())
-)
+// --- Test 3: Inline decoded-aware filter compiles WITHOUT annotation (overload 1) ---
+// This is the core DX test — q's type is inferred from the overload, not annotated.
+const _inlineDecoded = chain.filter(q => q.gte(q.field('createdAt'), new Date()))
 
 // --- Test 4: Convex-native predicate compiles when passed directly (overload 2) ---
 const isNamed = (q: FilterBuilder<MockTableInfo>) =>
   q.neq(q.field('name'), null)
 const _nativeDirect = chain.filter(isNamed)
 
-// --- Test 5: Chained filters — legacy then decoded-aware ---
+// --- Test 5: Chained filters — legacy then decoded-aware (no annotation) ---
 const _chained = chain
   .filter(isNamed)
-  .filter((q: ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>) =>
-    q.gte(q.field('createdAt'), new Date())
-  )
+  .filter(q => q.gte(q.field('createdAt'), new Date()))
 
 // --- Test 6: Mixed composition in single callback does NOT compile ---
 // @ts-expect-error — isNamed expects FilterBuilder, but q is ZodvexFilterBuilder
@@ -734,15 +730,15 @@ export const recentUsersWithHelper = zq({
 // no `as any` needed. This proves the overload compatibility story.
 type UsersTableInfo = InferTableInfo<typeof schema, 'users'>
 
-const hasEmail = (q: FilterBuilder<UsersTableInfo>) =>
-  q.neq(q.field('email.value'), null)
+const hasName = (q: FilterBuilder<UsersTableInfo>) =>
+  q.neq(q.field('name'), '')
 
-export const usersWithEmailRecent = zq({
+export const namedRecentUsers = zq({
   args: { after: zx.date() },
   handler: async (ctx, { after }) => {
     return await ctx.db
       .query('users')
-      .filter(hasEmail)                                               // Convex-native overload
+      .filter(hasName)                                                // Convex-native overload
       .filter(q => q.gte(q.field('createdAt'), after))                // decoded-aware overload
       .collect()
   },
