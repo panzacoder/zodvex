@@ -1,15 +1,15 @@
 import {
+  type DataModelFromSchemaDefinition,
   defineSchema,
   defineTable,
-  type DataModelFromSchemaDefinition,
   type NamedTableInfo,
   type TableDefinition,
   type TableNamesInDataModel
 } from 'convex/server'
 import type { ObjectType, VObject } from 'convex/values'
 import type { z } from 'zod'
-import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 import type { ZodvexFilterBuilder } from './db'
+import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 import type { SearchIndexConfig, VectorIndexConfig } from './model'
 
 /**
