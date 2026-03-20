@@ -1,6 +1,7 @@
 import type {
   DocumentByInfo,
   ExpressionOrValue,
+  FieldPaths,
   FieldTypeFromFieldPath,
   FilterBuilder,
   GenericDatabaseReader,
@@ -21,7 +22,7 @@ import type {
   SearchIndexNames,
   TableNamesInDataModel
 } from 'convex/server'
-import type { GenericId } from 'convex/values'
+import type { GenericId, NumericValue } from 'convex/values'
 import { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
 import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './rules'
@@ -40,7 +41,7 @@ import type { ZodTableMap } from './schema'
  *   so codec fields accept decoded values (e.g., Date instead of number).
  * - Everything else: fall back to wire type via FieldTypeFromFieldPath.
  */
-type ZodvexIndexFieldValue<
+export type ZodvexIndexFieldValue<
   WireDoc extends GenericDocument,
   DecodedDoc,
   FieldPath extends string
@@ -111,6 +112,56 @@ export interface ZodvexUpperBoundBuilder<
     fieldName: IndexFieldName,
     value: ZodvexIndexFieldValue<WireDoc, DecodedDoc, IndexFieldName>
   ): IndexRange
+}
+
+// ============================================================================
+// Filter builder types — decoded-aware replacements for Convex's FilterBuilder
+// ============================================================================
+
+declare const _zodvexExpr: unique symbol
+export type ZodvexExpression<T> = { readonly [_zodvexExpr]: T }
+export type ZodvexExpressionOrValue<T> = ZodvexExpression<T> | T
+
+export interface ZodvexFilterBuilder<
+  TableInfo extends GenericTableInfo,
+  Doc = DocumentByInfo<TableInfo>
+> {
+  field<FP extends FieldPaths<TableInfo>>(
+    fieldPath: FP
+  ): ZodvexExpression<ZodvexIndexFieldValue<DocumentByInfo<TableInfo>, Doc, FP>>
+
+  eq<T>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<boolean>
+  neq<T>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<boolean>
+  lt<T>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<boolean>
+  lte<T>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<boolean>
+  gt<T>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<boolean>
+  gte<T>(l: ZodvexExpressionOrValue<T>, r: ZodvexExpressionOrValue<T>): ZodvexExpression<boolean>
+
+  and(...exprs: ZodvexExpressionOrValue<boolean>[]): ZodvexExpression<boolean>
+  or(...exprs: ZodvexExpressionOrValue<boolean>[]): ZodvexExpression<boolean>
+  not(x: ZodvexExpressionOrValue<boolean>): ZodvexExpression<boolean>
+
+  add<T extends NumericValue>(
+    l: ZodvexExpressionOrValue<T>,
+    r: ZodvexExpressionOrValue<T>
+  ): ZodvexExpression<T>
+  sub<T extends NumericValue>(
+    l: ZodvexExpressionOrValue<T>,
+    r: ZodvexExpressionOrValue<T>
+  ): ZodvexExpression<T>
+  mul<T extends NumericValue>(
+    l: ZodvexExpressionOrValue<T>,
+    r: ZodvexExpressionOrValue<T>
+  ): ZodvexExpression<T>
+  div<T extends NumericValue>(
+    l: ZodvexExpressionOrValue<T>,
+    r: ZodvexExpressionOrValue<T>
+  ): ZodvexExpression<T>
+  mod<T extends NumericValue>(
+    l: ZodvexExpressionOrValue<T>,
+    r: ZodvexExpressionOrValue<T>
+  ): ZodvexExpression<T>
+  neg<T extends NumericValue>(x: ZodvexExpressionOrValue<T>): ZodvexExpression<T>
 }
 
 /**
@@ -278,9 +329,16 @@ export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = Document
     return this.createChain(this.inner.order(order))
   }
 
+  // Overload 1: decoded-aware predicate (tried first)
+  filter(
+    predicate: (q: ZodvexFilterBuilder<TableInfo, Doc>) => ZodvexExpressionOrValue<boolean>
+  ): ZodvexQueryChain<TableInfo, Doc>
+  // Overload 2: Convex-native predicate (backwards compatible)
   filter(
     predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
-  ): ZodvexQueryChain<TableInfo, Doc> {
+  ): ZodvexQueryChain<TableInfo, Doc>
+  // Implementation
+  filter(predicate: any): ZodvexQueryChain<TableInfo, Doc> {
     const wrappedPredicate = (q: any) => predicate(wrapFilterBuilder(q, this.schema))
     return this.createChain(this.inner.filter(wrappedPredicate))
   }
