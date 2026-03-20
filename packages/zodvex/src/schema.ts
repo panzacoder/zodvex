@@ -1,7 +1,15 @@
-import { defineSchema, defineTable, type TableDefinition } from 'convex/server'
+import {
+  defineSchema,
+  defineTable,
+  type DataModelFromSchemaDefinition,
+  type NamedTableInfo,
+  type TableDefinition,
+  type TableNamesInDataModel
+} from 'convex/server'
 import type { ObjectType, VObject } from 'convex/values'
 import type { z } from 'zod'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
+import type { ZodvexFilterBuilder } from './db'
 import type { SearchIndexConfig, VectorIndexConfig } from './model'
 
 /**
@@ -223,3 +231,33 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
   const result = Object.assign(convexSchema, { __zodTableMap: zodTableMap })
   return result as typeof result & { __decodedDocs: DecodedDocFor<T> }
 }
+
+// ============================================================================
+// Schema-derived helper types
+// ============================================================================
+
+/** Extract the DataModel from a defineZodSchema result */
+export type InferDataModel<Schema extends ReturnType<typeof defineZodSchema>> =
+  DataModelFromSchemaDefinition<Schema>
+
+/** Extract TableInfo for a specific table */
+export type InferTableInfo<
+  Schema extends ReturnType<typeof defineZodSchema>,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
+> = NamedTableInfo<InferDataModel<Schema>, TableName>
+
+/** Extract the decoded document type for a specific table */
+export type InferDecodedDoc<
+  Schema extends ReturnType<typeof defineZodSchema>,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
+> = Schema extends { __decodedDocs: infer DD }
+  ? TableName extends keyof DD
+    ? DD[TableName]
+    : never
+  : never
+
+/** A ZodvexFilterBuilder typed for a specific table */
+export type InferFilterBuilder<
+  Schema extends ReturnType<typeof defineZodSchema>,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
+> = ZodvexFilterBuilder<InferTableInfo<Schema, TableName>, InferDecodedDoc<Schema, TableName>>
