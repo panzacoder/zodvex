@@ -10,215 +10,21 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-17-filter-codec-encoding-design.md`
 
+**Testing approach:** All runtime tests go through `ZodvexQueryChain.filter()` — the public API. No internal functions (`wrapFilterBuilder`, `extractFieldPath`) are exported or tested directly. This keeps the public API surface clean since `server/index.ts` does `export * from '../db'`.
+
 ---
 
-## Task 0: Runtime — `extractFieldPath` + `wrapFilterBuilder`
+## Task 0: Runtime — `extractFieldPath`, `wrapFilterBuilder`, and `.filter()` integration
 
 **Files:**
-- Modify: `packages/zodvex/src/db.ts` (add after `wrapIndexRangeBuilder` at ~line 163)
+- Modify: `packages/zodvex/src/db.ts` (add functions after `wrapIndexRangeBuilder` at ~line 163, update `filter()` method at lines 251-255)
+- Modify: `packages/zodvex/__tests__/db.test.ts` (add tests after line 809)
 
-- [ ] **Step 1: Write failing runtime tests**
+### Step group A: Implementation
 
-Add to `packages/zodvex/__tests__/db.test.ts` after the `withSearchIndex encoding` describe block (after line 809). First, add a mock filter builder factory before the new describe block:
+- [ ] **Step 1: Add `extractFieldPath` and `wrapFilterBuilder` to `db.ts`**
 
-```typescript
-/**
- * Creates a mock FilterBuilder that simulates Convex's expression API.
- * field() returns objects with serialize() matching ExpressionImpl behavior.
- * Comparison methods capture their arguments after any proxy encoding.
- */
-function createFilterCapturingMock() {
-  const captured: { method: string; left: any; right: any }[] = []
-
-  // Simulate ExpressionImpl — serialize() returns the inner JSON
-  function makeExpr(inner: any) {
-    return {
-      serialize: () => inner,
-      _isExpression: undefined,
-    }
-  }
-
-  const mockFilterBuilder: any = {
-    field: (fieldPath: string) => makeExpr({ $field: fieldPath }),
-    eq: (l: any, r: any) => {
-      captured.push({ method: 'eq', left: l, right: r })
-      return makeExpr({ $eq: [l, r] })
-    },
-    neq: (l: any, r: any) => {
-      captured.push({ method: 'neq', left: l, right: r })
-      return makeExpr({ $neq: [l, r] })
-    },
-    lt: (l: any, r: any) => {
-      captured.push({ method: 'lt', left: l, right: r })
-      return makeExpr({ $lt: [l, r] })
-    },
-    lte: (l: any, r: any) => {
-      captured.push({ method: 'lte', left: l, right: r })
-      return makeExpr({ $lte: [l, r] })
-    },
-    gt: (l: any, r: any) => {
-      captured.push({ method: 'gt', left: l, right: r })
-      return makeExpr({ $gt: [l, r] })
-    },
-    gte: (l: any, r: any) => {
-      captured.push({ method: 'gte', left: l, right: r })
-      return makeExpr({ $gte: [l, r] })
-    },
-    and: (...exprs: any[]) => makeExpr({ $and: exprs }),
-    or: (...exprs: any[]) => makeExpr({ $or: exprs }),
-    not: (x: any) => makeExpr({ $not: x }),
-  }
-
-  return { mockFilterBuilder, captured }
-}
-```
-
-Then the test suite — note: `wrapFilterBuilder` is not exported yet, so these tests will import it after we add it. For now write them referencing the import that will exist:
-
-```typescript
-// Import at top of file — add alongside existing imports:
-// import { wrapFilterBuilder } from '../src/db'
-// (or test through ZodvexQueryChain.filter() once integrated)
-
-describe('filter encoding', () => {
-  it('encodes a codec field (zx.date) via eq(field, value)', () => {
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, userDocSchema)
-
-    const fieldExpr = wrapped.field('createdAt')
-    wrapped.eq(fieldExpr, new Date(1700000000000))
-
-    expect(captured).toHaveLength(1)
-    expect(captured[0].method).toBe('eq')
-    // left should be the field expression (unchanged)
-    expect(captured[0].left.serialize()).toEqual({ $field: 'createdAt' })
-    // right should be encoded from Date to timestamp
-    expect(captured[0].right).toBe(1700000000000)
-  })
-
-  it('passes through non-codec field values unchanged', () => {
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, userDocSchema)
-
-    wrapped.eq(wrapped.field('name'), 'Alice')
-
-    expect(captured).toHaveLength(1)
-    expect(captured[0].right).toBe('Alice')
-  })
-
-  it('passes through dot-path values unchanged', () => {
-    const objectCodecDocSchema = z.object({
-      _id: z.string(),
-      _creationTime: z.number(),
-      email: zodvexCodec(
-        z.object({ value: z.string(), encrypted: z.string() }),
-        z.custom<{ expose: () => string }>(() => true),
-        {
-          decode: (wire: any) => ({ expose: () => wire.value }),
-          encode: (rt: any) => ({ value: rt.expose(), encrypted: 'enc' }),
-        }
-      ),
-    })
-
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, objectCodecDocSchema)
-
-    wrapped.eq(wrapped.field('email.value'), 'alice@example.com')
-
-    expect(captured).toHaveLength(1)
-    expect(captured[0].right).toBe('alice@example.com')
-  })
-
-  it('encodes multiple comparisons inside and()', () => {
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, userDocSchema)
-
-    const date1 = new Date(1700000000000)
-    const date2 = new Date(1700100000000)
-    wrapped.and(
-      wrapped.gte(wrapped.field('createdAt'), date1),
-      wrapped.lt(wrapped.field('createdAt'), date2)
-    )
-
-    expect(captured).toHaveLength(2)
-    expect(captured[0]).toMatchObject({ method: 'gte', right: 1700000000000 })
-    expect(captured[1]).toMatchObject({ method: 'lt', right: 1700100000000 })
-  })
-
-  it('encodes discriminator literals on union schema', () => {
-    const unionDocSchema = z.discriminatedUnion('kind', [
-      z.object({ _id: z.string(), _creationTime: z.number(), kind: z.literal('email'), createdAt: zx.date() }),
-      z.object({ _id: z.string(), _creationTime: z.number(), kind: z.literal('push'), createdAt: zx.date() }),
-    ])
-
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, unionDocSchema)
-
-    wrapped.eq(wrapped.field('kind'), 'push')
-
-    expect(captured).toHaveLength(1)
-    expect(captured[0].right).toBe('push')
-  })
-
-  it('encodes via neq()', () => {
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, userDocSchema)
-
-    wrapped.neq(wrapped.field('createdAt'), new Date(1700000000000))
-
-    expect(captured).toHaveLength(1)
-    expect(captured[0].method).toBe('neq')
-    expect(captured[0].right).toBe(1700000000000)
-  })
-
-  it('does not intercept and/or/not', () => {
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, userDocSchema)
-
-    const expr1 = wrapped.eq(wrapped.field('name'), 'Alice')
-    const expr2 = wrapped.eq(wrapped.field('name'), 'Bob')
-    const result = wrapped.and(expr1, expr2)
-
-    // and() should return an expression, not be captured as a comparison
-    expect(result.serialize()).toBeDefined()
-    // Only the two eq() calls should be captured
-    expect(captured).toHaveLength(2)
-  })
-
-  it('encodes reversed operand order (value, field)', () => {
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, userDocSchema)
-
-    wrapped.eq(new Date(1700000000000), wrapped.field('createdAt'))
-
-    expect(captured).toHaveLength(1)
-    // left should be encoded (was Date, now number)
-    expect(captured[0].left).toBe(1700000000000)
-    // right should be the field expression (unchanged)
-    expect(captured[0].right.serialize()).toEqual({ $field: 'createdAt' })
-  })
-
-  it('passes through null comparison unchanged', () => {
-    const { mockFilterBuilder, captured } = createFilterCapturingMock()
-    const wrapped = wrapFilterBuilder(mockFilterBuilder, userDocSchema)
-
-    wrapped.eq(wrapped.field('name'), null)
-
-    expect(captured).toHaveLength(1)
-    expect(captured[0].right).toBeNull()
-  })
-})
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `bun test packages/zodvex/__tests__/db.test.ts`
-
-Expected: FAIL — `wrapFilterBuilder` is not defined/exported yet.
-
-- [ ] **Step 3: Implement `extractFieldPath` and `wrapFilterBuilder`**
-
-In `packages/zodvex/src/db.ts`, add after the `wrapIndexRangeBuilder` function (after line ~163):
+In `packages/zodvex/src/db.ts`, add after the `wrapIndexRangeBuilder` function (after line ~163). These are module-private functions — NOT exported.
 
 ```typescript
 /**
@@ -269,139 +75,297 @@ function wrapFilterBuilder(inner: any, schema: z.ZodTypeAny): any {
 }
 ```
 
-The function must be exported for testing. Add `export` keyword:
+- [ ] **Step 2: Update `ZodvexQueryChain.filter()` to use `wrapFilterBuilder`**
+
+In `packages/zodvex/src/db.ts`, replace the `filter` method at lines 251-255:
 
 ```typescript
-/** @internal Exported for testing only — not part of the public API. */
-export function wrapFilterBuilder(inner: any, schema: z.ZodTypeAny): any {
+  filter(
+    predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
+  ): ZodvexQueryChain<TableInfo, Doc> {
+    return this.createChain(this.inner.filter(predicate))
+  }
 ```
 
-Also export `ZodvexIndexFieldValue` (currently unexported at line 43) for use in type tests:
+with (implementation only for now — overloads added in Task 2):
 
 ```typescript
-export type ZodvexIndexFieldValue<
+  filter(
+    predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
+  ): ZodvexQueryChain<TableInfo, Doc> {
+    const wrappedPredicate = (q: any) => predicate(wrapFilterBuilder(q, this.schema))
+    return this.createChain(this.inner.filter(wrappedPredicate))
+  }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+### Step group B: Tests through `ZodvexQueryChain.filter()`
 
-Run: `bun test packages/zodvex/__tests__/db.test.ts`
+- [ ] **Step 3: Add filter-capturing mock query helper**
 
-Expected: PASS — all 9 filter encoding tests pass.
+Add to `packages/zodvex/__tests__/db.test.ts` after the `withSearchIndex encoding` describe block (after line 809). This creates a mock query whose `filter()` passes a mock `filterBuilderImpl` to the predicate and captures what the proxy does:
 
-- [ ] **Step 5: Commit**
+```typescript
+/**
+ * Creates a mock query with a filter builder that simulates Convex's expression API.
+ * field() returns objects with serialize() matching ExpressionImpl behavior.
+ * Comparison methods capture their arguments AFTER any proxy encoding.
+ */
+function createFilterCapturingMockQuery(docs: any[]) {
+  const captured: { method: string; left: any; right: any }[] = []
 
-```bash
-git add packages/zodvex/src/db.ts packages/zodvex/__tests__/db.test.ts
-git commit -m "feat: add wrapFilterBuilder with codec encoding for filter comparisons
+  function makeExpr(inner: any) {
+    return {
+      serialize: () => inner,
+      _isExpression: undefined,
+    }
+  }
 
-Proxy intercepts eq/neq/lt/lte/gt/gte on FilterBuilder. When one arg
-is a \$field expression and the other is a raw value, encodes through
-encodeIndexValue. Reuses existing object + union schema encoding.
+  const mockFilterBuilder: any = {
+    field: (fieldPath: string) => makeExpr({ $field: fieldPath }),
+    eq: (l: any, r: any) => { captured.push({ method: 'eq', left: l, right: r }); return makeExpr({ $eq: [l, r] }) },
+    neq: (l: any, r: any) => { captured.push({ method: 'neq', left: l, right: r }); return makeExpr({ $neq: [l, r] }) },
+    lt: (l: any, r: any) => { captured.push({ method: 'lt', left: l, right: r }); return makeExpr({ $lt: [l, r] }) },
+    lte: (l: any, r: any) => { captured.push({ method: 'lte', left: l, right: r }); return makeExpr({ $lte: [l, r] }) },
+    gt: (l: any, r: any) => { captured.push({ method: 'gt', left: l, right: r }); return makeExpr({ $gt: [l, r] }) },
+    gte: (l: any, r: any) => { captured.push({ method: 'gte', left: l, right: r }); return makeExpr({ $gte: [l, r] }) },
+    and: (...exprs: any[]) => makeExpr({ $and: exprs }),
+    or: (...exprs: any[]) => makeExpr({ $or: exprs }),
+    not: (x: any) => makeExpr({ $not: x }),
+  }
 
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
+  const mockQuery: any = {
+    fullTableScan: () => mockQuery,
+    withIndex: () => mockQuery,
+    withSearchIndex: () => mockQuery,
+    order: () => mockQuery,
+    filter: (_name: string, predicate?: any) => {
+      // Convex's filter() takes a predicate callback and passes the filter builder to it
+      // ZodvexQueryChain.filter() wraps this — it passes the predicate to inner.filter()
+      // which calls predicate(filterBuilder). The proxy intercepts this.
+      if (typeof _name === 'function') {
+        _name(mockFilterBuilder)
+      }
+      return mockQuery
+    },
+    limit: () => mockQuery,
+    first: async () => docs[0] ?? null,
+    unique: async () => docs[0] ?? null,
+    collect: async () => docs,
+    take: async (n: number) => docs.slice(0, n),
+    paginate: async () => ({ page: docs, isDone: true, continueCursor: 'cursor' }),
+    [Symbol.asyncIterator]: async function* () {
+      for (const doc of docs) yield doc
+    },
+  }
+
+  return { mockQuery, mockFilterBuilder, captured }
+}
 ```
 
----
+Note: The mock `filter()` receives the predicate function (not a string) because Convex's real `filter()` takes `(predicate: (q: FilterBuilder) => ExpressionOrValue<boolean>)`. The first parameter `_name` is actually the predicate callback.
 
-## Task 1: Runtime — real Convex boundary test
-
-**Files:**
-- Modify: `packages/zodvex/__tests__/db.test.ts`
-
-- [ ] **Step 1: Write boundary test using real Convex ExpressionImpl**
+- [ ] **Step 4: Write filter encoding tests**
 
 Add to `packages/zodvex/__tests__/db.test.ts`:
 
 ```typescript
-describe('filter encoding — real Convex boundary', () => {
-  it('encodes values through real filterBuilderImpl and produces valid serialized expressions', async () => {
-    // Dynamic import of Convex internal — pinned to convex >=1.28
-    const { filterBuilderImpl } = await import(
-      '../node_modules/convex/dist/esm/server/impl/filter_builder_impl.js'
-    )
+describe('filter encoding', () => {
+  it('encodes a codec field (zx.date) via eq(field, value)', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
 
-    const wrapped = wrapFilterBuilder(filterBuilderImpl, userDocSchema)
+    await chain
+      .filter((q: any) => q.eq(q.field('createdAt'), new Date(1700000000000)))
+      .first()
 
-    // Build: eq(field("createdAt"), new Date(...))
-    const fieldExpr = wrapped.field('createdAt')
-    const eqExpr = wrapped.eq(fieldExpr, new Date(1700000000000))
-
-    // The result should be a real ExpressionImpl with valid serialized JSON
-    const serialized = eqExpr.serialize()
-    expect(serialized).toEqual({
-      $eq: [
-        { $field: 'createdAt' },
-        { $literal: 1700000000000 }, // Date encoded to timestamp, then wrapped in $literal by Convex
-      ],
-    })
+    expect(captured).toHaveLength(1)
+    expect(captured[0].method).toBe('eq')
+    expect(captured[0].left.serialize()).toEqual({ $field: 'createdAt' })
+    expect(captured[0].right).toBe(1700000000000)
   })
 
-  it('non-codec fields serialize correctly through real filterBuilderImpl', async () => {
-    const { filterBuilderImpl } = await import(
-      '../node_modules/convex/dist/esm/server/impl/filter_builder_impl.js'
-    )
+  it('passes through non-codec field values unchanged', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
 
-    const wrapped = wrapFilterBuilder(filterBuilderImpl, userDocSchema)
-    const expr = wrapped.eq(wrapped.field('name'), 'Alice')
+    await chain
+      .filter((q: any) => q.eq(q.field('name'), 'Alice'))
+      .first()
 
-    expect(expr.serialize()).toEqual({
-      $eq: [
-        { $field: 'name' },
-        { $literal: 'Alice' },
-      ],
+    expect(captured).toHaveLength(1)
+    expect(captured[0].right).toBe('Alice')
+  })
+
+  it('passes through dot-path values unchanged', async () => {
+    const objectCodecDocSchema = z.object({
+      _id: z.string(),
+      _creationTime: z.number(),
+      email: zodvexCodec(
+        z.object({ value: z.string(), encrypted: z.string() }),
+        z.custom<{ expose: () => string }>(() => true),
+        {
+          decode: (wire: any) => ({ expose: () => wire.value }),
+          encode: (rt: any) => ({ value: rt.expose(), encrypted: 'enc' }),
+        }
+      ),
     })
+
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, objectCodecDocSchema)
+
+    await chain
+      .filter((q: any) => q.eq(q.field('email.value'), 'alice@example.com'))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].right).toBe('alice@example.com')
+  })
+
+  it('encodes multiple comparisons inside and()', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain
+      .filter((q: any) =>
+        q.and(
+          q.gte(q.field('createdAt'), new Date(1700000000000)),
+          q.lt(q.field('createdAt'), new Date(1700100000000))
+        )
+      )
+      .first()
+
+    expect(captured).toHaveLength(2)
+    expect(captured[0]).toMatchObject({ method: 'gte', right: 1700000000000 })
+    expect(captured[1]).toMatchObject({ method: 'lt', right: 1700100000000 })
+  })
+
+  it('encodes discriminator literals on union schema', async () => {
+    const unionDocSchema = z.discriminatedUnion('kind', [
+      z.object({ _id: z.string(), _creationTime: z.number(), kind: z.literal('email'), createdAt: zx.date() }),
+      z.object({ _id: z.string(), _creationTime: z.number(), kind: z.literal('push'), createdAt: zx.date() }),
+    ])
+
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, unionDocSchema)
+
+    await chain
+      .filter((q: any) => q.eq(q.field('kind'), 'push'))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].right).toBe('push')
+  })
+
+  it('encodes via neq()', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain
+      .filter((q: any) => q.neq(q.field('createdAt'), new Date(1700000000000)))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].method).toBe('neq')
+    expect(captured[0].right).toBe(1700000000000)
+  })
+
+  it('does not intercept and/or/not', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain
+      .filter((q: any) => {
+        const expr1 = q.eq(q.field('name'), 'Alice')
+        const expr2 = q.eq(q.field('name'), 'Bob')
+        return q.and(expr1, expr2)
+      })
+      .first()
+
+    // Only the two eq() calls should be captured, not and()
+    expect(captured).toHaveLength(2)
+  })
+
+  it('encodes reversed operand order (value, field)', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain
+      .filter((q: any) => q.eq(new Date(1700000000000), q.field('createdAt')))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].left).toBe(1700000000000)
+    expect(captured[0].right.serialize()).toEqual({ $field: 'createdAt' })
+  })
+
+  it('passes through null for fields without a schema entry', async () => {
+    // Use a schema where the queried field is not in the shape —
+    // encodeIndexValue falls through to return value unchanged
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+
+    await chain
+      .filter((q: any) => q.eq(q.field('unknownField'), null))
+      .first()
+
+    expect(captured).toHaveLength(1)
+    expect(captured[0].right).toBeNull()
   })
 })
 ```
 
-- [ ] **Step 2: Run tests to verify they pass**
+- [ ] **Step 5: Run tests**
 
 Run: `bun test packages/zodvex/__tests__/db.test.ts`
 
-Expected: PASS — the real Convex `ExpressionImpl` serializes the encoded values correctly.
+Expected: PASS — all filter encoding tests pass through `ZodvexQueryChain.filter()`.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add packages/zodvex/__tests__/db.test.ts
-git commit -m "test: add real Convex boundary test for filter encoding
+git add packages/zodvex/src/db.ts packages/zodvex/__tests__/db.test.ts
+git commit -m "feat: add filter codec encoding via wrapFilterBuilder proxy
 
-Validates extractFieldPath and wrapFilterBuilder against actual
-ExpressionImpl.serialize() behavior, not just mocks.
+Proxy intercepts eq/neq/lt/lte/gt/gte on FilterBuilder. When one arg
+is a \$field expression and the other is a raw value, encodes through
+encodeIndexValue. Internal functions not exported — tested through
+ZodvexQueryChain.filter() public API.
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 2: Types — `ZodvexExpression`, `ZodvexFilterBuilder`, filter overloads
+## Task 1: Types — `ZodvexExpression`, `ZodvexFilterBuilder`, filter overloads
 
 **Files:**
-- Modify: `packages/zodvex/src/db.ts` (add types + update filter method)
+- Modify: `packages/zodvex/src/db.ts` (add types + update filter method with overloads)
 - Create: `packages/zodvex/typechecks/filter-builder.test-d.ts`
 
-- [ ] **Step 1: Add type definitions to `db.ts`**
+- [ ] **Step 1: Add imports to `db.ts`**
 
-Add the `FieldPaths` import at the top of `packages/zodvex/src/db.ts` (line 1-23). Add `FieldPaths` to the existing import block:
+Add `FieldPaths` to the existing `convex/server` import at lines 1-23:
 
 ```typescript
 import type {
   DocumentByInfo,
   ExpressionOrValue,
-  FieldPaths,             // ← ADD THIS
+  FieldPaths,             // ← ADD
   FieldTypeFromFieldPath,
   FilterBuilder,
   // ... rest unchanged
 } from 'convex/server'
 ```
 
-Also add `NumericValue` import from `convex/values`:
+Add `NumericValue` to the `convex/values` import at line 24:
 
 ```typescript
 import type { GenericId, NumericValue } from 'convex/values'
 ```
 
-Then add the type definitions after the existing `ZodvexUpperBoundBuilder` interface (after line ~114, before `encodeIndexValue`):
+- [ ] **Step 2: Add type definitions to `db.ts`**
+
+Add after the existing `ZodvexUpperBoundBuilder` interface (after line ~114, before `encodeIndexValue`):
 
 ```typescript
 // ============================================================================
@@ -456,19 +420,9 @@ export interface ZodvexFilterBuilder<
 }
 ```
 
-- [ ] **Step 2: Update `ZodvexQueryChain.filter()` with overloads**
+- [ ] **Step 3: Update `filter()` with overloads**
 
-In `packages/zodvex/src/db.ts`, replace the `filter` method at lines 251-255:
-
-```typescript
-  filter(
-    predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
-  ): ZodvexQueryChain<TableInfo, Doc> {
-    return this.createChain(this.inner.filter(predicate))
-  }
-```
-
-with:
+Replace the `filter` method (updated in Task 0) with overloaded version:
 
 ```typescript
   // Overload 1: decoded-aware predicate (tried first)
@@ -486,7 +440,7 @@ with:
   }
 ```
 
-- [ ] **Step 3: Write type tests**
+- [ ] **Step 4: Write type tests**
 
 Create `packages/zodvex/typechecks/filter-builder.test-d.ts`:
 
@@ -494,16 +448,18 @@ Create `packages/zodvex/typechecks/filter-builder.test-d.ts`:
 import type {
   DocumentByInfo,
   ExpressionOrValue,
-  FieldPaths,
   FilterBuilder,
   GenericTableInfo,
 } from 'convex/server'
-import type { ZodvexExpression, ZodvexExpressionOrValue, ZodvexFilterBuilder } from '../src/db'
-import type { ZodvexIndexFieldValue } from '../src/db'
+import type {
+  ZodvexExpression,
+  ZodvexExpressionOrValue,
+  ZodvexFilterBuilder,
+  ZodvexQueryChain,
+} from '../src/db'
 import type { Equal, Expect } from './test-helpers'
 
 // --- Mock table types for testing ---
-// Simulates a table with a zx.date() codec field (createdAt) and a string field (name)
 type MockDoc = { _id: string; _creationTime: number; name: string; createdAt: number }
 type MockDecodedDoc = { _id: string; _creationTime: number; name: string; createdAt: Date }
 type MockTableInfo = {
@@ -516,47 +472,53 @@ type MockTableInfo = {
 
 type QB = ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>
 
-// --- Test 1: ZodvexIndexFieldValue resolves decoded type for codec fields ---
-type _T1 = Expect<Equal<
-  ZodvexIndexFieldValue<MockDoc, MockDecodedDoc, 'createdAt'>,
-  Date
->>
+// --- Test 1: eq() returns ZodvexExpression<boolean> ---
+type _T1 = Expect<Equal<ReturnType<QB['eq']>, ZodvexExpression<boolean>>>
 
-// --- Test 2: field() returns ZodvexExpression with wire type for non-codec fields ---
-type _T2 = Expect<Equal<
-  ZodvexIndexFieldValue<MockDoc, MockDecodedDoc, 'name'>,
-  string
->>
+// --- Test 2: and() returns ZodvexExpression<boolean> ---
+type _T2 = Expect<Equal<ReturnType<QB['and']>, ZodvexExpression<boolean>>>
 
-// --- Test 3: eq() returns ZodvexExpression<boolean> ---
-// (validated structurally — eq's return type should carry boolean)
-type EqReturn = ReturnType<QB['eq']>
-type _T3 = Expect<Equal<EqReturn, ZodvexExpression<boolean>>>
+// --- Test 3: Overload 2 accepts Convex-native FilterBuilder predicates ---
+// A function typed against FilterBuilder should be assignable to the
+// second .filter() overload parameter type.
+type ConvexPredicate = (q: FilterBuilder<MockTableInfo>) => ExpressionOrValue<boolean>
+type Chain = ZodvexQueryChain<MockTableInfo, MockDecodedDoc>
 
-// --- Test 4: and() returns ZodvexExpression<boolean> ---
-type AndReturn = ReturnType<QB['and']>
-type _T4 = Expect<Equal<AndReturn, ZodvexExpression<boolean>>>
+// The chain's filter method should accept ConvexPredicate
+// (via overload 2 — TypeScript tries overload 1 first, fails because
+// FilterBuilder is not assignable to ZodvexFilterBuilder, then matches overload 2)
+type FilterAcceptsConvex = Chain['filter'] extends (pred: ConvexPredicate) => any ? true : false
+type _T3 = Expect<Equal<FilterAcceptsConvex, true>>
+
+// --- Test 4: Overload 1 accepts decoded-aware predicates ---
+type DecodedPredicate = (q: ZodvexFilterBuilder<MockTableInfo, MockDecodedDoc>) => ZodvexExpressionOrValue<boolean>
+type FilterAcceptsDecoded = Chain['filter'] extends (pred: DecodedPredicate) => any ? true : false
+type _T4 = Expect<Equal<FilterAcceptsDecoded, true>>
+
+// --- Test 5: filter() returns ZodvexQueryChain (chainable) ---
+type FilterReturn = ReturnType<Chain['filter']>
+type _T5 = Expect<Equal<FilterReturn, ZodvexQueryChain<MockTableInfo, MockDecodedDoc>>>
 ```
 
-- [ ] **Step 4: Run type-check**
+- [ ] **Step 5: Run type-check**
 
 Run: `bun run type-check`
 
 Expected: PASS
 
-- [ ] **Step 5: Run full test suite**
+- [ ] **Step 6: Run full test suite**
 
 Run: `bun test`
 
-Expected: same pass count + new filter tests, same pre-existing failures.
+Expected: all existing + filter tests pass.
 
-- [ ] **Step 6: Lint**
+- [ ] **Step 7: Lint**
 
 Run: `bun run lint`
 
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add packages/zodvex/src/db.ts packages/zodvex/typechecks/filter-builder.test-d.ts
@@ -571,27 +533,39 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 3: Schema-derived helper types
+## Task 2: Schema-derived helper types
 
 **Files:**
 - Modify: `packages/zodvex/src/schema.ts`
-- Modify: `packages/zodvex/src/server/index.ts`
 
 - [ ] **Step 1: Add helper types to `schema.ts`**
 
-Add at the end of `packages/zodvex/src/schema.ts`, after the `defineZodSchema` function:
+Add at the end of `packages/zodvex/src/schema.ts`, after the `defineZodSchema` function. Add the necessary imports to the existing `convex/server` import block at line 1:
+
+```typescript
+// Add to existing import at line 1:
+import {
+  defineSchema,
+  defineTable,
+  type DataModelFromSchemaDefinition,  // ← ADD
+  type NamedTableInfo,                  // ← ADD
+  type TableDefinition,
+  type TableNamesInDataModel,           // ← ADD
+} from 'convex/server'
+```
+
+Add the import for `ZodvexFilterBuilder` from `db.ts` (type-only, safe for the circular import since both sides are type-only):
+
+```typescript
+import type { ZodvexFilterBuilder } from './db'
+```
+
+Then add the helper types at the end of the file:
 
 ```typescript
 // ============================================================================
 // Schema-derived helper types
 // ============================================================================
-
-import type {
-  DataModelFromSchemaDefinition,
-  NamedTableInfo,
-  TableNamesInDataModel,
-} from 'convex/server'
-import type { ZodvexFilterBuilder } from './db'
 
 /** Extract the DataModel from a defineZodSchema result */
 export type InferDataModel<Schema extends ReturnType<typeof defineZodSchema>> =
@@ -621,32 +595,18 @@ export type InferFilterBuilder<
 >
 ```
 
-Note: The `convex/server` imports may need to be moved to the top of the file if there is an existing import block from `convex/server`. Check the file's existing imports first.
+Note: `server/index.ts` already does `export * from '../schema'` at line 55, so these types will automatically be available via `zodvex/server`. The `core/index.ts` only re-exports `type { ZodTableMap, ZodTableSchemas }` from schema.ts (named type exports), so the new `Infer*` types will NOT leak to `zodvex/core`.
 
-- [ ] **Step 2: Export from `server/index.ts`**
-
-Add to `packages/zodvex/src/server/index.ts` in the schema re-export section (line ~55):
-
-The `export * from '../schema'` at line 55 already barrel-exports everything from schema.ts. Since the new types are exported from schema.ts, they will automatically be available via `zodvex/server`. Verify this is the case — if schema.ts uses named exports for the helpers, they should flow through.
-
-No changes needed if `export * from '../schema'` is already present.
-
-- [ ] **Step 3: Verify server-only export (NOT from core)**
-
-Check that `packages/zodvex/src/core/index.ts` does NOT re-export the `Infer*` types. The core entry has `export type { ZodTableMap, ZodTableSchemas } from '../schema'` (named type exports only). The new `Infer*` types are also type-only exports, but they depend on `convex/server` types (`DataModelFromSchemaDefinition`, etc.) which are NOT available from `zodvex/core`.
-
-Verify: `bun run type-check` should pass. If the core entry point somehow pulls in the `Infer*` types and their `convex/server` dependencies, the `zodvex/core has no server runtime imports` test would catch it. But since these are type-only exports and schema.ts is only re-exported as types from core, this should be safe.
-
-- [ ] **Step 4: Run type-check and tests**
+- [ ] **Step 2: Run type-check and tests**
 
 Run: `bun run type-check && bun test`
 
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add packages/zodvex/src/schema.ts packages/zodvex/src/server/index.ts
+git add packages/zodvex/src/schema.ts
 git commit -m "feat: add schema-derived helper types for reusable filter predicates
 
 InferDataModel, InferTableInfo, InferDecodedDoc, InferFilterBuilder
@@ -658,14 +618,14 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 4: Example app coverage
+## Task 3: Example app coverage
 
 **Files:**
-- Modify: `examples/task-manager/convex/users.ts` (or create a new query file)
+- Create: `examples/task-manager/convex/filters.ts`
 
 - [ ] **Step 1: Add filter usage examples**
 
-Add filter examples to the example app. Check what query files exist in `examples/task-manager/convex/` and add to the most appropriate file (likely `users.ts` if it has queries, or create `filters.ts`):
+Create `examples/task-manager/convex/filters.ts`:
 
 ```typescript
 import { z } from 'zod'
@@ -720,16 +680,16 @@ export const namedRecentUsers = zq({
 })
 ```
 
-- [ ] **Step 2: Type-check the example app**
+- [ ] **Step 2: Type-check**
 
-Run: `cd examples/task-manager && npx tsc --noEmit`
+Run: `bun run type-check`
 
-If this doesn't work cleanly due to other pre-existing issues, just verify the library type-check passes.
+If the example app has its own tsconfig, also: `cd examples/task-manager && npx tsc --noEmit`
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add examples/task-manager/convex/
+git add examples/task-manager/convex/filters.ts
 git commit -m "feat(example): add filter encoding usage examples
 
 Demonstrates inline filters, schema-derived reusable helpers,
@@ -740,7 +700,7 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 5: Final verification
+## Task 4: Final verification
 
 - [ ] **Step 1: Run full type-check**
 
@@ -752,7 +712,7 @@ Expected: PASS
 
 Run: `bun test`
 
-Expected: all existing tests pass + new filter tests
+Expected: all existing tests pass + new filter encoding tests
 
 - [ ] **Step 3: Run lint**
 
