@@ -182,6 +182,36 @@ function wrapIndexRangeBuilder(inner: any, schema: z.ZodTypeAny): any {
   })
 }
 
+function extractFieldPath(expr: any): string | null {
+  if (expr && typeof expr.serialize === 'function') {
+    const inner = expr.serialize()
+    if (inner && typeof inner === 'object' && '$field' in inner) {
+      return inner.$field
+    }
+  }
+  return null
+}
+
+function wrapFilterBuilder(inner: any, schema: z.ZodTypeAny): any {
+  return new Proxy(inner, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string' && ['eq', 'neq', 'lt', 'lte', 'gt', 'gte'].includes(prop)) {
+        return (l: any, r: any) => {
+          const lField = extractFieldPath(l)
+          const rField = extractFieldPath(r)
+          if (lField && !rField) {
+            r = encodeIndexValue(schema, lField, r)
+          } else if (rField && !lField) {
+            l = encodeIndexValue(schema, rField, l)
+          }
+          return target[prop](l, r)
+        }
+      }
+      return Reflect.get(target, prop, receiver)
+    }
+  })
+}
+
 /**
  * Wraps a Convex query chain, decoding documents through a Zod schema
  * at terminal methods (first, unique, collect, take, paginate).
@@ -251,7 +281,8 @@ export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = Document
   filter(
     predicate: (q: FilterBuilder<TableInfo>) => ExpressionOrValue<boolean>
   ): ZodvexQueryChain<TableInfo, Doc> {
-    return this.createChain(this.inner.filter(predicate))
+    const wrappedPredicate = (q: any) => predicate(wrapFilterBuilder(q, this.schema))
+    return this.createChain(this.inner.filter(wrappedPredicate))
   }
 
   limit(n: number): ZodvexQueryChain<TableInfo, Doc> {

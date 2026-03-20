@@ -807,3 +807,217 @@ describe('withSearchIndex encoding', () => {
     expect(captured.some((c: any) => c.method === 'eq' && c.value === 1700000000000)).toBe(true)
   })
 })
+
+// --- filter encoding tests ---
+
+function createFilterCapturingMockQuery(docs: any[]) {
+  const captured: { method: string; left: any; right: any }[] = []
+
+  function makeExpr(inner: any) {
+    return { serialize: () => inner, _isExpression: undefined }
+  }
+
+  const mockFilterBuilder: any = {
+    field: (fieldPath: string) => makeExpr({ $field: fieldPath }),
+    eq: (l: any, r: any) => {
+      captured.push({ method: 'eq', left: l, right: r })
+      return makeExpr({ $eq: [l, r] })
+    },
+    neq: (l: any, r: any) => {
+      captured.push({ method: 'neq', left: l, right: r })
+      return makeExpr({ $neq: [l, r] })
+    },
+    lt: (l: any, r: any) => {
+      captured.push({ method: 'lt', left: l, right: r })
+      return makeExpr({ $lt: [l, r] })
+    },
+    lte: (l: any, r: any) => {
+      captured.push({ method: 'lte', left: l, right: r })
+      return makeExpr({ $lte: [l, r] })
+    },
+    gt: (l: any, r: any) => {
+      captured.push({ method: 'gt', left: l, right: r })
+      return makeExpr({ $gt: [l, r] })
+    },
+    gte: (l: any, r: any) => {
+      captured.push({ method: 'gte', left: l, right: r })
+      return makeExpr({ $gte: [l, r] })
+    },
+    and: (...exprs: any[]) => makeExpr({ $and: exprs }),
+    or: (...exprs: any[]) => makeExpr({ $or: exprs }),
+    not: (x: any) => makeExpr({ $not: x })
+  }
+
+  const mockQuery: any = {
+    fullTableScan: () => mockQuery,
+    withIndex: () => mockQuery,
+    withSearchIndex: () => mockQuery,
+    order: () => mockQuery,
+    filter: (predicate: any) => {
+      if (typeof predicate === 'function') predicate(mockFilterBuilder)
+      return mockQuery
+    },
+    limit: () => mockQuery,
+    first: async () => docs[0] ?? null,
+    unique: async () => docs[0] ?? null,
+    collect: async () => docs,
+    take: async (n: number) => docs.slice(0, n),
+    paginate: async () => ({ page: docs, isDone: true, continueCursor: 'cursor' }),
+    [Symbol.asyncIterator]: async function* () {
+      for (const doc of docs) yield doc
+    }
+  }
+
+  return { mockQuery, mockFilterBuilder, captured }
+}
+
+describe('filter encoding', () => {
+  it('encodes a codec field (zx.date) via eq(field, value)', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+    await chain.filter((q: any) => q.eq(q.field('createdAt'), new Date(1700000000000))).first()
+    expect(captured).toHaveLength(1)
+    expect(captured[0].method).toBe('eq')
+    expect(captured[0].left.serialize()).toEqual({ $field: 'createdAt' })
+    expect(captured[0].right).toBe(1700000000000)
+  })
+
+  it('passes through non-codec field values unchanged', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+    await chain.filter((q: any) => q.eq(q.field('name'), 'Alice')).first()
+    expect(captured).toHaveLength(1)
+    expect(captured[0].right).toBe('Alice')
+  })
+
+  it('passes through dot-path values unchanged', async () => {
+    const objectCodecDocSchema = z.object({
+      _id: z.string(),
+      _creationTime: z.number(),
+      email: zodvexCodec(
+        z.object({ value: z.string(), encrypted: z.string() }),
+        z.custom<{ expose: () => string }>(() => true),
+        {
+          decode: (wire: any) => ({ expose: () => wire.value }),
+          encode: (rt: any) => ({ value: rt.expose(), encrypted: 'enc' })
+        }
+      )
+    })
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, objectCodecDocSchema)
+    await chain.filter((q: any) => q.eq(q.field('email.value'), 'alice@example.com')).first()
+    expect(captured).toHaveLength(1)
+    expect(captured[0].right).toBe('alice@example.com')
+  })
+
+  it('encodes multiple comparisons inside and()', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+    await chain
+      .filter((q: any) =>
+        q.and(
+          q.gte(q.field('createdAt'), new Date(1700000000000)),
+          q.lt(q.field('createdAt'), new Date(1700100000000))
+        )
+      )
+      .first()
+    expect(captured).toHaveLength(2)
+    expect(captured[0]).toMatchObject({ method: 'gte', right: 1700000000000 })
+    expect(captured[1]).toMatchObject({ method: 'lt', right: 1700100000000 })
+  })
+
+  it('encodes discriminator literals on union schema', async () => {
+    const unionDocSchema = z.discriminatedUnion('kind', [
+      z.object({
+        _id: z.string(),
+        _creationTime: z.number(),
+        kind: z.literal('email'),
+        createdAt: zx.date()
+      }),
+      z.object({
+        _id: z.string(),
+        _creationTime: z.number(),
+        kind: z.literal('push'),
+        createdAt: zx.date()
+      })
+    ])
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, unionDocSchema)
+    await chain.filter((q: any) => q.eq(q.field('kind'), 'push')).first()
+    expect(captured).toHaveLength(1)
+    expect(captured[0].right).toBe('push')
+  })
+
+  it('encodes via neq()', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+    await chain.filter((q: any) => q.neq(q.field('createdAt'), new Date(1700000000000))).first()
+    expect(captured).toHaveLength(1)
+    expect(captured[0].method).toBe('neq')
+    expect(captured[0].right).toBe(1700000000000)
+  })
+
+  it('does not intercept and/or/not', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+    await chain
+      .filter((q: any) => {
+        const expr1 = q.eq(q.field('name'), 'Alice')
+        const expr2 = q.eq(q.field('name'), 'Bob')
+        return q.and(expr1, expr2)
+      })
+      .first()
+    expect(captured).toHaveLength(2)
+  })
+
+  it('encodes reversed operand order (value, field)', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+    await chain.filter((q: any) => q.eq(new Date(1700000000000), q.field('createdAt'))).first()
+    expect(captured).toHaveLength(1)
+    expect(captured[0].left).toBe(1700000000000)
+    expect(captured[0].right.serialize()).toEqual({ $field: 'createdAt' })
+  })
+
+  it('passes through null for fields without a schema entry', async () => {
+    const { mockQuery, captured } = createFilterCapturingMockQuery([])
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+    await chain.filter((q: any) => q.eq(q.field('unknownField'), null)).first()
+    expect(captured).toHaveLength(1)
+    expect(captured[0].right).toBeNull()
+  })
+})
+
+describe('filter encoding — real Convex boundary', () => {
+  it('encodes Date to timestamp through real filterBuilderImpl', async () => {
+    const { filterBuilderImpl } = await import(
+      '../node_modules/convex/dist/esm/server/impl/filter_builder_impl.js'
+    )
+    let capturedResult: any = null
+    const mockQuery: any = {
+      fullTableScan: () => mockQuery,
+      withIndex: () => mockQuery,
+      withSearchIndex: () => mockQuery,
+      order: () => mockQuery,
+      filter: (predicate: any) => {
+        capturedResult = predicate(filterBuilderImpl)
+        return mockQuery
+      },
+      limit: () => mockQuery,
+      first: async () => null,
+      unique: async () => null,
+      collect: async () => [],
+      take: async () => [],
+      paginate: async () => ({ page: [], isDone: true, continueCursor: '' }),
+      [Symbol.asyncIterator]: async function* () {
+        // intentionally empty — no docs to yield
+      }
+    }
+    const chain = new ZodvexQueryChain(mockQuery, userDocSchema)
+    await chain.filter((q: any) => q.eq(q.field('createdAt'), new Date(1700000000000))).first()
+    expect(capturedResult).toBeDefined()
+    expect(capturedResult.serialize()).toEqual({
+      $eq: [{ $field: 'createdAt' }, { $literal: 1700000000000 }]
+    })
+  })
+})
