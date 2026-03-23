@@ -5,6 +5,15 @@
     "": {
       "name": "zodvex-root",
     },
+    "examples/quickstart": {
+      "name": "zodvex-example-quickstart",
+      "dependencies": {
+        "convex": "^1.28.0",
+        "convex-helpers": "^0.1.104",
+        "zod": "^4.3.6",
+        "zodvex": "workspace:*",
+      },
+    },
     "examples/task-manager": {
       "name": "zodvex-example-task-manager",
       "dependencies": {
@@ -508,6 +517,8 @@
     "zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
 
     "zodvex": ["zodvex@workspace:packages/zodvex"],
+
+    "zodvex-example-quickstart": ["zodvex-example-quickstart@workspace:examples/quickstart"],
 
     "zodvex-example-task-manager": ["zodvex-example-task-manager@workspace:examples/task-manager"],
 
