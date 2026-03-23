@@ -66,7 +66,7 @@
     "build": "tsup && tsc --emitDeclarationOnly",
     "dev": "bun run tsup --watch",
     "type-check": "bun run tsc -p tsconfig.typecheck.json",
-    "test": "bun test",
+    "test": "vitest run",
     "lint": "bun x biome check src __tests__",
     "lint:fix": "bun x biome check --write src __tests__",
     "format": "bun x biome format --write src __tests__",
@@ -93,7 +93,8 @@
     "@biomejs/biome": "^2.2.6",
     "@types/bun": "^1.3.0",
     "@types/node": "^24.8.0",
-    "ai": "^6.0.6"
+    "ai": "^6.0.6",
+    "vitest": "^4.1.0"
   },
   "engines": {
     "node": ">=20",

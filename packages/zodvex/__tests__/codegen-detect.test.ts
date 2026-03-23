@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'bun:test'
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
 import { canResolve } from '../src/codegen/detect'
 
-// Use import.meta.dir so resolution traverses packages/zodvex/node_modules
+// Use this file's directory so resolution traverses packages/zodvex/node_modules
 // (where bun hoists workspace deps) rather than the monorepo root.
-const fromDir = import.meta.dir
+const fromDir = dirname(fileURLToPath(import.meta.url))
 
 describe('canResolve', () => {
   it('returns true for installed packages', () => {

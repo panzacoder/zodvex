@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from 'bun:test'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createBoundaryHelpers, ZodvexDecodeError } from '../src/boundaryHelpers'
 import { zx } from '../src/zx'
@@ -39,7 +39,7 @@ describe('decodeResult', () => {
   it('default (warn): logs warning and returns raw wire data on decode failure', () => {
     const codec = createBoundaryHelpers(registry)
     // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     // Pass invalid data — title should be string, not number
     const wire = { _id: 'x', title: 123, createdAt: 1700000000000 }

@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { discoverModules } from '../src/codegen/discover'
 import { generateApiFile, generateClientFile, generateSchemaFile } from '../src/codegen/generate'

@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import { generate } from '../src/cli/commands'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { zx } from '../src/zx'
 
@@ -7,48 +7,58 @@ import { zx } from '../src/zx'
 // Convex backend or WebSocket connection.
 // ---------------------------------------------------------------------------
 
-let mockQueryImpl: ((ref: any, args: any) => any) | undefined
-let mockMutationImpl: ((ref: any, args: any) => any) | undefined
-let mockOnUpdateImpl: ((ref: any, args: any, cb: any) => () => void) | undefined
-// setAuth receives an AuthTokenFetcher (async function), not a raw string.
-// We capture the fetchers so tests can resolve them.
-let mockSetAuthFetchers: any[] = []
-let mockCloseCalled = false
-
-class MockConvexClient {
-  constructor(public url: string) {}
-
-  async query(ref: any, args: any) {
-    if (mockQueryImpl) return mockQueryImpl(ref, args)
-    return args
+// Shared state + mock class — vi.hoisted runs before vi.mock
+const { mocks, MockConvexClient } = vi.hoisted(() => {
+  const state = {
+    queryImpl: undefined as ((ref: any, args: any) => any) | undefined,
+    mutationImpl: undefined as ((ref: any, args: any) => any) | undefined,
+    onUpdateImpl: undefined as ((ref: any, args: any, cb: any) => () => void) | undefined,
+    // setAuth receives an AuthTokenFetcher (async function), not a raw string.
+    // We capture the fetchers so tests can resolve them.
+    setAuthFetchers: [] as any[],
+    closeCalled: false
   }
 
-  async mutation(ref: any, args: any) {
-    if (mockMutationImpl) return mockMutationImpl(ref, args)
-    return args
-  }
+  class MockConvexClient {
+    url: string
+    constructor(url: string) {
+      this.url = url
+    }
 
-  onUpdate(ref: any, args: any, callback: (result: any) => void): () => void {
-    if (mockOnUpdateImpl) return mockOnUpdateImpl(ref, args, callback)
-    return () => {
-      /* no-op unsubscribe */
+    async query(ref: any, args: any) {
+      if (state.queryImpl) return state.queryImpl(ref, args)
+      return args
+    }
+
+    async mutation(ref: any, args: any) {
+      if (state.mutationImpl) return state.mutationImpl(ref, args)
+      return args
+    }
+
+    onUpdate(ref: any, args: any, callback: (result: any) => void): () => void {
+      if (state.onUpdateImpl) return state.onUpdateImpl(ref, args, callback)
+      return () => {
+        /* no-op unsubscribe */
+      }
+    }
+
+    setAuth(fetchToken: any) {
+      state.setAuthFetchers.push(fetchToken)
+    }
+
+    async close() {
+      state.closeCalled = true
     }
   }
 
-  setAuth(fetchToken: any) {
-    mockSetAuthFetchers.push(fetchToken)
-  }
+  return { mocks: state, MockConvexClient }
+})
 
-  async close() {
-    mockCloseCalled = true
-  }
-}
-
-mock.module('convex/browser', () => ({
+vi.mock('convex/browser', () => ({
   ConvexClient: MockConvexClient
 }))
 
-// Import AFTER mocks are set up (bun:test hoists mock.module)
+// Import AFTER mocks are set up (vitest hoists vi.mock)
 const { ZodvexClient, createZodvexClient } = await import('../src/client/zodvexClient')
 
 // ---------------------------------------------------------------------------
@@ -64,7 +74,7 @@ function fakeRef(path: string) {
 
 /** Resolve the last captured AuthTokenFetcher to get its token value */
 async function lastTokenValue(): Promise<string | null | undefined> {
-  const fetcher = mockSetAuthFetchers[mockSetAuthFetchers.length - 1]
+  const fetcher = mocks.setAuthFetchers[mocks.setAuthFetchers.length - 1]
   if (!fetcher) return undefined
   return fetcher({ forceRefreshToken: false })
 }
@@ -105,11 +115,11 @@ describe('ZodvexClient', () => {
   let client: InstanceType<typeof ZodvexClient>
 
   beforeEach(() => {
-    mockQueryImpl = undefined
-    mockMutationImpl = undefined
-    mockOnUpdateImpl = undefined
-    mockSetAuthFetchers = []
-    mockCloseCalled = false
+    mocks.queryImpl = undefined
+    mocks.mutationImpl = undefined
+    mocks.onUpdateImpl = undefined
+    mocks.setAuthFetchers = []
+    mocks.closeCalled = false
     client = createZodvexClient(registry as any, { url: 'https://test.convex.cloud' })
   })
 
@@ -118,7 +128,7 @@ describe('ZodvexClient', () => {
   describe('query', () => {
     it('decodes wire data through the returns schema (number -> Date)', async () => {
       const now = Date.now()
-      mockQueryImpl = () => [{ _id: 'abc123', title: 'Write tests', createdAt: now }]
+      mocks.queryImpl = () => [{ _id: 'abc123', title: 'Write tests', createdAt: now }]
 
       const result = await client.query(fakeRef('tasks:list'))
 
@@ -132,7 +142,7 @@ describe('ZodvexClient', () => {
       const dueDate = new Date('2026-06-15T00:00:00Z')
       let capturedArgs: any = null
 
-      mockQueryImpl = (_ref: any, args: any) => {
+      mocks.queryImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return { _id: 'new1', title: args.title, createdAt: Date.now() }
       }
@@ -147,7 +157,7 @@ describe('ZodvexClient', () => {
 
     it('passes through unchanged when function is not in the registry', async () => {
       const raw = { foo: 'bar' }
-      mockQueryImpl = () => raw
+      mocks.queryImpl = () => raw
 
       const result = await client.query(fakeRef('unknown:fn'), { some: 'args' })
       expect(result).toEqual(raw)
@@ -155,7 +165,7 @@ describe('ZodvexClient', () => {
 
     it('passes through unchanged when registry entry has no returns schema', async () => {
       const raw = { data: 42 }
-      mockQueryImpl = () => raw
+      mocks.queryImpl = () => raw
 
       const result = await client.query(fakeRef('plain:noCodec'))
       expect(result).toEqual(raw)
@@ -163,7 +173,7 @@ describe('ZodvexClient', () => {
 
     it('passes args unchanged when no args schema exists', async () => {
       let capturedArgs: any = null
-      mockQueryImpl = (_ref: any, args: any) => {
+      mocks.queryImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return []
       }
@@ -181,7 +191,7 @@ describe('ZodvexClient', () => {
       const ts = 1700000000000
       let capturedArgs: any = null
 
-      mockMutationImpl = (_ref: any, args: any) => {
+      mocks.mutationImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return { _id: 'new2', title: 'Created', createdAt: ts }
       }
@@ -205,7 +215,7 @@ describe('ZodvexClient', () => {
       const raw = { result: 'unchanged' }
       let capturedArgs: any = null
 
-      mockMutationImpl = (_ref: any, args: any) => {
+      mocks.mutationImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return raw
       }
@@ -229,7 +239,7 @@ describe('ZodvexClient', () => {
       })
 
       let capturedArgs: any = null
-      mockMutationImpl = (_ref: any, args: any) => {
+      mocks.mutationImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return {}
       }
@@ -249,7 +259,7 @@ describe('ZodvexClient', () => {
       const ts = 1700000000000
       let decodedResult: any = null
 
-      mockOnUpdateImpl = (_ref: any, _args: any, callback: any) => {
+      mocks.onUpdateImpl = (_ref: any, _args: any, callback: any) => {
         // Simulate server pushing wire data
         callback([{ _id: 'sub1', title: 'Subscribed', createdAt: ts }])
         return () => {
@@ -271,7 +281,7 @@ describe('ZodvexClient', () => {
       const dueDate = new Date('2026-06-15T00:00:00Z')
       let capturedArgs: any = null
 
-      mockOnUpdateImpl = (_ref: any, args: any, _callback: any) => {
+      mocks.onUpdateImpl = (_ref: any, args: any, _callback: any) => {
         capturedArgs = args
         return () => {
           /* no-op unsubscribe */
@@ -289,7 +299,7 @@ describe('ZodvexClient', () => {
 
     it('returns an unsubscribe function', () => {
       let unsubCalled = false
-      mockOnUpdateImpl = () => {
+      mocks.onUpdateImpl = () => {
         return () => {
           unsubCalled = true
         }
@@ -308,7 +318,7 @@ describe('ZodvexClient', () => {
       const raw = { foo: 'bar' }
       let receivedResult: any = null
 
-      mockOnUpdateImpl = (_ref: any, _args: any, callback: any) => {
+      mocks.onUpdateImpl = (_ref: any, _args: any, callback: any) => {
         callback(raw)
         return () => {
           /* no-op unsubscribe */
@@ -329,8 +339,8 @@ describe('ZodvexClient', () => {
     it('delegates setAuth to inner ConvexClient with a token fetcher', async () => {
       client.setAuth('test-token-123')
       // setAuth wraps the token in an AuthTokenFetcher
-      expect(mockSetAuthFetchers).toHaveLength(1)
-      expect(typeof mockSetAuthFetchers[0]).toBe('function')
+      expect(mocks.setAuthFetchers).toHaveLength(1)
+      expect(typeof mocks.setAuthFetchers[0]).toBe('function')
       // Resolving the fetcher should yield the token
       const token = await lastTokenValue()
       expect(token).toBe('test-token-123')
@@ -338,15 +348,15 @@ describe('ZodvexClient', () => {
 
     it('delegates setAuth(null) as a fetcher returning null', async () => {
       client.setAuth(null)
-      expect(mockSetAuthFetchers).toHaveLength(1)
-      expect(typeof mockSetAuthFetchers[0]).toBe('function')
+      expect(mocks.setAuthFetchers).toHaveLength(1)
+      expect(typeof mocks.setAuthFetchers[0]).toBe('function')
       const token = await lastTokenValue()
       expect(token).toBe(null)
     })
 
     it('delegates close to inner ConvexClient', async () => {
       await client.close()
-      expect(mockCloseCalled).toBe(true)
+      expect(mocks.closeCalled).toBe(true)
     })
   })
 
@@ -354,30 +364,30 @@ describe('ZodvexClient', () => {
 
   describe('constructor', () => {
     it('sets auth token when provided in options', async () => {
-      mockSetAuthFetchers = []
+      mocks.setAuthFetchers = []
       createZodvexClient(registry as any, {
         url: 'https://test.convex.cloud',
         token: 'initial-token'
       })
-      expect(mockSetAuthFetchers).toHaveLength(1)
+      expect(mocks.setAuthFetchers).toHaveLength(1)
       const token = await lastTokenValue()
       expect(token).toBe('initial-token')
     })
 
     it('does not set auth when token is null', () => {
-      mockSetAuthFetchers = []
+      mocks.setAuthFetchers = []
       createZodvexClient(registry as any, {
         url: 'https://test.convex.cloud',
         token: null
       })
       // Should not have called setAuth
-      expect(mockSetAuthFetchers).toHaveLength(0)
+      expect(mocks.setAuthFetchers).toHaveLength(0)
     })
 
     it('does not set auth when token is omitted', () => {
-      mockSetAuthFetchers = []
+      mocks.setAuthFetchers = []
       createZodvexClient(registry as any, { url: 'https://test.convex.cloud' })
-      expect(mockSetAuthFetchers).toHaveLength(0)
+      expect(mocks.setAuthFetchers).toHaveLength(0)
     })
   })
 
@@ -394,7 +404,7 @@ describe('ZodvexClient', () => {
       const existingClient = new (MockConvexClient as any)('https://existing.convex.cloud')
       const zc = new ZodvexClient(registry as any, { client: existingClient })
       const now = Date.now()
-      mockQueryImpl = () => [{ _id: 'abc', title: 'Test', createdAt: now }]
+      mocks.queryImpl = () => [{ _id: 'abc', title: 'Test', createdAt: now }]
       const result = await zc.query(fakeRef('tasks:list'))
       expect(result[0].createdAt).toBeInstanceOf(Date)
     })

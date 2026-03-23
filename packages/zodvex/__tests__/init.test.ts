@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zCustomQuery } from '../src/custom'
 import { composeCustomizations, createZodvexBuilder, initZodvex } from '../src/init'

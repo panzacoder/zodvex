@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { zx } from '../src/zx'
 
@@ -7,88 +7,95 @@ import { zx } from '../src/zx'
 // Convex backend or WebSocket connection.
 // ---------------------------------------------------------------------------
 
-let mockQueryImpl: ((ref: any, args: any) => any) | undefined
-let mockMutationImpl: ((ref: any, args: any) => any) | undefined
-let mockActionImpl: ((ref: any, args: any) => any) | undefined
-let mockWatchQueryImpl:
-  | ((ref: any, args: any, opts: any) => { onUpdate: any; localQueryResult: any; journal: any })
-  | undefined
-let mockSetAuthCalls: { fetchToken: any; onChange: any }[] = []
-let mockClearAuthCalled = false
-let mockCloseCalled = false
-let mockConnectionStateCalls = 0
-let mockSubscribeToConnectionStateCb: any = null
-
-class MockConvexReactClient {
-  private _url: string
-  constructor(address: string) {
-    this._url = address
+// Shared state + mock class — vi.hoisted runs before vi.mock
+const { mocks, MockConvexReactClient } = vi.hoisted(() => {
+  const state = {
+    queryImpl: undefined as ((ref: any, args: any) => any) | undefined,
+    mutationImpl: undefined as ((ref: any, args: any) => any) | undefined,
+    actionImpl: undefined as ((ref: any, args: any) => any) | undefined,
+    watchQueryImpl: undefined as
+      | ((ref: any, args: any, opts: any) => { onUpdate: any; localQueryResult: any; journal: any })
+      | undefined,
+    setAuthCalls: [] as { fetchToken: any; onChange: any }[],
+    clearAuthCalled: false,
+    closeCalled: false,
+    connectionStateCalls: 0,
+    subscribeToConnectionStateCb: null as any
   }
 
-  get url(): string {
-    return this._url
-  }
+  class MockConvexReactClient {
+    private _url: string
+    constructor(address: string) {
+      this._url = address
+    }
 
-  async query(ref: any, args: any) {
-    if (mockQueryImpl) return mockQueryImpl(ref, args)
-    return args
-  }
+    get url(): string {
+      return this._url
+    }
 
-  async mutation(ref: any, args: any) {
-    if (mockMutationImpl) return mockMutationImpl(ref, args)
-    return args
-  }
+    async query(ref: any, args: any) {
+      if (state.queryImpl) return state.queryImpl(ref, args)
+      return args
+    }
 
-  async action(ref: any, args: any) {
-    if (mockActionImpl) return mockActionImpl(ref, args)
-    return args
-  }
+    async mutation(ref: any, args: any) {
+      if (state.mutationImpl) return state.mutationImpl(ref, args)
+      return args
+    }
 
-  watchQuery(ref: any, args: any, opts?: any) {
-    if (mockWatchQueryImpl) return mockWatchQueryImpl(ref, args, opts)
-    return {
-      onUpdate: (_cb: () => void) => () => {
-        /* noop */
-      },
-      localQueryResult: () => undefined,
-      journal: () => undefined
+    async action(ref: any, args: any) {
+      if (state.actionImpl) return state.actionImpl(ref, args)
+      return args
+    }
+
+    watchQuery(ref: any, args: any, opts?: any) {
+      if (state.watchQueryImpl) return state.watchQueryImpl(ref, args, opts)
+      return {
+        onUpdate: (_cb: () => void) => () => {
+          /* noop */
+        },
+        localQueryResult: () => undefined,
+        journal: () => undefined
+      }
+    }
+
+    setAuth(fetchToken: any, onChange?: any) {
+      state.setAuthCalls.push({ fetchToken, onChange })
+    }
+
+    clearAuth() {
+      state.clearAuthCalled = true
+    }
+
+    async close() {
+      state.closeCalled = true
+    }
+
+    connectionState() {
+      state.connectionStateCalls++
+      return { isConnected: true, hasInflightRequests: false }
+    }
+
+    subscribeToConnectionState(cb: any) {
+      state.subscribeToConnectionStateCb = cb
+      return () => {
+        state.subscribeToConnectionStateCb = null
+      }
     }
   }
 
-  setAuth(fetchToken: any, onChange?: any) {
-    mockSetAuthCalls.push({ fetchToken, onChange })
-  }
+  return { mocks: state, MockConvexReactClient }
+})
 
-  clearAuth() {
-    mockClearAuthCalled = true
-  }
-
-  async close() {
-    mockCloseCalled = true
-  }
-
-  connectionState() {
-    mockConnectionStateCalls++
-    return { isConnected: true, hasInflightRequests: false }
-  }
-
-  subscribeToConnectionState(cb: any) {
-    mockSubscribeToConnectionStateCb = cb
-    return () => {
-      mockSubscribeToConnectionStateCb = null
-    }
-  }
-}
-
-mock.module('convex/react', () => ({
+vi.mock('convex/react', () => ({
   ConvexReactClient: MockConvexReactClient,
   // Include useQuery/useMutation stubs so this mock doesn't break
-  // react-hooks.test.ts when both files run in the same bun process.
+  // react-hooks.test.ts when both files run in the same vitest process.
   useQuery: () => undefined,
   useMutation: () => async () => ({})
 }))
 
-// Import AFTER mocks are set up (bun:test hoists mock.module)
+// Import AFTER mocks are set up (vitest hoists vi.mock)
 const { ZodvexReactClient, createZodvexReactClient } = await import(
   '../src/react/zodvexReactClient'
 )
@@ -140,15 +147,15 @@ describe('ZodvexReactClient', () => {
   let client: InstanceType<typeof ZodvexReactClient>
 
   beforeEach(() => {
-    mockQueryImpl = undefined
-    mockMutationImpl = undefined
-    mockActionImpl = undefined
-    mockWatchQueryImpl = undefined
-    mockSetAuthCalls = []
-    mockClearAuthCalled = false
-    mockCloseCalled = false
-    mockConnectionStateCalls = 0
-    mockSubscribeToConnectionStateCb = null
+    mocks.queryImpl = undefined
+    mocks.mutationImpl = undefined
+    mocks.actionImpl = undefined
+    mocks.watchQueryImpl = undefined
+    mocks.setAuthCalls = []
+    mocks.clearAuthCalled = false
+    mocks.closeCalled = false
+    mocks.connectionStateCalls = 0
+    mocks.subscribeToConnectionStateCb = null
     client = createZodvexReactClient(registry as any, { url: 'https://test.convex.cloud' })
   })
 
@@ -178,7 +185,7 @@ describe('ZodvexReactClient', () => {
   describe('query', () => {
     it('decodes wire data through the returns schema (number -> Date)', async () => {
       const now = Date.now()
-      mockQueryImpl = () => [{ _id: 'abc123', title: 'Write tests', createdAt: now }]
+      mocks.queryImpl = () => [{ _id: 'abc123', title: 'Write tests', createdAt: now }]
 
       const result = await client.query(fakeRef('tasks:list'))
 
@@ -192,7 +199,7 @@ describe('ZodvexReactClient', () => {
       const dueDate = new Date('2026-06-15T00:00:00Z')
       let capturedArgs: any = null
 
-      mockQueryImpl = (_ref: any, args: any) => {
+      mocks.queryImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return { _id: 'new1', title: args.title, createdAt: Date.now() }
       }
@@ -207,7 +214,7 @@ describe('ZodvexReactClient', () => {
 
     it('passes through unchanged when function is not in the registry', async () => {
       const raw = { foo: 'bar' }
-      mockQueryImpl = () => raw
+      mocks.queryImpl = () => raw
 
       const result = await client.query(fakeRef('unknown:fn'), { some: 'args' })
       expect(result).toEqual(raw)
@@ -215,7 +222,7 @@ describe('ZodvexReactClient', () => {
 
     it('passes through unchanged when registry entry has no returns schema', async () => {
       const raw = { data: 42 }
-      mockQueryImpl = () => raw
+      mocks.queryImpl = () => raw
 
       const result = await client.query(fakeRef('plain:noCodec'))
       expect(result).toEqual(raw)
@@ -230,7 +237,7 @@ describe('ZodvexReactClient', () => {
       const ts = 1700000000000
       let capturedArgs: any = null
 
-      mockMutationImpl = (_ref: any, args: any) => {
+      mocks.mutationImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return { _id: 'new2', title: 'Created', createdAt: ts }
       }
@@ -254,7 +261,7 @@ describe('ZodvexReactClient', () => {
       const raw = { result: 'unchanged' }
       let capturedArgs: any = null
 
-      mockMutationImpl = (_ref: any, args: any) => {
+      mocks.mutationImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return raw
       }
@@ -274,7 +281,7 @@ describe('ZodvexReactClient', () => {
       const ts = 1700000000000
       let capturedArgs: any = null
 
-      mockActionImpl = (_ref: any, args: any) => {
+      mocks.actionImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return { _id: 'act1', title: 'Action result', createdAt: ts }
       }
@@ -298,7 +305,7 @@ describe('ZodvexReactClient', () => {
       const raw = { result: 'unchanged' }
       let capturedArgs: any = null
 
-      mockActionImpl = (_ref: any, args: any) => {
+      mocks.actionImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return raw
       }
@@ -315,7 +322,7 @@ describe('ZodvexReactClient', () => {
   describe('watchQuery', () => {
     it('decodes localQueryResult via codec (number -> Date)', () => {
       const ts = 1700000000000
-      mockWatchQueryImpl = () => ({
+      mocks.watchQueryImpl = () => ({
         onUpdate: (_cb: () => void) => () => {
           /* noop */
         },
@@ -332,7 +339,7 @@ describe('ZodvexReactClient', () => {
     })
 
     it('returns undefined when localQueryResult is undefined (loading)', () => {
-      mockWatchQueryImpl = () => ({
+      mocks.watchQueryImpl = () => ({
         onUpdate: (_cb: () => void) => () => {
           /* noop */
         },
@@ -347,7 +354,7 @@ describe('ZodvexReactClient', () => {
 
     it('memoizes by wire reference identity', () => {
       const wireData = [{ _id: 'w2', title: 'Memoized', createdAt: 1700000000000 }]
-      mockWatchQueryImpl = () => ({
+      mocks.watchQueryImpl = () => ({
         onUpdate: (_cb: () => void) => () => {
           /* noop */
         },
@@ -368,7 +375,7 @@ describe('ZodvexReactClient', () => {
       const wire1 = [{ _id: 'w3', title: 'First', createdAt: 1700000000000 }]
       const wire2 = [{ _id: 'w3', title: 'Second', createdAt: 1800000000000 }]
 
-      mockWatchQueryImpl = () => ({
+      mocks.watchQueryImpl = () => ({
         onUpdate: (_cb: () => void) => () => {
           /* noop */
         },
@@ -395,7 +402,7 @@ describe('ZodvexReactClient', () => {
       const dueDate = new Date('2026-06-15T00:00:00Z')
       let capturedArgs: any = null
 
-      mockWatchQueryImpl = (_ref: any, args: any) => {
+      mocks.watchQueryImpl = (_ref: any, args: any) => {
         capturedArgs = args
         return {
           onUpdate: (_cb: () => void) => () => {
@@ -418,7 +425,7 @@ describe('ZodvexReactClient', () => {
       let onUpdateCb: (() => void) | null = null
       let unsubCalled = false
 
-      mockWatchQueryImpl = () => ({
+      mocks.watchQueryImpl = () => ({
         onUpdate: (cb: () => void) => {
           onUpdateCb = cb
           return () => {
@@ -447,7 +454,7 @@ describe('ZodvexReactClient', () => {
 
     it('delegates journal unchanged', () => {
       const journalData = { definitionId: 'test', cursor: null }
-      mockWatchQueryImpl = () => ({
+      mocks.watchQueryImpl = () => ({
         onUpdate: (_cb: () => void) => () => {
           /* noop */
         },
@@ -469,19 +476,19 @@ describe('ZodvexReactClient', () => {
         /* noop */
       }
       client.setAuth(fetchToken, onChange)
-      expect(mockSetAuthCalls).toHaveLength(1)
-      expect(mockSetAuthCalls[0].fetchToken).toBe(fetchToken)
-      expect(mockSetAuthCalls[0].onChange).toBe(onChange)
+      expect(mocks.setAuthCalls).toHaveLength(1)
+      expect(mocks.setAuthCalls[0].fetchToken).toBe(fetchToken)
+      expect(mocks.setAuthCalls[0].onChange).toBe(onChange)
     })
 
     it('delegates clearAuth to inner ConvexReactClient', () => {
       client.clearAuth()
-      expect(mockClearAuthCalled).toBe(true)
+      expect(mocks.clearAuthCalled).toBe(true)
     })
 
     it('delegates close to inner ConvexReactClient', async () => {
       await client.close()
-      expect(mockCloseCalled).toBe(true)
+      expect(mocks.closeCalled).toBe(true)
     })
 
     it('exposes the url from inner ConvexReactClient', () => {
@@ -490,7 +497,7 @@ describe('ZodvexReactClient', () => {
 
     it('delegates connectionState to inner ConvexReactClient', () => {
       const state = client.connectionState()
-      expect(mockConnectionStateCalls).toBe(1)
+      expect(mocks.connectionStateCalls).toBe(1)
       expect(state).toEqual({ isConnected: true, hasInflightRequests: false })
     })
 
@@ -499,11 +506,11 @@ describe('ZodvexReactClient', () => {
         /* noop */
       }
       const unsub = client.subscribeToConnectionState(cb)
-      expect(mockSubscribeToConnectionStateCb).toBe(cb)
+      expect(mocks.subscribeToConnectionStateCb).toBe(cb)
       expect(typeof unsub).toBe('function')
 
       unsub()
-      expect(mockSubscribeToConnectionStateCb).toBeNull()
+      expect(mocks.subscribeToConnectionStateCb).toBeNull()
     })
   })
 

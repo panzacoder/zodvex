@@ -10,8 +10,8 @@
  * operate on wire-format data (what Convex stores).
  */
 
-import { describe, expect, it } from 'bun:test'
 import type { GenericId } from 'convex/values'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodvexCodec } from '../src/codec'
 import type { ZodvexCodec } from '../src/types'

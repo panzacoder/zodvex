@@ -4,7 +4,7 @@
  * Ensures all expected exports are available and prevents accidental breaking changes.
  */
 
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import * as transform from '../../src/transform'
 
 describe('transform module exports', () => {

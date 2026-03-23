@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createZodvexActionCtx } from '../src/actionCtx'
 import { zx } from '../src/zx'

@@ -6,7 +6,7 @@
  * - Still run Zod validation (for schema enforcement, stripping unknown fields, etc.)
  */
 
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { customFnBuilder } from '../src/custom'
 

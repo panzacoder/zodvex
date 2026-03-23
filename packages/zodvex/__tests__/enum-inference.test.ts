@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'bun:test'
 import type { VLiteral, VUnion } from 'convex/values'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodToConvex } from '../src/mapping'
 

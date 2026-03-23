@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineZodModel } from '../src/model'
 import { defineZodSchema } from '../src/schema'

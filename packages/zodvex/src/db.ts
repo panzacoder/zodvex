@@ -28,6 +28,37 @@ import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
 import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './rules'
 import type { ZodTableMap } from './schema'
 
+// ---------------------------------------------------------------------------
+// Rules factory registration — breaks the circular dependency between db.ts
+// and rules.ts without require(). rules.ts calls _registerRulesFactory()
+// during module initialization, so the factory is always available before
+// any user code invokes .withRules() or .audit().
+// ---------------------------------------------------------------------------
+
+interface RulesFactory {
+  createRulesDatabaseReader: (...args: any[]) => any
+  createAuditDatabaseReader: (...args: any[]) => any
+  createRulesDatabaseWriter: (...args: any[]) => any
+  createAuditDatabaseWriter: (...args: any[]) => any
+}
+
+let _rulesFactory: RulesFactory | null = null
+
+/** @internal — called by rules.ts at module load time */
+export function _registerRulesFactory(factory: RulesFactory): void {
+  _rulesFactory = factory
+}
+
+function getRulesFactory(): RulesFactory {
+  if (!_rulesFactory) {
+    throw new Error(
+      'zodvex rules module not loaded. Import from "zodvex/server" (not "zodvex/server/db") ' +
+        'to ensure the rules module is initialized.'
+    )
+  }
+  return _rulesFactory
+}
+
 // ============================================================================
 // Index builder types — decoded-aware replacements for Convex's IndexRangeBuilder
 // ============================================================================
@@ -520,30 +551,22 @@ export class ZodvexDatabaseReader<
   /**
    * Returns a new ZodvexDatabaseReader that applies per-table read rules.
    * The returned reader is also a ZodvexDatabaseReader, so `.withRules()` can be chained.
-   *
-   * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
-   * rules.ts extends ZodvexQueryChain (from db.ts), so the import must be lazy.
    */
   withRules<Ctx>(
     ctx: Ctx,
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
   ): ZodvexDatabaseReader<DataModel, DecodedDocs> {
-    // Deferred import breaks the circular dependency (rules.ts extends ZodvexQueryChain from db.ts)
-    const { createRulesDatabaseReader } = require('./rules')
-    return createRulesDatabaseReader(this, ctx, rules, config)
+    return getRulesFactory().createRulesDatabaseReader(this, ctx, rules, config)
   }
 
   /**
    * Returns a new ZodvexDatabaseReader that fires audit callbacks on reads.
    * The returned reader is also a ZodvexDatabaseReader, so `.audit()` can be chained
    * with `.withRules()`.
-   *
-   * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
    */
   audit(config: ReaderAuditConfig): ZodvexDatabaseReader<DataModel, DecodedDocs> {
-    const { createAuditDatabaseReader } = require('./rules')
-    return createAuditDatabaseReader(this, config)
+    return getRulesFactory().createAuditDatabaseReader(this, config)
   }
 }
 
@@ -694,30 +717,22 @@ export class ZodvexDatabaseWriter<
   /**
    * Returns a new ZodvexDatabaseWriter that applies per-table read and write rules.
    * The returned writer is also a ZodvexDatabaseWriter, so `.withRules()` can be chained.
-   *
-   * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
-   * rules.ts extends ZodvexDatabaseWriter (from db.ts), so the import must be lazy.
    */
   withRules<Ctx>(
     ctx: Ctx,
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
   ): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
-    // Deferred import breaks the circular dependency (rules.ts extends ZodvexDatabaseWriter from db.ts)
-    const { createRulesDatabaseWriter } = require('./rules')
-    return createRulesDatabaseWriter(this, ctx, rules, config)
+    return getRulesFactory().createRulesDatabaseWriter(this, ctx, rules, config)
   }
 
   /**
    * Returns a new ZodvexDatabaseWriter that fires audit callbacks on reads and writes.
    * The returned writer is also a ZodvexDatabaseWriter, so `.audit()` can be chained
    * with `.withRules()`.
-   *
-   * Uses a deferred require() to break the circular dependency between db.ts and rules.ts.
    */
   audit(config: WriterAuditConfig): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
-    const { createAuditDatabaseWriter } = require('./rules')
-    return createAuditDatabaseWriter(this, config)
+    return getRulesFactory().createAuditDatabaseWriter(this, config)
   }
 }
 

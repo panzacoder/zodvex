@@ -28,7 +28,20 @@ export { type CustomBuilder, zCustomAction, zCustomMutation, zCustomQuery } from
 // Codec customization (manual composition escape hatch)
 export { createZodvexCustomization } from '../customization'
 // Database wrappers (ZodvexDatabaseReader, ZodvexDatabaseWriter, etc.)
-export * from '../db'
+export {
+  createZodDbReader,
+  createZodDbWriter,
+  ZodvexDatabaseReader,
+  ZodvexDatabaseWriter,
+  type ZodvexExpression,
+  type ZodvexExpressionOrValue,
+  type ZodvexFilterBuilder,
+  type ZodvexIndexFieldValue,
+  type ZodvexIndexRangeBuilder,
+  type ZodvexLowerBoundBuilder,
+  ZodvexQueryChain,
+  type ZodvexUpperBoundBuilder
+} from '../db'
 // One-time setup + types
 export {
   initZodvex,

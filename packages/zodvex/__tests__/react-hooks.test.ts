@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { stripUndefined } from '../src/utils'
 import { zx } from '../src/zx'
@@ -8,28 +8,30 @@ import { zx } from '../src/zx'
 // without requiring React or a real ConvexProvider.
 // ---------------------------------------------------------------------------
 
-// Shared state that tests can configure before each call
-let mockQueryResult: any = undefined
-let mockQueryArgs: any = undefined
-let mockMutateImpl: ((args: any) => any) | undefined = undefined
+// Shared state — vi.hoisted runs before vi.mock so the factory can reference it
+const mocks = vi.hoisted(() => ({
+  queryResult: undefined as any,
+  queryArgs: undefined as any,
+  mutateImpl: undefined as ((args: any) => any) | undefined
+}))
 
-mock.module('convex/react', () => ({
+vi.mock('convex/react', () => ({
   useQuery: (_ref: any, ...args: any[]) => {
-    mockQueryArgs = args[0]
+    mocks.queryArgs = args[0]
     // Convex returns undefined for skipped queries
     if (args[0] === 'skip') return undefined
-    return mockQueryResult
+    return mocks.queryResult
   },
   useMutation: (_ref: any) => {
     // Return a function that simulates calling the server mutation
     return async (args: any) => {
-      if (mockMutateImpl) return mockMutateImpl(args)
+      if (mocks.mutateImpl) return mocks.mutateImpl(args)
       return args
     }
   }
 }))
 
-// Import AFTER mocks are set up (bun:test hoists mock.module)
+// Import AFTER mocks are set up (vitest hoists vi.mock)
 const { createZodvexHooks } = await import('../src/react/hooks')
 
 // ---------------------------------------------------------------------------
@@ -79,23 +81,23 @@ describe('createZodvexHooks', () => {
   const { useZodQuery, useZodMutation } = createZodvexHooks(registry as any)
 
   beforeEach(() => {
-    mockQueryResult = undefined
-    mockQueryArgs = undefined
-    mockMutateImpl = undefined
+    mocks.queryResult = undefined
+    mocks.queryArgs = undefined
+    mocks.mutateImpl = undefined
   })
 
   // ---- useZodQuery --------------------------------------------------------
 
   describe('useZodQuery', () => {
     it('returns undefined when the query is still loading', () => {
-      mockQueryResult = undefined
+      mocks.queryResult = undefined
       const result = useZodQuery(fakeRef('tasks:list'))
       expect(result).toBeUndefined()
     })
 
     it('decodes wire data through the returns schema (number -> Date)', () => {
       const now = Date.now()
-      mockQueryResult = [{ _id: 'abc123', title: 'Write tests', createdAt: now }]
+      mocks.queryResult = [{ _id: 'abc123', title: 'Write tests', createdAt: now }]
 
       const result = useZodQuery(fakeRef('tasks:list'))
 
@@ -108,7 +110,7 @@ describe('createZodvexHooks', () => {
 
     it('passes through unchanged when function is not in the registry', () => {
       const raw = { foo: 'bar' }
-      mockQueryResult = raw
+      mocks.queryResult = raw
 
       const result = useZodQuery(fakeRef('unknown:fn'))
       expect(result).toEqual(raw)
@@ -116,7 +118,7 @@ describe('createZodvexHooks', () => {
 
     it('passes through unchanged when registry entry has no returns schema', () => {
       const raw = { data: 42 }
-      mockQueryResult = raw
+      mocks.queryResult = raw
 
       const result = useZodQuery(fakeRef('plain:noCodec'))
       expect(result).toEqual(raw)
@@ -124,29 +126,29 @@ describe('createZodvexHooks', () => {
 
     it('encodes args through the args schema (Date -> number)', () => {
       const dueDate = new Date('2026-06-15T00:00:00Z')
-      mockQueryResult = { _id: 'x', title: 'Test', createdAt: Date.now() }
+      mocks.queryResult = { _id: 'x', title: 'Test', createdAt: Date.now() }
 
       useZodQuery(fakeRef('tasks:create'), { title: 'Test', dueAt: dueDate })
 
       // Args passed to useQuery should be encoded: Date -> timestamp number
-      expect(mockQueryArgs).toBeDefined()
-      expect(mockQueryArgs.title).toBe('Test')
-      expect(typeof mockQueryArgs.dueAt).toBe('number')
-      expect(mockQueryArgs.dueAt).toBe(dueDate.getTime())
+      expect(mocks.queryArgs).toBeDefined()
+      expect(mocks.queryArgs.title).toBe('Test')
+      expect(typeof mocks.queryArgs.dueAt).toBe('number')
+      expect(mocks.queryArgs.dueAt).toBe(dueDate.getTime())
     })
 
     it('passes args through when function has no args schema', () => {
       const rawArgs = { raw: 'data' }
-      mockQueryResult = { data: 42 }
+      mocks.queryResult = { data: 42 }
 
       useZodQuery(fakeRef('plain:noCodec'), rawArgs)
 
-      expect(mockQueryArgs).toEqual(rawArgs)
+      expect(mocks.queryArgs).toEqual(rawArgs)
     })
 
     it('decodes a single object with zx.date() fields', () => {
       const ts = 1700000000000
-      mockQueryResult = { _id: 'x', title: 'Single', createdAt: ts }
+      mocks.queryResult = { _id: 'x', title: 'Single', createdAt: ts }
 
       // Use a single-object returns schema for this test
       const singleRegistry = {
@@ -161,24 +163,24 @@ describe('createZodvexHooks', () => {
 
     it('default: warns and returns raw wire data on decode failure', () => {
       // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
-      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
-      mockQueryResult = [{ _id: 'abc', title: 123, createdAt: Date.now() }]
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mocks.queryResult = [{ _id: 'abc', title: 123, createdAt: Date.now() }]
       const result = useZodQuery(fakeRef('tasks:list'))
-      expect(result).toBe(mockQueryResult)
+      expect(result).toBe(mocks.queryResult)
       expect(warnSpy).toHaveBeenCalled()
       warnSpy.mockRestore()
     })
 
     it('throw mode: throws ZodvexDecodeError on decode failure', () => {
       const throwHooks = createZodvexHooks(registry as any, { onDecodeError: 'throw' })
-      mockQueryResult = [{ _id: 'abc', title: 123, createdAt: Date.now() }]
+      mocks.queryResult = [{ _id: 'abc', title: 123, createdAt: Date.now() }]
       expect(() => throwHooks.useZodQuery(fakeRef('tasks:list'))).toThrow()
     })
 
     it('auto-skips query and logs debug when encodeArgs fails', () => {
       // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
-      const debugSpy = spyOn(console, 'debug').mockImplementation(() => {})
-      mockQueryResult = { _id: 'x', title: 'Test', createdAt: Date.now() }
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      mocks.queryResult = { _id: 'x', title: 'Test', createdAt: Date.now() }
 
       // Pass invalid args — dueAt should be a Date, passing a string triggers encode failure
       const result = useZodQuery(fakeRef('tasks:create'), {
@@ -203,7 +205,7 @@ describe('createZodvexHooks', () => {
       const dueDate = new Date('2026-06-15T00:00:00Z')
       let capturedArgs: any = null
 
-      mockMutateImpl = (args: any) => {
+      mocks.mutateImpl = (args: any) => {
         capturedArgs = args
         return { _id: 'new1', title: args.title, createdAt: Date.now() }
       }
@@ -220,7 +222,7 @@ describe('createZodvexHooks', () => {
 
     it('decodes the mutation return value through the returns schema', async () => {
       const ts = 1700000000000
-      mockMutateImpl = (_args: any) => {
+      mocks.mutateImpl = (_args: any) => {
         return { _id: 'new2', title: 'Created', createdAt: ts }
       }
 
@@ -233,7 +235,7 @@ describe('createZodvexHooks', () => {
 
     it('passes args through when function has no args schema', async () => {
       let capturedArgs: any = null
-      mockMutateImpl = (args: any) => {
+      mocks.mutateImpl = (args: any) => {
         capturedArgs = args
         return {}
       }
@@ -246,7 +248,7 @@ describe('createZodvexHooks', () => {
 
     it('passes return through when function has no returns schema', async () => {
       const raw = { result: 'unchanged' }
-      mockMutateImpl = (_args: any) => raw
+      mocks.mutateImpl = (_args: any) => raw
 
       const mutate = useZodMutation(fakeRef('plain:noCodec'))
       const result = await mutate({})
@@ -266,7 +268,7 @@ describe('createZodvexHooks', () => {
       const hooks = createZodvexHooks(optionalRegistry)
 
       let capturedArgs: any = null
-      mockMutateImpl = (args: any) => {
+      mocks.mutateImpl = (args: any) => {
         capturedArgs = args
         return {}
       }
@@ -288,7 +290,7 @@ describe('createZodvexHooks', () => {
     it('exports ZodvexHooks type', async () => {
       const mod = await import('../src/react/hooks')
       // ZodvexHooks should be exported (it's a type, but the module should be importable)
-      expect(mod.createZodvexHooks).toBeFunction()
+      expect(typeof mod.createZodvexHooks).toBe('function')
     })
   })
 })

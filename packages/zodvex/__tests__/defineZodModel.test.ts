@@ -5,7 +5,7 @@
  * Runtime tests validate the defineZodModel API and index accumulation.
  */
 
-import { describe, expect, it, spyOn } from 'bun:test'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { zodvexCodec } from '../src/codec'
 import { readMeta, type ZodvexModelMeta } from '../src/meta'
@@ -409,7 +409,7 @@ describe('defineZodModel .index()', () => {
       }
     )
 
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     const model = defineZodModel('patients', {
       clinicId: z.string(),
@@ -441,7 +441,7 @@ describe('defineZodModel .index()', () => {
       }
     )
 
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     const model = defineZodModel('contacts', {
       name: z.string(),
@@ -458,7 +458,7 @@ describe('defineZodModel .index()', () => {
   })
 
   it('does not warn when indexing a codec field (encoding is now automatic)', () => {
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     defineZodModel('events', {
       title: z.string(),
@@ -482,7 +482,7 @@ describe('defineZodModel .index()', () => {
       }
     )
 
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     defineZodModel('patients', {
       clinicId: z.string(),
@@ -496,7 +496,7 @@ describe('defineZodModel .index()', () => {
   })
 
   it('does not warn for non-codec fields', () => {
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     defineZodModel('users', {
       name: z.string(),
@@ -512,7 +512,7 @@ describe('defineZodModel .index()', () => {
   })
 
   it('treats zx.date() as leaf', () => {
-    const warnSpy = spyOn(console, 'warn').mockImplementation(() => undefined)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const model = defineZodModel('events', {
       title: z.string(),
       startDate: zx.date()

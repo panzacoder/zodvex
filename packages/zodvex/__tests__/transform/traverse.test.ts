@@ -6,7 +6,7 @@
  * Tests schema traversal utilities: getMetadata, hasMetadata, walkSchema, findFieldsWithMeta
  */
 
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
   findFieldsWithMeta,

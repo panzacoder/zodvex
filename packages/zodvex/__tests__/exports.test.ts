@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'bun:test'
+import { readFile } from 'node:fs/promises'
+import { describe, expect, it } from 'vitest'
 
 describe('zodvex/core has no server runtime imports', () => {
   it('does not import from convex/server or convex-helpers/server at runtime', async () => {
-    const coreIndex = await Bun.file(new URL('../src/core/index.ts', import.meta.url)).text()
+    const coreIndex = await readFile(new URL('../src/core/index.ts', import.meta.url), 'utf-8')
 
     // Extract all re-export source paths, tracking which are type-only
     const typeOnlyPaths = new Set<string>()
@@ -35,10 +36,10 @@ describe('zodvex/core has no server runtime imports', () => {
     for (const filePath of filesToCheck) {
       let content: string
       try {
-        content = await Bun.file(filePath).text()
+        content = await readFile(filePath, 'utf-8')
       } catch {
         try {
-          content = await Bun.file(filePath.replace('.ts', '/index.ts')).text()
+          content = await readFile(filePath.replace('.ts', '/index.ts'), 'utf-8')
         } catch {
           continue
         }

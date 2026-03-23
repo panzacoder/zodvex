@@ -9,7 +9,7 @@
  *   4. createBoundaryHelpers(registry).encodeArgs() encodes at the client boundary
  */
 
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createBoundaryHelpers } from '../src/boundaryHelpers'
 import { zodvexCodec } from '../src/codec'

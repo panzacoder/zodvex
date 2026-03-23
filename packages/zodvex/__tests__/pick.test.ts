@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodToConvexFields } from '../src/mapping'
 import { pickShape, safePick } from '../src/utils'

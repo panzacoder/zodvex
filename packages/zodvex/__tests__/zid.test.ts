@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'bun:test'
 import { v } from 'convex/values'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
+import { registryHelpers, zid } from '../src/ids'
 import { zodToConvex } from '../src/mapping'
 
 describe('zid', () => {
@@ -131,7 +131,7 @@ describe('zid - registry metadata', () => {
     const userId = zid('users')
 
     // The metadata should be stored for mapping to work
-    const { registryHelpers } = require('../src/ids')
+
     const metadata = registryHelpers.getMetadata(userId)
 
     expect(metadata).toBeDefined()
@@ -143,7 +143,6 @@ describe('zid - registry metadata', () => {
     const userId = zid('users')
     const teamId = zid('teams')
 
-    const { registryHelpers } = require('../src/ids')
     const userMeta = registryHelpers.getMetadata(userId)
     const teamMeta = registryHelpers.getMetadata(teamId)
 

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'bun:test'
 import { jsonSchema as aiJsonSchema, generateObject } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zid } from '../src/ids'
 import { toJSONSchema } from '../src/registry'

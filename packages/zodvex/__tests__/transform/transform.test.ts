@@ -6,7 +6,7 @@
  * Tests value transformation utilities: transformBySchema, transformBySchemaAsync
  */
 
-import { describe, expect, it, mock } from 'bun:test'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { transformBySchema, transformBySchemaAsync } from '../../src/transform/transform'
 import { getMetadata } from '../../src/transform/traverse'
@@ -329,7 +329,7 @@ describe('transform/transform.ts', () => {
           z.object({ type: z.literal('a'), value: z.string() })
         ])
         const invalidValue = { type: 'invalid', value: 'test' }
-        const callback = mock(() => {
+        const callback = vi.fn(() => {
           /* no-op mock callback */
         })
 

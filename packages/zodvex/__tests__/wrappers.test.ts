@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'bun:test'
 import { v } from 'convex/values'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zid } from '../src/ids'
 import { zodTable } from '../src/tables'

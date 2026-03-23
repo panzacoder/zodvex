@@ -6,7 +6,12 @@ import type {
   TableNamesInDataModel
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import { ZodvexDatabaseReader, ZodvexDatabaseWriter, ZodvexQueryChain } from './db'
+import {
+  _registerRulesFactory,
+  ZodvexDatabaseReader,
+  ZodvexDatabaseWriter,
+  ZodvexQueryChain
+} from './db'
 
 /**
  * Per-document rule function. Gates and optionally transforms documents.
@@ -838,7 +843,7 @@ class AuditDatabaseWriter<
 
 /**
  * Factory function for creating an AuditDatabaseWriter.
- * Called via deferred require() from ZodvexDatabaseWriter.audit() in db.ts.
+ * Called via _registerRulesFactory from ZodvexDatabaseWriter.audit() in db.ts.
  */
 export function createAuditDatabaseWriter<
   DataModel extends GenericDataModel,
@@ -849,3 +854,13 @@ export function createAuditDatabaseWriter<
 ): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
   return new AuditDatabaseWriter(inner, config)
 }
+
+// Register rule factories with db.ts — breaks the circular dependency
+// without require(). This runs during module initialization, so the
+// factories are available before any user code calls .withRules()/.audit().
+_registerRulesFactory({
+  createRulesDatabaseReader,
+  createAuditDatabaseReader,
+  createRulesDatabaseWriter,
+  createAuditDatabaseWriter
+})
