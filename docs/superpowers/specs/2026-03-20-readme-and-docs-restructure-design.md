@@ -135,8 +135,8 @@ examples/quickstart/
 ├── convex/
 │   ├── models.ts         # defineZodModel with zx.date()
 │   ├── schema.ts         # defineZodSchema (~3 lines)
-│   ├── functions.ts      # initZodvex setup
-│   └── events.ts         # Query + mutation — Date Just Works
+│   ├── functions.ts      # initZodvex(schema, server) — no registry needed, codegen is optional
+│   └── events.ts         # Query + mutation importing { zq, zm } from ./functions — Date Just Works
 └── README.md             # What this demonstrates, what it doesn't need
 ```
 
