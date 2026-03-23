@@ -114,12 +114,14 @@ import { UserModel } from './models/user'
 
 // Decode a raw Convex document to runtime types
 const rawDoc = await ctx.db.get(id) // wire format from Convex
-const user = decodeDoc(UserModel, rawDoc) // runtime format (Dates, etc.)
+const user = decodeDoc(UserModel.schema.doc, rawDoc) // runtime format (Dates, etc.)
 
-// Encode runtime data back to wire format for storage
-const wireData = encodeDoc(UserModel, user) // wire format (timestamps, etc.)
-await ctx.db.replace(id, wireData)
+// Encode runtime data back to wire format for insert/replace
+const wireData = encodeDoc(UserModel.schema.insert, userData) // wire format (timestamps, etc.)
+await ctx.db.insert('users', wireData)
 ```
+
+Both functions take a `z.ZodTypeAny` schema, not a model directly. Use `UserModel.schema.doc` for decoding reads (includes `_id`, `_creationTime`), `UserModel.schema.insert` for encoding writes.
 
 Use these when building custom DB wrappers or working with layers that bypass zodvex's automatic codec handling (e.g., `initZodvex`).
 

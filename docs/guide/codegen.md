@@ -11,7 +11,7 @@ zodvex includes a code generator that introspects your Convex directory at build
 | `useZodQuery` / `useZodMutation` React hooks | No | Yes |
 | `ZodvexClient` for non-React consumers | No | Yes |
 | Action auto-decode via registry | No | Yes |
-| Form resolvers (`encodeArgs`, `decodeResult`) | No | Yes |
+| Boundary helpers (`encodeArgs`, `decodeResult`) | No | Yes |
 
 **You do NOT need codegen for:**
 - Server-side codec-aware DB reads and writes

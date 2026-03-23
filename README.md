@@ -36,7 +36,7 @@ Type-safe Convex functions with Zod v4 schemas. Codecs in the schema — `zx.dat
 | Typed IDs | `zx.id('table')` with type branding | Manual |
 | Custom codecs | `zx.codec()` with auto-detection | Not provided |
 | Client-safe models | `defineZodModel` (importable in React) | Not provided |
-| Codegen | Optional typed hooks, form resolvers | Not provided |
+| Codegen | Optional typed hooks, boundary helpers | Not provided |
 
 Both are valid choices — zodvex trades some explicitness for significantly better ergonomics.
 
