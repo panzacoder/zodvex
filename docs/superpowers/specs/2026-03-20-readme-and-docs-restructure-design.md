@@ -20,8 +20,8 @@ Tagline + one-paragraph pitch
     (keep the table from current README, trimmed to highlight v0.6 differentiators)
 
 ## Installation
-  - Peer deps: zod@^4.1.0, convex >= 1.27, convex-helpers >= 0.1.104
-  - Note: Zod 4.1+ is required (not 4.0) — zodvex uses native codec support added in 4.1
+  - Peer deps: zod@^4.3.6, convex@^1.28.0, convex-helpers@^0.1.104
+    (match actual peerDependencies in packages/zodvex/package.json)
   - Merges current "Compatibility" section into this — no separate compat section
 
 ## Quick Start (the recommended path)
@@ -79,7 +79,7 @@ Every section in the current README, where it goes, and what updates are needed.
 | Current Section | New Location in README | Changes |
 |---|---|---|
 | Table of Contents | Table of Contents | Regenerate to match new structure |
-| Installation | Installation | Update peer dep floor to zod@^4.1.0; add note that 4.1 is required for native codec support |
+| Installation | Installation | Update peer deps to match package.json: zod@^4.3.6, convex@^1.28.0, convex-helpers@^0.1.104 |
 | Compatibility | Merged into Installation | Peer dep versions folded in; no separate section |
 | Import Paths | Import Paths (trimmed) | Brief mention of 3 entry points, not a full section |
 | Quick Start | Quick Start (rewritten) | Lead with initZodvex + defineZodModel; drop zQueryBuilder as primary; update/remove stale `./examples/queries.ts` link |
@@ -108,18 +108,19 @@ All `docs/guide/*.md` files are **net-new** — content is extracted from the cu
 | Hooks and Transforms | Dropped | Removed pre-1.0 (see CLAUDE.md memory: "CustomizationWithHooks, transforms.*, customCtxWithHooks to be removed"). No migration needed — was never in a stable release. |
 | onSuccess Hook | `docs/guide/custom-context.md` (subsection) | Minimal changes; note that onSuccess is the only hook point (per convex-helpers Customization) |
 | Custom Codecs | `docs/guide/custom-codecs.md` (merged with Codecs above) | Rewrite for v0.6 API |
-| Date Handling | `docs/guide/date-handling.md` | Clarify: old mapDateFieldToNumber is gone; requires Zod 4.1+ for native codec support; automatic DB wrapping via initZodvex |
+| Date Handling | `docs/guide/date-handling.md` | Clarify: `mapDateFieldToNumber` is deprecated (still exported, but legacy); `zx.date()` is the replacement; automatic DB wrapping via initZodvex |
 | Return Type Helpers | `docs/guide/return-type-helpers.md` | Minimal changes |
 | Large Schemas | `docs/guide/large-schemas.md` | Minimal changes |
 | Polymorphic Tables | `docs/guide/polymorphic-tables.md` | Update to defineZodModel |
 | AI SDK Compatibility | `docs/guide/ai-sdk.md` | Minimal changes |
+| (no current section — new) | `docs/guide/codegen.md` | New guide: codegen workflow, registry wiring, `zodvex generate`, typed hooks, action auto-decode. Referenced from README's "Codegen & Client-Side Schema Sharing" section. |
 
 ### Not migrated (existing separate docs, no changes needed)
 
 | Item | Location | Notes |
 |---|---|---|
 | examples/task-manager/ README | `examples/task-manager/convex/README.md` | Exists; not updated in this spec. Future work: per-feature READMEs (see Roadmap). |
-| Root MIGRATION.md | `./MIGRATION.md` | Covers pre-v0.5 migrations. Stays as-is. README no longer links to it directly (links to `docs/migration/v0.6.md` instead). |
+| Root MIGRATION.md | `./MIGRATION.md` | Covers pre-v0.6 migrations (codec-first architecture, zx namespace, v0.3.0 changes). Stays as-is. README no longer links to it directly (links to `docs/migration/v0.6.md` instead). |
 
 ---
 
@@ -131,7 +132,7 @@ All `docs/guide/*.md` files are **net-new** — content is extracted from the cu
 
 ```
 examples/quickstart/
-├── package.json          # convex, zod, zodvex (workspace:*)
+├── package.json          # convex, zod, convex-helpers, zodvex (workspace:*)
 ├── convex/
 │   ├── models.ts         # defineZodModel with zx.date()
 │   ├── schema.ts         # defineZodSchema (~3 lines)
@@ -145,7 +146,7 @@ examples/quickstart/
 - An "events" table with `startDate: zx.date()` — directly mirrors the issue #37 scenario
 - A query returning `docArray` (dates come back as Date objects, not numbers)
 - A mutation accepting Date args (automatically encoded to timestamps on write)
-- No codegen, no CLI, no React — purely Convex server side
+- No zodvex codegen/CLI, no React — purely Convex server side (Convex's own `npx convex dev` is still needed)
 
 ### Quickstart README content
 

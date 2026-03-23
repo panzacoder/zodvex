@@ -2,7 +2,7 @@
 
 #### [Zod](https://zod.dev/) + [Convex](https://www.convex.dev/)
 
-Type-safe Convex functions with Zod v4 schemas. Codecs in the schema — `zx.date()`, custom transformations, and typed IDs that Just Work through `initZodvex`.
+Type-safe Convex functions with Zod v4 schemas. Codecs in the schema — `zx.date()`, custom transformations — plus typed IDs, all wired up through `initZodvex`.
 
 > Built on top of [convex-helpers](https://github.com/get-convex/convex-helpers)
 
