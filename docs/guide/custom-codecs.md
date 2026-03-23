@@ -109,8 +109,8 @@ Both work at runtime — the difference is TypeScript type inference precision. 
 For manual control over encoding/decoding outside of the automatic schema pipeline, use `decodeDoc` and `encodeDoc`:
 
 ```ts
-import { decodeDoc, encodeDoc } from 'zodvex/server'
-import { UserModel } from './tables/users'
+import { decodeDoc, encodeDoc } from 'zodvex/core'
+import { UserModel } from './models/user'
 
 // Decode a raw Convex document to runtime types
 const rawDoc = await ctx.db.get(id) // wire format from Convex

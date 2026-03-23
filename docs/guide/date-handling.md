@@ -56,9 +56,9 @@ When using `initZodvex`, codec encoding and decoding at the DB layer is handled 
 `mapDateFieldToNumber` is still exported for backwards compatibility but is **deprecated**. Use `zx.date()` instead:
 
 ```ts
-// ❌ Deprecated
+// ❌ Deprecated — maps a z.date() field to z.number()
 import { mapDateFieldToNumber } from 'zodvex'
-const encoded = mapDateFieldToNumber(doc, 'createdAt')
+const field = mapDateFieldToNumber(z.date()) // returns z.number()
 
 // ✅ Use zx.date() in your schema — encoding is automatic
 const schema = z.object({

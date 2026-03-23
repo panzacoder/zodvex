@@ -10,7 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation } from 'convex/react'
 import { api } from '../convex/_generated/api'
-import { UserModel } from '../convex/tables/users'
+import { UserModel } from '../convex/models/user'
 
 // Create form schema from your model's fields
 const CreateUserForm = z.object(UserModel.fields)
@@ -45,23 +45,9 @@ function UserForm() {
 }
 ```
 
-## Codegen Form Resolvers
+## Codegen Typed Hooks
 
-When using zodvex codegen (`_zodvex/`), pre-built form resolvers are generated for each model. These resolvers are already configured with `zodResolver` and handle codec-aware encoding automatically:
-
-```tsx
-// Generated resolver — no manual setup needed
-import { userFormResolver } from '../convex/_zodvex/client'
-
-function UserForm() {
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    resolver: userFormResolver
-  })
-  // ...
-}
-```
-
-See the codegen documentation for setup details.
+When using zodvex codegen (`zodvex generate`), typed React hooks are generated for your Convex functions. These hooks (`useZodQuery`, `useZodMutation`) automatically decode codec fields in query results. See the [Codegen Guide](./codegen.md) for setup details.
 
 ## Using Subset Schemas for Forms
 
@@ -69,7 +55,7 @@ You can also create form schemas from a subset of model fields — useful when a
 
 ```tsx
 import { z } from 'zod'
-import { UserModel } from '../convex/tables/users'
+import { UserModel } from '../convex/models/user'
 
 // Only validate the fields the form actually touches
 const ProfileForm = z.object({

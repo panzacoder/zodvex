@@ -10,7 +10,7 @@ Builders are the primary way to create type-safe Convex functions with Zod valid
 // convex/util.ts
 import { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
 import { initZodvex } from 'zodvex/server'
-import { schema } from './schema'
+import schema from './schema'
 
 export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   query,
@@ -40,7 +40,7 @@ The returned builders:
 import { z } from 'zod'
 import { zx } from 'zodvex/core'
 import { zq, zm } from './util'
-import { UserModel } from './tables/users'
+import { UserModel } from './models/user'
 
 export const getUser = zq({
   args: { id: zx.id('users') },
@@ -65,13 +65,14 @@ Add auth or other context to your builders using `.withContext()`:
 
 ```typescript
 import { type QueryCtx } from './_generated/server'
+import { customCtx } from 'zodvex/server'
 import { zq, zm } from './util'
 
 export const authQuery = zq.withContext(
-  async (ctx: QueryCtx) => {
+  customCtx(async (ctx: QueryCtx) => {
     const user = await getUserOrThrow(ctx)
     return { user }
-  }
+  })
 )
 
 export const getMyProfile = authQuery({

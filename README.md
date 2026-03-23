@@ -167,7 +167,7 @@ Guides: [Custom Codecs](./docs/guide/custom-codecs.md), [Date Handling](./docs/g
 zodvex includes an optional CLI that generates typed client code:
 
 - **Typed hooks** — `useZodQuery`, `useZodMutation` with automatic codec decode
-- **Form resolvers** — Pre-wired for react-hook-form
+- **Boundary helpers** — `encodeArgs`, `decodeResult` for custom client integrations
 - **Action auto-decode** — `ctx.runQuery` / `ctx.runMutation` decode via registry
 
 ```bash
