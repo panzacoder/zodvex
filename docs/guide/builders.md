@@ -115,25 +115,4 @@ export const authQuery = zCustomQueryBuilder(
 
 > **Best Practice:** Always add explicit type annotations to the `ctx` parameter in your context functions. This improves TypeScript performance and prevents `ctx` from falling back to `any` in complex type scenarios. Import context types from `./_generated/server` (e.g., `QueryCtx`, `MutationCtx`, `ActionCtx`).
 
-## onSuccess Hook
-
-The `onSuccess` callback follows convex-helpers' `Customization` convention. It runs after the handler and Zod return validation, seeing runtime types (e.g., `Date`, not timestamps):
-
-```typescript
-import { zCustomMutationBuilder } from 'zodvex/server'
-import { type MutationCtx, mutation } from './_generated/server'
-
-export const secureMutation = zCustomMutationBuilder(mutation, {
-  args: {},
-  input: async (ctx: MutationCtx) => {
-    const securityCtx = await getSecurityContext(ctx)
-    return {
-      ctx: { securityCtx },
-      args: {},
-      onSuccess: ({ ctx, args, result }) => {
-        console.log('Mutation succeeded:', { args, result })
-      }
-    }
-  }
-})
-```
+For `onSuccess` hooks and other customization patterns, see [Custom Context](./custom-context.md).

@@ -16,7 +16,7 @@ import { type QueryCtx, type MutationCtx } from './_generated/server'
 export const authedQuery = zq.withContext(
   customCtx(async (ctx: QueryCtx) => {
     const user = await getUserOrThrow(ctx)
-    return { ctx: { user } }
+    return { user }
   })
 )
 
@@ -25,7 +25,7 @@ export const authedMutation = zm.withContext(
   customCtx(async (ctx: MutationCtx) => {
     const user = await getUserOrThrow(ctx)
     const permissions = await getPermissions(ctx, user)
-    return { ctx: { user, permissions } }
+    return { user, permissions }
   })
 )
 
