@@ -51,6 +51,14 @@ export {
   type ZodvexQueryCtx
 } from '../init'
 // Rule and audit types for .withRules() and .audit()
+//
+// IMPORT ORDER NOTE: importing from '../rules' below is load-bearing.
+// rules.ts calls _registerRulesFactory() at module initialization time, which
+// registers the rules implementation with db.ts via a side-channel (to avoid a
+// circular dependency). If a consumer imports from 'zodvex/server/db' directly
+// (bypassing this barrel), rules.ts never loads, _registerRulesFactory() never
+// runs, and .withRules()/.audit() throw at runtime. The error message in
+// getRulesFactory() (db.ts) explains the fix: import from 'zodvex/server'.
 export type {
   DeleteRule,
   InsertRule,
