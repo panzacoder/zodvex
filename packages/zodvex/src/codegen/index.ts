@@ -1,4 +1,12 @@
 export {
+  type ClientIntegration,
+  type ZodvexConfig,
+  defineConfig,
+  isExplicitDependency,
+  loadConfig,
+  resolveIntegrations
+} from './config'
+export {
   type DiscoveredCodec,
   type DiscoveredFunction,
   type DiscoveredModel,

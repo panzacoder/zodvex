@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { ClientIntegration } from './config'
 import type {
   DiscoveredFunction,
   DiscoveredModel,
@@ -379,9 +380,10 @@ export type ActionCtx = ZodvexActionCtx<DataModel>
 
 /**
  * Generates the client file content — pre-bound hooks and client factory.
+ * When integrations are provided, their imports/exports are appended.
  * Returns { js, dts } for .js + .d.ts output.
  */
-export function generateClientFile(): GeneratedFile {
+export function generateClientFile(integrations?: ClientIntegration[]): GeneratedFile {
   // --- JS ---
   const jsImports = [
     "import { createZodvexHooks } from 'zodvex/react'",
@@ -402,6 +404,14 @@ export function generateClientFile(): GeneratedFile {
     '',
     'export const { encodeArgs, decodeResult } = createBoundaryHelpers(zodvexRegistry)'
   ]
+
+  // Append integration imports/exports
+  if (integrations?.length) {
+    for (const integration of integrations) {
+      jsImports.push(integration.generateImports())
+      jsExports.push('', integration.generateExports())
+    }
+  }
 
   const js = `${HEADER}\n${jsImports.join('\n')}\n\n${jsExports.join('\n')}\n`
 
@@ -424,6 +434,14 @@ export function generateClientFile(): GeneratedFile {
     "export declare const encodeArgs: BoundaryHelpers['encodeArgs']",
     "export declare const decodeResult: BoundaryHelpers['decodeResult']"
   ]
+
+  // Append integration dts imports/exports
+  if (integrations?.length) {
+    for (const integration of integrations) {
+      dtsImports.push(integration.generateDtsImports())
+      dtsDeclarations.push('', integration.generateDtsExports())
+    }
+  }
 
   const dts = `${HEADER}\n${dtsImports.join('\n')}\n\n${dtsDeclarations.join('\n')}\n`
 

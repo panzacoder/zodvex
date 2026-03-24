@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { loadConfig, resolveIntegrations } from '../codegen/config'
 import { discoverModules } from '../codegen/discover'
 import {
   generateApiFile,
@@ -7,6 +8,7 @@ import {
   generateSchemaFile,
   generateServerFile
 } from '../codegen/generate'
+import { registerBuiltinIntegrations } from '../codegen/integrations'
 
 /**
  * One-shot codegen. Discovers modules, generates files.
@@ -20,6 +22,12 @@ export async function generate(convexDir?: string): Promise<void> {
   // codegen can't discover those modules — a chicken-and-egg problem.
   writeStubApi(zodvexDir)
 
+  // Load config and resolve integrations
+  registerBuiltinIntegrations()
+  const projectRoot = path.dirname(resolved)
+  const config = await loadConfig(projectRoot)
+  const integrations = resolveIntegrations(config, projectRoot)
+
   const result = await discoverModules(resolved)
 
   const schemaContent = generateSchemaFile(result.models)
@@ -30,7 +38,7 @@ export async function generate(convexDir?: string): Promise<void> {
     result.modelCodecs,
     result.functionCodecs
   )
-  const clientContent = generateClientFile()
+  const clientContent = generateClientFile(integrations.length > 0 ? integrations : undefined)
   const serverContent = generateServerFile()
 
   fs.mkdirSync(zodvexDir, { recursive: true })
@@ -45,8 +53,11 @@ export async function generate(convexDir?: string): Promise<void> {
 
   const totalCodecs =
     result.codecs.length + result.modelCodecs.length + result.functionCodecs.length
+  const integrationNames = integrations.map(i => i.name)
+  const integrationSuffix =
+    integrationNames.length > 0 ? `, integrations: ${integrationNames.join(', ')}` : ''
   console.log(
-    `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s), ${totalCodecs} codec(s)`
+    `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s), ${totalCodecs} codec(s)${integrationSuffix}`
   )
 }
 
