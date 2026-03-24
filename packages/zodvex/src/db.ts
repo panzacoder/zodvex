@@ -496,6 +496,11 @@ export class ZodvexDatabaseReader<
     this.system = db.system
   }
 
+  /** @internal Expose for wrapper construction (rules.ts, audit subclasses) */
+  get _internals(): { db: GenericDatabaseReader<DataModel>; tableMap: ZodTableMap } {
+    return { db: this.db, tableMap: this.tableMap }
+  }
+
   normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
     tableName: TableName,
     id: string
@@ -594,6 +599,15 @@ export class ZodvexDatabaseWriter<
       DecodedDocs
     >
     this.system = db.system
+  }
+
+  /** @internal Expose for wrapper construction (rules.ts, audit subclasses) */
+  get _internals(): {
+    db: GenericDatabaseWriter<DataModel>
+    tableMap: ZodTableMap
+    reader: ZodvexDatabaseReader<DataModel, DecodedDocs>
+  } {
+    return { db: this.db, tableMap: this.tableMap, reader: this.reader }
   }
 
   // --- Read methods: delegate to reader ---

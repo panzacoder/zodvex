@@ -248,7 +248,8 @@ class RulesDatabaseReader<
     private rulesConfig: ZodvexRulesConfig
   ) {
     // Pass the inner's protected db + tableMap to super.
-    super((inner as any).db, (inner as any).tableMap)
+    const { db, tableMap } = inner._internals
+    super(db, tableMap)
     this.system = inner.system
   }
 
@@ -348,9 +349,9 @@ class RulesDatabaseWriter<
     private rulesConfig: ZodvexRulesConfig
   ) {
     // Pass the inner's protected db + tableMap to super.
-    super((inner as any).db, (inner as any).tableMap)
+    const { db, tableMap, reader: innerReader } = inner._internals
+    super(db, tableMap)
     // Build a rules-aware reader from the inner writer's reader for read operations.
-    const innerReader = (inner as any).reader as ZodvexDatabaseReader<DataModel, DecodedDocs>
     this.rulesReader = new RulesDatabaseReader(innerReader, ctx, rules, rulesConfig)
     this.system = inner.system
   }
@@ -495,7 +496,7 @@ class RulesDatabaseWriter<
     }
     // If not found in rules, check ALL tables from tableMap for defaultPolicy: deny
     if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
-      for (const tableName of Object.keys((this.inner as any).tableMap)) {
+      for (const tableName of Object.keys(this.inner._internals.tableMap)) {
         if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
           return tableName
         }
@@ -624,7 +625,8 @@ class AuditDatabaseReader<
 
   constructor(inner: ZodvexDatabaseReader<DataModel, DecodedDocs>, config: ReaderAuditConfig) {
     // Pass the inner's protected db + tableMap to super.
-    super((inner as any).db, (inner as any).tableMap)
+    const { db, tableMap } = inner._internals
+    super(db, tableMap)
     this.inner = inner
     this.afterRead =
       config.afterRead ??
@@ -704,12 +706,12 @@ class AuditDatabaseWriter<
 
   constructor(inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>, config: WriterAuditConfig) {
     // Pass the inner's protected db + tableMap to super.
-    super((inner as any).db, (inner as any).tableMap)
+    const { db, tableMap, reader: innerReader } = inner._internals
+    super(db, tableMap)
     this.inner = inner
     this.afterWrite = config.afterWrite as any
 
     // Build an audit-aware reader from the inner writer's reader for read operations.
-    const innerReader = (inner as any).reader as ZodvexDatabaseReader<DataModel, DecodedDocs>
     this.auditReader = config.afterRead
       ? new AuditDatabaseReader(innerReader, { afterRead: config.afterRead })
       : innerReader
@@ -832,7 +834,7 @@ class AuditDatabaseWriter<
   }
 
   private resolveTableFromId(id: any): string | null {
-    for (const tableName of Object.keys((this.inner as any).tableMap)) {
+    for (const tableName of Object.keys(this.inner._internals.tableMap)) {
       if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
         return tableName
       }
