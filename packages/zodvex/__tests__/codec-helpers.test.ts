@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { type MockInstance, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createBoundaryHelpers } from '../src/boundaryHelpers'
 import { zx } from '../src/zx'
@@ -88,6 +88,46 @@ describe('createBoundaryHelpers', () => {
       const raw = { some: 'data' }
       const result = encodeArgs(fakeRef('unknown:fn'), raw)
       expect(result).toEqual(raw)
+    })
+
+    it('logs console.debug (not warn) for missing registry entry', () => {
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const helpers = createBoundaryHelpers(registry as any)
+
+      helpers.encodeArgs(fakeRef('unregistered:func'), { a: 1 })
+
+      expect(debugSpy).toHaveBeenCalledOnce()
+      expect(debugSpy.mock.calls[0][0]).toContain('No registry entry for "unregistered:func"')
+      expect(warnSpy).not.toHaveBeenCalled()
+
+      debugSpy.mockRestore()
+      warnSpy.mockRestore()
+    })
+
+    it('warns only once per path per helper instance (deduplication)', () => {
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      const helpers = createBoundaryHelpers(registry as any)
+
+      helpers.encodeArgs(fakeRef('noisy:func'), { x: 1 })
+      helpers.encodeArgs(fakeRef('noisy:func'), { x: 2 })
+      helpers.encodeArgs(fakeRef('noisy:func'), { x: 3 })
+
+      expect(debugSpy).toHaveBeenCalledOnce()
+
+      debugSpy.mockRestore()
+    })
+
+    it('warns separately for different unregistered paths', () => {
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      const helpers = createBoundaryHelpers(registry as any)
+
+      helpers.encodeArgs(fakeRef('alpha:fn'), { a: 1 })
+      helpers.encodeArgs(fakeRef('beta:fn'), { b: 2 })
+
+      expect(debugSpy).toHaveBeenCalledTimes(2)
+
+      debugSpy.mockRestore()
     })
 
     it('passes through when args is null', () => {
