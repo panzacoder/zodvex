@@ -289,7 +289,7 @@ class RulesDatabaseReader<
     }
     // If not found in rules, check ALL tables from tableMap for defaultPolicy: deny
     if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
-      for (const tableName of Object.keys(this.tableMap)) {
+      for (const tableName of Object.keys(this.inner._internals.tableMap)) {
         if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
           return tableName
         }
