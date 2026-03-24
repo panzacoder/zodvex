@@ -16,7 +16,7 @@ import {
   getUnionOptions,
   isZodUnion
 } from './schemaHelpers'
-import { type ZxId, zx } from './zx'
+import { type ZxDate, type ZxId, zx } from './zx'
 
 /** Wrap in .optional() only if not already optional. */
 function ensureOptional(schema: z.ZodTypeAny): z.ZodOptional<any> {
@@ -99,20 +99,18 @@ export type ZodModel<
   readonly name: Name
   readonly fields: Fields
   readonly schema: {
-    readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
+    readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: ZxDate }>
     /** User fields only — alias for insert */
     readonly base: z.ZodObject<Fields>
     readonly insert: z.ZodObject<Fields>
     readonly update: z.ZodObject<
-      { _id: ZxId<Name>; _creationTime: z.ZodOptional<z.ZodNumber> } & {
+      { _id: ZxId<Name>; _creationTime: z.ZodOptional<ZxDate> } & {
         [K in keyof Fields]: z.ZodOptional<Fields[K]>
       }
     >
-    readonly docArray: z.ZodArray<
-      z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
-    >
+    readonly docArray: z.ZodArray<z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: ZxDate }>>
     readonly paginatedDoc: z.ZodObject<{
-      page: z.ZodArray<z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>>
+      page: z.ZodArray<z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: ZxDate }>>
       isDone: z.ZodBoolean
       continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
     }>
@@ -226,7 +224,7 @@ export function defineZodModel<Name extends string>(
   const insertSchema = z.object(fields)
   const docSchema = insertSchema.extend({
     _id: zx.id(name),
-    _creationTime: z.number()
+    _creationTime: zx.date()
   })
 
   // Create partial shape for update: _id required, _creationTime optional, user fields partial
@@ -236,7 +234,7 @@ export function defineZodModel<Name extends string>(
   }
   const updateSchema = z.object({
     _id: zx.id(name),
-    _creationTime: z.number().optional(),
+    _creationTime: zx.date().optional(),
     ...partialShape
   })
 
@@ -322,7 +320,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: z.ZodTyp
         }
         return z.object({
           _id: zx.id(name),
-          _creationTime: z.number().optional(),
+          _creationTime: zx.date().optional(),
           ...partialShape
         })
       }
@@ -336,7 +334,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: z.ZodTyp
     }
     updateSchema = z.object({
       _id: zx.id(name),
-      _creationTime: z.number().optional(),
+      _creationTime: zx.date().optional(),
       ...partialShape
     })
   } else {

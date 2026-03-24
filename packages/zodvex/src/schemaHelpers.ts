@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod'
-import { type ZxId, zx } from './zx'
+import { type ZxDate, type ZxId, zx } from './zx'
 
 // ============================================================================
 // Types
@@ -22,7 +22,7 @@ import { type ZxId, zx } from './zx'
  */
 export type SystemFields<TableName extends string> = {
   _id: ZxId<TableName>
-  _creationTime: z.ZodNumber
+  _creationTime: ZxDate
 }
 
 /**
@@ -157,7 +157,7 @@ export function addSystemFields<TableName extends string>(
       if (variant instanceof z.ZodObject) {
         return variant.extend({
           _id: zx.id(tableName),
-          _creationTime: z.number()
+          _creationTime: zx.date()
         })
       }
       // Non-object variants are returned as-is (shouldn't happen in practice)
@@ -170,7 +170,7 @@ export function addSystemFields<TableName extends string>(
   if (schema instanceof z.ZodObject) {
     return schema.extend({
       _id: zx.id(tableName),
-      _creationTime: z.number()
+      _creationTime: zx.date()
     })
   }
 
