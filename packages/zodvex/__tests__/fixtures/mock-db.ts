@@ -19,7 +19,12 @@ export const userSchemas: ZodTableSchemas = {
   docArray: z.array(userDocSchema),
   base: userInsertSchema,
   insert: userInsertSchema,
-  update: userInsertSchema.partial().extend({ _id: z.string() })
+  update: userInsertSchema.partial().extend({ _id: z.string() }),
+  paginatedDoc: z.object({
+    page: z.array(userDocSchema),
+    isDone: z.boolean(),
+    continueCursor: z.union([z.string(), z.null()])
+  })
 }
 
 export const userTableMap = { users: userSchemas }

@@ -1,6 +1,6 @@
-import type { AuthTokenFetcher } from 'convex/browser'
+import type { AuthTokenFetcher, ConnectionState } from 'convex/browser'
 import { ConvexReactClient } from 'convex/react'
-import type { FunctionReference, FunctionReturnType } from 'convex/server'
+import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import type { BoundaryHelpersOptions } from '../boundaryHelpers'
 import { createBoundaryHelpers } from '../boundaryHelpers'
 import type { AnyRegistry } from '../types'
@@ -25,27 +25,50 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
   // Data methods — codec-wrapped
   // ---------------------------------------------------------------------------
 
-  async query(ref: any, ...args: any[]): Promise<any> {
-    const wireArgs = this.codec.encodeArgs(ref, args[0])
-    const wireResult = await this.convex.query(ref, wireArgs)
+  async query<Q extends FunctionReference<'query', any, any, any>>(
+    ref: Q,
+    args: Q['_args']
+  ): Promise<Q['_returnType']> {
+    const wireResult = await this.convex.query(
+      ref,
+      this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
+    )
     return this.codec.decodeResult(ref, wireResult)
   }
 
-  async mutation(ref: any, ...args: any[]): Promise<any> {
-    const wireArgs = this.codec.encodeArgs(ref, args[0])
-    const wireResult = await this.convex.mutation(ref, wireArgs)
+  async mutation<M extends FunctionReference<'mutation', any, any, any>>(
+    ref: M,
+    args: M['_args']
+  ): Promise<M['_returnType']> {
+    const wireResult = await this.convex.mutation(
+      ref,
+      this.codec.encodeArgs(ref, args) as FunctionArgs<M>
+    )
     return this.codec.decodeResult(ref, wireResult)
   }
 
-  async action(ref: any, ...args: any[]): Promise<any> {
-    const wireArgs = this.codec.encodeArgs(ref, args[0])
-    const wireResult = await this.convex.action(ref, wireArgs)
+  async action<A extends FunctionReference<'action', any, any, any>>(
+    ref: A,
+    args: A['_args']
+  ): Promise<A['_returnType']> {
+    const wireResult = await this.convex.action(
+      ref,
+      this.codec.encodeArgs(ref, args) as FunctionArgs<A>
+    )
     return this.codec.decodeResult(ref, wireResult)
   }
 
-  watchQuery(ref: any, ...argsAndOptions: any[]): any {
-    const wireArgs = this.codec.encodeArgs(ref, argsAndOptions[0])
-    const innerWatch = this.convex.watchQuery(ref, wireArgs, argsAndOptions[1])
+  watchQuery<Q extends FunctionReference<'query', any, any, any>>(
+    ref: Q,
+    args: Q['_args'],
+    options?: Record<string, unknown>
+  ): {
+    onUpdate: (cb: () => void) => () => void
+    localQueryResult: () => Q['_returnType'] | undefined
+    journal: () => unknown
+  } {
+    const wireArgs = this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
+    const innerWatch = this.convex.watchQuery(ref, wireArgs, options as any)
 
     // Memoize by wire reference identity to avoid redundant Zod parse.
     // Convex creates a new object per server transition via jsonToConvex()
@@ -94,7 +117,7 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
     return this.convex.connectionState()
   }
 
-  subscribeToConnectionState(cb: (state: any) => void): () => void {
+  subscribeToConnectionState(cb: (state: ConnectionState) => void): () => void {
     return this.convex.subscribeToConnectionState(cb)
   }
 }
