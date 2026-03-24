@@ -1,5 +1,6 @@
 import type { AuthTokenFetcher, ConnectionState } from 'convex/browser'
 import { ConvexReactClient } from 'convex/react'
+import type { Watch, WatchQueryOptions } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import type { BoundaryHelpersOptions } from '../boundaryHelpers'
 import { createBoundaryHelpers } from '../boundaryHelpers'
@@ -61,12 +62,8 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
   watchQuery<Q extends FunctionReference<'query', any, any, any>>(
     ref: Q,
     args: Q['_args'],
-    options?: Record<string, unknown>
-  ): {
-    onUpdate: (cb: () => void) => () => void
-    localQueryResult: () => Q['_returnType'] | undefined
-    journal: () => unknown
-  } {
+    options?: WatchQueryOptions
+  ): Watch<Q['_returnType']> {
     const wireArgs = this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
     const innerWatch = this.convex.watchQuery(ref, wireArgs, options as any)
 
