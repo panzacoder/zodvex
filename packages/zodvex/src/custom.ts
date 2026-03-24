@@ -16,13 +16,8 @@ import { z } from 'zod'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import { attachMeta } from './meta'
 import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
-import {
-  assertNoNativeZodDate,
-  handleZodValidationError,
-  pick,
-  stripUndefined,
-  validateReturns
-} from './utils'
+import { handleZodValidationError, validateReturns } from './serverUtils'
+import { assertNoNativeZodDate, pick, stripUndefined } from './utils'
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]

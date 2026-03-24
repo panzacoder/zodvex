@@ -4,9 +4,9 @@ import type {
   RegisteredMutation,
   RegisteredQuery
 } from 'convex/server'
-import { ConvexError } from 'convex/values'
 import { z } from 'zod'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
+import { handleZodValidationError, validateReturns } from './serverUtils'
 // Typing helpers to keep handler args/returns precise without deep remapping
 import type {
   ExtractCtx,
@@ -15,12 +15,7 @@ import type {
   InferReturns,
   ZodToConvexArgs
 } from './types'
-import {
-  assertNoNativeZodDate,
-  handleZodValidationError,
-  stripUndefined,
-  validateReturns
-} from './utils'
+import { assertNoNativeZodDate, stripUndefined } from './utils'
 
 // Cache to avoid re-checking the same schema
 const customCheckCache = new WeakMap<z.ZodTypeAny, boolean>()
