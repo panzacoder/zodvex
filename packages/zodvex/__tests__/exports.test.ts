@@ -116,9 +116,20 @@ describe('zodvex/core exports', () => {
   })
 
   it('exports transform utilities', async () => {
-    const { transformBySchema, walkSchema } = await import('../src/core')
+    const {
+      transformBySchema,
+      walkSchema,
+      unwrapOnce,
+      findFieldsWithMeta,
+      getMetadata,
+      hasMetadata
+    } = await import('../src/core')
     expect(transformBySchema).toBeDefined()
     expect(walkSchema).toBeDefined()
+    expect(unwrapOnce).toBeDefined()
+    expect(findFieldsWithMeta).toBeDefined()
+    expect(getMetadata).toBeDefined()
+    expect(hasMetadata).toBeDefined()
   })
 
   it('exports utility functions', async () => {

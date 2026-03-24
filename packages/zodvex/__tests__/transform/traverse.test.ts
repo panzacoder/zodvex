@@ -12,11 +12,83 @@ import {
   findFieldsWithMeta,
   getMetadata,
   hasMetadata,
+  unwrapOnce,
   walkSchema
 } from '../../src/transform/traverse'
 import type { FieldInfo } from '../../src/transform/types'
 
 describe('transform/traverse.ts', () => {
+  describe('unwrapOnce', () => {
+    it('should unwrap optional', () => {
+      const inner = z.string()
+      const wrapped = inner.optional()
+      const result = unwrapOnce(wrapped)
+      expect(result).toBeDefined()
+      // The unwrapped schema should parse a plain string
+      expect(result!.safeParse('hello').success).toBe(true)
+    })
+
+    it('should unwrap nullable', () => {
+      const inner = z.string()
+      const wrapped = inner.nullable()
+      const result = unwrapOnce(wrapped)
+      expect(result).toBeDefined()
+      expect(result!.safeParse('hello').success).toBe(true)
+    })
+
+    it('should unwrap default', () => {
+      const inner = z.string()
+      const wrapped = inner.default('fallback')
+      const result = unwrapOnce(wrapped)
+      expect(result).toBeDefined()
+      expect(result!.safeParse('hello').success).toBe(true)
+    })
+
+    it('should unwrap catch', () => {
+      const inner = z.string()
+      const wrapped = inner.catch('fallback')
+      const result = unwrapOnce(wrapped)
+      expect(result).toBeDefined()
+      expect(result!.safeParse('hello').success).toBe(true)
+    })
+
+    it('should unwrap lazy', () => {
+      const inner = z.string()
+      const wrapped = z.lazy(() => inner)
+      const result = unwrapOnce(wrapped)
+      expect(result).toBeDefined()
+      expect(result!.safeParse('hello').success).toBe(true)
+    })
+
+    it('should unwrap pipe (transform)', () => {
+      const wrapped = z.string().transform(v => v.toUpperCase())
+      const result = unwrapOnce(wrapped)
+      expect(result).toBeDefined()
+      expect(result!.safeParse('hello').success).toBe(true)
+    })
+
+    it('should return undefined for non-wrapper types', () => {
+      expect(unwrapOnce(z.string())).toBeUndefined()
+      expect(unwrapOnce(z.number())).toBeUndefined()
+      expect(unwrapOnce(z.boolean())).toBeUndefined()
+      expect(unwrapOnce(z.object({ a: z.string() }))).toBeUndefined()
+      expect(unwrapOnce(z.array(z.string()))).toBeUndefined()
+    })
+
+    it('should unwrap only one layer', () => {
+      const inner = z.string()
+      const wrapped = inner.optional().nullable()
+      const once = unwrapOnce(wrapped)
+      expect(once).toBeDefined()
+      // After unwrapping nullable, we should still have an optional wrapper
+      const twice = unwrapOnce(once!)
+      expect(twice).toBeDefined()
+      // After unwrapping optional, we should have the base string
+      const thrice = unwrapOnce(twice!)
+      expect(thrice).toBeUndefined()
+    })
+  })
+
   describe('getMetadata', () => {
     it('should return metadata from schema.meta()', () => {
       const schema = z.string().meta({ foo: 'bar', count: 42 })
