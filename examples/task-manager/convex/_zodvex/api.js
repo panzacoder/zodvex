@@ -21,6 +21,18 @@ export const zodvexRegistry = {
     args: z.object({ taskId: zx.id("tasks") }),
     returns: CommentModel.schema.docArray,
   },
+  'filters:namedRecentUsers': {
+    args: z.object({ after: zx.date() }),
+    returns: undefined,
+  },
+  'filters:recentUsers': {
+    args: z.object({ after: zx.date() }),
+    returns: undefined,
+  },
+  'filters:recentUsersWithHelper': {
+    args: z.object({ after: zx.date() }),
+    returns: undefined,
+  },
   'notifications:createEmail': {
     args: z.object({ recipientId: zx.id("users"), subject: z.string(), body: z.string() }),
     returns: zx.id("notifications"),
@@ -52,6 +64,14 @@ export const zodvexRegistry = {
   'notifications:listByRecipientAndKind': {
     args: z.object({ recipientId: zx.id("users"), kind: z.enum(["email", "push", "in_app"]) }),
     returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.number().optional(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.string().optional(), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  },
+  'actions:health': {
+    args: undefined,
+    returns: z.string(),
+  },
+  'actions:ping': {
+    args: z.object({ message: z.string() }),
+    returns: z.string(),
   },
   'api/reports:summary': {
     args: z.object({ ownerId: zx.id("users").optional() }),
