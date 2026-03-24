@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+// Private copy — importing from ./mapping pulls convex/values into client bundles
+// (mapping/utils.ts imports `v` from convex/values which is server-only).
 function getObjectShape(obj: any): Record<string, any> {
   if (obj instanceof z.ZodObject) return obj.shape
   if (obj && typeof obj === 'object' && typeof obj.shape === 'object')

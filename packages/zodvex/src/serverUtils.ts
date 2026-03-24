@@ -1,3 +1,7 @@
+/**
+ * Server-only utilities — imports ConvexError from convex/values.
+ * Do NOT re-export from core/index.ts or any client-safe barrel.
+ */
 import { ConvexError } from 'convex/values'
 import { z } from 'zod'
 
