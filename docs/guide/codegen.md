@@ -110,7 +110,7 @@ Model references (`TaskModel.schema.doc`) are imported directly — the registry
 
 ### `schema.js` — model re-exports
 
-Re-exports all `zodTable` model objects discovered in your convex directory. Lets client code import models from a single stable path rather than hunting through server files:
+Re-exports all `defineZodModel` model objects discovered in your convex directory. Lets client code import models from a single stable path rather than hunting through server files:
 
 ```typescript
 // _zodvex/schema.js (generated)
