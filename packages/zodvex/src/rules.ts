@@ -281,6 +281,7 @@ class RulesDatabaseReader<
     return new RulesQueryChain(innerChain, passthroughSchema, readRule, this.rulesConfig, this.ctx)
   }
 
+  // normalizeId requires TableNamesInDataModel but we iterate dynamic string keys — cast required
   private resolveTableFromId(id: any): string | null {
     for (const tableName of Object.keys(this.rules)) {
       if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
@@ -488,6 +489,7 @@ class RulesDatabaseWriter<
     return this.inner.delete(id)
   }
 
+  // normalizeId requires TableNamesInDataModel but we iterate dynamic string keys — cast required
   private resolveTableFromId(id: any): string | null {
     for (const tableName of Object.keys(this.rules)) {
       if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
@@ -660,6 +662,7 @@ class AuditDatabaseReader<
   /**
    * Resolves table name from an ID by trying normalizeId against known tables.
    * If explicitTable is provided (for the 2-arg get form), use it directly.
+   * normalizeId requires TableNamesInDataModel but we iterate dynamic string keys — cast required.
    */
   private resolveTableFromId(id: any, explicitTable?: string): string | null {
     if (explicitTable) return explicitTable
@@ -709,7 +712,8 @@ class AuditDatabaseWriter<
     const { db, tableMap, reader: innerReader } = inner._internals
     super(db, tableMap)
     this.inner = inner
-    this.afterWrite = config.afterWrite as any
+    // Generic WriterAuditConfig.afterWrite signature widens to string-keyed dispatch internally
+    this.afterWrite = config.afterWrite as typeof this.afterWrite
 
     // Build an audit-aware reader from the inner writer's reader for read operations.
     this.auditReader = config.afterRead
@@ -833,6 +837,7 @@ class AuditDatabaseWriter<
     }
   }
 
+  // normalizeId requires TableNamesInDataModel but we iterate dynamic string keys — cast required
   private resolveTableFromId(id: any): string | null {
     for (const tableName of Object.keys(this.inner._internals.tableMap)) {
       if (this.inner.normalizeId(tableName as any, id as unknown as string)) {

@@ -20,7 +20,8 @@ import type { SearchIndexConfig, VectorIndexConfig } from './model'
 export type ZodTableSchemas = {
   doc: z.ZodTypeAny
   docArray: z.ZodTypeAny
-  paginatedDoc: z.ZodTypeAny
+  /** Optional — only used by codegen, not by the DB wrapper at runtime. */
+  paginatedDoc?: z.ZodTypeAny
   base: z.ZodTypeAny
   insert: z.ZodTypeAny
   update: z.ZodTypeAny

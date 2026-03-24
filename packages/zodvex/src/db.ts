@@ -461,6 +461,7 @@ function resolveTableName<DataModel extends GenericDataModel>(
   id: GenericId<any>
 ): string | null {
   for (const tableName of Object.keys(tableMap)) {
+    // tableName is a dynamic string key — can't narrow to TableNamesInDataModel
     if (db.normalizeId(tableName as any, id as unknown as string)) {
       return tableName
     }
@@ -520,6 +521,7 @@ export class ZodvexDatabaseReader<
     if (maybeId !== undefined) {
       // get(table, id) form
       tableName = idOrTable as string
+      // 2-arg get(table, id) is @internal in Convex types — cast required
       doc = await (this.db as any).get(idOrTable, maybeId)
     } else {
       // get(id) form
@@ -542,9 +544,11 @@ export class ZodvexDatabaseReader<
     const schemas = this.tableMap[tableName as string]
     const innerQuery = this.db.query(tableName)
     if (!schemas) {
-      // No codec for this table — return unwrapped query.
+      // No codec for this table — return unwrapped query as-is.
       // Wire types = runtime types for non-codec tables, and
       // ResolveDecodedDoc falls back to DocumentByInfo (wire) here.
+      // Cast required: Convex QueryInitializer is structurally incompatible
+      // with ZodvexQueryChain (decoded terminal return types).
       return innerQuery as any
     }
     return new ZodvexQueryChain<
