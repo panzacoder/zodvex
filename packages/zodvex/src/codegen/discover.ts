@@ -2,6 +2,7 @@ import path from 'node:path'
 import { globSync } from 'tinyglobby'
 import { z } from 'zod'
 import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../meta'
+import { registerDiscoveryHooks, writeGeneratedStubs } from './discovery-hooks'
 import { findCodec } from './extractCodec'
 
 export type DiscoveredModel = {
@@ -229,91 +230,103 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
   const functions: DiscoveredFunction[] = []
   const codecs: DiscoveredCodec[] = []
 
+  // Stub _generated/api and _generated/server so module-scope code that
+  // accesses Convex components (e.g. `new LocalDTA(components.localDTA)`)
+  // receives a harmless Proxy instead of throwing outside the Convex runtime.
+  registerDiscoveryHooks()
+  const cleanupStubs = writeGeneratedStubs(convexDir)
+
   const files = globSync(['**/*.{ts,js}'], {
     cwd: convexDir,
     onlyFiles: true,
     ignore: ['_generated/**', '_zodvex/**', 'node_modules/**', '**/*.d.ts']
   })
 
-  for (const file of files) {
-    const absPath = path.resolve(convexDir, file)
+  try {
+    for (const file of files) {
+      const absPath = path.resolve(convexDir, file)
 
-    let moduleExports: Record<string, unknown>
-    try {
-      moduleExports = await import(absPath)
-    } catch (err) {
-      console.warn(`[zodvex] Warning: Failed to import ${file}:`, (err as Error).message)
-      continue
-    }
+      let moduleExports: Record<string, unknown>
+      try {
+        moduleExports = await import(absPath)
+      } catch (err) {
+        console.warn(`[zodvex] Warning: Failed to import ${file}:`, (err as Error).message)
+        continue
+      }
 
-    // Derive module name from file path (strip extension, use forward slashes).
-    // Used as-is for function paths — Convex's getFunctionName() returns the full
-    // relative path including any subdirectory prefix (e.g. "api/reports:summary").
-    const moduleName = file.replace(/\.(ts|js)$/, '').replace(/\\/g, '/')
+      // Derive module name from file path (strip extension, use forward slashes).
+      // Used as-is for function paths — Convex's getFunctionName() returns the full
+      // relative path including any subdirectory prefix (e.g. "api/reports:summary").
+      const moduleName = file.replace(/\.(ts|js)$/, '').replace(/\\/g, '/')
 
-    for (const [exportName, value] of Object.entries(moduleExports)) {
-      const meta = readMeta(value)
-      if (meta) {
-        if (meta.type === 'model') {
-          const isBarrel = /(?:^|[\\/])index\.(ts|js)$/.test(file)
-          const existing = models.findIndex(m => m.tableName === meta.tableName)
-          if (existing >= 0) {
-            // Replace barrel source with direct module source
-            const existingIsBarrel = /(?:^|[\\/])index\.(ts|js)$/.test(models[existing].sourceFile)
-            if (existingIsBarrel && !isBarrel) {
-              models[existing] = {
+      for (const [exportName, value] of Object.entries(moduleExports)) {
+        const meta = readMeta(value)
+        if (meta) {
+          if (meta.type === 'model') {
+            const isBarrel = /(?:^|[\\/])index\.(ts|js)$/.test(file)
+            const existing = models.findIndex(m => m.tableName === meta.tableName)
+            if (existing >= 0) {
+              // Replace barrel source with direct module source
+              const existingIsBarrel = /(?:^|[\\/])index\.(ts|js)$/.test(
+                models[existing].sourceFile
+              )
+              if (existingIsBarrel && !isBarrel) {
+                models[existing] = {
+                  exportName,
+                  tableName: meta.tableName,
+                  sourceFile: file,
+                  schemas: meta.schemas
+                }
+              }
+              // If existing is direct and new is barrel, skip
+            } else {
+              models.push({
                 exportName,
                 tableName: meta.tableName,
                 sourceFile: file,
                 schemas: meta.schemas
-              }
+              })
             }
-            // If existing is direct and new is barrel, skip
-          } else {
-            models.push({
+          } else if (meta.type === 'function') {
+            functions.push({
+              functionPath: `${moduleName}:${exportName}`,
               exportName,
-              tableName: meta.tableName,
               sourceFile: file,
-              schemas: meta.schemas
+              zodArgs: meta.zodArgs,
+              zodReturns: meta.zodReturns
             })
           }
-        } else if (meta.type === 'function') {
-          functions.push({
-            functionPath: `${moduleName}:${exportName}`,
-            exportName,
-            sourceFile: file,
-            zodArgs: meta.zodArgs,
-            zodReturns: meta.zodReturns
-          })
         }
-      }
 
-      // Check for exported ZodCodec instances (custom codecs)
-      // Skip zx.date() — it's handled natively by zodToSource
-      if (value instanceof z.ZodCodec) {
-        const def = (value as any)._zod?.def as any
-        const isZxDate = def?.in instanceof z.ZodNumber && def?.out instanceof z.ZodCustom
-        if (!isZxDate) {
-          // Deduplicate by object identity (same codec from re-exports)
-          if (!codecs.some(c => c.schema === value)) {
-            codecs.push({
-              exportName,
-              sourceFile: file,
-              schema: value as z.ZodTypeAny
-            })
+        // Check for exported ZodCodec instances (custom codecs)
+        // Skip zx.date() — it's handled natively by zodToSource
+        if (value instanceof z.ZodCodec) {
+          const def = (value as any)._zod?.def as any
+          const isZxDate = def?.in instanceof z.ZodNumber && def?.out instanceof z.ZodCustom
+          if (!isZxDate) {
+            // Deduplicate by object identity (same codec from re-exports)
+            if (!codecs.some(c => c.schema === value)) {
+              codecs.push({
+                exportName,
+                sourceFile: file,
+                schema: value as z.ZodTypeAny
+              })
+            }
           }
         }
       }
     }
+
+    const modelCodecs: ModelEmbeddedCodec[] = []
+    for (const model of models) {
+      const found = walkModelCodecs(model.exportName, model.sourceFile, model.schemas)
+      modelCodecs.push(...found)
+    }
+
+    const functionCodecs = walkFunctionCodecs(functions)
+
+    return { models, functions, codecs, modelCodecs, functionCodecs }
+  } finally {
+    cleanupStubs()
   }
-
-  const modelCodecs: ModelEmbeddedCodec[] = []
-  for (const model of models) {
-    const found = walkModelCodecs(model.exportName, model.sourceFile, model.schemas)
-    modelCodecs.push(...found)
-  }
-
-  const functionCodecs = walkFunctionCodecs(functions)
-
-  return { models, functions, codecs, modelCodecs, functionCodecs }
 }
