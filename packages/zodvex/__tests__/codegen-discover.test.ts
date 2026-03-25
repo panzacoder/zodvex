@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import {
   type DiscoveredFunction,
@@ -8,6 +8,7 @@ import {
   walkModelCodecs
 } from '../src/codegen/discover'
 import { extractCodec, findCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
+import { registerDiscoveryHooks } from '../src/codegen/discovery-hooks'
 import { attachMeta } from '../src/meta'
 import { zx } from '../src/zx'
 
@@ -113,16 +114,14 @@ describe('discoverModules with component imports', () => {
   })
 
   it('does not warn about _generated/api import failures when stubs are active', async () => {
-    const warnings: string[] = []
-    const originalWarn = console.warn
-    console.warn = (...args: any[]) => warnings.push(args.join(' '))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       await discoverModules(componentFixtureDir)
     } finally {
-      console.warn = originalWarn
+      warnSpy.mockRestore()
     }
 
-    const apiWarnings = warnings.filter(w => w.includes('_generated'))
+    const apiWarnings = warnSpy.mock.calls.filter(args => args.join(' ').includes('_generated'))
     expect(apiWarnings).toEqual([])
   })
 
@@ -135,6 +134,21 @@ describe('discoverModules with component imports', () => {
 
     const restoredContent = fs.readFileSync(apiPath, 'utf8')
     expect(restoredContent).toBe(originalContent)
+  })
+})
+
+describe('registerDiscoveryHooks', () => {
+  it('returns a boolean indicating whether hooks were registered', () => {
+    // In vitest/Bun, Module.register() may not be available — either result is valid.
+    // The important thing is it doesn't throw.
+    const result = registerDiscoveryHooks()
+    expect(typeof result).toBe('boolean')
+  })
+
+  it('is idempotent — repeated calls return the same result', () => {
+    const first = registerDiscoveryHooks()
+    const second = registerDiscoveryHooks()
+    expect(second).toBe(first)
   })
 })
 

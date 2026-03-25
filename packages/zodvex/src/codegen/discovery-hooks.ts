@@ -70,26 +70,7 @@ export function registerDiscoveryHooks(): boolean {
   }
 }
 
-/** Source code for the Proxy stub module (TypeScript-compatible). */
-const PROXY_STUB = `
-const handler: ProxyHandler<any> = {
-  get(_, prop) {
-    if (typeof prop === 'symbol') return undefined;
-    if (prop === '__esModule') return true;
-    return new Proxy(function(){}, handler);
-  },
-  apply() { return new Proxy({}, handler); },
-  construct() { return new Proxy({}, handler); },
-};
-const p = new Proxy({}, handler);
-export default p;
-export const api = p;
-export const internal = p;
-export const components = p;
-export const httpRouter = p;
-`
-
-/** Plain JS version of the stub for writing to .ts files that will be imported raw. */
+/** Plain JS Proxy stub for writing to .ts files that will be imported raw. */
 const PROXY_STUB_JS = `// zodvex discovery stub — replaced after discovery completes
 const handler = {
   get(_, prop) {
