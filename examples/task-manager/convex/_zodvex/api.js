@@ -33,6 +33,10 @@ export const zodvexRegistry = {
     args: z.object({ after: zx.date() }),
     returns: undefined,
   },
+  'notifications:cleanupOld': {
+    args: z.object({  }),
+    returns: z.number(),
+  },
   'notifications:createEmail': {
     args: z.object({ recipientId: zx.id("users"), subject: z.string(), body: z.string() }),
     returns: zx.id("notifications"),

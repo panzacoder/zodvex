@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { zx } from 'zodvex/core'
-import { zq, zm } from './functions'
+import { zq, zm, zim } from './functions'
 import { NotificationModel } from './models/notification'
 
 export const get = zq({
@@ -117,4 +117,26 @@ export const createInApp = zm({
     })
   },
   returns: zx.id('notifications'),
+})
+
+// Internal mutation for cron job - cleans up old read in-app notifications
+export const cleanupOld = zim({
+  args: {},
+  handler: async (ctx) => {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const oldNotifications = await ctx.db
+      .query('notifications')
+      .withIndex('by_created', (q) => q.lt('createdAt', thirtyDaysAgo))
+      .collect()
+    
+    let deleted = 0
+    for (const notification of oldNotifications) {
+      if (notification.kind === 'in_app' && notification.read) {
+        await ctx.db.delete(notification._id)
+        deleted++
+      }
+    }
+    return deleted
+  },
+  returns: z.number(),
 })
