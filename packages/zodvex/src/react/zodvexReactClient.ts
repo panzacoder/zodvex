@@ -1,6 +1,6 @@
 import type { AuthTokenFetcher, ConnectionState } from 'convex/browser'
-import { ConvexReactClient } from 'convex/react'
 import type { Watch, WatchQueryOptions } from 'convex/react'
+import { ConvexReactClient } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import type { BoundaryHelpersOptions } from '../boundaryHelpers'
 import { createBoundaryHelpers } from '../boundaryHelpers'

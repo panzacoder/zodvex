@@ -230,16 +230,26 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
   const functions: DiscoveredFunction[] = []
   const codecs: DiscoveredCodec[] = []
 
-  // Stub _generated/api and _generated/server so module-scope code that
-  // accesses Convex components (e.g. `new LocalDTA(components.localDTA)`)
-  // receives a harmless Proxy instead of throwing outside the Convex runtime.
+  // Stub _generated/api so module-scope code that accesses Convex components
+  // (e.g. `new LocalDTA(components.localDTA)`) receives a harmless Proxy
+  // instead of throwing outside the Convex runtime. _generated/server is NOT
+  // stubbed — it re-exports generic builders from convex/server which work natively.
   registerDiscoveryHooks()
   const cleanupStubs = writeGeneratedStubs(convexDir)
 
   const files = globSync(['**/*.{ts,js}'], {
     cwd: convexDir,
     onlyFiles: true,
-    ignore: ['_generated/**', '_zodvex/**', 'node_modules/**', '**/*.d.ts']
+    ignore: [
+      '_generated/**',
+      '_zodvex/**',
+      'node_modules/**',
+      '**/*.d.ts',
+      '**/*.test.ts',
+      '**/*.test.js',
+      '**/*.spec.ts',
+      '**/*.spec.js'
+    ]
   })
 
   try {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { components } from './_generated/api'
 import { attachMeta } from '../../../src/meta'
+import { components } from './_generated/api'
 
 // Module-scope component instantiation — this is the pattern that fails
 // without the discovery stub. In real projects this would be something like:
