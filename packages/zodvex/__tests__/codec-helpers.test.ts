@@ -1,4 +1,4 @@
-import { type MockInstance, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
 import { createBoundaryHelpers } from '../src/boundaryHelpers'
 import { zx } from '../src/zx'
@@ -91,8 +91,8 @@ describe('createBoundaryHelpers', () => {
     })
 
     it('logs console.debug (not warn) for missing registry entry', () => {
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       const helpers = createBoundaryHelpers(registry as any)
 
       helpers.encodeArgs(fakeRef('unregistered:func'), { a: 1 })
@@ -106,7 +106,7 @@ describe('createBoundaryHelpers', () => {
     })
 
     it('warns only once per path per helper instance (deduplication)', () => {
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
       const helpers = createBoundaryHelpers(registry as any)
 
       helpers.encodeArgs(fakeRef('noisy:func'), { x: 1 })
@@ -119,7 +119,7 @@ describe('createBoundaryHelpers', () => {
     })
 
     it('warns separately for different unregistered paths', () => {
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
       const helpers = createBoundaryHelpers(registry as any)
 
       helpers.encodeArgs(fakeRef('alpha:fn'), { a: 1 })

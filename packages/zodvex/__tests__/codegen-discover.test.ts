@@ -7,8 +7,8 @@ import {
   walkFunctionCodecs,
   walkModelCodecs
 } from '../src/codegen/discover'
-import { extractCodec, findCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
 import { registerDiscoveryHooks } from '../src/codegen/discovery-hooks'
+import { extractCodec, findCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
 import { attachMeta } from '../src/meta'
 import { zx } from '../src/zx'
 
@@ -114,7 +114,7 @@ describe('discoverModules with component imports', () => {
   })
 
   it('does not warn about _generated/api import failures when stubs are active', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {
       await discoverModules(componentFixtureDir)
     } finally {

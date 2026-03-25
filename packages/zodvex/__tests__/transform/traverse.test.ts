@@ -25,7 +25,7 @@ describe('transform/traverse.ts', () => {
       const result = unwrapOnce(wrapped)
       expect(result).toBeDefined()
       // The unwrapped schema should parse a plain string
-      expect(result!.safeParse('hello').success).toBe(true)
+      expect(result?.safeParse('hello').success).toBe(true)
     })
 
     it('should unwrap nullable', () => {
@@ -33,7 +33,7 @@ describe('transform/traverse.ts', () => {
       const wrapped = inner.nullable()
       const result = unwrapOnce(wrapped)
       expect(result).toBeDefined()
-      expect(result!.safeParse('hello').success).toBe(true)
+      expect(result?.safeParse('hello').success).toBe(true)
     })
 
     it('should unwrap default', () => {
@@ -41,7 +41,7 @@ describe('transform/traverse.ts', () => {
       const wrapped = inner.default('fallback')
       const result = unwrapOnce(wrapped)
       expect(result).toBeDefined()
-      expect(result!.safeParse('hello').success).toBe(true)
+      expect(result?.safeParse('hello').success).toBe(true)
     })
 
     it('should unwrap catch', () => {
@@ -49,7 +49,7 @@ describe('transform/traverse.ts', () => {
       const wrapped = inner.catch('fallback')
       const result = unwrapOnce(wrapped)
       expect(result).toBeDefined()
-      expect(result!.safeParse('hello').success).toBe(true)
+      expect(result?.safeParse('hello').success).toBe(true)
     })
 
     it('should unwrap lazy', () => {
@@ -57,14 +57,14 @@ describe('transform/traverse.ts', () => {
       const wrapped = z.lazy(() => inner)
       const result = unwrapOnce(wrapped)
       expect(result).toBeDefined()
-      expect(result!.safeParse('hello').success).toBe(true)
+      expect(result?.safeParse('hello').success).toBe(true)
     })
 
     it('should unwrap pipe (transform)', () => {
       const wrapped = z.string().transform(v => v.toUpperCase())
       const result = unwrapOnce(wrapped)
       expect(result).toBeDefined()
-      expect(result!.safeParse('hello').success).toBe(true)
+      expect(result?.safeParse('hello').success).toBe(true)
     })
 
     it('should return undefined for non-wrapper types', () => {
@@ -81,10 +81,10 @@ describe('transform/traverse.ts', () => {
       const once = unwrapOnce(wrapped)
       expect(once).toBeDefined()
       // After unwrapping nullable, we should still have an optional wrapper
-      const twice = unwrapOnce(once!)
+      const twice = once ? unwrapOnce(once) : undefined
       expect(twice).toBeDefined()
       // After unwrapping optional, we should have the base string
-      const thrice = unwrapOnce(twice!)
+      const thrice = twice ? unwrapOnce(twice) : undefined
       expect(thrice).toBeUndefined()
     })
   })
