@@ -71,6 +71,7 @@ export class ZodvexDecodeError extends z.ZodError {
  */
 export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryHelpersOptions) {
   const onDecodeError = options?.onDecodeError ?? 'warn'
+  const warnedPaths = new Set<string>()
 
   /**
    * Encode args from runtime types to wire format.
@@ -89,10 +90,11 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
     const path = resolveFunctionPath(ref)
     const entry = registry[path]
     if (!entry?.args) {
-      if (entry === undefined) {
-        console.warn(
+      if (entry === undefined && !warnedPaths.has(path)) {
+        warnedPaths.add(path)
+        console.debug(
           `[zodvex] No registry entry for "${path}" — args will not be codec-encoded. ` +
-            'Run `zodvex generate` to update the registry.'
+            'If this function uses zodvex wrappers, run `zodvex generate` to update the registry.'
         )
       }
       return args
