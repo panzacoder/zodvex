@@ -1,25 +1,35 @@
 # Hotpot: `unwrapOnce` convergence (post-v0.6.0)
 
-## Status: Deferred
+## Status: Exported
 
-The implementations have diverged and a direct import won't work today.
+`unwrapOnce` and traversal utilities are now exported from all public entry points.
 
-## Why it's deferred
+## Available imports
 
-| | Hotpot local | zodvex internal |
+```ts
+// From dedicated transform module
+import { unwrapOnce, walkSchema, findFieldsWithMeta, getMetadata, hasMetadata } from 'zodvex/transform'
+
+// From client-safe core
+import { unwrapOnce, walkSchema, findFieldsWithMeta, getMetadata, hasMetadata } from 'zodvex/core'
+
+// From main entry
+import { unwrapOnce, walkSchema, findFieldsWithMeta, getMetadata, hasMetadata } from 'zodvex'
+```
+
+## Remaining divergence
+
+| | Hotpot local | zodvex exported |
 |---|---|---|
-| Exported? | Yes (used by `findSensitiveFields`) | No — private to `zodvex/src/transform/traverse.ts` |
 | Check method | `instanceof` (Zod v4 native classes) | `_def.type` string matching |
 | Sensitive handling | Via WeakMap metadata lookup | Explicit `'sensitive'` type case |
 
-Beyond the export gap, the detection strategies differ (`instanceof` vs string matching) and hotpot has purpose-built traversal (`findSensitiveFields()`, `traverseSchema()`) that doesn't map onto zodvex's `walkSchema()` / `findFieldsWithMeta()`.
+The detection strategies still differ (`instanceof` vs string matching). Hotpot can now import `unwrapOnce` directly, but may need to verify that `_def.type` string matching works for its use cases before dropping the local copy.
 
-## What convergence would require
+## What convergence still requires
 
-1. Align on detection strategy (instanceof vs string matching) — or make zodvex's version configurable
-2. Export `unwrapOnce` from `zodvex/transform` (and `zodvex/core`)
-3. Verify hotpot's `isSensitiveSchema()` and `findSensitiveFields()` still work with the zodvex version
-4. Consider whether zodvex should also export generic traversal utilities that hotpot could build on
+1. Verify hotpot's `isSensitiveSchema()` and `findSensitiveFields()` work with the zodvex `unwrapOnce`
+2. If `instanceof` checks are needed, hotpot keeps its local version or we add an `instanceof` mode
 
 ## What stays in hotpot regardless
 
