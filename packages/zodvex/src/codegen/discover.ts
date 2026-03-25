@@ -248,7 +248,11 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
       '**/*.test.ts',
       '**/*.test.js',
       '**/*.spec.ts',
-      '**/*.spec.js'
+      '**/*.spec.js',
+      'convex.config.ts',
+      'convex.config.js',
+      'crons.ts',
+      'crons.js'
     ]
   })
 
