@@ -30,6 +30,15 @@ jobs:
       - name: Run build
         run: bun run build
 
+      - name: Verify example app codegen is up to date
+        run: |
+          cd examples/task-manager && ./node_modules/.bin/zodvex generate
+          git diff --exit-code examples/task-manager/convex/_zodvex/ || {
+            echo ""
+            echo "ERROR: Generated files are stale. Run 'cd examples/task-manager && bun x zodvex generate' and commit the result."
+            exit 1
+          }
+
   lint:
     runs-on: macos-latest
 

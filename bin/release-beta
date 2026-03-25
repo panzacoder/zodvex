@@ -56,6 +56,17 @@ echo "==> Running lint..."
 bun run lint
 echo ""
 
+echo "==> Verifying example app codegen is up to date..."
+(cd examples/task-manager && ./node_modules/.bin/zodvex generate)
+if ! git diff --quiet examples/task-manager/convex/_zodvex/; then
+  echo ""
+  echo "ERROR: Generated files are stale. Commit regenerated output before releasing."
+  echo ""
+  git diff --stat examples/task-manager/convex/_zodvex/
+  exit 1
+fi
+echo ""
+
 echo "All checks passed."
 echo ""
 
