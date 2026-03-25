@@ -25,38 +25,25 @@ import type {
 import type { GenericId, NumericValue } from 'convex/values'
 import { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
-import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './rules'
+import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './ruleTypes'
 import type { ZodTableMap } from './schema'
 
-// ---------------------------------------------------------------------------
-// Rules factory registration — breaks the circular dependency between db.ts
-// and rules.ts without require(). rules.ts calls _registerRulesFactory()
-// during module initialization, so the factory is always available before
-// any user code invokes .withRules() or .audit().
-// ---------------------------------------------------------------------------
-
-interface RulesFactory {
-  createRulesDatabaseReader: (...args: any[]) => any
-  createAuditDatabaseReader: (...args: any[]) => any
-  createRulesDatabaseWriter: (...args: any[]) => any
-  createAuditDatabaseWriter: (...args: any[]) => any
-}
-
-let _rulesFactory: RulesFactory | null = null
-
-/** @internal — called by rules.ts at module load time */
-export function _registerRulesFactory(factory: RulesFactory): void {
-  _rulesFactory = factory
-}
-
-function getRulesFactory(): RulesFactory {
-  if (!_rulesFactory) {
+// Lazy import to avoid circular dependency — rules.ts extends classes from this file.
+// The dynamic import() fires after db.ts finishes initializing, so rules.ts can
+// safely extend ZodvexDatabaseReader/Writer. By the time user code calls
+// .withRules() or .audit(), the module is loaded and cached.
+let _rules: typeof import('./rules') | null = null
+const _rulesReady = import('./rules').then(m => {
+  _rules = m
+})
+function getRules(): typeof import('./rules') {
+  if (!_rules) {
     throw new Error(
-      'zodvex rules module not loaded. Import from "zodvex/server" (not "zodvex/server/db") ' +
-        'to ensure the rules module is initialized.'
+      'zodvex rules module not yet loaded. This usually means .withRules() or .audit() ' +
+        'was called at module scope. Move it inside a function handler.'
     )
   }
-  return _rulesFactory
+  return _rules
 }
 
 // ============================================================================
@@ -566,7 +553,7 @@ export class ZodvexDatabaseReader<
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
   ): ZodvexDatabaseReader<DataModel, DecodedDocs> {
-    return getRulesFactory().createRulesDatabaseReader(this, ctx, rules, config)
+    return getRules().createRulesDatabaseReader(this, ctx, rules, config)
   }
 
   /**
@@ -575,7 +562,7 @@ export class ZodvexDatabaseReader<
    * with `.withRules()`.
    */
   audit(config: ReaderAuditConfig): ZodvexDatabaseReader<DataModel, DecodedDocs> {
-    return getRulesFactory().createAuditDatabaseReader(this, config)
+    return getRules().createAuditDatabaseReader(this, config)
   }
 }
 
@@ -741,7 +728,7 @@ export class ZodvexDatabaseWriter<
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
   ): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
-    return getRulesFactory().createRulesDatabaseWriter(this, ctx, rules, config)
+    return getRules().createRulesDatabaseWriter(this, ctx, rules, config)
   }
 
   /**
@@ -750,7 +737,7 @@ export class ZodvexDatabaseWriter<
    * with `.withRules()`.
    */
   audit(config: WriterAuditConfig): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
-    return getRulesFactory().createAuditDatabaseWriter(this, config)
+    return getRules().createAuditDatabaseWriter(this, config)
   }
 }
 
