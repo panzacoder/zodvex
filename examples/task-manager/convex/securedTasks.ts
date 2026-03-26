@@ -46,16 +46,16 @@ export const updateOwnTask = zm({
     actorId: zx.id('users'),
   },
   handler: async (ctx, { taskId, title, status, actorId }) => {
-    // Apply write rules: only allow updating own tasks
+    // Apply patch rule: only allow updating own tasks
     const secureDb = ctx.db.withRules(
       { actorId },
       {
         tasks: {
-          write: async (ruleCtx: { actorId: string }, doc: any) => {
+          patch: async (ruleCtx: { actorId: string }, doc: any, value: Partial<any>) => {
             if (doc.assigneeId !== ruleCtx.actorId) {
               throw new Error('Cannot update tasks you do not own')
             }
-            return doc
+            return value
           },
         },
       }

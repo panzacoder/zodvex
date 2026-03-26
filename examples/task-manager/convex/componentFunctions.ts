@@ -8,22 +8,23 @@
  */
 import { z } from 'zod'
 import { zx } from 'zodvex/core'
+import { ActionRetrier } from '@convex-dev/action-retrier'
 import { components } from './_generated/api'
 import { zq, zm, za } from './functions'
 
 // --- Published component: action-retrier ---
-// Module-scope instantiation from components.* — this is the pattern that
-// fails without the Proxy stub in _generated/api during discovery.
-const retrier = new (components as any).actionRetrier.lib.ActionRetrier(
-  components.actionRetrier
-)
+// Module-scope instantiation — the class is imported from the npm package,
+// the component reference comes from _generated/api.
+// This is the pattern that fails without the Proxy stub during discovery.
+const retrier = new ActionRetrier(components.actionRetrier)
 
 // --- Local/custom component ---
 // Same pattern but for a hypothetical local component. In a real project this
-// would be something like `new LocalDTA(components.localDTA)`.
-const analytics = new (components as any).analytics.lib.Analytics(
-  components.analytics
-)
+// would be something like:
+//   import { LocalDTA } from '@doxyme/convex-local-dta'
+//   const localDTA = new LocalDTA(components.localDTA)
+// Here we simulate with a direct components.* access to validate the Proxy.
+const analytics = (components as any).analytics
 
 // --- Zodvex-wrapped exports coexisting with component instantiation ---
 

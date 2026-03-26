@@ -12,6 +12,7 @@
     "test:smoke": "bun run test/smoke.ts"
   },
   "dependencies": {
+    "@convex-dev/action-retrier": "^0.3.0",
     "convex": "^1.28.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
