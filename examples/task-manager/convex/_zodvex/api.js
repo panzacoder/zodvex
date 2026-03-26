@@ -33,6 +33,10 @@ export const zodvexRegistry = {
     args: z.object({ after: zx.date() }),
     returns: undefined,
   },
+  'notifications:cleanupOld': {
+    args: z.object({  }),
+    returns: z.number(),
+  },
   'notifications:createEmail': {
     args: z.object({ recipientId: zx.id("users"), subject: z.string(), body: z.string() }),
     returns: zx.id("notifications"),
@@ -73,6 +77,14 @@ export const zodvexRegistry = {
     args: z.object({ message: z.string() }),
     returns: z.string(),
   },
+  'securedTasks:listOwnTasks': {
+    args: z.object({ ownerId: zx.id("users") }),
+    returns: z.array(z.object({ title: z.string(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]), priority: z.enum(["low", "medium", "high"]).nullable(), ownerId: zx.id("users"), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), completedAt: zx.date().optional(), estimate: zDuration.optional(), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
+  },
+  'securedTasks:updateOwnTask': {
+    args: z.object({ taskId: zx.id("tasks"), title: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), actorId: zx.id("users") }),
+    returns: undefined,
+  },
   'api/reports:summary': {
     args: z.object({ ownerId: zx.id("users").optional() }),
     returns: z.object({ total: z.number(), done: z.number() }),
@@ -80,6 +92,14 @@ export const zodvexRegistry = {
   'api/reports:taskById': {
     args: z.object({ id: zx.id("tasks") }),
     returns: TaskModel.schema.doc.nullable(),
+  },
+  'componentFunctions:getTaskById': {
+    args: z.object({ taskId: zx.id("tasks") }),
+    returns: undefined,
+  },
+  'componentFunctions:retryableAction': {
+    args: z.object({ taskId: zx.id("tasks"), attempt: z.number().optional() }),
+    returns: undefined,
   },
   'users:create': {
     args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.string().optional() }),

@@ -26,7 +26,7 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 
 ### Testing
 
-- `bun test` - Run tests with Bun's built-in test runner
+- `bun run test` - Run tests via vitest (NEVER use `bun test` — it invokes Bun's built-in runner which fails on vitest APIs)
 
 ### Code Quality
 
@@ -85,8 +85,8 @@ The library is organized into focused modules in `packages/zodvex/src/`:
 Tests are located in `packages/zodvex/__tests__/` and use Bun's test runner. Run a specific test file:
 
 ```bash
-bun test packages/zodvex/__tests__/mapping.test.ts
-bun test packages/zodvex/__tests__/codec.test.ts
+bun run test -- packages/zodvex/__tests__/mapping.test.ts
+bun run test -- packages/zodvex/__tests__/codec.test.ts
 ```
 
 ## Dependencies
