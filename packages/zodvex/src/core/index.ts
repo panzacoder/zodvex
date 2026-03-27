@@ -62,5 +62,17 @@ export {
   stripUndefined,
   zPaginated
 } from '../utils'
+// Runtime schema introspection
+export {
+  getBaseType,
+  getDefault,
+  getTableName,
+  hasDefault,
+  introspect,
+  isConvexId,
+  isNullable,
+  isOptional,
+  type SchemaIntrospection
+} from '../introspection'
 // Zod extensions for Convex
 export * from '../zx'
