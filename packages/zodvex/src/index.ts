@@ -17,3 +17,5 @@
 
 export * from './core'
 export * from './server'
+export { defineConfig } from './codegen/config'
+export type { ZodvexConfig } from './codegen/config'
