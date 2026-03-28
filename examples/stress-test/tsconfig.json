@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "types": ["bun-types"]
+  },
+  "include": ["*.ts", "templates/**/*.ts"],
+  "exclude": ["convex", "node_modules", "dist"]
+}

@@ -1,0 +1,12 @@
+import { z } from 'zod'
+import { defineZodModel, zx } from 'zodvex/core'
+
+export const {{NAME}}Fields = {
+  title: z.string(),
+  active: z.boolean(),
+  count: z.number(),
+  createdAt: zx.date(),
+}
+
+export const {{NAME}}Model = defineZodModel('{{TABLE_NAME}}', {{NAME}}Fields)
+  .index('by_created', ['createdAt'])

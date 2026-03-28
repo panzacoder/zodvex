@@ -1,0 +1,71 @@
+import { z } from 'zod'
+import { defineZodModel, zx } from 'zodvex/core'
+
+const addressSchema = z.object({
+  street: z.string(),
+  city: z.string(),
+  state: z.string(),
+  zip: z.string(),
+  country: z.string().optional(),
+})
+
+const contactVariantA = z.object({
+  kind: z.literal('email'),
+  email: z.string(),
+  verified: z.boolean(),
+})
+
+const contactVariantB = z.object({
+  kind: z.literal('phone'),
+  phone: z.string(),
+  extension: z.string().optional(),
+})
+
+const contactVariantC = z.object({
+  kind: z.literal('address'),
+  address: addressSchema,
+  isPrimary: z.boolean(),
+})
+
+const {{NAME}}Config = z.object({
+  enabled: z.boolean(),
+  threshold: z.number().optional(),
+})
+
+const {{NAME}}Metadata = z.object({
+  source: z.string(),
+  version: z.number(),
+  features: z.array(z.string()),
+  config: {{NAME}}Config.optional(),
+})
+
+export const {{NAME}}Fields = {
+  title: z.string(),
+  description: z.string().optional(),
+  status: z.enum(['draft', 'review', 'active', 'suspended', 'archived']),
+  priority: z.number(),
+  ownerId: zx.id('users_{{INDEX_FIELD}}'),
+  assigneeId: zx.id('users_{{INDEX_FIELD}}').optional(),
+  contact: z.discriminatedUnion('kind', [contactVariantA, contactVariantB, contactVariantC]),
+  tags: z.array(z.string()),
+  labels: z.array(z.object({ name: z.string(), color: z.string() })),
+  metadata: {{NAME}}Metadata,
+  notes: z.array(z.object({
+    text: z.string(),
+    authorId: zx.id('users_{{INDEX_FIELD}}'),
+    createdAt: zx.date(),
+  })),
+  isPublic: z.boolean(),
+  score: z.number().nullable(),
+  rating: z.number().optional(),
+  retryCount: z.number(),
+  lastActivityAt: zx.date().optional(),
+  createdAt: zx.date(),
+  updatedAt: zx.date().optional(),
+}
+
+export const {{NAME}}Model = defineZodModel('{{TABLE_NAME}}', {{NAME}}Fields)
+  .index('by_owner', ['ownerId'])
+  .index('by_status', ['status'])
+  .index('by_created', ['createdAt'])
+  .index('by_priority', ['priority'])

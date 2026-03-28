@@ -1,0 +1,32 @@
+{
+  "convexBaseline": {
+    "variant": "convex-only",
+    "mode": "both",
+    "count": 50,
+    "heapBefore": 2140533,
+    "heapAfter": 2356278,
+    "heapDelta": 215745,
+    "heapDeltaMB": "0.21",
+    "heapPeakMB": "2.25",
+    "modulesLoaded": 50,
+    "modulesFailed": 0,
+    "externalBefore": 679173,
+    "externalAfter": 746694,
+    "timestamp": "2026-03-28T03:37:56.494Z"
+  },
+  "result": {
+    "variant": "baseline",
+    "mode": "functions-only",
+    "count": 50,
+    "heapBefore": 2842505,
+    "heapAfter": 15546780,
+    "heapDelta": 12704275,
+    "heapDeltaMB": "12.12",
+    "heapPeakMB": "14.83",
+    "modulesLoaded": 50,
+    "modulesFailed": 0,
+    "externalBefore": 905369,
+    "externalAfter": 2072476,
+    "timestamp": "2026-03-28T03:37:56.541Z"
+  }
+}
