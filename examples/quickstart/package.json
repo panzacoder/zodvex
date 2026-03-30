@@ -1,0 +1,14 @@
+{
+  "name": "zodvex-example-quickstart",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bunx convex dev"
+  },
+  "dependencies": {
+    "convex": "^1.28.0",
+    "convex-helpers": "^0.1.104",
+    "zod": "^4.3.6",
+    "zodvex": "workspace:*"
+  }
+}

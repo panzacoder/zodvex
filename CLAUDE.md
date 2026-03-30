@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping with correct optional and nullable semantics. It acts as a thin, practical glue around `convex-helpers` that preserves Convex's notion of optional fields while offering ergonomic wrappers and codecs for working with Zod schemas in Convex applications.
 
+## Monorepo Structure
+
+This is a bun workspaces monorepo:
+
+- `packages/zodvex/` — the publishable library (source, tests, build config)
+- `examples/task-manager/` — example app using zodvex via `workspace:*`
+- Root `package.json` — workspace root (private, not published)
+
+All commands can be run from the repo root — they delegate to `packages/zodvex/`.
+
 ## Key Commands
 
 ### Development
@@ -16,9 +26,7 @@ zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping
 
 ### Testing
 
-- `bun test` - Run tests with Bun's built-in test runner
-- `bun run test:vitest` - Run tests with Vitest
-- `bun run test:coverage` - Run tests with code coverage
+- `bun run test` - Run tests via vitest (NEVER use `bun test` — it invokes Bun's built-in runner which fails on vitest APIs)
 
 ### Code Quality
 
@@ -26,15 +34,26 @@ zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping
 - `bun run lint:fix` - Fix code issues with Biome
 - `bun run format` - Format code with Biome
 
-### Publishing
+### Releasing
 
-- `bun run prepublishOnly` - Runs build, test, and type-check before publishing
+**Beta releases** (manual, fast):
+- `bin/release-beta` — auto-increments prerelease number, builds, tests, tags, pushes
+- `bin/release-beta 0.7.0-beta.0` — explicit version
+- Tag push triggers `.github/workflows/release.yml` → npm publish with `--tag beta`
+- No GitHub Release created for betas
+
+**Stable releases** (automated via release-please):
+- Conventional commits on `main` are accumulated by release-please into a persistent Release PR
+- Merge the Release PR → `.github/workflows/release-please.yml` → npm publish with `--tag latest` + GitHub Release + CHANGELOG
+- release-please config: `release-please-config.json`, manifest: `.release-please-manifest.json`
+
+**PR titles** must follow conventional commit format (`feat:`, `fix:`, `chore:`, etc.) — enforced by `.github/workflows/pr-title.yml`
 
 ## Architecture
 
 ### Core Modules
 
-The library is organized into focused modules in the `src/` directory:
+The library is organized into focused modules in `packages/zodvex/src/`:
 
 - **mapping.ts** - Core Zod to Convex validator conversion logic. Handles the translation of Zod schemas to Convex validators with proper optional/nullable semantics.
 
@@ -42,7 +61,7 @@ The library is organized into focused modules in the `src/` directory:
 
 - **wrappers.ts** - Function wrappers (`zQuery`, `zMutation`, `zAction` and their internal variants) that add Zod validation to Convex functions.
 
-- **custom.ts** - Custom function builders (`zCustomQuery`, `zCustomMutation`, `zCustomAction`) for more advanced use cases. Also provides `customCtxWithHooks` for defining customizations with hooks (side effects like `onSuccess`) and transforms (data modifications like `transforms.output` for wire-boundary transforms).
+- **custom.ts** - Custom function builders (`zCustomQuery`, `zCustomMutation`, `zCustomAction`) for more advanced use cases. Supports convex-helpers' `onSuccess` callback convention.
 
 - **tables.ts** - Table helpers including `zodTable` for defining Convex tables from Zod schemas.
 
@@ -63,11 +82,11 @@ The library is organized into focused modules in the `src/` directory:
 
 ## Testing Approach
 
-Tests are located in `__tests__/` directory and use Vitest. Run a specific test file:
+Tests are located in `packages/zodvex/__tests__/` and use Bun's test runner. Run a specific test file:
 
 ```bash
-pnpm vitest run __tests__/mapping.test.ts
-pnpm vitest run __tests__/codec.test.ts
+bun run test -- packages/zodvex/__tests__/mapping.test.ts
+bun run test -- packages/zodvex/__tests__/codec.test.ts
 ```
 
 ## Dependencies
@@ -83,10 +102,14 @@ The library is built with tsup and can run on:
 - Node.js 20+
 - Bun 1.0+
 
+## Convex Reference
+
+See `docs/convex_rules.txt` for official Convex agent guidance (query patterns, schema design, function registration, etc.). This is the canonical reference for how Convex APIs should be used — always consult it before writing or reviewing Convex code.
+
 ## Tooling
 
 - **Runtime/Package Manager**: Bun (replaces pnpm)
 - **Linting/Formatting**: Biome (replaces ESLint + Prettier)
 - **Building**: tsup (powered by esbuild)
-- **Testing**: Bun test runner or Vitest
+- **Testing**: Bun test runner
 - **TypeScript**: v5.x with strict mode

@@ -1,11 +1,54 @@
 # Motiion-Inspired Utilities for zodvex
 
 **Created:** 2025-01-18
-**Status:** Proposal
-**Priority:** High (Phase 1), Medium (Phase 2-3), Low (Phase 4)
+**Status:** Proposal — recalibrated 2026-03-11
+**Priority:** Post-v0.6.0 (Phase 1 first, then 2-3; Phase 4 is largely done)
 **Inspiration:** Patterns discovered in plfx/motiion project
 
-## Executive Summary
+## Recalibration (2026-03-11)
+
+Deep review of the codebase revealed ~80% of the infrastructure already exists but isn't publicly exposed. The original effort estimates are significantly overstated. Here's the recalibrated picture:
+
+### What already exists
+
+| Capability | Location | Status |
+|---|---|---|
+| Schema traversal + visitor | `transform/traverse.ts` (321 lines) | Complete, exported |
+| Type detection via `def.type` (20+ types) | `mapping/core.ts:85-322` | Complete, internal |
+| Zid/Convex ID detection + table name | `ids.ts` (3-layer detection) | Complete, internal |
+| Default extraction from ZodDefault | `mapping/core.ts:46-61` | Partial, internal |
+| React hooks (useZodQuery/useZodMutation) | `react/hooks.ts` (140+ lines) | Complete, exported |
+| Form integration pattern | `form/mantine/index.ts` | Complete, exported |
+| `unwrapOnce` for peeling wrapper types | `transform/traverse.ts` | Complete, newly exported |
+
+### Recalibrated effort estimates
+
+| Phase | Original | Recalibrated | Why |
+|---|---|---|---|
+| Phase 1: Core introspection | 6-8 hours | **5-6 hours** | Mostly packaging existing logic from traverse + mapping |
+| Phase 2: Default extraction | 4-6 hours | **4-5 hours** | Extend existing default extraction from mapping/core.ts |
+| Phase 3: Form field types | 6-8 hours | **6-8 hours** | Genuinely new — needs `.checks` array access for string formats |
+| Phase 4: React hooks | 2-3 days | **0.5 hours** | Already implemented — just needs documentation |
+
+### Key findings
+
+1. **Phase 1 is assembly, not construction** — `introspect()` would compose `walkSchema()`, `getMetadata()`, and the `def.type` detection that `mapping/core.ts` already does
+2. **String format detection is the hidden complexity** — detecting email/url/uuid requires accessing Zod's internal `.checks` array, which isn't exposed anywhere in zodvex yet
+3. **The "200+ lines saved" claim is accurate** — motiion's three utility files (~250-300 lines) could reduce to ~50 lines of API calls
+4. **Codec interaction needs clarification** — should `zx.date()` fields report `baseType: 'date'` (semantic) or `baseType: 'number'` (wire format)?
+5. **Phase dependency chain:** Phase 2 requires Phase 1; Phase 3 requires Phase 1; Phase 4 is independent (already done)
+
+### Recommended sequencing
+
+1. Ship v0.6.0 without this (it's a new API surface that needs its own stabilization)
+2. Phase 1 first post-v0.6.0 — highest ROI, unblocks Phases 2 and 3
+3. Validate Phase 1 against motiion — can it actually delete those utility files?
+4. Phase 2 and 3 based on real usage patterns
+5. Phase 4 is documentation work only
+
+---
+
+## Executive Summary (original)
 
 Analysis of the motiion project revealed **three critical patterns** that every Convex + Zod + React app needs:
 

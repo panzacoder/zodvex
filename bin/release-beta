@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Release script: bumps version, builds, tests, commits, tags, and pushes.
+# Usage: bin/release <patch|minor|major|<explicit-version>>
+#
+# Examples:
+#   bin/release patch          # 0.6.0-beta.29 -> 0.6.0-beta.30
+#   bin/release 0.7.0          # set version explicitly
+#   bin/release                 # auto-increment prerelease number
+#
+# Smart retry: if the current version in package.json was never published
+# to npm (e.g., previous CI failure), it re-uses that version instead of
+# burning a new number.
+
+PKG="packages/zodvex/package.json"
+CURRENT=$(grep '"version"' "$PKG" | sed 's/.*": "\(.*\)".*/\1/')
+
+echo "Current version: $CURRENT"
+
+# --- Determine next version ---
+if [[ $# -eq 0 ]]; then
+  # Check if current version was actually published to npm
+  if npm view "zodvex@$CURRENT" version &>/dev/null 2>&1; then
+    # Published — auto-increment as usual
+    if [[ "$CURRENT" =~ ^(.+\.)([0-9]+)$ ]]; then
+      PREFIX="${BASH_REMATCH[1]}"
+      NUM="${BASH_REMATCH[2]}"
+      NEXT="${PREFIX}$((NUM + 1))"
+    else
+      echo "Error: cannot auto-increment '$CURRENT'. Pass an explicit version." >&2
+      exit 1
+    fi
+  else
+    # Not published — retry same version
+    NEXT="$CURRENT"
+    echo "Version $CURRENT not found on npm — retrying release."
+  fi
+else
+  NEXT="$1"
+fi
+
+echo "Next version:    $NEXT"
+echo ""
+
+# --- Pre-release checks ---
+echo "==> Running build..."
+bun run build
+echo ""
+
+echo "==> Running tests..."
+bun run test
+echo ""
+
+echo "==> Running lint..."
+bun run lint
+echo ""
+
+echo "==> Verifying example app codegen is up to date..."
+(cd examples/task-manager && ./node_modules/.bin/zodvex generate)
+if ! git diff --quiet examples/task-manager/convex/_zodvex/; then
+  echo ""
+  echo "ERROR: Generated files are stale. Commit regenerated output before releasing."
+  echo ""
+  git diff --stat examples/task-manager/convex/_zodvex/
+  exit 1
+fi
+echo ""
+
+echo "All checks passed."
+echo ""
+
+# --- Bump, commit, tag, push ---
+if [[ "$NEXT" != "$CURRENT" ]]; then
+  # Version changed — bump package.json and commit
+  sed -i '' "s/\"version\": \"$CURRENT\"/\"version\": \"$NEXT\"/" "$PKG"
+  git add "$PKG"
+  git commit -m "chore: bump version to $NEXT"
+fi
+
+# Delete existing tag if present (retry after CI failure)
+if git rev-parse "v$NEXT" &>/dev/null 2>&1; then
+  echo "Replacing existing tag v$NEXT..."
+  git tag -d "v$NEXT"
+  git push origin ":refs/tags/v$NEXT" 2>/dev/null || true
+fi
+
+git tag "v$NEXT"
+git push
+git push origin "v$NEXT"
+
+echo ""
+echo "Released v$NEXT"
