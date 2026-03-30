@@ -32,7 +32,7 @@ jobs:
 
       - name: Verify example app codegen is up to date
         run: |
-          cd examples/task-manager && bun x zodvex generate
+          bun run --cwd examples/task-manager generate
           git diff --exit-code examples/task-manager/convex/_zodvex/ || {
             echo ""
             echo "ERROR: Generated files are stale. Run 'cd examples/task-manager && bun x zodvex generate' and commit the result."
