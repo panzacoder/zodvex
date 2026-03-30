@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*-*'
+      - 'v*'
 
 jobs:
   test:
@@ -72,8 +72,7 @@ jobs:
           elif [[ "$TAG" == *-rc* ]]; then
             echo "tag=rc" >> "$GITHUB_OUTPUT"
           else
-            echo "Unexpected stable tag pushed to beta workflow. Stable releases go through release-please." >&2
-            exit 1
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish to npm
