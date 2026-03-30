@@ -85,18 +85,12 @@ export function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
   switch (defType) {
     case 'sensitive': {
       // Custom wrapper type - unwrap to inner schema
-      if (typeof (schema as any).unwrap === 'function') {
-        return (schema as any).unwrap()
-      }
-      return (schema as any)._def?.innerType
+      return (schema as any)._zod?.def?.innerType ?? (schema as any)._def?.innerType
     }
 
     case 'optional':
     case 'nullable': {
-      if (typeof (schema as any).unwrap === 'function') {
-        return (schema as any).unwrap()
-      }
-      return (schema as any)._def?.innerType
+      return (schema as any)._zod?.def?.innerType ?? (schema as any)._def?.innerType
     }
 
     case 'lazy': {
@@ -187,7 +181,7 @@ export function walkSchema(
       switch (defType) {
         case 'sensitive': {
           // Custom wrapper - already reported via onField, now traverse inner
-          const inner = (sch as any).unwrap?.() ?? (sch as any)._def?.innerType
+          const inner = (sch as any)._zod?.def?.innerType ?? (sch as any)._def?.innerType
           if (inner) {
             traverse(inner, currentPath, isOptional)
           }
@@ -195,13 +189,13 @@ export function walkSchema(
         }
 
         case 'optional': {
-          const inner = (sch as any).unwrap()
+          const inner = (sch as any)._zod.def.innerType
           traverse(inner, currentPath, true)
           return
         }
 
         case 'nullable': {
-          const inner = (sch as any).unwrap()
+          const inner = (sch as any)._zod.def.innerType
           traverse(inner, currentPath, isOptional)
           return
         }

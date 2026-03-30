@@ -5,6 +5,15 @@ import type {
   RegisteredQuery
 } from 'convex/server'
 import { z } from 'zod'
+import {
+  $ZodCustom,
+  $ZodDefault,
+  $ZodNullable,
+  $ZodObject,
+  $ZodOptional,
+  $ZodType,
+  $ZodUnion
+} from './zod-core'
 import { getObjectShape, zodToConvex, zodToConvexFields } from './mapping'
 import { handleZodValidationError, validateReturns } from './serverUtils'
 // Typing helpers to keep handler args/returns precise without deep remapping
@@ -39,18 +48,30 @@ function containsCustom(schema: z.ZodTypeAny, maxDepth = 50, currentDepth = 0): 
   let result = false
 
   // Zod v4 exports ZodCustom and instances expose `schema.type === "custom"`.
-  if (schema instanceof z.ZodCustom) {
+  if (schema instanceof $ZodCustom) {
     result = true
-  } else if (schema instanceof z.ZodUnion) {
-    result = (schema.options as z.ZodTypeAny[]).some(opt =>
+  } else if (schema instanceof $ZodUnion) {
+    result = ((schema as any).options as z.ZodTypeAny[]).some(opt =>
       containsCustom(opt, maxDepth, currentDepth + 1)
     )
-  } else if (schema instanceof z.ZodOptional) {
-    result = containsCustom(schema.unwrap() as z.ZodTypeAny, maxDepth, currentDepth + 1)
-  } else if (schema instanceof z.ZodNullable) {
-    result = containsCustom(schema.unwrap() as z.ZodTypeAny, maxDepth, currentDepth + 1)
-  } else if (schema instanceof z.ZodDefault) {
-    result = containsCustom(schema.removeDefault() as z.ZodTypeAny, maxDepth, currentDepth + 1)
+  } else if (schema instanceof $ZodOptional) {
+    result = containsCustom(
+      (schema as any)._zod.def.innerType as z.ZodTypeAny,
+      maxDepth,
+      currentDepth + 1
+    )
+  } else if (schema instanceof $ZodNullable) {
+    result = containsCustom(
+      (schema as any)._zod.def.innerType as z.ZodTypeAny,
+      maxDepth,
+      currentDepth + 1
+    )
+  } else if (schema instanceof $ZodDefault) {
+    result = containsCustom(
+      (schema as any).removeDefault() as z.ZodTypeAny,
+      maxDepth,
+      currentDepth + 1
+    )
   }
 
   customCheckCache.set(schema, result)
@@ -73,11 +94,11 @@ export function zQuery<
 ): RegisteredQuery<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
   let zodSchema: z.ZodTypeAny
   let args: Record<string, any>
-  if (input instanceof z.ZodObject) {
+  if (input instanceof $ZodObject) {
     const zodObj = input as z.ZodObject<any>
     zodSchema = zodObj
     args = zodToConvexFields(getObjectShape(zodObj))
-  } else if (input instanceof z.ZodType) {
+  } else if (input instanceof $ZodType) {
     // Single schema → normalize to { value }
     zodSchema = z.object({ value: input as any })
     args = { value: zodToConvex(input as any) }

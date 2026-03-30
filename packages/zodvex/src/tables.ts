@@ -2,6 +2,7 @@ import { defineTable } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
+import { $ZodObject, $ZodOptional, $ZodType } from './zod-core'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 import {
   addSystemFields,
@@ -13,9 +14,10 @@ import {
 } from './schemaHelpers'
 import { type ZxId, zx } from './zx'
 
-/** Wrap in .optional() only if not already optional. */
+/** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
 function ensureOptional(schema: z.ZodTypeAny): z.ZodOptional<any> {
-  return schema instanceof z.ZodOptional ? (schema as z.ZodOptional<any>) : schema.optional()
+  if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any>
+  return new ($ZodOptional as any)({ type: 'optional', innerType: schema })
 }
 
 /**
@@ -99,11 +101,11 @@ function isObjectShape(input: any): input is Record<string, z.ZodTypeAny> {
   if (!input || typeof input !== 'object') return false
 
   // If it's a Zod instance, it's not an object shape
-  if (input instanceof z.ZodType) return false
+  if (input instanceof $ZodType) return false
 
   // Check if all values are Zod types
   for (const key in input) {
-    if (!(input[key] instanceof z.ZodType)) {
+    if (!(input[key] instanceof $ZodType)) {
       return false
     }
   }
@@ -356,7 +358,7 @@ export function zodTable<
 >(name: TableName, schemaOrShape: SchemaOrShape): any {
   // Detect if it's an object shape, ZodObject, or other schema
   // For ZodObject: extract its shape to use the type-preserving path
-  const isZodObject = schemaOrShape instanceof z.ZodObject
+  const isZodObject = schemaOrShape instanceof $ZodObject
   if (isObjectShape(schemaOrShape) || isZodObject) {
     // Extract shape from ZodObject or use raw shape directly
     const shape = isZodObject
@@ -451,10 +453,10 @@ export function zodTable<
     if (isZodUnion(schema)) {
       const originalOptions = getUnionOptions(schema)
       const updateOptions = originalOptions.map((variant: z.ZodTypeAny) => {
-        if (variant instanceof z.ZodObject) {
+        if (variant instanceof $ZodObject) {
           // Create partial shape for user fields
           const partialShape: Record<string, z.ZodTypeAny> = {}
-          for (const [key, value] of Object.entries(variant.shape)) {
+          for (const [key, value] of Object.entries((variant as any).shape)) {
             partialShape[key] = ensureOptional(value as z.ZodTypeAny)
           }
           // Add system fields: _id required, _creationTime optional
@@ -467,10 +469,10 @@ export function zodTable<
         return variant
       })
       updateSchema = createUnionFromOptions(updateOptions)
-    } else if (schema instanceof z.ZodObject) {
+    } else if (schema instanceof $ZodObject) {
       // Create partial shape for user fields
       const partialShape: Record<string, z.ZodTypeAny> = {}
-      for (const [key, value] of Object.entries(schema.shape)) {
+      for (const [key, value] of Object.entries((schema as any).shape)) {
         partialShape[key] = ensureOptional(value as z.ZodTypeAny)
       }
       // Add system fields: _id required, _creationTime optional

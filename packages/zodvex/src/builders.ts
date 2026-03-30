@@ -7,6 +7,7 @@ import type {
 import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
+import { $ZodObject, $ZodType } from './zod-core'
 import { type CustomBuilder, customFnBuilder } from './custom'
 import { attachMeta } from './meta'
 import type {
@@ -62,9 +63,9 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
       returns: config.returns
     })
     const zodArgs = config.args
-      ? config.args instanceof z.ZodObject
-        ? config.args
-        : config.args instanceof z.ZodType
+      ? config.args instanceof $ZodObject
+        ? (config.args as unknown as z.ZodObject<any>)
+        : config.args instanceof $ZodType
           ? undefined
           : z.object(config.args as Record<string, z.ZodTypeAny>)
       : undefined
@@ -117,9 +118,9 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
       returns: config.returns
     })
     const zodArgs = config.args
-      ? config.args instanceof z.ZodObject
-        ? config.args
-        : config.args instanceof z.ZodType
+      ? config.args instanceof $ZodObject
+        ? (config.args as unknown as z.ZodObject<any>)
+        : config.args instanceof $ZodType
           ? undefined
           : z.object(config.args as Record<string, z.ZodTypeAny>)
       : undefined
@@ -172,9 +173,9 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
       returns: config.returns
     })
     const zodArgs = config.args
-      ? config.args instanceof z.ZodObject
-        ? config.args
-        : config.args instanceof z.ZodType
+      ? config.args instanceof $ZodObject
+        ? (config.args as unknown as z.ZodObject<any>)
+        : config.args instanceof $ZodType
           ? undefined
           : z.object(config.args as Record<string, z.ZodTypeAny>)
       : undefined

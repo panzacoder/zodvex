@@ -1,12 +1,12 @@
 import type { GenericValidator } from 'convex/values'
 import { v } from 'convex/values'
-import { z } from 'zod'
+import { $ZodDefault, $ZodOptional, $ZodType } from '../../zod-core'
 
 // Helper: Convert Zod record types to Convex validators
 export function convertRecordType(
-  actualValidator: z.ZodRecord<any, any>,
-  visited: Set<z.ZodTypeAny>,
-  zodToConvexInternal: (schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>) => any
+  actualValidator: any,
+  visited: Set<any>,
+  zodToConvexInternal: (schema: any, visited: Set<any>) => any
 ): GenericValidator {
   // In Zod v4, when z.record(z.string()) is used with one argument,
   // the argument becomes the value type and key defaults to string.
@@ -21,35 +21,35 @@ export function convertRecordType(
     valueType = (actualValidator as any)._def?.keyType
   }
 
-  if (valueType && valueType instanceof z.ZodType) {
+  if (valueType && valueType instanceof $ZodType) {
     // First check if the Zod value type is optional before conversion
     const isZodOptional =
-      valueType instanceof z.ZodOptional ||
-      valueType instanceof z.ZodDefault ||
-      (valueType instanceof z.ZodDefault && valueType.def.innerType instanceof z.ZodOptional)
+      valueType instanceof $ZodOptional ||
+      valueType instanceof $ZodDefault ||
+      (valueType instanceof $ZodDefault && (valueType as any).def.innerType instanceof $ZodOptional)
 
     if (isZodOptional) {
       // For optional record values, we need to handle this specially
-      let innerType: z.ZodTypeAny
+      let innerType: any
       let recordDefaultValue: any = undefined
       let recordHasDefault = false
 
-      if (valueType instanceof z.ZodDefault) {
+      if (valueType instanceof $ZodDefault) {
         // Handle ZodDefault wrapper
         recordHasDefault = true
-        recordDefaultValue = valueType.def.defaultValue
-        const innerFromDefault = valueType.def.innerType
-        if (innerFromDefault instanceof z.ZodOptional) {
-          innerType = innerFromDefault.unwrap() as z.ZodTypeAny
+        recordDefaultValue = (valueType as any).def.defaultValue
+        const innerFromDefault = (valueType as any).def.innerType
+        if (innerFromDefault instanceof $ZodOptional) {
+          innerType = (innerFromDefault as any)._zod.def.innerType
         } else {
-          innerType = innerFromDefault as z.ZodTypeAny
+          innerType = innerFromDefault
         }
-      } else if (valueType instanceof z.ZodOptional) {
+      } else if (valueType instanceof $ZodOptional) {
         // Direct ZodOptional
-        innerType = valueType.unwrap() as z.ZodTypeAny
+        innerType = (valueType as any)._zod.def.innerType
       } else {
         // Shouldn't happen based on isZodOptional check
-        innerType = valueType as z.ZodTypeAny
+        innerType = valueType
       }
 
       // Convert the inner type to Convex and wrap in union with null

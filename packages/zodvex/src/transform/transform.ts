@@ -74,7 +74,7 @@ export function transformBySchema<T, TCtx>(
       case 'optional':
       case 'nullable': {
         if (val === null) return null
-        const inner = (sch as any).unwrap()
+        const inner = (sch as any)._zod.def.innerType
         return recurse(val, inner, currentPath)
       }
 
@@ -209,7 +209,7 @@ export async function transformBySchemaAsync<T, TCtx>(
       case 'optional':
       case 'nullable': {
         if (val === null) return null
-        const inner = (sch as any).unwrap()
+        const inner = (sch as any)._zod.def.innerType
         return recurse(val, inner, currentPath)
       }
 

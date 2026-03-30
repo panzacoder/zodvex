@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod'
+import { $ZodObject, $ZodOptional, $ZodType } from './zod-core'
 import { attachMeta } from './meta'
 import {
   addSystemFields,
@@ -18,9 +19,10 @@ import {
 } from './schemaHelpers'
 import { type ZxId, zx } from './zx'
 
-/** Wrap in .optional() only if not already optional. */
+/** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
 function ensureOptional(schema: z.ZodTypeAny): z.ZodOptional<any> {
-  return schema instanceof z.ZodOptional ? (schema as z.ZodOptional<any>) : schema.optional()
+  if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any>
+  return new ($ZodOptional as any)({ type: 'optional', innerType: schema })
 }
 
 // ============================================================================
@@ -216,7 +218,7 @@ export function defineZodModel<Name extends string>(
   fieldsOrSchema: z.ZodRawShape | z.ZodTypeAny
 ): any {
   // Detect if input is a pre-built Zod schema (union, object, etc.) vs raw shape
-  if (fieldsOrSchema instanceof z.ZodType) {
+  if (fieldsOrSchema instanceof $ZodType) {
     return createUnionModel(name, fieldsOrSchema as z.ZodTypeAny)
   }
 
@@ -315,9 +317,9 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: z.ZodTyp
   if (isZodUnion(inputSchema)) {
     const originalOptions = getUnionOptions(inputSchema)
     const updateOptions = originalOptions.map((variant: z.ZodTypeAny) => {
-      if (variant instanceof z.ZodObject) {
+      if (variant instanceof $ZodObject) {
         const partialShape: Record<string, z.ZodTypeAny> = {}
-        for (const [key, value] of Object.entries(variant.shape)) {
+        for (const [key, value] of Object.entries((variant as any).shape)) {
           partialShape[key] = ensureOptional(value as z.ZodTypeAny)
         }
         return z.object({
@@ -329,9 +331,9 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: z.ZodTyp
       return variant
     })
     updateSchema = createUnionFromOptions(updateOptions)
-  } else if (inputSchema instanceof z.ZodObject) {
+  } else if (inputSchema instanceof $ZodObject) {
     const partialShape: Record<string, z.ZodTypeAny> = {}
-    for (const [key, value] of Object.entries(inputSchema.shape)) {
+    for (const [key, value] of Object.entries((inputSchema as any).shape)) {
       partialShape[key] = ensureOptional(value as z.ZodTypeAny)
     }
     updateSchema = z.object({

@@ -1,20 +1,20 @@
 import type { GenericValidator } from 'convex/values'
 import { v } from 'convex/values'
-import { z } from 'zod'
+import { $ZodOptional, $ZodType } from '../../zod-core'
 
 // Helper: Convert Zod nullable types to Convex validators
 export function convertNullableType(
-  actualValidator: z.ZodNullable<any>,
-  visited: Set<z.ZodTypeAny>,
-  zodToConvexInternal: (schema: z.ZodTypeAny, visited: Set<z.ZodTypeAny>) => any
+  actualValidator: any,
+  visited: Set<any>,
+  zodToConvexInternal: (schema: any, visited: Set<any>) => any
 ): { validator: GenericValidator; isOptional: boolean } {
-  const innerSchema = actualValidator.unwrap()
-  if (innerSchema && innerSchema instanceof z.ZodType) {
+  const innerSchema = (actualValidator as any)._zod.def.innerType
+  if (innerSchema && innerSchema instanceof $ZodType) {
     // Check if the inner schema is optional
-    if (innerSchema instanceof z.ZodOptional) {
+    if (innerSchema instanceof $ZodOptional) {
       // For nullable(optional(T)), we want optional(union(T, null))
-      const innerInnerSchema = innerSchema.unwrap()
-      const innerInnerValidator = zodToConvexInternal(innerInnerSchema as z.ZodType, visited)
+      const innerInnerSchema = (innerSchema as any)._zod.def.innerType
+      const innerInnerValidator = zodToConvexInternal(innerInnerSchema, visited)
       return {
         validator: v.union(innerInnerValidator, v.null()),
         isOptional: true // Mark as optional so it gets wrapped later

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { $ZodObject } from './zod-core'
 import { zodToConvex } from './mapping'
 import { type ZodvexCodec } from './types'
 import { assertNoNativeZodDate, stripUndefined } from './utils'
@@ -28,14 +29,14 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
     encode: (value: T) => stripUndefined(z.encode(schema, value)),
     decode: (value: any) => schema.parse(value),
     pick: <K extends keyof T>(keys: K[] | Record<K, true>) => {
-      if (!(schema instanceof z.ZodObject)) {
+      if (!(schema instanceof $ZodObject)) {
         throw new Error('pick() can only be called on object schemas')
       }
       // Handle both array and object formats
       const pickObj = Array.isArray(keys)
         ? keys.reduce((acc, k) => ({ ...acc, [k]: true }), {} as any)
         : keys
-      const pickedSchema = schema.pick(pickObj as any)
+      const pickedSchema = (schema as any).pick(pickObj as any)
       return convexCodec(pickedSchema) as ConvexCodec<Pick<T, K>>
     }
   }
@@ -65,12 +66,12 @@ export function encodePartialDoc<S extends z.ZodTypeAny>(
   schema: S,
   partial: Partial<z.output<S>>
 ): Partial<z.input<S>> {
-  if (!(schema instanceof z.ZodObject)) {
+  if (!(schema instanceof $ZodObject)) {
     // For non-object schemas (unions, etc.), fall back to full encode
     // Cast needed: Partial<output<S>> is structurally compatible but not assignable to output<S>
     return stripUndefined(z.encode(schema, partial as z.output<S>)) as Partial<z.input<S>>
   }
-  const partialSchema = schema.partial()
+  const partialSchema = (schema as any).partial()
   return stripUndefined(z.encode(partialSchema, partial)) as Partial<z.input<S>>
 }
 

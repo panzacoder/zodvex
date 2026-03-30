@@ -4,6 +4,7 @@
  */
 import { ConvexError } from 'convex/values'
 import { z } from 'zod'
+import { $ZodError } from './zod-core'
 
 // Format ZodError issues into a compact, consistent structure
 export function formatZodIssues(
@@ -29,8 +30,8 @@ export function handleZodValidationError(
   e: unknown,
   context: 'args' | 'returns' | 'input' | 'output' | 'codec'
 ): never {
-  if (e instanceof z.ZodError) {
-    throw new ConvexError(formatZodIssues(e, context))
+  if (e instanceof $ZodError) {
+    throw new ConvexError(formatZodIssues(e as z.ZodError, context))
   }
   throw e
 }

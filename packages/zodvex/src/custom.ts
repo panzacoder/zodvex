@@ -13,6 +13,7 @@ import {
 import { type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
+import { $ZodObject, $ZodType } from './zod-core'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import { attachMeta } from './meta'
 import { handleZodValidationError, validateReturns } from './serverUtils'
@@ -189,7 +190,7 @@ export function customFnBuilder<
     const skipConvexValidation = fn.skipConvexValidation ?? false
 
     const returns =
-      maybeObject && !(maybeObject instanceof z.ZodType) ? z.object(maybeObject) : maybeObject
+      maybeObject && !(maybeObject instanceof $ZodType) ? z.object(maybeObject) : maybeObject
     // Only generate Convex return validator when not skipping Convex validation
     const returnValidator =
       returns && !skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
@@ -203,10 +204,10 @@ export function customFnBuilder<
       let argsValidator = args
       let argsSchema: z.ZodObject<any>
 
-      if (argsValidator instanceof z.ZodType) {
-        if (argsValidator instanceof z.ZodObject) {
-          argsSchema = argsValidator
-          argsValidator = argsValidator.shape // Get the raw shape for zodToConvexFields
+      if (argsValidator instanceof $ZodType) {
+        if (argsValidator instanceof $ZodObject) {
+          argsSchema = argsValidator as unknown as z.ZodObject<any>
+          argsValidator = (argsValidator as any).shape // Get the raw shape for zodToConvexFields
         } else {
           throw new Error(
             'Unsupported non-object Zod schema for args; please provide an args schema using z.object({...}), e.g. z.object({ foo: z.string() })'

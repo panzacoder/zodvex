@@ -1,4 +1,11 @@
-import { z } from 'zod'
+import {
+  $ZodCodec,
+  $ZodCustom,
+  $ZodNullable,
+  $ZodNumber,
+  $ZodOptional,
+  $ZodType
+} from '../zod-core'
 import { readMeta } from '../meta'
 
 /**
@@ -8,16 +15,16 @@ import { readMeta } from '../meta'
  *
  * Used internally by the discovery pipeline to probe schemas for codecs.
  */
-export function findCodec(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
+export function findCodec(schema: $ZodType): $ZodType | undefined {
   let current = schema
   for (let i = 0; i < 10; i++) {
-    if (current instanceof z.ZodCodec) {
+    if (current instanceof $ZodCodec) {
       const def = (current as any)._zod?.def as any
-      const isZxDate = def?.in instanceof z.ZodNumber && def?.out instanceof z.ZodCustom
+      const isZxDate = def?.in instanceof $ZodNumber && def?.out instanceof $ZodCustom
       if (isZxDate) return undefined
       return current
     }
-    if (current instanceof z.ZodOptional || current instanceof z.ZodNullable) {
+    if (current instanceof $ZodOptional || current instanceof $ZodNullable) {
       const def = (current as any)._zod?.def as any
       current = def.innerType
       continue
@@ -34,7 +41,7 @@ export function findCodec(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
  *
  * Used by generated _zodvex/api.ts to extract codec references at runtime.
  */
-export function extractCodec(schema: z.ZodTypeAny): z.ZodTypeAny {
+export function extractCodec(schema: $ZodType): $ZodType {
   const codec = findCodec(schema)
   if (!codec) {
     throw new Error('zodvex: extractCodec() found no codec in schema — this is a codegen bug')
@@ -46,22 +53,22 @@ export function extractCodec(schema: z.ZodTypeAny): z.ZodTypeAny {
  * Extracts the zodArgs schema from a zodvex-registered function.
  * Used by generated _zodvex/api.ts to access function-embedded codecs at runtime.
  */
-export function readFnArgs(fn: unknown): z.ZodTypeAny {
+export function readFnArgs(fn: unknown): $ZodType {
   const meta = readMeta(fn)
   if (!meta || meta.type !== 'function' || !meta.zodArgs) {
     throw new Error('zodvex: function has no zodArgs metadata')
   }
-  return meta.zodArgs
+  return meta.zodArgs as $ZodType
 }
 
 /**
  * Extracts the zodReturns schema from a zodvex-registered function.
  * Used by generated _zodvex/api.ts to access function-embedded codecs at runtime.
  */
-export function readFnReturns(fn: unknown): z.ZodTypeAny {
+export function readFnReturns(fn: unknown): $ZodType {
   const meta = readMeta(fn)
   if (!meta || meta.type !== 'function' || !meta.zodReturns) {
     throw new Error('zodvex: function has no zodReturns metadata')
   }
-  return meta.zodReturns
+  return meta.zodReturns as $ZodType
 }

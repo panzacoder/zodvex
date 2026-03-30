@@ -11,6 +11,7 @@
  */
 
 import { z } from 'zod'
+import { $ZodDiscriminatedUnion, $ZodObject, $ZodUnion } from './zod-core'
 import { type ZxId, zx } from './zx'
 
 // ============================================================================
@@ -52,7 +53,7 @@ export function isZodUnion(
 ): schema is
   | z.ZodUnion<readonly z.ZodTypeAny[]>
   | z.ZodDiscriminatedUnion<readonly z.ZodObject<z.ZodRawShape>[], string> {
-  return schema instanceof z.ZodUnion || schema instanceof z.ZodDiscriminatedUnion
+  return schema instanceof $ZodUnion || schema instanceof $ZodDiscriminatedUnion
 }
 
 /**
@@ -154,8 +155,8 @@ export function addSystemFields<TableName extends string>(
   if (isZodUnion(schema)) {
     const originalOptions = getUnionOptions(schema)
     const extendedOptions = originalOptions.map((variant: z.ZodTypeAny) => {
-      if (variant instanceof z.ZodObject) {
-        return variant.extend({
+      if (variant instanceof $ZodObject) {
+        return (variant as any).extend({
           _id: zx.id(tableName),
           _creationTime: z.number()
         })
@@ -167,8 +168,8 @@ export function addSystemFields<TableName extends string>(
   }
 
   // Handle object schemas
-  if (schema instanceof z.ZodObject) {
-    return schema.extend({
+  if (schema instanceof $ZodObject) {
+    return (schema as any).extend({
       _id: zx.id(tableName),
       _creationTime: z.number()
     })

@@ -24,6 +24,7 @@ import type {
 } from 'convex/server'
 import type { GenericId, NumericValue } from 'convex/values'
 import { z } from 'zod'
+import { $ZodObject, $ZodUnion } from './zod-core'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
 import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './ruleTypes'
 import type { ZodTableMap } from './schema'
@@ -195,7 +196,7 @@ function encodeIndexValue(schema: z.ZodTypeAny, fieldPath: string, value: any): 
   if (fieldPath.includes('.')) return value
 
   // Object schemas: encode through the field's schema directly
-  if (schema instanceof z.ZodObject) {
+  if (schema instanceof $ZodObject) {
     const fieldSchema = (schema as z.ZodObject<any>).shape[fieldPath]
     if (fieldSchema) return z.encode(fieldSchema, value)
   }
@@ -204,10 +205,10 @@ function encodeIndexValue(schema: z.ZodTypeAny, fieldPath: string, value: any): 
   // union from all variants, then encode through that. Handles discriminator
   // literals and codec fields (e.g., zx.date()) correctly.
   // Non-object variants are skipped — union tables require object variants.
-  if (schema instanceof z.ZodUnion) {
-    const options = (schema as z.ZodUnion).options as z.ZodTypeAny[]
+  if (schema instanceof $ZodUnion) {
+    const options = (schema as any).options as z.ZodTypeAny[]
     const fieldSchemas = options
-      .filter((v): v is z.ZodObject<any> => v instanceof z.ZodObject)
+      .filter((v): v is z.ZodObject<any> => v instanceof $ZodObject)
       .map(v => v.shape[fieldPath])
       .filter(Boolean)
     if (fieldSchemas.length === 1) return z.encode(fieldSchemas[0], value)
