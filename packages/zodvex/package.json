@@ -1,8 +1,16 @@
 {
   "name": "zodvex",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Codec-first Zod v4 integration for Convex -- type-safe validation, encoding, DB wrapping, and codegen.",
-  "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
+  "keywords": [
+    "zod",
+    "convex",
+    "validators",
+    "codec",
+    "mapping",
+    "schema",
+    "validation"
+  ],
   "homepage": "https://github.com/panzacoder/zodvex#readme",
   "bugs": {
     "url": "https://github.com/panzacoder/zodvex/issues"
@@ -61,7 +69,12 @@
       "default": "./dist/form/mantine/index.js"
     }
   },
-  "files": ["dist", "src", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup && tsc --emitDeclarationOnly",
     "dev": "bun run tsup --watch",
