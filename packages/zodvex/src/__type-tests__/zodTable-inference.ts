@@ -444,13 +444,13 @@ function _handleEvent(event: EventDoc) {
 // --- Test 27: Union docs reject invalid variants ---
 
 // @ts-expect-error - missing required 'kind' discriminator
-const _invalidShapeDoc1: ShapeDocElement = { _id: '' as any, _creationTime: 0 }
+const _invalidShapeDoc1: ShapeDocElement = { _id: '' as any, _creationTime: new Date(0) }
 
-// @ts-expect-error - 'kind' value doesn't match any variant
 const _invalidShapeDoc2: ShapeDocElement = {
-  kind: 'triangle' as any, // not a valid variant
+  // @ts-expect-error - 'kind' value doesn't match any variant
+  kind: 'triangle',
   _id: '' as any,
-  _creationTime: 0
+  _creationTime: new Date(0)
 }
 
 // --- Test 28: Discriminated union docs have proper system field types ---

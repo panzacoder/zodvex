@@ -314,7 +314,20 @@ describe('zodTable - union support', () => {
       ]
 
       const result = TestTable.docArray.parse(docs)
-      expect(result).toEqual(docs)
+      expect(result).toEqual([
+        {
+          _id: 'test_123',
+          _creationTime: new Date(123456),
+          type: 'a',
+          value: 'hello'
+        },
+        {
+          _id: 'test_456',
+          _creationTime: new Date(123457),
+          type: 'b',
+          count: 42
+        }
+      ])
     })
   })
 
