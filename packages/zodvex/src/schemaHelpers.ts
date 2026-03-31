@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod'
-import { $ZodDiscriminatedUnion, $ZodObject, $ZodUnion } from './zod-core'
+import { $ZodDiscriminatedUnion, $ZodObject, type $ZodShape, $ZodType, $ZodUnion } from './zod-core'
 import { type ZxId, zx } from './zx'
 
 // ============================================================================
@@ -30,8 +30,8 @@ export type SystemFields<TableName extends string> = {
  * Maps over union options, extending each ZodObject variant with system fields.
  * Non-object variants are preserved as-is.
  */
-export type MapSystemFields<TableName extends string, Options extends readonly z.ZodTypeAny[]> = {
-  [K in keyof Options]: Options[K] extends z.ZodObject<infer Shape extends z.ZodRawShape>
+export type MapSystemFields<TableName extends string, Options extends readonly $ZodType[]> = {
+  [K in keyof Options]: Options[K] extends z.ZodObject<infer Shape extends $ZodShape>
     ? z.ZodObject<Shape & SystemFields<TableName>>
     : Options[K]
 }
@@ -39,7 +39,7 @@ export type MapSystemFields<TableName extends string, Options extends readonly z
 /**
  * Minimum tuple type required by z.union() - at least 2 elements.
  */
-type UnionTuple<T extends z.ZodTypeAny = z.ZodTypeAny> = readonly [T, T, ...T[]]
+type UnionTuple<T extends $ZodType = $ZodType> = readonly [T, T, ...T[]]
 
 // ============================================================================
 // Union Helpers - Type-safe utilities for working with Zod unions
@@ -49,10 +49,10 @@ type UnionTuple<T extends z.ZodTypeAny = z.ZodTypeAny> = readonly [T, T, ...T[]]
  * Type guard to check if a schema is a union type (ZodUnion or ZodDiscriminatedUnion).
  */
 export function isZodUnion(
-  schema: z.ZodTypeAny
+  schema: $ZodType
 ): schema is
-  | z.ZodUnion<readonly z.ZodTypeAny[]>
-  | z.ZodDiscriminatedUnion<readonly z.ZodObject<z.ZodRawShape>[], string> {
+  | z.ZodUnion<readonly $ZodType[]>
+  | z.ZodDiscriminatedUnion<readonly z.ZodObject<$ZodShape>[], string> {
   return schema instanceof $ZodUnion || schema instanceof $ZodDiscriminatedUnion
 }
 
@@ -66,9 +66,9 @@ export function isZodUnion(
  */
 export function getUnionOptions(
   schema:
-    | z.ZodUnion<readonly z.ZodTypeAny[]>
-    | z.ZodDiscriminatedUnion<readonly z.ZodObject<z.ZodRawShape>[], string>
-): readonly z.ZodTypeAny[] {
+    | z.ZodUnion<readonly $ZodType[]>
+    | z.ZodDiscriminatedUnion<readonly z.ZodObject<$ZodShape>[], string>
+): readonly $ZodType[] {
   // Both ZodUnion and ZodDiscriminatedUnion have .options getter
   // This is safe because we've constrained the input type
   return schema.options
@@ -81,7 +81,7 @@ export function getUnionOptions(
  * @param options - Array of Zod schemas
  * @throws Error if array has fewer than 2 elements
  */
-export function assertUnionOptions<T extends z.ZodTypeAny>(
+export function assertUnionOptions<T extends $ZodType>(
   options: readonly T[]
 ): asserts options is UnionTuple<T> {
   if (options.length < 2) {
@@ -100,7 +100,7 @@ export function assertUnionOptions<T extends z.ZodTypeAny>(
  * @returns A ZodUnion schema
  * @throws Error if array has fewer than 2 elements
  */
-export function createUnionFromOptions<T extends z.ZodTypeAny>(
+export function createUnionFromOptions<T extends $ZodType>(
   options: readonly T[]
 ): z.ZodUnion<UnionTuple<T>> {
   assertUnionOptions(options)
@@ -118,13 +118,13 @@ export function createUnionFromOptions<T extends z.ZodTypeAny>(
  * @returns Schema with system fields added
  */
 // Overload 1: ZodObject - extends with system fields
-export function addSystemFields<TableName extends string, Shape extends z.ZodRawShape>(
+export function addSystemFields<TableName extends string, Shape extends $ZodShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & SystemFields<TableName>>
 
 // Overload 2: ZodUnion - maps system fields to each variant
-export function addSystemFields<TableName extends string, Options extends readonly z.ZodTypeAny[]>(
+export function addSystemFields<TableName extends string, Options extends readonly $ZodType[]>(
   tableName: TableName,
   schema: z.ZodUnion<Options>
 ): z.ZodUnion<MapSystemFields<TableName, Options>>
@@ -133,7 +133,7 @@ export function addSystemFields<TableName extends string, Options extends readon
 // Note: Zod v4 signature is ZodDiscriminatedUnion<Options, Discriminator>
 export function addSystemFields<
   TableName extends string,
-  Options extends readonly z.ZodObject<z.ZodRawShape>[],
+  Options extends readonly z.ZodObject<$ZodShape>[],
   Discriminator extends string
 >(
   tableName: TableName,
@@ -141,7 +141,7 @@ export function addSystemFields<
 ): z.ZodDiscriminatedUnion<MapSystemFields<TableName, Options>, Discriminator>
 
 // Overload 4: Fallback for other ZodTypes - returns as-is
-export function addSystemFields<TableName extends string, S extends z.ZodTypeAny>(
+export function addSystemFields<TableName extends string, S extends $ZodType>(
   tableName: TableName,
   schema: S
 ): S
@@ -149,12 +149,12 @@ export function addSystemFields<TableName extends string, S extends z.ZodTypeAny
 // Implementation
 export function addSystemFields<TableName extends string>(
   tableName: TableName,
-  schema: z.ZodTypeAny
-): z.ZodTypeAny {
+  schema: $ZodType
+): $ZodType {
   // Handle union schemas - add system fields to each variant
   if (isZodUnion(schema)) {
     const originalOptions = getUnionOptions(schema)
-    const extendedOptions = originalOptions.map((variant: z.ZodTypeAny) => {
+    const extendedOptions = originalOptions.map((variant: $ZodType) => {
       if (variant instanceof $ZodObject) {
         return (variant as any).extend({
           _id: zx.id(tableName),

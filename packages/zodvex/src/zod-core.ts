@@ -21,6 +21,7 @@ export {
   $ZodFile,
   $ZodLazy,
   $ZodLiteral,
+  type $ZodLooseShape,
   $ZodNaN,
   $ZodNever,
   $ZodNonOptional,
@@ -29,12 +30,16 @@ export {
   $ZodNumber,
   // Compound types
   $ZodObject,
+  // Object config types
+  type $ZodObjectInternals,
   // Wrappers
   $ZodOptional,
   $ZodPipe,
   $ZodPrefault,
   $ZodReadonly,
   $ZodRecord,
+  // Shape types (equivalent to z.ZodRawShape)
+  type $ZodShape,
   $ZodString,
   $ZodSymbol,
   // Transform/pipe
@@ -57,5 +62,7 @@ export {
   type output,
   // Standalone parse/encode functions
   parse,
-  safeParse
+  parseAsync,
+  safeParse,
+  safeParseAsync
 } from 'zod/v4/core'

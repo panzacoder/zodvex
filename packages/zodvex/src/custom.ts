@@ -18,7 +18,7 @@ import { attachMeta } from './meta'
 import { handleZodValidationError, validateReturns } from './serverUtils'
 import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
 import { assertNoNativeZodDate, pick, stripUndefined } from './utils'
-import { $ZodObject, $ZodType } from './zod-core'
+import { $ZodObject, $ZodType, safeParse } from './zod-core'
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
@@ -30,18 +30,18 @@ type Returns<T> = Promise<NullToUndefinedOrNull<T>> | NullToUndefinedOrNull<T>
 // The return value before it's been validated: returned by the handler
 // Uses z.output since the handler produces the internal representation (e.g., Date),
 // which is then encoded to wire format (e.g., string) before sending to the client
-type ReturnValueInput<ReturnsValidator extends z.ZodTypeAny | ZodValidator | void> = [
+type ReturnValueInput<ReturnsValidator extends $ZodType | ZodValidator | void> = [
   ReturnsValidator
-] extends [z.ZodTypeAny]
+] extends [$ZodType]
   ? Returns<z.output<ReturnsValidator>>
   : [ReturnsValidator] extends [ZodValidator]
     ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
     : any
 
 // The return value after it's been validated: returned to the client
-type ReturnValueOutput<ReturnsValidator extends z.ZodTypeAny | ZodValidator | void> = [
+type ReturnValueOutput<ReturnsValidator extends $ZodType | ZodValidator | void> = [
   ReturnsValidator
-] extends [z.ZodTypeAny]
+] extends [$ZodType]
   ? Returns<z.output<ReturnsValidator>>
   : [ReturnsValidator] extends [ZodValidator]
     ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
@@ -118,7 +118,7 @@ export type CustomBuilder<
 > = {
   <
     ArgsValidator extends ZodValidator | z.ZodObject<any> | void,
-    ReturnsZodValidator extends z.ZodTypeAny | ZodValidator | void = void,
+    ReturnsZodValidator extends $ZodType | ZodValidator | void = void,
     ReturnValue extends ReturnValueInput<ReturnsZodValidator> = any
   >(
     func:
@@ -197,7 +197,7 @@ export function customFnBuilder<
 
     // Check for z.date() usage at construction time (once), not on every invocation
     if (returns) {
-      assertNoNativeZodDate(returns as z.ZodTypeAny, 'returns')
+      assertNoNativeZodDate(returns as $ZodType, 'returns')
     }
 
     if (args) {
@@ -243,7 +243,7 @@ export function customFnBuilder<
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
           // Zod handles codec transforms natively via safeParse
-          const parsed = argsSchema.safeParse(rawArgs)
+          const parsed = safeParse(argsSchema, rawArgs)
           if (!parsed.success) {
             handleZodValidationError(parsed.error, 'args')
           }
@@ -261,7 +261,7 @@ export function customFnBuilder<
           // Always run Zod return validation when returns schema is provided
           if (returns) {
             // Validate and encode using z.encode (Zod handles codecs natively)
-            const validated = validateReturns(returns as z.ZodTypeAny, ret)
+            const validated = validateReturns(returns as $ZodType, ret)
             // Strip undefined values before returning (Convex rejects explicit undefined)
             return stripUndefined(validated)
           }
@@ -298,7 +298,7 @@ export function customFnBuilder<
         // Always run Zod return validation when returns schema is provided
         if (returns) {
           // Validate and encode using z.encode (Zod handles codecs natively)
-          const validated = validateReturns(returns as z.ZodTypeAny, ret)
+          const validated = validateReturns(returns as $ZodType, ret)
           // Strip undefined values before returning (Convex rejects explicit undefined)
           return stripUndefined(validated)
         }

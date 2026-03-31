@@ -1,10 +1,9 @@
 import { v } from 'convex/values'
-import type { ZodType } from 'zod'
 import { registryHelpers, type Zid } from '../ids'
-import { $ZodObject } from '../zod-core'
+import { $ZodObject, $ZodType } from '../zod-core'
 
 // Helper to check if a schema is a Zid
-export function isZid<T extends string>(schema: ZodType): schema is Zid<T> {
+export function isZid<T extends string>(schema: $ZodType): schema is Zid<T> {
   // Check our metadata registry for ConvexId marker
   const metadata = registryHelpers.getMetadata(schema)
   return (

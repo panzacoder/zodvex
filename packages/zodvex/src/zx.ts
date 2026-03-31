@@ -25,6 +25,7 @@ import { z } from 'zod'
 import { zodvexCodec } from './codec'
 import { registryHelpers } from './ids'
 import type { ZodvexCodec } from './types'
+import { type $ZodType, type output as zoutput } from './zod-core'
 
 /**
  * Date codec type for explicit type annotations
@@ -61,7 +62,7 @@ function date(): ZxDate {
 /**
  * ID type for explicit type annotations
  */
-export type ZxId<TableName extends string> = z.ZodType<GenericId<TableName>> & {
+export type ZxId<TableName extends string> = $ZodType<GenericId<TableName>> & {
   _tableName: TableName
 }
 
@@ -128,7 +129,7 @@ function id<TableName extends string>(tableName: TableName): ZxId<TableName> {
  * )
  * ```
  */
-function codec<W extends z.ZodTypeAny, R extends z.ZodTypeAny, WO = z.output<W>, RI = z.output<R>>(
+function codec<W extends $ZodType, R extends $ZodType, WO = zoutput<W>, RI = zoutput<R>>(
   wire: W,
   runtime: R,
   transforms: {

@@ -4,13 +4,14 @@
 
 import type { GenericId } from 'convex/values'
 import { z } from 'zod'
+import type { $ZodType } from './zod-core'
 
 // Simple registry for metadata
-const metadata = new WeakMap<z.ZodTypeAny, any>()
+const metadata = new WeakMap<$ZodType, any>()
 
 export const registryHelpers = {
-  getMetadata: (type: z.ZodTypeAny) => metadata.get(type),
-  setMetadata: (type: z.ZodTypeAny, meta: any) => metadata.set(type, meta)
+  getMetadata: (type: $ZodType) => metadata.get(type),
+  setMetadata: (type: $ZodType, meta: any) => metadata.set(type, meta)
 }
 
 /**

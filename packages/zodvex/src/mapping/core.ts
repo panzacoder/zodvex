@@ -1,6 +1,5 @@
 import type { GenericValidator, PropertyValidators } from 'convex/values'
 import { v } from 'convex/values'
-import type { ZodRawShape, ZodTypeAny } from 'zod'
 import { registryHelpers } from '../ids'
 import {
   $ZodArray,
@@ -13,6 +12,7 @@ import {
   $ZodObject,
   $ZodOptional,
   $ZodRecord,
+  type $ZodShape,
   $ZodTuple,
   $ZodType,
   $ZodUnion
@@ -32,9 +32,9 @@ import type {
 import { getObjectShape, isZid } from './utils'
 
 // Internal conversion function using ZodType with def.type detection
-function zodToConvexInternal<Z extends ZodTypeAny>(
+function zodToConvexInternal<Z extends $ZodType>(
   zodValidator: Z,
-  visited: Set<ZodTypeAny> = new Set()
+  visited: Set<$ZodType> = new Set()
 ): ConvexValidatorFromZod<Z, 'required'> {
   // Guard against undefined/null validators (can happen with { field: undefined } in args)
   if (!zodValidator) {
@@ -354,9 +354,9 @@ function zodToConvexInternal<Z extends ZodTypeAny>(
   return finalValidator as ConvexValidatorFromZod<Z, 'required'>
 }
 
-export function zodToConvex<Z extends ZodTypeAny | ZodValidator>(
+export function zodToConvex<Z extends $ZodType | ZodValidator>(
   zod: Z
-): Z extends ZodTypeAny
+): Z extends $ZodType
   ? ConvexValidatorFromZod<Z, 'required'>
   : Z extends ZodValidator
     ? ConvexValidatorFromZodFieldsAuto<Z>
@@ -365,10 +365,10 @@ export function zodToConvex<Z extends ZodTypeAny | ZodValidator>(
     return zodToConvexFields(zod as ZodValidator) as any
   }
 
-  return zodToConvexInternal(zod as ZodTypeAny) as any
+  return zodToConvexInternal(zod as $ZodType) as any
 }
 
-export function zodToConvexFields<Z extends ZodRawShape>(
+export function zodToConvexFields<Z extends $ZodShape>(
   zod: Z
 ): ConvexValidatorFromZodFieldsAuto<Z> {
   // If it's a ZodObject, extract the shape
@@ -377,7 +377,7 @@ export function zodToConvexFields<Z extends ZodRawShape>(
   // Build the result object directly to preserve types
   const result: any = {}
   for (const [key, value] of Object.entries(fields)) {
-    result[key] = zodToConvexInternal(value as ZodTypeAny)
+    result[key] = zodToConvexInternal(value as $ZodType)
   }
 
   return result as ConvexValidatorFromZodFieldsAuto<Z>

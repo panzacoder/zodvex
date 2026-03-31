@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { $ZodDate } from './zod-core'
+import { $ZodDate, $ZodType } from './zod-core'
 
 // ============================================================================
 // JSON Schema Override Support
@@ -12,8 +12,8 @@ import { $ZodDate } from './zod-core'
  * Checks if a schema is a zid (Convex ID) schema by looking at its description.
  * zid schemas are marked with "convexId:{tableName}" in their description.
  */
-export function isZidSchema(schema: z.ZodTypeAny): boolean {
-  const description = schema.description
+export function isZidSchema(schema: $ZodType): boolean {
+  const description = (schema as any).description
   return typeof description === 'string' && description.startsWith('convexId:')
 }
 
@@ -21,8 +21,8 @@ export function isZidSchema(schema: z.ZodTypeAny): boolean {
  * Extracts the table name from a zid schema's description.
  * Returns undefined if not a zid schema.
  */
-export function getZidTableName(schema: z.ZodTypeAny): string | undefined {
-  const description = schema.description
+export function getZidTableName(schema: $ZodType): string | undefined {
+  const description = (schema as any).description
   if (typeof description === 'string' && description.startsWith('convexId:')) {
     return description.slice('convexId:'.length)
   }
@@ -154,7 +154,7 @@ export interface ToJSONSchemaOptions {
  * // Works with AI SDK's generateObject, etc.
  * ```
  */
-export function toJSONSchema<T extends z.ZodTypeAny>(
+export function toJSONSchema<T extends $ZodType>(
   schema: T,
   options?: ToJSONSchemaOptions
 ): Record<string, any> {

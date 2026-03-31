@@ -5,6 +5,7 @@
  */
 
 import type { z } from 'zod'
+import type { $ZodType } from '../zod-core'
 import { getMetadata } from './traverse'
 import type { AsyncTransformFn, TransformContext, TransformFn, TransformOptions } from './types'
 
@@ -29,14 +30,14 @@ import type { AsyncTransformFn, TransformContext, TransformFn, TransformOptions 
  */
 export function transformBySchema<T, TCtx>(
   value: T,
-  schema: z.ZodTypeAny,
+  schema: $ZodType,
   ctx: TCtx,
   transform: TransformFn<TCtx>,
   options?: TransformOptions
 ): T {
   const basePath = options?.path ?? ''
 
-  function recurse(val: unknown, sch: z.ZodTypeAny, currentPath: string): unknown {
+  function recurse(val: unknown, sch: $ZodType, currentPath: string): unknown {
     // Pass through null/undefined unchanged
     if (val === undefined || val === null) {
       return val
@@ -92,7 +93,7 @@ export function transformBySchema<T, TCtx>(
       case 'readonly':
       case 'prefault':
       case 'nonoptional': {
-        const inner = (sch as any)._def?.innerType as z.ZodTypeAny | undefined
+        const inner = (sch as any)._def?.innerType as $ZodType | undefined
         if (inner) {
           return recurse(val, inner, currentPath)
         }
@@ -100,7 +101,7 @@ export function transformBySchema<T, TCtx>(
       }
 
       case 'pipe': {
-        const inner = (sch as any)._def?.in as z.ZodTypeAny | undefined
+        const inner = (sch as any)._def?.in as $ZodType | undefined
         if (inner) {
           return recurse(val, inner, currentPath)
         }
@@ -115,7 +116,7 @@ export function transformBySchema<T, TCtx>(
             for (const [key, fieldSchema] of Object.entries(shape)) {
               const fieldPath = currentPath ? `${currentPath}.${key}` : key
               const fieldValue = (val as Record<string, unknown>)[key]
-              result[key] = recurse(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
+              result[key] = recurse(fieldValue, fieldSchema as $ZodType, fieldPath)
             }
             return result
           }
@@ -164,14 +165,14 @@ export function transformBySchema<T, TCtx>(
  */
 export async function transformBySchemaAsync<T, TCtx>(
   value: T,
-  schema: z.ZodTypeAny,
+  schema: $ZodType,
   ctx: TCtx,
   transform: AsyncTransformFn<TCtx>,
   options?: TransformOptions
 ): Promise<T> {
   const basePath = options?.path ?? ''
 
-  async function recurse(val: unknown, sch: z.ZodTypeAny, currentPath: string): Promise<unknown> {
+  async function recurse(val: unknown, sch: $ZodType, currentPath: string): Promise<unknown> {
     // Pass through null/undefined unchanged
     if (val === undefined || val === null) {
       return val
@@ -227,7 +228,7 @@ export async function transformBySchemaAsync<T, TCtx>(
       case 'readonly':
       case 'prefault':
       case 'nonoptional': {
-        const inner = (sch as any)._def?.innerType as z.ZodTypeAny | undefined
+        const inner = (sch as any)._def?.innerType as $ZodType | undefined
         if (inner) {
           return recurse(val, inner, currentPath)
         }
@@ -235,7 +236,7 @@ export async function transformBySchemaAsync<T, TCtx>(
       }
 
       case 'pipe': {
-        const inner = (sch as any)._def?.in as z.ZodTypeAny | undefined
+        const inner = (sch as any)._def?.in as $ZodType | undefined
         if (inner) {
           return recurse(val, inner, currentPath)
         }
@@ -250,7 +251,7 @@ export async function transformBySchemaAsync<T, TCtx>(
             for (const [key, fieldSchema] of Object.entries(shape)) {
               const fieldPath = currentPath ? `${currentPath}.${key}` : key
               const fieldValue = (val as Record<string, unknown>)[key]
-              result[key] = await recurse(fieldValue, fieldSchema as z.ZodTypeAny, fieldPath)
+              result[key] = await recurse(fieldValue, fieldSchema as $ZodType, fieldPath)
             }
             return result
           }
@@ -296,12 +297,12 @@ export async function transformBySchemaAsync<T, TCtx>(
  */
 function handleUnion(
   val: unknown,
-  sch: z.ZodTypeAny,
+  sch: $ZodType,
   currentPath: string,
-  recurse: (v: unknown, s: z.ZodTypeAny, p: string) => unknown,
+  recurse: (v: unknown, s: $ZodType, p: string) => unknown,
   options?: TransformOptions
 ): unknown {
-  const unionOptions = (sch as any)._def.options as z.ZodTypeAny[] | undefined
+  const unionOptions = (sch as any)._def.options as $ZodType[] | undefined
   const discriminator = (sch as any)._def?.discriminator
 
   // Discriminated union - find matching variant by discriminator value
@@ -348,12 +349,12 @@ function handleUnion(
  */
 async function handleUnionAsync(
   val: unknown,
-  sch: z.ZodTypeAny,
+  sch: $ZodType,
   currentPath: string,
-  recurse: (v: unknown, s: z.ZodTypeAny, p: string) => Promise<unknown>,
+  recurse: (v: unknown, s: $ZodType, p: string) => Promise<unknown>,
   options?: TransformOptions
 ): Promise<unknown> {
-  const unionOptions = (sch as any)._def.options as z.ZodTypeAny[] | undefined
+  const unionOptions = (sch as any)._def.options as $ZodType[] | undefined
   const discriminator = (sch as any)._def?.discriminator
 
   // Discriminated union - find matching variant by discriminator value

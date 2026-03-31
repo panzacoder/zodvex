@@ -6,6 +6,7 @@ import type {
   TableNamesInDataModel
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
+import { z } from 'zod'
 import { ZodvexDatabaseReader, ZodvexDatabaseWriter, ZodvexQueryChain } from './db'
 
 export {
@@ -187,7 +188,7 @@ class RulesDatabaseReader<
     // Wrap with a passthrough schema since inner already decoded the docs.
     const innerChain = this.inner.query(tableName)
     const readRule = tableRules?.read ?? (async () => null) // deny if no rule + deny policy
-    const passthroughSchema = { parse: (x: any) => x }
+    const passthroughSchema = z.any()
     return new RulesQueryChain(innerChain, passthroughSchema, readRule, this.rulesConfig, this.ctx)
   }
 
@@ -565,7 +566,7 @@ class AuditDatabaseReader<
   query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
     const innerChain = this.inner.query(tableName)
     // Passthrough schema since inner already decoded
-    const passthroughSchema = { parse: (x: any) => x }
+    const passthroughSchema = z.any()
     return new AuditQueryChain(innerChain, passthroughSchema, this.afterRead, tableName as string)
   }
 

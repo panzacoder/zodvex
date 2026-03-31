@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { safeEncode } from './normalizeCodecPaths'
 import type { AnyRegistry } from './types'
 import { stripUndefined } from './utils'
+import { safeParse } from './zod-core'
 
 /**
  * Resolves a Convex FunctionReference to its string path.
@@ -118,7 +119,7 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
     const entry = registry[path]
     if (!entry?.returns) return wireResult
 
-    const result = entry.returns.safeParse(wireResult)
+    const result = safeParse(entry.returns, wireResult)
     if (result.success) return result.data
 
     if (onDecodeError === 'throw') {

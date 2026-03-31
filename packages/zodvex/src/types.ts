@@ -106,7 +106,7 @@ export { ZodvexWireSchema }
  *   z.ZodCustom<MyClass<T>>
  * >
  *
- * function myCodec<T extends z.ZodTypeAny>(inner: T): MyCodec<T> {
+ * function myCodec<T extends $ZodType>(inner: T): MyCodec<T> {
  *   return zodvexCodec(
  *     z.object({ value: inner }),
  *     z.custom<MyClass<z.output<T>>>(() => true),
@@ -115,7 +115,7 @@ export { ZodvexWireSchema }
  * }
  * ```
  */
-export type ZodvexCodec<Wire extends z.ZodTypeAny, Runtime extends z.ZodTypeAny> = z.ZodCodec<
+export type ZodvexCodec<Wire extends $ZodType, Runtime extends $ZodType> = z.ZodCodec<
   Wire,
   Runtime
 > & {
@@ -137,4 +137,4 @@ export type Overwrite<T, U> = keyof U extends never ? T : Omit<T, keyof U> & U
  * Produced by zodvex codegen into `_zodvex/api.ts` and consumed by all
  * four codec boundary implementations: hooks, client, actionCtx, initZodvex.
  */
-export type AnyRegistry = Record<string, { args?: z.ZodTypeAny; returns?: z.ZodTypeAny }>
+export type AnyRegistry = Record<string, { args?: $ZodType; returns?: $ZodType }>

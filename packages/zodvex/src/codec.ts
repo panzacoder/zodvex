@@ -2,7 +2,15 @@ import { z } from 'zod'
 import { zodToConvex } from './mapping'
 import { type ZodvexCodec } from './types'
 import { assertNoNativeZodDate, stripUndefined } from './utils'
-import { $ZodObject } from './zod-core'
+import {
+  $ZodObject,
+  $ZodType,
+  encode,
+  parse,
+  type infer as zinfer,
+  type input as zinput,
+  type output as zoutput
+} from './zod-core'
 
 // Re-export ZodvexCodec type for convenience
 export { type ZodvexCodec } from './types'
@@ -19,15 +27,15 @@ export type ConvexCodec<T> = {
 export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
   // Fail fast if z.date() is used - it won't encode correctly
   // Use zx.date() instead for Date ↔ timestamp conversion
-  assertNoNativeZodDate(schema as z.ZodTypeAny, 'schema')
+  assertNoNativeZodDate(schema as $ZodType, 'schema')
 
   const validator = zodToConvex(schema)
 
   return {
     validator,
     // Strip undefined to ensure Convex-safe output (Convex rejects explicit undefined)
-    encode: (value: T) => stripUndefined(z.encode(schema, value)),
-    decode: (value: any) => schema.parse(value),
+    encode: (value: T) => stripUndefined(encode(schema, value)),
+    decode: (value: any) => parse(schema, value),
     pick: <K extends keyof T>(keys: K[] | Record<K, true>) => {
       if (!(schema instanceof $ZodObject)) {
         throw new Error('pick() can only be called on object schemas')
@@ -46,33 +54,33 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
  * Decodes a wire-format document (from Convex DB) to runtime types.
  * Runs Zod codec decode transforms (e.g., timestamp → Date via zx.date()).
  */
-export function decodeDoc<S extends z.ZodTypeAny>(schema: S, wireDoc: unknown): z.output<S> {
-  return schema.parse(wireDoc)
+export function decodeDoc<S extends $ZodType>(schema: S, wireDoc: unknown): zoutput<S> {
+  return parse(schema, wireDoc)
 }
 
 /**
  * Encodes a runtime document to wire format (for Convex DB writes).
  * Runs Zod codec encode transforms and strips undefined values.
  */
-export function encodeDoc<S extends z.ZodTypeAny>(schema: S, runtimeDoc: z.output<S>): z.input<S> {
-  return stripUndefined(z.encode(schema, runtimeDoc))
+export function encodeDoc<S extends $ZodType>(schema: S, runtimeDoc: zoutput<S>): zinput<S> {
+  return stripUndefined(encode(schema, runtimeDoc))
 }
 
 /**
  * Encodes a partial runtime document to wire format (for Convex DB patch operations).
  * Only encodes the fields present in the partial. Uses schema.partial() + z.encode().
  */
-export function encodePartialDoc<S extends z.ZodTypeAny>(
+export function encodePartialDoc<S extends $ZodType>(
   schema: S,
-  partial: Partial<z.output<S>>
-): Partial<z.input<S>> {
+  partial: Partial<zoutput<S>>
+): Partial<zinput<S>> {
   if (!(schema instanceof $ZodObject)) {
     // For non-object schemas (unions, etc.), fall back to full encode
     // Cast needed: Partial<output<S>> is structurally compatible but not assignable to output<S>
-    return stripUndefined(z.encode(schema, partial as z.output<S>)) as Partial<z.input<S>>
+    return stripUndefined(encode(schema, partial as zoutput<S>)) as Partial<zinput<S>>
   }
   const partialSchema = (schema as any).partial()
-  return stripUndefined(z.encode(partialSchema, partial)) as Partial<z.input<S>>
+  return stripUndefined(encode(partialSchema, partial)) as Partial<zinput<S>>
 }
 
 /**
@@ -98,10 +106,10 @@ export function encodePartialDoc<S extends z.ZodTypeAny>(
  * ```
  */
 export function zodvexCodec<
-  W extends z.ZodTypeAny,
-  R extends z.ZodTypeAny,
-  WO = z.output<W>,
-  RI = z.output<R>
+  W extends $ZodType,
+  R extends $ZodType,
+  WO = zoutput<W>,
+  RI = zoutput<R>
 >(
   wire: W,
   runtime: R,
@@ -111,8 +119,5 @@ export function zodvexCodec<
   }
 ): ZodvexCodec<W, R> {
   // Cast transforms to satisfy Zod's internal MaybeAsync typing while keeping our API simple
-  return z.codec(wire, runtime, transforms as Parameters<typeof z.codec<W, R>>[2]) as ZodvexCodec<
-    W,
-    R
-  >
+  return z.codec(wire as any, runtime as any, transforms as any) as unknown as ZodvexCodec<W, R>
 }

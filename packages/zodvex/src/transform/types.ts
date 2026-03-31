@@ -5,6 +5,7 @@
  */
 
 import type { z } from 'zod'
+import type { $ZodType } from '../zod-core'
 
 /**
  * Information about a field during schema traversal.
@@ -13,7 +14,7 @@ export type FieldInfo = {
   /** Dot-notation path (e.g., 'profile.email', 'contacts[].email') */
   path: string
   /** The Zod schema for this field */
-  schema: z.ZodTypeAny
+  schema: $ZodType
   /** Metadata from schema.meta() if present */
   meta: Record<string, unknown> | undefined
   /** Whether the field is wrapped in optional/nullable */
@@ -31,7 +32,7 @@ export type SchemaVisitor = {
   /** Called when entering an array schema */
   onArray?: (info: FieldInfo) => void
   /** Called when entering a union schema */
-  onUnion?: (info: FieldInfo, variants: z.ZodTypeAny[]) => void
+  onUnion?: (info: FieldInfo, variants: $ZodType[]) => void
 }
 
 /**
@@ -49,7 +50,7 @@ export type TransformContext<TCtx = unknown> = {
   /** Current field path */
   path: string
   /** The Zod schema for this field */
-  schema: z.ZodTypeAny
+  schema: $ZodType
   /** Metadata from schema.meta() if present */
   meta: Record<string, unknown> | undefined
   /** User-provided context */
@@ -106,7 +107,7 @@ export type TransformOptions = {
    * })
    * ```
    */
-  shouldTransform?: (schema: z.ZodTypeAny) => boolean
+  shouldTransform?: (schema: $ZodType) => boolean
   /**
    * Process array elements in parallel (async only).
    *

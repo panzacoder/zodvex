@@ -27,7 +27,7 @@ import { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
 import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './ruleTypes'
 import type { ZodTableMap } from './schema'
-import { $ZodObject, $ZodUnion } from './zod-core'
+import { $ZodObject, $ZodType, $ZodUnion, encode } from './zod-core'
 
 // Lazy import to avoid circular dependency — rules.ts extends classes from this file.
 // The dynamic import() fires after db.ts finishes initializing, so rules.ts can
@@ -191,14 +191,14 @@ export interface ZodvexFilterBuilder<
  * - Dot-paths: pass through unchanged (they target wire-format sub-fields
  *   where the comparison value is already the correct primitive type).
  */
-function encodeIndexValue(schema: z.ZodTypeAny, fieldPath: string, value: any): any {
+function encodeIndexValue(schema: $ZodType, fieldPath: string, value: any): any {
   // Dot-paths target wire-format sub-fields — value is already correct
   if (fieldPath.includes('.')) return value
 
   // Object schemas: encode through the field's schema directly
   if (schema instanceof $ZodObject) {
     const fieldSchema = (schema as z.ZodObject<any>).shape[fieldPath]
-    if (fieldSchema) return z.encode(fieldSchema, value)
+    if (fieldSchema) return encode(fieldSchema, value)
   }
 
   // Union schemas (ZodDiscriminatedUnion extends ZodUnion): build a per-field
@@ -206,17 +206,14 @@ function encodeIndexValue(schema: z.ZodTypeAny, fieldPath: string, value: any): 
   // literals and codec fields (e.g., zx.date()) correctly.
   // Non-object variants are skipped — union tables require object variants.
   if (schema instanceof $ZodUnion) {
-    const options = (schema as any).options as z.ZodTypeAny[]
+    const options = (schema as any).options as $ZodType[]
     const fieldSchemas = options
       .filter((v): v is z.ZodObject<any> => v instanceof $ZodObject)
       .map(v => v.shape[fieldPath])
       .filter(Boolean)
-    if (fieldSchemas.length === 1) return z.encode(fieldSchemas[0], value)
+    if (fieldSchemas.length === 1) return encode(fieldSchemas[0], value)
     if (fieldSchemas.length > 1)
-      return z.encode(
-        z.union(fieldSchemas as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]),
-        value
-      )
+      return encode(z.union(fieldSchemas as [$ZodType, $ZodType, ...$ZodType[]]), value)
   }
 
   return value
@@ -230,7 +227,7 @@ function encodeIndexValue(schema: z.ZodTypeAny, fieldPath: string, value: any): 
  * Returns another wrapped builder so chained calls (e.g., .eq().gte().lt()) are
  * all encoded.
  */
-function wrapIndexRangeBuilder(inner: any, schema: z.ZodTypeAny): any {
+function wrapIndexRangeBuilder(inner: any, schema: $ZodType): any {
   return new Proxy(inner, {
     get(target, prop, receiver) {
       if (typeof prop === 'string' && ['eq', 'gt', 'gte', 'lt', 'lte'].includes(prop)) {
@@ -262,7 +259,7 @@ function extractFieldPath(expr: any): string | null {
   return null
 }
 
-function wrapFilterBuilder(inner: any, schema: z.ZodTypeAny): any {
+function wrapFilterBuilder(inner: any, schema: $ZodType): any {
   return new Proxy(inner, {
     get(target, prop, receiver) {
       if (typeof prop === 'string' && ['eq', 'neq', 'lt', 'lte', 'gt', 'gte'].includes(prop)) {
@@ -303,7 +300,7 @@ function wrapFilterBuilder(inner: any, schema: z.ZodTypeAny): any {
 export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = DocumentByInfo<TableInfo>> {
   constructor(
     protected inner: any,
-    protected schema: z.ZodTypeAny
+    protected schema: $ZodType
   ) {}
 
   /** Factory method for intermediate methods. Subclasses override to return their own type. */

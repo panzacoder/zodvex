@@ -11,11 +11,11 @@ import {
   type MapSystemFields,
   type SystemFields
 } from './schemaHelpers'
-import { $ZodObject, $ZodOptional, $ZodType } from './zod-core'
+import { $ZodObject, $ZodOptional, type $ZodShape, $ZodType } from './zod-core'
 import { type ZxId, zx } from './zx'
 
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
-function ensureOptional(schema: z.ZodTypeAny): z.ZodOptional<any> {
+function ensureOptional(schema: $ZodType): z.ZodOptional<any> {
   if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any>
   return new ($ZodOptional as any)({ type: 'optional', innerType: schema })
 }
@@ -23,7 +23,7 @@ function ensureOptional(schema: z.ZodTypeAny): z.ZodOptional<any> {
 /**
  * Makes all properties of a Zod object shape optional.
  */
-type PartialShape<Shape extends z.ZodRawShape> = {
+type PartialShape<Shape extends $ZodShape> = {
   [K in keyof Shape]: z.ZodOptional<Shape[K]>
 }
 
@@ -72,7 +72,7 @@ function asTableValidator<V extends { kind: string }>(validator: V): TableValida
  * @param schema - The Zod object schema for user fields
  * @returns A Zod object schema with _id and _creationTime added
  */
-export function zodDoc<TableName extends string, Shape extends z.ZodRawShape>(
+export function zodDoc<TableName extends string, Shape extends $ZodShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & DocSystemFields<TableName>> {
@@ -87,7 +87,7 @@ export function zodDoc<TableName extends string, Shape extends z.ZodRawShape>(
  */
 export function zodDocOrNull<
   TableName extends string,
-  Shape extends z.ZodRawShape,
+  Shape extends $ZodShape,
   Schema extends z.ZodObject<Shape>
 >(tableName: TableName, schema: Schema) {
   return z.union([zodDoc(tableName, schema), z.null()])
@@ -96,7 +96,7 @@ export function zodDocOrNull<
 /**
  * Helper to detect if input is an object shape (plain object with Zod validators)
  */
-function isObjectShape(input: any): input is Record<string, z.ZodTypeAny> {
+function isObjectShape(input: any): input is Record<string, $ZodType> {
   // Check if it's a plain object (not a Zod instance)
   if (!input || typeof input !== 'object') return false
 
@@ -170,7 +170,7 @@ function isObjectShape(input: any): input is Record<string, z.ZodTypeAny> {
  * ```
  */
 // Helper type to compute the result of addSystemFields for use in zodTable return type
-type AddSystemFieldsResult<TableName extends string, Schema extends z.ZodTypeAny> =
+type AddSystemFieldsResult<TableName extends string, Schema extends $ZodType> =
   Schema extends z.ZodObject<infer Shape extends z.ZodRawShape>
     ? z.ZodObject<Shape & SystemFields<TableName>>
     : Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
@@ -207,7 +207,7 @@ type MapUpdateVariants<TableName extends string, Options extends readonly z.ZodT
  * For objects: the whole object gets update shape
  * For other types: returns as-is
  */
-type UpdateSchemaType<TableName extends string, Schema extends z.ZodTypeAny> =
+type UpdateSchemaType<TableName extends string, Schema extends $ZodType> =
   Schema extends z.ZodUnion<infer Options extends readonly z.ZodTypeAny[]>
     ? z.ZodUnion<MapUpdateVariants<TableName, Options>>
     : Schema extends z.ZodDiscriminatedUnion<
@@ -220,7 +220,7 @@ type UpdateSchemaType<TableName extends string, Schema extends z.ZodTypeAny> =
         : Schema
 
 // Overload 1: Object shape (most common case - raw object with Zod validators)
-export function zodTable<TableName extends string, Shape extends Record<string, z.ZodTypeAny>>(
+export function zodTable<TableName extends string, Shape extends Record<string, $ZodType>>(
   name: TableName,
   shape: Shape
 ): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
@@ -272,7 +272,7 @@ export function zodTable<TableName extends string, Shape extends Record<string, 
 }
 
 // Overload 2: ZodObject wrapper (extracts shape for same type inference as raw shape)
-export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
+export function zodTable<TableName extends string, Shape extends $ZodShape>(
   name: TableName,
   schema: z.ZodObject<Shape>
 ): ReturnType<typeof Table<ConvexValidatorFromZodFieldsAuto<Shape>, TableName>> & {
@@ -324,7 +324,7 @@ export function zodTable<TableName extends string, Shape extends z.ZodRawShape>(
 }
 
 // Overload 3: Union/schema types
-export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
+export function zodTable<TableName extends string, Schema extends $ZodType>(
   name: TableName,
   schema: Schema
 ): {
@@ -354,7 +354,7 @@ export function zodTable<TableName extends string, Schema extends z.ZodTypeAny>(
 
 export function zodTable<
   TableName extends string,
-  SchemaOrShape extends z.ZodTypeAny | Record<string, z.ZodTypeAny>
+  SchemaOrShape extends $ZodType | Record<string, $ZodType>
 >(name: TableName, schemaOrShape: SchemaOrShape): any {
   // Detect if it's an object shape, ZodObject, or other schema
   // For ZodObject: extract its shape to use the type-preserving path
@@ -363,7 +363,7 @@ export function zodTable<
     // Extract shape from ZodObject or use raw shape directly
     const shape = isZodObject
       ? (schemaOrShape as z.ZodObject<z.ZodRawShape>).shape
-      : (schemaOrShape as Record<string, z.ZodTypeAny>)
+      : (schemaOrShape as Record<string, $ZodType>)
 
     // Convert fields with proper types
     const convexFields = zodToConvexFields(shape) as ConvexValidatorFromZodFieldsAuto<typeof shape>
@@ -393,9 +393,9 @@ export function zodTable<
     })
 
     // Create partial shape for user fields
-    const partialShape: Record<string, z.ZodTypeAny> = {}
+    const partialShape: Record<string, $ZodType> = {}
     for (const [key, value] of Object.entries(shape)) {
-      partialShape[key] = ensureOptional(value as z.ZodTypeAny)
+      partialShape[key] = ensureOptional(value as $ZodType)
     }
 
     // Create update schema: _id required, _creationTime optional, user fields partial
@@ -426,7 +426,7 @@ export function zodTable<
     })
   } else {
     // Union or other schema type logic
-    const schema = schemaOrShape as z.ZodTypeAny
+    const schema = schemaOrShape as $ZodType
 
     // Convert schema to Convex validator
     const convexValidator = zodToConvex(schema)
@@ -449,15 +449,15 @@ export function zodTable<
     })
 
     // Create update schema: _id required, _creationTime optional, user fields partial
-    let updateSchema: z.ZodTypeAny
+    let updateSchema: $ZodType
     if (isZodUnion(schema)) {
       const originalOptions = getUnionOptions(schema)
-      const updateOptions = originalOptions.map((variant: z.ZodTypeAny) => {
+      const updateOptions = originalOptions.map((variant: $ZodType) => {
         if (variant instanceof $ZodObject) {
           // Create partial shape for user fields
-          const partialShape: Record<string, z.ZodTypeAny> = {}
+          const partialShape: Record<string, $ZodType> = {}
           for (const [key, value] of Object.entries((variant as any).shape)) {
-            partialShape[key] = ensureOptional(value as z.ZodTypeAny)
+            partialShape[key] = ensureOptional(value as $ZodType)
           }
           // Add system fields: _id required, _creationTime optional
           return z.object({
@@ -471,9 +471,9 @@ export function zodTable<
       updateSchema = createUnionFromOptions(updateOptions)
     } else if (schema instanceof $ZodObject) {
       // Create partial shape for user fields
-      const partialShape: Record<string, z.ZodTypeAny> = {}
+      const partialShape: Record<string, $ZodType> = {}
       for (const [key, value] of Object.entries((schema as any).shape)) {
-        partialShape[key] = ensureOptional(value as z.ZodTypeAny)
+        partialShape[key] = ensureOptional(value as $ZodType)
       }
       // Add system fields: _id required, _creationTime optional
       updateSchema = z.object({

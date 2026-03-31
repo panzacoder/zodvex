@@ -5,9 +5,10 @@
  */
 
 import type { z } from 'zod'
+import type { $ZodType } from '../zod-core'
 import type { FieldInfo, SchemaVisitor, WalkSchemaOptions } from './types'
 
-const METADATA_CACHE = new WeakMap<z.ZodTypeAny, Record<string, unknown> | undefined>()
+const METADATA_CACHE = new WeakMap<$ZodType, Record<string, unknown> | undefined>()
 
 /**
  * Metadata key for ZodCustom wrappers (custom field types).
@@ -33,13 +34,13 @@ function isCustomWrapperDef(schema: any): boolean {
  * // => { encrypted: true }
  * ```
  */
-export function getMetadata(schema: z.ZodTypeAny): Record<string, unknown> | undefined {
+export function getMetadata(schema: $ZodType): Record<string, unknown> | undefined {
   if (METADATA_CACHE.has(schema)) {
     return METADATA_CACHE.get(schema)
   }
 
-  const visited = new Set<z.ZodTypeAny>()
-  let current: z.ZodTypeAny | undefined = schema
+  const visited = new Set<$ZodType>()
+  let current: $ZodType | undefined = schema
 
   while (current) {
     if (visited.has(current)) return undefined
@@ -53,7 +54,7 @@ export function getMetadata(schema: z.ZodTypeAny): Record<string, unknown> | und
       return meta
     }
 
-    const meta = current.meta?.() as Record<string, unknown> | undefined
+    const meta = (current as any).meta?.() as Record<string, unknown> | undefined
     if (meta !== undefined) {
       METADATA_CACHE.set(schema, meta)
       return meta
@@ -79,7 +80,7 @@ export function getMetadata(schema: z.ZodTypeAny): Record<string, unknown> | und
  * @param schema - A Zod schema that may be wrapped
  * @returns The inner schema, or `undefined` if not a wrapper type
  */
-export function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
+export function unwrapOnce(schema: $ZodType): $ZodType | undefined {
   const defType = (schema as any)._def?.type as string | undefined
 
   switch (defType) {
@@ -129,7 +130,7 @@ export function unwrapOnce(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
  * ```
  */
 export function hasMetadata(
-  schema: z.ZodTypeAny,
+  schema: $ZodType,
   predicate: (meta: Record<string, unknown>) => boolean
 ): boolean {
   const meta = getMetadata(schema)
@@ -154,14 +155,14 @@ export function hasMetadata(
  * ```
  */
 export function walkSchema(
-  schema: z.ZodTypeAny,
+  schema: $ZodType,
   visitor: SchemaVisitor,
   options?: WalkSchemaOptions
 ): void {
-  const recursionStack = new Set<z.ZodTypeAny>()
+  const recursionStack = new Set<$ZodType>()
   const basePath = options?.path ?? ''
 
-  function traverse(sch: z.ZodTypeAny, currentPath: string, isOptional: boolean): void {
+  function traverse(sch: $ZodType, currentPath: string, isOptional: boolean): void {
     // Prevent infinite recursion on circular schema references
     if (recursionStack.has(sch)) return
     recursionStack.add(sch)
@@ -214,7 +215,7 @@ export function walkSchema(
         case 'readonly':
         case 'prefault':
         case 'nonoptional': {
-          const inner = (sch as any)._def?.innerType as z.ZodTypeAny | undefined
+          const inner = (sch as any)._def?.innerType as $ZodType | undefined
           if (inner) {
             traverse(inner, currentPath, isOptional)
           }
@@ -222,7 +223,7 @@ export function walkSchema(
         }
 
         case 'pipe': {
-          const inner = (sch as any)._def?.in as z.ZodTypeAny | undefined
+          const inner = (sch as any)._def?.in as $ZodType | undefined
           if (inner) {
             traverse(inner, currentPath, isOptional)
           }
@@ -235,7 +236,7 @@ export function walkSchema(
           if (shape) {
             for (const [key, fieldSchema] of Object.entries(shape)) {
               const fieldPath = currentPath ? `${currentPath}.${key}` : key
-              traverse(fieldSchema as z.ZodTypeAny, fieldPath, false)
+              traverse(fieldSchema as $ZodType, fieldPath, false)
             }
           }
           return
@@ -252,16 +253,16 @@ export function walkSchema(
         }
 
         case 'union': {
-          const unionOptions = (sch as any)._def.options as z.ZodTypeAny[] | undefined
+          const unionOptions = (sch as any)._def.options as $ZodType[] | undefined
 
           // Get options from either _def.options or _def.optionsMap
           const variantOptions =
             unionOptions ||
             ((sch as any)._def.optionsMap ? Array.from((sch as any)._def.optionsMap.values()) : [])
 
-          visitor.onUnion?.(info, variantOptions as z.ZodTypeAny[])
+          visitor.onUnion?.(info, variantOptions as $ZodType[])
 
-          for (const variant of variantOptions as z.ZodTypeAny[]) {
+          for (const variant of variantOptions as $ZodType[]) {
             traverse(variant, currentPath, isOptional)
           }
           return
@@ -283,7 +284,7 @@ export function walkSchema(
  * @overload Type guard version - returns narrowed meta type
  */
 export function findFieldsWithMeta<TMeta extends Record<string, unknown>>(
-  schema: z.ZodTypeAny,
+  schema: $ZodType,
   predicate: (meta: Record<string, unknown> | undefined) => meta is TMeta
 ): Array<FieldInfo & { meta: TMeta }>
 
@@ -291,7 +292,7 @@ export function findFieldsWithMeta<TMeta extends Record<string, unknown>>(
  * @overload Boolean predicate version
  */
 export function findFieldsWithMeta(
-  schema: z.ZodTypeAny,
+  schema: $ZodType,
   predicate: (meta: Record<string, unknown> | undefined) => boolean
 ): FieldInfo[]
 
@@ -309,7 +310,7 @@ export function findFieldsWithMeta(
  * ```
  */
 export function findFieldsWithMeta(
-  schema: z.ZodTypeAny,
+  schema: $ZodType,
   predicate: (meta: Record<string, unknown> | undefined) => boolean
 ): FieldInfo[] {
   const results: FieldInfo[] = []

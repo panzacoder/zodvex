@@ -44,8 +44,8 @@ import { $ZodObject, $ZodType } from './zod-core'
  */
 export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder) {
   return <
-    A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-    R extends z.ZodTypeAny | undefined = undefined,
+    A extends $ZodType | Record<string, $ZodType>,
+    R extends $ZodType | undefined = undefined,
     Visibility extends FunctionVisibility = ExtractVisibility<Builder>
   >(config: {
     args?: A
@@ -67,7 +67,7 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
         ? (config.args as unknown as z.ZodObject<any>)
         : config.args instanceof $ZodType
           ? undefined
-          : z.object(config.args as Record<string, z.ZodTypeAny>)
+          : z.object(config.args as Record<string, $ZodType>)
       : undefined
     attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
     return result as any
@@ -99,8 +99,8 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
  */
 export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Builder) {
   return <
-    A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-    R extends z.ZodTypeAny | undefined = undefined,
+    A extends $ZodType | Record<string, $ZodType>,
+    R extends $ZodType | undefined = undefined,
     Visibility extends FunctionVisibility = ExtractVisibility<Builder>
   >(config: {
     args?: A
@@ -122,7 +122,7 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
         ? (config.args as unknown as z.ZodObject<any>)
         : config.args instanceof $ZodType
           ? undefined
-          : z.object(config.args as Record<string, z.ZodTypeAny>)
+          : z.object(config.args as Record<string, $ZodType>)
       : undefined
     attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
     return result as any
@@ -154,8 +154,8 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
  */
 export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builder) {
   return <
-    A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-    R extends z.ZodTypeAny | undefined = undefined,
+    A extends $ZodType | Record<string, $ZodType>,
+    R extends $ZodType | undefined = undefined,
     Visibility extends FunctionVisibility = ExtractVisibility<Builder>
   >(config: {
     args?: A
@@ -177,7 +177,7 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
         ? (config.args as unknown as z.ZodObject<any>)
         : config.args instanceof $ZodType
           ? undefined
-          : z.object(config.args as Record<string, z.ZodTypeAny>)
+          : z.object(config.args as Record<string, $ZodType>)
       : undefined
     attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
     return result as any
