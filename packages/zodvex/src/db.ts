@@ -24,10 +24,10 @@ import type {
 } from 'convex/server'
 import type { GenericId, NumericValue } from 'convex/values'
 import { z } from 'zod'
-import { $ZodObject, $ZodUnion } from './zod-core'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
 import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './ruleTypes'
 import type { ZodTableMap } from './schema'
+import { $ZodObject, $ZodUnion } from './zod-core'
 
 // Lazy import to avoid circular dependency — rules.ts extends classes from this file.
 // The dynamic import() fires after db.ts finishes initializing, so rules.ts can

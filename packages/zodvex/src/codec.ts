@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { $ZodObject } from './zod-core'
 import { zodToConvex } from './mapping'
 import { type ZodvexCodec } from './types'
 import { assertNoNativeZodDate, stripUndefined } from './utils'
+import { $ZodObject } from './zod-core'
 
 // Re-export ZodvexCodec type for convenience
 export { type ZodvexCodec } from './types'

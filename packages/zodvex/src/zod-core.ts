@@ -5,57 +5,57 @@
 // Per Zod's library author guidance (https://zod.dev/library-authors),
 // importing from 'zod/v4/core' ensures zodvex works with both zod and zod/mini.
 export {
-  // Base types
-  $ZodType,
-  $ZodString,
-  $ZodNumber,
-  $ZodBoolean,
-  $ZodBigInt,
-  $ZodDate,
-  $ZodNull,
-  $ZodUndefined,
   $ZodAny,
-  $ZodUnknown,
-  $ZodNaN,
-  $ZodVoid,
-  $ZodNever,
-  $ZodSymbol,
-  // Compound types
-  $ZodObject,
   $ZodArray,
-  $ZodTuple,
-  $ZodUnion,
+  $ZodBigInt,
+  $ZodBoolean,
+  $ZodCodec,
+  $ZodCustom,
+  $ZodDate,
+  $ZodDefault,
   $ZodDiscriminatedUnion,
   $ZodEnum,
-  $ZodLiteral,
-  $ZodRecord,
-  // Wrappers
-  $ZodOptional,
-  $ZodNullable,
-  $ZodDefault,
-  $ZodPrefault,
-  $ZodNonOptional,
-  $ZodReadonly,
-  // Transform/pipe
-  $ZodTransform,
-  $ZodPipe,
-  $ZodCodec,
-  $ZodLazy,
-  $ZodCustom,
-  // File
-  $ZodFile,
   // Errors
   $ZodError,
-  // Standalone parse/encode functions
-  parse,
-  safeParse,
-  encode,
+  // File
+  $ZodFile,
+  $ZodLazy,
+  $ZodLiteral,
+  $ZodNaN,
+  $ZodNever,
+  $ZodNonOptional,
+  $ZodNull,
+  $ZodNullable,
+  $ZodNumber,
+  // Compound types
+  $ZodObject,
+  // Wrappers
+  $ZodOptional,
+  $ZodPipe,
+  $ZodPrefault,
+  $ZodReadonly,
+  $ZodRecord,
+  $ZodString,
+  $ZodSymbol,
+  // Transform/pipe
+  $ZodTransform,
+  $ZodTuple,
+  // Base types
+  $ZodType,
+  // Internals for advanced type checking
+  type $ZodTypeDef,
+  type $ZodTypeInternals,
+  $ZodUndefined,
+  $ZodUnion,
+  $ZodUnknown,
+  $ZodVoid,
   decode,
+  encode,
   // Type utilities
   type infer,
   type input,
   type output,
-  // Internals for advanced type checking
-  type $ZodTypeDef,
-  type $ZodTypeInternals
+  // Standalone parse/encode functions
+  parse,
+  safeParse
 } from 'zod/v4/core'

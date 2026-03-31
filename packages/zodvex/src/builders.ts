@@ -7,7 +7,6 @@ import type {
 import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
-import { $ZodObject, $ZodType } from './zod-core'
 import { type CustomBuilder, customFnBuilder } from './custom'
 import { attachMeta } from './meta'
 import type {
@@ -18,6 +17,7 @@ import type {
   ZodToConvexArgs
 } from './types'
 import { zAction, zMutation, zQuery } from './wrappers'
+import { $ZodObject, $ZodType } from './zod-core'
 
 /**
  * Creates a reusable query builder from a Convex query builder.

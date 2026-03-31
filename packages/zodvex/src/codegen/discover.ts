@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { globSync } from 'tinyglobby'
+import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../meta'
 import {
   $ZodArray,
   $ZodCodec,
@@ -13,7 +14,6 @@ import {
   $ZodType,
   $ZodUnion
 } from '../zod-core'
-import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../meta'
 import { registerDiscoveryHooks, writeGeneratedStubs } from './discovery-hooks'
 import { findCodec } from './extractCodec'
 

@@ -9,7 +9,6 @@
  */
 
 import { z } from 'zod'
-import { $ZodObject, $ZodOptional, $ZodType } from './zod-core'
 import { attachMeta } from './meta'
 import {
   addSystemFields,
@@ -17,6 +16,7 @@ import {
   getUnionOptions,
   isZodUnion
 } from './schemaHelpers'
+import { $ZodObject, $ZodOptional, $ZodType } from './zod-core'
 import { type ZxId, zx } from './zx'
 
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */

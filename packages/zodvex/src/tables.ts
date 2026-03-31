@@ -2,7 +2,6 @@ import { defineTable } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
-import { $ZodObject, $ZodOptional, $ZodType } from './zod-core'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 import {
   addSystemFields,
@@ -12,6 +11,7 @@ import {
   type MapSystemFields,
   type SystemFields
 } from './schemaHelpers'
+import { $ZodObject, $ZodOptional, $ZodType } from './zod-core'
 import { type ZxId, zx } from './zx'
 
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */

@@ -1,5 +1,7 @@
 import type { GenericValidator, PropertyValidators } from 'convex/values'
 import { v } from 'convex/values'
+import type { ZodRawShape, ZodTypeAny } from 'zod'
+import { registryHelpers } from '../ids'
 import {
   $ZodArray,
   $ZodCodec,
@@ -15,8 +17,6 @@ import {
   $ZodType,
   $ZodUnion
 } from '../zod-core'
-import type { ZodRawShape, ZodTypeAny } from 'zod'
-import { registryHelpers } from '../ids'
 import {
   convertDiscriminatedUnionType,
   convertEnumType,

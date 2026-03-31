@@ -1,3 +1,4 @@
+import { readMeta } from '../meta'
 import {
   $ZodCodec,
   $ZodCustom,
@@ -6,7 +7,6 @@ import {
   $ZodOptional,
   $ZodType
 } from '../zod-core'
-import { readMeta } from '../meta'
 
 /**
  * Unwraps ZodOptional/ZodNullable layers to find the inner ZodCodec.

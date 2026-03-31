@@ -13,12 +13,12 @@ import {
 import { type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
-import { $ZodObject, $ZodType } from './zod-core'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import { attachMeta } from './meta'
 import { handleZodValidationError, validateReturns } from './serverUtils'
 import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
 import { assertNoNativeZodDate, pick, stripUndefined } from './utils'
+import { $ZodObject, $ZodType } from './zod-core'
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]

@@ -1,7 +1,7 @@
 import { v } from 'convex/values'
 import type { ZodType } from 'zod'
-import { $ZodObject } from '../zod-core'
 import { registryHelpers, type Zid } from '../ids'
+import { $ZodObject } from '../zod-core'
 
 // Helper to check if a schema is a Zid
 export function isZid<T extends string>(schema: ZodType): schema is Zid<T> {
