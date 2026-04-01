@@ -1,6 +1,6 @@
 import type { GenericValidator, Validator } from 'convex/values'
 import { v } from 'convex/values'
-import type { $ZodType } from '../../zod-core'
+import { $ZodDiscriminatedUnion, $ZodUnion, type $ZodType } from '../../zod-core'
 
 // Helper: Convert Zod discriminated union types to Convex validators
 export function convertDiscriminatedUnionType(
@@ -9,8 +9,10 @@ export function convertDiscriminatedUnionType(
   zodToConvexInternal: (schema: $ZodType, visited: Set<$ZodType>) => any
 ): GenericValidator {
   const options =
-    (actualValidator as any)._zod?.def?.options ||
-    (actualValidator as any)._zod?.def?.optionsMap?.values()
+    actualValidator instanceof $ZodDiscriminatedUnion
+      ? actualValidator._zod.def.options
+      : // cast: fallback for non-standard discriminated union variants
+        (actualValidator as any)._zod?.def?.options
   if (options) {
     const opts = Array.isArray(options) ? options : Array.from(options)
     if (opts.length >= 2) {
@@ -36,11 +38,11 @@ export function convertDiscriminatedUnionType(
 
 // Helper: Convert Zod union types to Convex validators
 export function convertUnionType(
-  actualValidator: $ZodType,
+  actualValidator: $ZodUnion,
   visited: Set<$ZodType>,
   zodToConvexInternal: (schema: $ZodType, visited: Set<$ZodType>) => any
 ): GenericValidator {
-  const options = (actualValidator as any)._zod.def.options
+  const options = actualValidator._zod.def.options
   if (options && Array.isArray(options) && options.length > 0) {
     if (options.length === 1) {
       return zodToConvexInternal(options[0], visited)

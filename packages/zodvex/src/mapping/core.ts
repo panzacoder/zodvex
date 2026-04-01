@@ -54,25 +54,22 @@ function zodToConvexInternal<Z extends $ZodType>(
   let hasDefault = false
 
   // Handle ZodDefault (which wraps ZodOptional when using .optional().default())
-  // Note: We access _def properties directly because Zod v4 doesn't expose public APIs
-  // for unwrapping defaults. The removeDefault() method exists but returns a new schema
-  // without preserving references, which breaks our visited Set tracking.
   if (zodValidator instanceof $ZodDefault) {
     hasDefault = true
-    defaultValue = (zodValidator as any).def?.defaultValue
-    actualValidator = (zodValidator as any).def?.innerType as Z
+    defaultValue = zodValidator._zod.def.defaultValue
+    actualValidator = zodValidator._zod.def.innerType as Z
   }
 
   // Check for optional (may be wrapped inside ZodDefault)
   if (actualValidator instanceof $ZodOptional) {
     isOptional = true
-    actualValidator = (actualValidator as any)._zod.def.innerType as Z
+    actualValidator = actualValidator._zod.def.innerType as Z
 
     // If the unwrapped type is ZodDefault, handle it here
     if (actualValidator instanceof $ZodDefault) {
       hasDefault = true
-      defaultValue = (actualValidator as any).def?.defaultValue
-      actualValidator = (actualValidator as any).def?.innerType as Z
+      defaultValue = actualValidator._zod.def.defaultValue
+      actualValidator = actualValidator._zod.def.innerType as Z
     }
   }
 
@@ -91,11 +88,8 @@ function zodToConvexInternal<Z extends $ZodType>(
     // 3. Future-proof: Zod's internal structure is stable; instanceof checks can miss custom types
     // 4. Precision: def.type distinguishes between semantically different types (date vs number)
     // This private API access is intentional and necessary for comprehensive type coverage.
-    //
-    // Compatibility: This code relies on the internal `.def.type` property of ZodType.
-    // This structure has been stable across Zod v3.x and v4.x. If upgrading Zod major versions,
-    // verify that `.def.type` is still present and unchanged.
-    const defType = (actualValidator as any).def?.type
+    // cast: switch handles more defType values than $ZodTypeDef types (e.g. discriminatedUnion)
+    const defType = actualValidator._zod.def.type as string
 
     switch (defType) {
       case 'string':
@@ -128,27 +122,21 @@ function zodToConvexInternal<Z extends $ZodType>(
         convexValidator = v.float64()
         break
       case 'array': {
-        // Use classic API: ZodArray has .element property
         if (actualValidator instanceof $ZodArray) {
-          const element = (actualValidator as any).element
-          if (element && element instanceof $ZodType) {
-            convexValidator = v.array(zodToConvexInternal(element as any, visited))
-          } else {
-            convexValidator = v.array(v.any())
-          }
+          const element = actualValidator._zod.def.element
+          convexValidator = v.array(zodToConvexInternal(element, visited))
         } else {
           convexValidator = v.array(v.any())
         }
         break
       }
       case 'object': {
-        // Use classic API: ZodObject has .shape property
         if (actualValidator instanceof $ZodObject) {
-          const shape = (actualValidator as any).shape
+          const shape = actualValidator._zod.def.shape
           const convexShape: PropertyValidators = {}
           for (const [key, value] of Object.entries(shape)) {
             if (value && value instanceof $ZodType) {
-              convexShape[key] = zodToConvexInternal(value as any, visited)
+              convexShape[key] = zodToConvexInternal(value, visited)
             }
           }
           convexValidator = v.object(convexShape)
@@ -159,7 +147,7 @@ function zodToConvexInternal<Z extends $ZodType>(
       }
       case 'union': {
         if (actualValidator instanceof $ZodUnion) {
-          convexValidator = convertUnionType(actualValidator as any, visited, zodToConvexInternal)
+          convexValidator = convertUnionType(actualValidator, visited, zodToConvexInternal)
         } else {
           convexValidator = v.any()
         }
@@ -167,18 +155,18 @@ function zodToConvexInternal<Z extends $ZodType>(
       }
       case 'discriminatedUnion': {
         convexValidator = convertDiscriminatedUnionType(
-          actualValidator as any,
+          actualValidator,
           visited,
           zodToConvexInternal
         )
         break
       }
       case 'literal': {
-        // Use classic API: ZodLiteral has .value property
         if (actualValidator instanceof $ZodLiteral) {
-          const literalValue = (actualValidator as any).value
-          if (literalValue !== undefined && literalValue !== null) {
-            convexValidator = v.literal(literalValue)
+          const literalValues = actualValidator._zod.def.values
+          const firstValue = literalValues.values().next().value
+          if (firstValue !== undefined && firstValue !== null) {
+            convexValidator = v.literal(firstValue)
           } else {
             convexValidator = v.any()
           }
@@ -189,7 +177,7 @@ function zodToConvexInternal<Z extends $ZodType>(
       }
       case 'enum': {
         if (actualValidator instanceof $ZodEnum) {
-          convexValidator = convertEnumType(actualValidator as any)
+          convexValidator = convertEnumType(actualValidator)
         } else {
           convexValidator = v.any()
         }
@@ -209,9 +197,9 @@ function zodToConvexInternal<Z extends $ZodType>(
         // Codecs have def.type='pipe' but are specifically for bidirectional transforms
         // Use the input schema (wire format) for Convex validation
         if (actualValidator instanceof $ZodCodec) {
-          const inputSchema = (actualValidator as any).def?.in
+          const inputSchema = actualValidator._zod.def.in
           if (inputSchema && inputSchema instanceof $ZodType) {
-            convexValidator = zodToConvexInternal(inputSchema as any, visited)
+            convexValidator = zodToConvexInternal(inputSchema, visited)
           } else {
             convexValidator = v.any()
           }
@@ -223,7 +211,8 @@ function zodToConvexInternal<Z extends $ZodType>(
             convexValidator = zodToConvexInternal(metadata.originalSchema, visited)
           } else {
             // Non-codec transform - extract input schema but warn
-            const inputSchema = (actualValidator as any).def?.in
+            // cast: no instanceof guard available for generic pipe/transform
+            const inputSchema = (actualValidator as any)._zod?.def?.in
             if (inputSchema && inputSchema instanceof $ZodType) {
               if (process.env.NODE_ENV !== 'production') {
                 console.warn(
@@ -232,7 +221,7 @@ function zodToConvexInternal<Z extends $ZodType>(
                     'For bidirectional transforms, use zx.codec() instead.'
                 )
               }
-              convexValidator = zodToConvexInternal(inputSchema as any, visited)
+              convexValidator = zodToConvexInternal(inputSchema, visited)
             } else {
               convexValidator = v.any()
             }
@@ -255,11 +244,11 @@ function zodToConvexInternal<Z extends $ZodType>(
       case 'tuple': {
         // Handle tuple types as objects with numeric keys
         if (actualValidator instanceof $ZodTuple) {
-          const items = (actualValidator as any).def?.items as $ZodType[] | undefined
+          const items = actualValidator._zod.def.items
           if (items && items.length > 0) {
             const convexShape: PropertyValidators = {}
             items.forEach((item, index) => {
-              convexShape[`_${index}`] = zodToConvexInternal(item as any, visited)
+              convexShape[`_${index}`] = zodToConvexInternal(item, visited)
             })
             convexValidator = v.object(convexShape)
           } else {
@@ -275,11 +264,11 @@ function zodToConvexInternal<Z extends $ZodType>(
         // Circular references are protected by the visited set check at function start
         if (actualValidator instanceof $ZodLazy) {
           try {
-            const getter = (actualValidator as any).def?.getter
+            const getter = actualValidator._zod.def.getter
             if (getter) {
               const resolvedSchema = getter()
               if (resolvedSchema && resolvedSchema instanceof $ZodType) {
-                convexValidator = zodToConvexInternal(resolvedSchema as any, visited)
+                convexValidator = zodToConvexInternal(resolvedSchema, visited)
               } else {
                 convexValidator = v.any()
               }
@@ -314,13 +303,12 @@ function zodToConvexInternal<Z extends $ZodType>(
         convexValidator = v.any()
         break
       case 'optional': {
-        // Fallback for optional types that weren't caught by the instanceof check at line 53.
-        // This can happen when pipes/codecs are wrapped with .optional() - the instanceof
-        // z.ZodOptional check fails but def.type is still 'optional'.
-        const innerType =
-          (actualValidator as any).def?.innerType ?? (actualValidator as any).unwrap?.()
+        // Fallback for optional types that weren't caught by the instanceof check above.
+        // cast: no instanceof guard — this handles edge cases where defType='optional'
+        // but the schema isn't a $ZodOptional instance (e.g. pipes wrapped with .optional())
+        const innerType = (actualValidator as any)._zod?.def?.innerType
         if (innerType && innerType instanceof $ZodType) {
-          convexValidator = zodToConvexInternal(innerType as any, visited)
+          convexValidator = zodToConvexInternal(innerType, visited)
           isOptional = true
         } else {
           convexValidator = v.any()
@@ -372,7 +360,7 @@ export function zodToConvexFields<Z extends $ZodShape>(
   zod: Z
 ): ConvexValidatorFromZodFieldsAuto<Z> {
   // If it's a ZodObject, extract the shape
-  const fields = zod instanceof $ZodObject ? (zod as any).shape : zod
+  const fields = zod instanceof $ZodObject ? zod._zod.def.shape : zod
 
   // Build the result object directly to preserve types
   const result: any = {}

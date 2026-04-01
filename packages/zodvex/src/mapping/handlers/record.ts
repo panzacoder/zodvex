@@ -1,24 +1,19 @@
 import type { GenericValidator } from 'convex/values'
 import { v } from 'convex/values'
-import { $ZodDefault, $ZodOptional, $ZodType } from '../../zod-core'
+import { $ZodDefault, $ZodOptional, $ZodRecord, $ZodType } from '../../zod-core'
 
 // Helper: Convert Zod record types to Convex validators
 export function convertRecordType(
-  actualValidator: any,
-  visited: Set<any>,
-  zodToConvexInternal: (schema: any, visited: Set<any>) => any
+  actualValidator: $ZodRecord,
+  visited: Set<$ZodType>,
+  zodToConvexInternal: (schema: $ZodType, visited: Set<$ZodType>) => any
 ): GenericValidator {
-  // In Zod v4, when z.record(z.string()) is used with one argument,
-  // the argument becomes the value type and key defaults to string.
-  // The valueType is stored in _def.valueType (or undefined if single arg)
-  let valueType = (actualValidator as any)._def?.valueType
+  // $ZodRecord._zod.def has keyType and valueType
+  let valueType: $ZodType | undefined = actualValidator._zod.def.valueType
 
-  // If valueType is undefined, it means single argument form was used
-  // where the argument is actually the value type (stored in keyType)
+  // If valueType is undefined, fall back to keyType (single-argument z.record() form)
   if (!valueType) {
-    // Workaround: Zod v4 stores the value type in _def.keyType for single-argument z.record().
-    // This accesses a private property as there is no public API for this in Zod v4.
-    valueType = (actualValidator as any)._def?.keyType
+    valueType = actualValidator._zod.def.keyType
   }
 
   if (valueType && valueType instanceof $ZodType) {
@@ -26,7 +21,7 @@ export function convertRecordType(
     const isZodOptional =
       valueType instanceof $ZodOptional ||
       valueType instanceof $ZodDefault ||
-      (valueType instanceof $ZodDefault && (valueType as any).def.innerType instanceof $ZodOptional)
+      (valueType instanceof $ZodDefault && valueType._zod.def.innerType instanceof $ZodOptional)
 
     if (isZodOptional) {
       // For optional record values, we need to handle this specially
@@ -37,16 +32,16 @@ export function convertRecordType(
       if (valueType instanceof $ZodDefault) {
         // Handle ZodDefault wrapper
         recordHasDefault = true
-        recordDefaultValue = (valueType as any).def.defaultValue
-        const innerFromDefault = (valueType as any).def.innerType
+        recordDefaultValue = valueType._zod.def.defaultValue
+        const innerFromDefault = valueType._zod.def.innerType
         if (innerFromDefault instanceof $ZodOptional) {
-          innerType = (innerFromDefault as any)._zod.def.innerType
+          innerType = innerFromDefault._zod.def.innerType
         } else {
           innerType = innerFromDefault
         }
       } else if (valueType instanceof $ZodOptional) {
         // Direct ZodOptional
-        innerType = (valueType as any)._zod.def.innerType
+        innerType = valueType._zod.def.innerType
       } else {
         // Shouldn't happen based on isZodOptional check
         innerType = valueType

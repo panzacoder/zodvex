@@ -20,11 +20,10 @@ export function makeUnion(members: any[]): any {
 }
 
 export function getObjectShape(obj: any): Record<string, any> {
-  // Use public API .shape property for ZodObject
   if (obj instanceof $ZodObject) {
-    return (obj as any).shape
+    return obj._zod.def.shape as Record<string, any>
   }
-  // Fallback for edge cases
+  // Fallback for plain shape objects
   if (obj && typeof obj === 'object' && typeof obj.shape === 'object') {
     return obj.shape as Record<string, any>
   }
