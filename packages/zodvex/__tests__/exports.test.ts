@@ -115,23 +115,6 @@ describe('zodvex/core exports', () => {
     expect(encodePartialDoc).toBeDefined()
   })
 
-  it('exports transform utilities', async () => {
-    const {
-      transformBySchema,
-      walkSchema,
-      unwrapOnce,
-      findFieldsWithMeta,
-      getMetadata,
-      hasMetadata
-    } = await import('../src/core')
-    expect(transformBySchema).toBeDefined()
-    expect(walkSchema).toBeDefined()
-    expect(unwrapOnce).toBeDefined()
-    expect(findFieldsWithMeta).toBeDefined()
-    expect(getMetadata).toBeDefined()
-    expect(hasMetadata).toBeDefined()
-  })
-
   it('exports utility functions', async () => {
     const { safePick, safeOmit, zPaginated, stripUndefined } = await import('../src/core')
     expect(safePick).toBeDefined()

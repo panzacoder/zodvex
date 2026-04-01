@@ -48,8 +48,6 @@ export * from '../registry'
 export * from '../results'
 // Schema types (type-only, no server runtime imports)
 export type { ZodTableMap, ZodTableSchemas } from '../schema'
-// Transform utilities
-export * from '../transform'
 // Types (server imports are type-only and erased at compile time)
 export * from '../types'
 // Utilities (named — hide internal helpers)

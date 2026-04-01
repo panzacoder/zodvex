@@ -11,7 +11,7 @@ import {
   type MapSystemFields,
   type SystemFields
 } from './schemaHelpers'
-import { $ZodObject, $ZodOptional, type $ZodShape, $ZodType } from './zod-core'
+import { $ZodObject, $ZodOptional, type $ZodShape, $ZodType, clone } from './zod-core'
 import { type ZxId, zx } from './zx'
 
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
@@ -63,8 +63,7 @@ function asTableValidator<V extends { kind: string }>(validator: V): TableValida
 
 /**
  * Creates a Zod schema for a Convex document with system fields.
- * Uses .extend() to preserve object-level options like .passthrough(), .strict(),
- * .catchall(), and object-level refinements.
+ * Spreads the original def to preserve catchall, checks, and error settings.
  *
  * @deprecated Use `defineZodModel` instead. See migration guide (TODO: link).
  *
@@ -76,13 +75,11 @@ export function zodDoc<TableName extends string, Shape extends $ZodShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & DocSystemFields<TableName>> {
-  const shape = schema._zod.def.shape
-  let extended = z.object({ ...shape, _id: zx.id(tableName), _creationTime: z.number() })
-  // Preserve object-level options (passthrough, strict, catchall) from original
-  if (schema._zod.def.catchall) {
-    extended = extended.catchall(schema._zod.def.catchall) as any
-  }
-  return extended as z.ZodObject<Shape & DocSystemFields<TableName>>
+  const newShape = { ...schema._zod.def.shape, _id: zx.id(tableName), _creationTime: z.number() }
+  // Clone preserves the original's class + reinitializes with merged def
+  return clone(schema, { ...schema._zod.def, shape: newShape }) as z.ZodObject<
+    Shape & DocSystemFields<TableName>
+  >
 }
 
 /**

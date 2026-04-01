@@ -11,7 +11,14 @@
  */
 
 import { z } from 'zod'
-import { $ZodDiscriminatedUnion, $ZodObject, type $ZodShape, $ZodType, $ZodUnion } from './zod-core'
+import {
+  $ZodDiscriminatedUnion,
+  $ZodObject,
+  type $ZodShape,
+  $ZodType,
+  $ZodUnion,
+  clone
+} from './zod-core'
 import { type ZxId, zx } from './zx'
 
 // ============================================================================
@@ -159,8 +166,13 @@ export function addSystemFields<TableName extends string>(
     const originalOptions = getUnionOptions(schema)
     const extendedOptions = originalOptions.map((variant: $ZodType) => {
       if (variant instanceof $ZodObject) {
-        const shape = variant._zod.def.shape
-        return z.object({ ...shape, _id: zx.id(tableName), _creationTime: z.number() })
+        const newShape = {
+          ...variant._zod.def.shape,
+          _id: zx.id(tableName),
+          _creationTime: z.number()
+        }
+        // Clone preserves the original's class + reinitializes with merged def
+        return clone(variant, { ...variant._zod.def, shape: newShape })
       }
       // Non-object variants are returned as-is (shouldn't happen in practice)
       return variant
@@ -168,15 +180,10 @@ export function addSystemFields<TableName extends string>(
     return createUnionFromOptions(extendedOptions)
   }
 
-  // Handle object schemas — use shape spread for zod-mini compatibility
+  // Handle object schemas — clone preserves class, checks, catchall, error
   if (schema instanceof $ZodObject) {
-    const shape = schema._zod.def.shape
-    let extended: any = z.object({ ...shape, _id: zx.id(tableName), _creationTime: z.number() })
-    // Preserve object-level options (passthrough, strict, catchall)
-    if (schema._zod.def.catchall) {
-      extended = extended.catchall(schema._zod.def.catchall)
-    }
-    return extended
+    const newShape = { ...schema._zod.def.shape, _id: zx.id(tableName), _creationTime: z.number() }
+    return clone(schema, { ...schema._zod.def, shape: newShape })
   }
 
   // Fallback: return schema as-is

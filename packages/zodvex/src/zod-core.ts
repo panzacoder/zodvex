@@ -54,6 +54,8 @@ export {
   $ZodUnion,
   $ZodUnknown,
   $ZodVoid,
+  // Clone utility — creates a new instance preserving the original's class
+  clone,
   decode,
   encode,
   // Type utilities
