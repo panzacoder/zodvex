@@ -52,7 +52,7 @@ function containsCustom(schema: $ZodType, maxDepth = 50, currentDepth = 0): bool
   if (schema instanceof $ZodCustom) {
     result = true
   } else if (schema instanceof $ZodUnion) {
-    result = ((schema as any).options as $ZodType[]).some(opt =>
+    result = ((schema as any)._zod.def.options as $ZodType[]).some(opt =>
       containsCustom(opt, maxDepth, currentDepth + 1)
     )
   } else if (schema instanceof $ZodOptional) {

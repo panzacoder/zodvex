@@ -76,10 +76,13 @@ export function zodDoc<TableName extends string, Shape extends $ZodShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & DocSystemFields<TableName>> {
-  return schema.extend({
-    _id: zx.id(tableName),
-    _creationTime: z.number()
-  }) as z.ZodObject<Shape & DocSystemFields<TableName>>
+  const shape = (schema as any)._zod.def.shape
+  let extended = z.object({ ...shape, _id: zx.id(tableName), _creationTime: z.number() })
+  // Preserve object-level options (passthrough, strict, catchall) from original
+  if ((schema as any)._zod.def.catchall) {
+    extended = extended.catchall((schema as any)._zod.def.catchall) as any
+  }
+  return extended as z.ZodObject<Shape & DocSystemFields<TableName>>
 }
 
 /**

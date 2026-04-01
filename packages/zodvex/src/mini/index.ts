@@ -49,7 +49,7 @@ export {
   safeOmit,
   safePick,
   stripUndefined,
-  zPaginated,
+  zPaginated
 } from '../core'
 
 // Re-export model (includes defineZodModel)

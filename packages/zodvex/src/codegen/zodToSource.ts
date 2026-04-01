@@ -119,7 +119,8 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
 
   // Enums
   if (schema instanceof $ZodEnum) {
-    const values = ((schema as any).options as string[]).map((v: string) => `"${v}"`).join(', ')
+    const entries = (schema as any)._zod.def.entries
+    const values = (Object.keys(entries) as string[]).map((v: string) => `"${v}"`).join(', ')
     return `z.enum([${values}])`
   }
 

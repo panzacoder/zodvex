@@ -199,7 +199,7 @@ function containsNativeZodDate(schema: $ZodType): boolean {
 
   // Recurse into unions - cast options for Zod v4 compatibility
   if (schema instanceof $ZodUnion) {
-    return ((schema as any).options as unknown as $ZodType[]).some(opt =>
+    return ((schema as any)._zod.def.options as unknown as $ZodType[]).some(opt =>
       containsNativeZodDate(opt)
     )
   }

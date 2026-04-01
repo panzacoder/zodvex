@@ -9,7 +9,8 @@ export function convertDiscriminatedUnionType(
   zodToConvexInternal: (schema: $ZodType, visited: Set<$ZodType>) => any
 ): GenericValidator {
   const options =
-    (actualValidator as any).def?.options || (actualValidator as any).def?.optionsMap?.values()
+    (actualValidator as any)._zod?.def?.options ||
+    (actualValidator as any)._zod?.def?.optionsMap?.values()
   if (options) {
     const opts = Array.isArray(options) ? options : Array.from(options)
     if (opts.length >= 2) {
@@ -39,7 +40,7 @@ export function convertUnionType(
   visited: Set<$ZodType>,
   zodToConvexInternal: (schema: $ZodType, visited: Set<$ZodType>) => any
 ): GenericValidator {
-  const options = (actualValidator as any).options
+  const options = (actualValidator as any)._zod.def.options
   if (options && Array.isArray(options) && options.length > 0) {
     if (options.length === 1) {
       return zodToConvexInternal(options[0], visited)

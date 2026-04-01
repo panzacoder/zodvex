@@ -232,10 +232,7 @@ export function defineZodModel<Name extends string>(
   const fields = fieldsOrSchema as $ZodShape
 
   const insertSchema = z.object(fields)
-  const docSchema = insertSchema.extend({
-    _id: zx.id(name),
-    _creationTime: z.number()
-  })
+  const docSchema = z.object({ ...fields, _id: zx.id(name), _creationTime: z.number() })
 
   // Create partial shape for update: _id required, _creationTime optional, user fields partial
   const partialShape: Record<string, $ZodType> = {}
