@@ -6,7 +6,6 @@ export default defineConfig({
     'src/core/index.ts',
     'src/mini/index.ts',
     'src/server/index.ts',
-    'src/transform/index.ts',
     'src/cli/index.ts',
     'src/codegen/index.ts',
     'src/react/index.ts',
