@@ -15,40 +15,40 @@ export {
   // Codec helpers
   type BoundaryHelpers,
   type BoundaryHelpersOptions,
-  createBoundaryHelpers,
-  ZodvexDecodeError,
   // Codec utilities
   type ConvexCodec,
-  convexCodec,
-  decodeDoc,
-  encodeDoc,
-  encodePartialDoc,
-  type ZodvexCodec,
-  zodvexCodec,
-  // Codegen runtime utilities
-  extractCodec,
-  readFnArgs,
-  readFnReturns,
-  // ID utilities
-  type Zid,
-  zid,
   // Mapping
   type ConvexValidatorFromZod,
   type ConvexValidatorFromZodFieldsAuto,
+  convexCodec,
+  createBoundaryHelpers,
+  decodeDoc,
+  encodeDoc,
+  encodePartialDoc,
+  // Codegen runtime utilities
+  extractCodec,
   getObjectShape,
-  type ZodValidator,
-  zodToConvex,
-  zodToConvexFields,
-  // Codec error path normalization
-  normalizeCodecPaths,
-  safeEncode,
   // Utilities
   mapDateFieldToNumber,
+  // Codec error path normalization
+  normalizeCodecPaths,
   pickShape,
+  readFnArgs,
+  readFnReturns,
   returnsAs,
+  safeEncode,
   safeOmit,
   safePick,
   stripUndefined,
+  // ID utilities
+  type Zid,
+  type ZodValidator,
+  type ZodvexCodec,
+  ZodvexDecodeError,
+  zid,
+  zodToConvex,
+  zodToConvexFields,
+  zodvexCodec,
   zPaginated
 } from '../core'
 
@@ -76,9 +76,9 @@ export * from '../types'
 // Users should use z.optional(zx.id(...)) instead of zx.id(...).optional()
 
 import type { GenericId } from 'convex/values'
-import type { $ZodType, $ZodCodec } from '../zod-core'
-import { zx as _zx } from '../zx'
 import type { ZodvexCodec } from '../types'
+import type { $ZodCodec, $ZodType } from '../zod-core'
+import { zx as _zx } from '../zx'
 
 /** zx.id() return type for mini — no .optional() chaining */
 export type ZxMiniId<TableName extends string> = $ZodType<GenericId<TableName>> & {

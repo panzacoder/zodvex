@@ -1,6 +1,6 @@
 import type { GenericValidator, Validator } from 'convex/values'
 import { v } from 'convex/values'
-import { $ZodDiscriminatedUnion, $ZodUnion, type $ZodType } from '../../zod-core'
+import { $ZodDiscriminatedUnion, type $ZodType, $ZodUnion } from '../../zod-core'
 
 // Helper: Convert Zod discriminated union types to Convex validators
 export function convertDiscriminatedUnionType(
