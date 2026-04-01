@@ -52,23 +52,13 @@ function containsCustom(schema: $ZodType, maxDepth = 50, currentDepth = 0): bool
   if (schema instanceof $ZodCustom) {
     result = true
   } else if (schema instanceof $ZodUnion) {
-    result = ((schema as any)._zod.def.options as $ZodType[]).some(opt =>
-      containsCustom(opt, maxDepth, currentDepth + 1)
-    )
+    result = schema._zod.def.options.some(opt => containsCustom(opt, maxDepth, currentDepth + 1))
   } else if (schema instanceof $ZodOptional) {
-    result = containsCustom(
-      (schema as any)._zod.def.innerType as $ZodType,
-      maxDepth,
-      currentDepth + 1
-    )
+    result = containsCustom(schema._zod.def.innerType, maxDepth, currentDepth + 1)
   } else if (schema instanceof $ZodNullable) {
-    result = containsCustom(
-      (schema as any)._zod.def.innerType as $ZodType,
-      maxDepth,
-      currentDepth + 1
-    )
+    result = containsCustom(schema._zod.def.innerType, maxDepth, currentDepth + 1)
   } else if (schema instanceof $ZodDefault) {
-    result = containsCustom((schema as any).removeDefault() as $ZodType, maxDepth, currentDepth + 1)
+    result = containsCustom(schema._zod.def.innerType, maxDepth, currentDepth + 1)
   }
 
   customCheckCache.set(schema, result)

@@ -207,7 +207,8 @@ export function customFnBuilder<
       if (argsValidator instanceof $ZodType) {
         if (argsValidator instanceof $ZodObject) {
           argsSchema = argsValidator as unknown as z.ZodObject<any>
-          argsValidator = (argsValidator as any).shape // Get the raw shape for zodToConvexFields
+          // cast: reassigning schema variable to its shape for zodToConvexFields
+          argsValidator = argsValidator._zod.def.shape as any
         } else {
           throw new Error(
             'Unsupported non-object Zod schema for args; please provide an args schema using z.object({...}), e.g. z.object({ foo: z.string() })'
