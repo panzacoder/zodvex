@@ -83,7 +83,7 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
 
   // Handle z.date() - convert to ISO 8601 string format
   // Zod v4 passes real schema instances here (ZodDate has `type === 'date'`).
-  if (zodSchema instanceof $ZodDate || (zodSchema as any).type === 'date') {
+  if (zodSchema instanceof $ZodDate || zodSchema._zod.def.type === 'date') {
     jsonSchema.type = 'string'
     jsonSchema.format = 'date-time'
     return
