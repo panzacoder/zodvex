@@ -69,7 +69,11 @@ export function getUnionOptions(
     | z.ZodUnion<readonly $ZodType[]>
     | z.ZodDiscriminatedUnion<readonly z.ZodObject<$ZodShape>[], string>
 ): readonly $ZodType[] {
-  // Use ._zod.def.options for core compatibility (works with both zod and zod-mini)
+  // $ZodDiscriminatedUnion extends $ZodUnion, so this covers both
+  if (schema instanceof $ZodUnion) {
+    return schema._zod.def.options
+  }
+  // cast: unreachable due to the union type constraint, but satisfies return type
   return (schema as any)._zod.def.options
 }
 
@@ -155,8 +159,7 @@ export function addSystemFields<TableName extends string>(
     const originalOptions = getUnionOptions(schema)
     const extendedOptions = originalOptions.map((variant: $ZodType) => {
       if (variant instanceof $ZodObject) {
-        // Use shape spread instead of .extend() for zod-mini compatibility
-        const shape = (variant as any)._zod.def.shape
+        const shape = variant._zod.def.shape
         return z.object({ ...shape, _id: zx.id(tableName), _creationTime: z.number() })
       }
       // Non-object variants are returned as-is (shouldn't happen in practice)
@@ -167,11 +170,11 @@ export function addSystemFields<TableName extends string>(
 
   // Handle object schemas — use shape spread for zod-mini compatibility
   if (schema instanceof $ZodObject) {
-    const shape = (schema as any)._zod.def.shape
+    const shape = schema._zod.def.shape
     let extended: any = z.object({ ...shape, _id: zx.id(tableName), _creationTime: z.number() })
     // Preserve object-level options (passthrough, strict, catchall)
-    if ((schema as any)._zod.def.catchall) {
-      extended = extended.catchall((schema as any)._zod.def.catchall)
+    if (schema._zod.def.catchall) {
+      extended = extended.catchall(schema._zod.def.catchall)
     }
     return extended
   }

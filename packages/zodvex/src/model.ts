@@ -28,7 +28,7 @@ import { type ZxId, zx } from './zx'
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
 function ensureOptional(schema: $ZodType): z.ZodOptional<any> {
   if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any>
-  return new ($ZodOptional as any)({ type: 'optional', innerType: schema })
+  return new $ZodOptional({ type: 'optional', innerType: schema }) as z.ZodOptional<any>
 }
 
 // ============================================================================
@@ -322,7 +322,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: $ZodType
     const updateOptions = originalOptions.map((variant: $ZodType) => {
       if (variant instanceof $ZodObject) {
         const partialShape: Record<string, $ZodType> = {}
-        for (const [key, value] of Object.entries((variant as any).shape)) {
+        for (const [key, value] of Object.entries(variant._zod.def.shape)) {
           partialShape[key] = ensureOptional(value as $ZodType)
         }
         return z.object({
@@ -336,7 +336,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: $ZodType
     updateSchema = createUnionFromOptions(updateOptions)
   } else if (inputSchema instanceof $ZodObject) {
     const partialShape: Record<string, $ZodType> = {}
-    for (const [key, value] of Object.entries((inputSchema as any).shape)) {
+    for (const [key, value] of Object.entries(inputSchema._zod.def.shape)) {
       partialShape[key] = ensureOptional(value as $ZodType)
     }
     updateSchema = z.object({

@@ -17,7 +17,7 @@ import { type ZxId, zx } from './zx'
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
 function ensureOptional(schema: $ZodType): z.ZodOptional<any> {
   if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any>
-  return new ($ZodOptional as any)({ type: 'optional', innerType: schema })
+  return new $ZodOptional({ type: 'optional', innerType: schema }) as z.ZodOptional<any>
 }
 
 /**
@@ -76,11 +76,11 @@ export function zodDoc<TableName extends string, Shape extends $ZodShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & DocSystemFields<TableName>> {
-  const shape = (schema as any)._zod.def.shape
+  const shape = schema._zod.def.shape
   let extended = z.object({ ...shape, _id: zx.id(tableName), _creationTime: z.number() })
   // Preserve object-level options (passthrough, strict, catchall) from original
-  if ((schema as any)._zod.def.catchall) {
-    extended = extended.catchall((schema as any)._zod.def.catchall) as any
+  if (schema._zod.def.catchall) {
+    extended = extended.catchall(schema._zod.def.catchall) as any
   }
   return extended as z.ZodObject<Shape & DocSystemFields<TableName>>
 }
@@ -459,7 +459,7 @@ export function zodTable<
         if (variant instanceof $ZodObject) {
           // Create partial shape for user fields
           const partialShape: Record<string, $ZodType> = {}
-          for (const [key, value] of Object.entries((variant as any).shape)) {
+          for (const [key, value] of Object.entries(variant._zod.def.shape)) {
             partialShape[key] = ensureOptional(value as $ZodType)
           }
           // Add system fields: _id required, _creationTime optional
@@ -475,7 +475,7 @@ export function zodTable<
     } else if (schema instanceof $ZodObject) {
       // Create partial shape for user fields
       const partialShape: Record<string, $ZodType> = {}
-      for (const [key, value] of Object.entries((schema as any).shape)) {
+      for (const [key, value] of Object.entries(schema._zod.def.shape)) {
         partialShape[key] = ensureOptional(value as $ZodType)
       }
       // Add system fields: _id required, _creationTime optional
