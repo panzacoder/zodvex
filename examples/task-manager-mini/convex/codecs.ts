@@ -1,5 +1,5 @@
 import { z } from 'zod/mini'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex/mini'
 
 /**
  * Duration codec — stores total minutes (wire), exposes { hours, minutes } (runtime).

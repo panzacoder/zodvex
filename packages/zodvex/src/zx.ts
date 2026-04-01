@@ -62,7 +62,7 @@ function date(): ZxDate {
 /**
  * ID type for explicit type annotations
  */
-export type ZxId<TableName extends string> = $ZodType<GenericId<TableName>> & {
+export type ZxId<TableName extends string> = z.ZodType<GenericId<TableName>> & {
   _tableName: TableName
 }
 

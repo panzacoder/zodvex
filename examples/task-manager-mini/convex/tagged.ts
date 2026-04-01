@@ -1,5 +1,5 @@
 import { z } from 'zod/mini'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex/mini'
 
 /**
  * Tagged codec factory — wraps any value with a { value, tag } wire format.

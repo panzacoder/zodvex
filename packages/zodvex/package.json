@@ -30,6 +30,11 @@
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
     },
+    "./mini": {
+      "types": "./dist/mini/index.d.ts",
+      "import": "./dist/mini/index.js",
+      "default": "./dist/mini/index.js"
+    },
     "./server": {
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js",

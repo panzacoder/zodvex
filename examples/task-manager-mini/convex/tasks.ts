@@ -1,5 +1,5 @@
 import { z } from 'zod/mini'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex/mini'
 import { zq, zm } from './functions'
 import { TaskModel } from './models/task'
 import { zDuration } from './codecs'

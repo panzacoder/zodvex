@@ -1,5 +1,5 @@
 import { z } from 'zod/mini'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex/mini'
 import { zDuration } from '../codecs'
 import { tagged } from '../tagged'
 

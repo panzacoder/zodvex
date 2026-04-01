@@ -1,5 +1,5 @@
 import { z } from 'zod/mini'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex/mini'
 import { zq, zm, zim } from './functions'
 import { NotificationModel } from './models/notification'
 

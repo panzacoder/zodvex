@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     'src/index.ts',
     'src/core/index.ts',
+    'src/mini/index.ts',
     'src/server/index.ts',
     'src/transform/index.ts',
     'src/cli/index.ts',

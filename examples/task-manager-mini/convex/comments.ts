@@ -1,5 +1,5 @@
 import { z } from 'zod/mini'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex/mini'
 import { zq, zm } from './functions'
 import { CommentModel } from './models/comment'
 

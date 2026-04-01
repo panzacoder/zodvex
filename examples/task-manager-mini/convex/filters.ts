@@ -1,6 +1,6 @@
 import type { FilterBuilder } from 'convex/server'
 import type { InferFilterBuilder, InferTableInfo } from 'zodvex/server'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex/mini'
 import { zq } from './functions'
 import schema from './schema'
 
