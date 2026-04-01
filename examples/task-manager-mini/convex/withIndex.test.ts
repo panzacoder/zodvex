@@ -43,7 +43,7 @@ describe("withIndex codec encoding", () => {
     // WITHOUT withIndex encoding: passes Date to Convex (which expects number) — FAILS.
     // WITH withIndex encoding (Task 1): encodes Date → number before Convex sees it — works.
     const results = await t.query(api.tasks.listByCreated, {
-      after: 0, // wire format: epoch timestamp (number)
+      after: new Date(0), // runtime format: Date (zodvex decodes timestamps)
     });
 
     expect(results.length).toBeGreaterThanOrEqual(1);
@@ -73,7 +73,7 @@ describe("withIndex codec encoding", () => {
     // where email.value is a plain string. Dot-paths should pass through unchanged
     // since they reference sub-fields of the wire format, not the codec's runtime type.
     const user = await t.query(api.users.getByEmail, {
-      email: { value: "bob@example.com", tag: "work" },
+      email: { value: "bob@example.com", tag: "work", displayValue: "[work] bob@example.com" },
     });
 
     expect(user).not.toBeNull();

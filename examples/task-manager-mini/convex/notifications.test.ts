@@ -197,7 +197,7 @@ describe("top-level discriminated union table", () => {
     // the Date to .withIndex('by_created', q => q.gte('createdAt', after)).
     // The withIndex wrapper must encode the Date back to a number.
     const results = await t.query(api.notifications.listByCreated, {
-      after: 0,
+      after: new Date(0),
     });
 
     expect(results.length).toBeGreaterThanOrEqual(2);
