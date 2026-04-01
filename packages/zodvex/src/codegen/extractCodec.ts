@@ -19,14 +19,13 @@ export function findCodec(schema: $ZodType): $ZodType | undefined {
   let current = schema
   for (let i = 0; i < 10; i++) {
     if (current instanceof $ZodCodec) {
-      const def = (current as any)._zod?.def as any
-      const isZxDate = def?.in instanceof $ZodNumber && def?.out instanceof $ZodCustom
+      const isZxDate =
+        current._zod.def.in instanceof $ZodNumber && current._zod.def.out instanceof $ZodCustom
       if (isZxDate) return undefined
       return current
     }
     if (current instanceof $ZodOptional || current instanceof $ZodNullable) {
-      const def = (current as any)._zod?.def as any
-      current = def.innerType
+      current = current._zod.def.innerType
       continue
     }
     break

@@ -48,20 +48,18 @@ export type ZodToSourceContext = {
  * Unsupported types fall back to `z.any()` with a comment.
  */
 export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string {
-  // Cast to any — Zod v4's internal _zod.def properties are not publicly typed
-  const def = (schema as any)._zod?.def as any
-
   // Peel off wrappers first (optional, nullable)
   if (schema instanceof $ZodOptional) {
-    return `${zodToSource(def.innerType, ctx)}.optional()`
+    return `${zodToSource(schema._zod.def.innerType, ctx)}.optional()`
   }
   if (schema instanceof $ZodNullable) {
-    return `${zodToSource(def.innerType, ctx)}.nullable()`
+    return `${zodToSource(schema._zod.def.innerType, ctx)}.nullable()`
   }
 
   // zodvex extensions — detect before generic types
 
   // zx.id('tableName') — ZodString with description 'convexId:<tableName>'
+  // cast: .description is a runtime getter not typed on $ZodString
   if (schema instanceof $ZodString && (schema as any).description?.startsWith('convexId:')) {
     const tableName = (schema as any).description.slice('convexId:'.length)
     return `zx.id("${tableName}")`
@@ -70,8 +68,8 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
   // zx.date() — ZodCodec with in=ZodNumber, out=ZodCustom
   if (
     schema instanceof $ZodCodec &&
-    def.in instanceof $ZodNumber &&
-    def.out instanceof $ZodCustom
+    schema._zod.def.in instanceof $ZodNumber &&
+    schema._zod.def.out instanceof $ZodCustom
   ) {
     return 'zx.date()'
   }
@@ -90,7 +88,7 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
       }
     }
     // Unknown codec — fall back to wire schema with warning
-    const wireSource = zodToSource(def.in, ctx)
+    const wireSource = zodToSource(schema._zod.def.in, ctx)
     ctx?.undiscoverableCodecs?.push({ fieldPath: 'unknown' })
     return `${wireSource} /* codec: transforms lost */`
   }
@@ -105,7 +103,7 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
 
   // Objects
   if (schema instanceof $ZodObject) {
-    const shape = def.shape as Record<string, $ZodType>
+    const shape = schema._zod.def.shape
     const fields = Object.entries(shape)
       .map(([key, value]) => `${key}: ${zodToSource(value, ctx)}`)
       .join(', ')
@@ -114,19 +112,19 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
 
   // Arrays
   if (schema instanceof $ZodArray) {
-    return `z.array(${zodToSource(def.element, ctx)})`
+    return `z.array(${zodToSource(schema._zod.def.element, ctx)})`
   }
 
   // Enums
   if (schema instanceof $ZodEnum) {
-    const entries = (schema as any)._zod.def.entries
+    const entries = schema._zod.def.entries
     const values = (Object.keys(entries) as string[]).map((v: string) => `"${v}"`).join(', ')
     return `z.enum([${values}])`
   }
 
   // Literals
   if (schema instanceof $ZodLiteral) {
-    const values = def.values as Set<unknown>
+    const values = schema._zod.def.values
     const value = values.values().next().value
     if (typeof value === 'string') return `z.literal("${value}")`
     return `z.literal(${value})`
@@ -134,22 +132,22 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
 
   // Unions
   if (schema instanceof $ZodUnion) {
-    const members = (def.options as $ZodType[]).map((s: $ZodType) => zodToSource(s, ctx)).join(', ')
+    const members = schema._zod.def.options.map(s => zodToSource(s, ctx)).join(', ')
     return `z.union([${members}])`
   }
 
   // Tuples
   if (schema instanceof $ZodTuple) {
-    const items = (def.items as $ZodType[]).map((s: $ZodType) => zodToSource(s, ctx)).join(', ')
+    const items = schema._zod.def.items.map(s => zodToSource(s, ctx)).join(', ')
     return `z.tuple([${items}])`
   }
 
   // Records
   if (schema instanceof $ZodRecord) {
-    return `z.record(${zodToSource(def.keyType, ctx)}, ${zodToSource(def.valueType, ctx)})`
+    return `z.record(${zodToSource(schema._zod.def.keyType, ctx)}, ${zodToSource(schema._zod.def.valueType, ctx)})`
   }
 
   // Fallback for unsupported types
-  const typeName = def?.type ?? 'unknown'
+  const typeName = schema._zod.def.type ?? 'unknown'
   return `z.any() /* unsupported: ${typeName} */`
 }

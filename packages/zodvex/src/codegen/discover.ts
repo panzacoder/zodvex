@@ -92,22 +92,19 @@ function walkSchemaRecursive(
   }
 
   // Unwrap optional/nullable to get to the structural type
-  let current = schema
+  let current: $ZodType = schema
   let currentPath = accessPath
   for (let i = 0; i < 10; i++) {
     if (current instanceof $ZodOptional || current instanceof $ZodNullable) {
-      const def = (current as any)._zod?.def as any
-      current = def.innerType
+      current = current._zod.def.innerType
       currentPath += '._zod.def.innerType'
     } else {
       break
     }
   }
 
-  const def = (current as any)._zod?.def as any
-
   if (current instanceof $ZodObject) {
-    const shape = def?.shape as Record<string, $ZodType> | undefined
+    const shape = current._zod.def.shape as Record<string, $ZodType>
     if (shape) {
       for (const [field, fieldSchema] of Object.entries(shape)) {
         walkSchemaRecursive(
@@ -120,7 +117,7 @@ function walkSchemaRecursive(
       }
     }
   } else if (current instanceof $ZodUnion) {
-    const options = def?.options as $ZodType[] | undefined
+    const options = current._zod.def.options
     if (options) {
       for (let i = 0; i < options.length; i++) {
         walkSchemaRecursive(
@@ -133,12 +130,12 @@ function walkSchemaRecursive(
       }
     }
   } else if (current instanceof $ZodArray) {
-    const element = def?.element as $ZodType | undefined
+    const element = current._zod.def.element
     if (element) {
       walkSchemaRecursive(element, `${currentPath}._zod.def.element`, visited, seenCodecs, results)
     }
   } else if (current instanceof $ZodRecord) {
-    const valueType = def?.valueType as $ZodType | undefined
+    const valueType = current._zod.def.valueType
     if (valueType) {
       walkSchemaRecursive(
         valueType,
@@ -149,7 +146,7 @@ function walkSchemaRecursive(
       )
     }
   } else if (current instanceof $ZodTuple) {
-    const items = def?.items as $ZodType[] | undefined
+    const items = current._zod.def.items
     if (items) {
       for (let i = 0; i < items.length; i++) {
         walkSchemaRecursive(
@@ -327,8 +324,8 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
         // Check for exported ZodCodec instances (custom codecs)
         // Skip zx.date() — it's handled natively by zodToSource
         if (value instanceof $ZodCodec) {
-          const def = (value as any)._zod?.def as any
-          const isZxDate = def?.in instanceof $ZodNumber && def?.out instanceof $ZodCustom
+          const isZxDate =
+            value._zod.def.in instanceof $ZodNumber && value._zod.def.out instanceof $ZodCustom
           if (!isZxDate) {
             // Deduplicate by object identity (same codec from re-exports)
             if (!codecs.some(c => c.schema === value)) {

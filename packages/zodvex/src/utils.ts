@@ -17,7 +17,7 @@ import {
 // Private copy — importing from ./mapping pulls convex/values into client bundles
 // (mapping/utils.ts imports `v` from convex/values which is server-only).
 function getObjectShape(obj: any): Record<string, any> {
-  if (obj instanceof $ZodObject) return (obj as any).shape
+  if (obj instanceof $ZodObject) return obj._zod.def.shape as Record<string, any>
   if (obj && typeof obj === 'object' && typeof obj.shape === 'object')
     return obj.shape as Record<string, any>
   return {}
@@ -96,18 +96,18 @@ export function mapDateFieldToNumber(field: $ZodType): $ZodType {
   }
 
   // Optional Date field
-  if (field instanceof $ZodOptional && (field as any)._zod.def.innerType instanceof $ZodDate) {
+  if (field instanceof $ZodOptional && field._zod.def.innerType instanceof $ZodDate) {
     return z.number().optional()
   }
 
   // Nullable Date field
-  if (field instanceof $ZodNullable && (field as any)._zod.def.innerType instanceof $ZodDate) {
+  if (field instanceof $ZodNullable && field._zod.def.innerType instanceof $ZodDate) {
     return z.number().nullable()
   }
 
   // Date with default value
   if (field instanceof $ZodDefault) {
-    const inner = (field as any).removeDefault()
+    const inner = field._zod.def.innerType
     if (inner instanceof $ZodDate) {
       return z.number().optional()
     }
@@ -182,36 +182,32 @@ function containsNativeZodDate(schema: $ZodType): boolean {
     schema instanceof $ZodNullable ||
     schema instanceof $ZodDefault
   ) {
-    return containsNativeZodDate((schema as any)._zod.def.innerType as unknown as $ZodType)
+    return containsNativeZodDate(schema._zod.def.innerType)
   }
 
   // Recurse into objects
   if (schema instanceof $ZodObject) {
-    return Object.values((schema as any).shape).some(field =>
-      containsNativeZodDate(field as $ZodType)
-    )
+    return Object.values(schema._zod.def.shape).some(field => containsNativeZodDate(field))
   }
 
-  // Recurse into arrays - cast element for Zod v4 compatibility
+  // Recurse into arrays
   if (schema instanceof $ZodArray) {
-    return containsNativeZodDate((schema as any).element as unknown as $ZodType)
+    return containsNativeZodDate(schema._zod.def.element)
   }
 
-  // Recurse into unions - cast options for Zod v4 compatibility
+  // Recurse into unions
   if (schema instanceof $ZodUnion) {
-    return ((schema as any)._zod.def.options as unknown as $ZodType[]).some(opt =>
-      containsNativeZodDate(opt)
-    )
+    return schema._zod.def.options.some(opt => containsNativeZodDate(opt))
   }
 
-  // Recurse into records - use valueType property (Zod v4)
+  // Recurse into records
   if (schema instanceof $ZodRecord) {
-    return containsNativeZodDate((schema as any).valueType as unknown as $ZodType)
+    return containsNativeZodDate(schema._zod.def.valueType)
   }
 
-  // Recurse into tuples - access items via def (Zod v4)
+  // Recurse into tuples
   if (schema instanceof $ZodTuple) {
-    const items = (schema as any).def?.items as $ZodType[] | undefined
+    const items = schema._zod.def.items
     return items ? items.some(item => containsNativeZodDate(item)) : false
   }
 

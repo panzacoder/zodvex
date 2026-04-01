@@ -206,7 +206,7 @@ function encodeIndexValue(schema: $ZodType, fieldPath: string, value: any): any 
   // literals and codec fields (e.g., zx.date()) correctly.
   // Non-object variants are skipped — union tables require object variants.
   if (schema instanceof $ZodUnion) {
-    const options = (schema as any)._zod.def.options as $ZodType[]
+    const options = schema._zod.def.options
     const fieldSchemas = options
       .filter((v): v is z.ZodObject<any> => v instanceof $ZodObject)
       .map(v => v.shape[fieldPath])

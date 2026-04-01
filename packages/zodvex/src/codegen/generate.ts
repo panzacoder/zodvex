@@ -1,4 +1,4 @@
-import { $ZodNullable, $ZodObject, $ZodOptional, $ZodType } from '../zod-core'
+import { $ZodCodec, $ZodNullable, $ZodObject, $ZodOptional, $ZodType } from '../zod-core'
 import type {
   DiscoveredFunction,
   DiscoveredModel,
@@ -20,9 +20,8 @@ export type GeneratedFile = { js: string; dts: string }
  * even when object identity differs.
  */
 function fingerprintCodec(schema: $ZodType): string {
-  const def = (schema as any)._zod?.def
-  if (!def?.in || !def?.out) return ''
-  return `${zodToSource(def.in)}|${zodToSource(def.out)}`
+  if (!(schema instanceof $ZodCodec)) return ''
+  return `${zodToSource(schema._zod.def.in)}|${zodToSource(schema._zod.def.out)}`
 }
 
 /**
@@ -67,13 +66,12 @@ function tryUnwrapToIdentity(
   const maxDepth = 5
 
   for (let i = 0; i < maxDepth; i++) {
-    const def = (current as any)._zod?.def as any
     if (current instanceof $ZodOptional) {
       suffixes.push('.optional()')
-      current = def.innerType
+      current = current._zod.def.innerType
     } else if (current instanceof $ZodNullable) {
       suffixes.push('.nullable()')
-      current = def.innerType
+      current = current._zod.def.innerType
     } else {
       break
     }
@@ -101,12 +99,12 @@ function tryMatchPartial(
   identityMap: Map<$ZodType, SchemaRef>
 ): { ref: SchemaRef; suffix: string } | null {
   if (!(schema instanceof $ZodObject)) return null
-  const candidateShape = (schema as any).shape as Record<string, $ZodType>
+  const candidateShape = schema._zod.def.shape as Record<string, $ZodType>
   const candidateKeys = Object.keys(candidateShape).sort()
 
   for (const [modelSchema, ref] of identityMap) {
     if (!(modelSchema instanceof $ZodObject)) continue
-    const modelShape = (modelSchema as any).shape as Record<string, $ZodType>
+    const modelShape = modelSchema._zod.def.shape as Record<string, $ZodType>
     const modelKeys = Object.keys(modelShape).sort()
 
     // Same key count and same keys
@@ -121,7 +119,7 @@ function tryMatchPartial(
         allMatch = false
         break
       }
-      const inner = (candidateField as any)._zod?.def?.innerType
+      const inner = candidateField._zod.def.innerType
       if (inner !== modelShape[key]) {
         allMatch = false
         break

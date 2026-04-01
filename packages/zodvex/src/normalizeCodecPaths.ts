@@ -15,19 +15,19 @@ import {
  * Unwraps ZodOptional/ZodNullable/ZodDefault wrappers to get the structural type.
  */
 function unwrapOuter(schema: $ZodType): $ZodType {
-  let current: any = schema
+  let current: $ZodType = schema
   for (let i = 0; i < 10; i++) {
-    if (current instanceof $ZodOptional || current instanceof $ZodNullable) {
-      current = (current as any)._zod.def.innerType
-      continue
-    }
-    if (current instanceof $ZodDefault) {
-      current = (current as any).removeDefault()
+    if (
+      current instanceof $ZodOptional ||
+      current instanceof $ZodNullable ||
+      current instanceof $ZodDefault
+    ) {
+      current = current._zod.def.innerType
       continue
     }
     break
   }
-  return current as $ZodType
+  return current
 }
 
 /**
@@ -49,7 +49,7 @@ function truncateAtCodecBoundary(path: (string | number)[], schema: $ZodType): (
 
     // Descend into objects
     if (current instanceof $ZodObject && typeof segment === 'string') {
-      const fieldSchema = (current as any).shape[segment] as $ZodType | undefined
+      const fieldSchema = current._zod.def.shape[segment] as $ZodType | undefined
       if (!fieldSchema) {
         // Unknown field — include segment and stop
         result.push(segment)
@@ -71,7 +71,7 @@ function truncateAtCodecBoundary(path: (string | number)[], schema: $ZodType): (
     // Descend into arrays
     if (current instanceof $ZodArray && typeof segment === 'number') {
       result.push(segment)
-      current = (current as any).element as $ZodType
+      current = current._zod.def.element
       continue
     }
 
