@@ -5,51 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-02
+
+### Added
+
+- **zod/mini compatibility**: All exported type constraints and `instanceof` checks now use `$ZodType` and subclasses from `zod/v4/core`, following [Zod's library author guidance](https://zod.dev/library-authors). zodvex now works with both full `zod` and `zod/mini`.
+- **`zodvex/mini` entrypoint**: Client-safe imports typed for `zod/mini` compatibility. Same API as `zodvex/core`, but `zx` helpers return `$ZodType` (no `.optional()` chaining — use `z.optional(zx.id(...))` instead).
+- `zod-core.ts` internal module: Centralized re-export hub for `zod/v4/core` types and functions.
+- `examples/task-manager-mini/`: Example app demonstrating `zod/mini` usage.
+
+### Changed
+
+- Type constraints widened from `z.ZodTypeAny` to `$ZodType` and `z.ZodRawShape` to `$ZodShape` across all public APIs. This is backwards-compatible — existing code using full `zod` types is unaffected.
+- Internal `instanceof` checks migrated from `z.ZodObject` etc. to `$ZodObject` etc. from `zod/v4/core`.
+- Internal property access migrated from `.shape`, `.options`, `.unwrap()` to `._zod.def.*` paths for core compatibility.
+- Remediated ~80 `as any` casts introduced during the `zod/v4/core` migration, replacing them with typed `_zod.def` access after `instanceof` narrowing.
+
+### Removed
+
+- **BREAKING**: `zodvex/transform` subpath export removed. The transform/traverse utilities were superseded by the codec-in-schema pattern and had no production consumers. If you imported from `zodvex/transform`, use `zx.codec()` or Zod's native `z.codec()` instead.
+
+## [0.6.0] - 2026-03-30
+
+### Added
+
+- `defineZodModel()` — primary API for defining Convex table schemas with full codec, index, search index, and vector index support. Replaces `zodTable()`.
+- `initZodvex()` — one-time project setup returning pre-configured function builders (`zq`, `zm`, `za`, `ziq`, `zim`, `zia`) with codec-wrapped `ctx.db`.
+- `zodvex/react` entrypoint with `useZodQuery` and `useZodMutation` hooks.
+- `zodvex/client` entrypoint with `ZodvexClient` for vanilla JS usage.
+- `zodvex generate` CLI for codegen (`zodvex/codegen`).
+- DB wrapper layer: `ZodvexDatabaseReader` / `ZodvexDatabaseWriter` with automatic codec encode/decode.
+- `.withRules()` on DB wrappers for RLS/FLS integration.
+- `zodvexCodec()` / `zx.codec()` for creating branded codecs that preserve wire schema through type aliases.
+- `ZodvexCodec<Wire, Runtime>` branded type for custom codec type safety.
+- `decodeDoc()` / `encodeDoc()` / `encodePartialDoc()` primitives.
+
+### Changed
+
+- `zodTable()` deprecated in favor of `defineZodModel()`.
+- Builder functions (`zQueryBuilder`, etc.) deprecated in favor of `initZodvex()`.
+
 ## [0.5.1] - 2026-02-09
 
 ### Added
 
 - New `zodvex/core` entry point for client-safe imports
-  - Contains: `zx`, `zodToConvex`, `zodToConvexFields`, codec utilities, transform utilities, registry, and more
+  - Contains: `zx`, `zodToConvex`, `zodToConvexFields`, codec utilities, registry, and more
   - No imports from `convex/server` or `convex-helpers/server`
   - Reduces client bundle size when used instead of root import
 - New `zodvex/server` entry point for server-only utilities
-  - Contains: `zodTable`, `customCtx`, function builders (`zQueryBuilder`, `zMutationBuilder`, `zActionBuilder`), custom function utilities
+  - Contains: `zodTable`, function builders, custom function utilities
 
 ### Changed
 
 - Root `zodvex` import now re-exports from `zodvex/core` and `zodvex/server`
-- No breaking changes - existing imports continue to work
-
-## [Unreleased]
-
-### Changed
-
-- **BREAKING**: `zid()` no longer uses `.transform()` or `.brand()` - Now uses type-level branding via type assertion instead of runtime transforms. This makes `zid` compatible with AI SDK and other tools that require serializable schemas. Functionally equivalent for 99.9% of users, but the schema structure has changed.
-- **BREAKING**: `skipConvexValidation` now only skips Convex validation, not Zod validation - When using `skipConvexValidation: true` in custom function builders, Zod validation is now always run on args and returns. This ensures schema enforcement and type safety even when Convex validation is skipped for performance.
-
-### Added
-
-- **Union table support** - `zodTable()` now accepts union schemas for polymorphic tables with discriminated unions (resolves #20)
-  - New `addSystemFields()` helper function for adding `_id` and `_creationTime` to union variants
-  - New `withSystemFields()` method on union tables for generating document schemas
-  - Comprehensive test suite with 21 tests covering union tables, depth checks, and edge cases
-- AI SDK compatibility - `zid` and all zodvex schemas now work with Vercel's AI SDK `generateObject()` and similar functions
-- New `toJSONSchema()` helper - Convenience wrapper around `z.toJSONSchema()` that automatically handles zodvex-managed types (zid, z.date)
-- New `zodvexJSONSchemaOverride` and `composeOverrides` exports for advanced JSON Schema customization
-- New test suite for `zid` functionality and AI SDK compatibility
-- Comprehensive AI SDK documentation in README
-- Documentation for polymorphic tables with discriminated unions
-- New MIGRATION.md guide for breaking changes and upgrade paths
-
-### Fixed
-
-- **Return type inference for unions** - Removed unnecessary type bailouts that caused union schemas to infer as `Promise<any>` instead of the proper type. Return types now correctly infer for all Zod schemas including unions, discriminated unions, and complex nested structures (fixes #19)
-- Removed double-branding issue where `zid` used both Convex's `GenericId<T>` branding and Zod's `.brand()` method (fixes #22)
-
-### Removed
-
-- `zCrud` function removed - Following Convex's guidance to prefer explicit functions over generic CRUD patterns. Users should write their own query/mutation functions for better control and security.
+- No breaking changes — existing imports continue to work
 
 ## [0.1.0] - 2025-01-16
 
@@ -65,13 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for complex nested structures (arrays, objects, records)
 - Integration with convex-helpers for ID handling
 
-### Features
-
-- `zodToConvex()` - Convert Zod schemas to Convex validators
-- `zodToConvexFields()` - Convert Zod object shapes to Convex field validators
-- `zQuery/zMutation/zAction` - Wrapped Convex functions with Zod validation
-- `convexCodec()` - Create codecs for data transformation
-- `zodTable()` - Define Convex tables using Zod schemas
-
-[unreleased]: https://github.com/yourusername/zodvex/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/yourusername/zodvex/releases/tag/v0.1.0
+[0.7.0]: https://github.com/panzacoder/zodvex/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/panzacoder/zodvex/compare/v0.5.1...v0.6.0
+[0.5.1]: https://github.com/panzacoder/zodvex/compare/v0.1.0...v0.5.1
+[0.1.0]: https://github.com/panzacoder/zodvex/releases/tag/v0.1.0
