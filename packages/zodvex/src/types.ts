@@ -5,28 +5,28 @@ import type {
   RegisteredQuery
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import { z } from 'zod'
+import type { z } from 'zod'
+import type { $ZodType, infer as zinfer, output as zoutput } from 'zod/v4/core'
 
-export type InferArgs<A> =
-  A extends z.ZodObject<infer S>
-    ? z.infer<z.ZodObject<S>>
-    : A extends Record<string, z.ZodTypeAny>
-      ? { [K in keyof A]: z.infer<A[K]> }
-      : A extends z.ZodTypeAny
-        ? z.infer<A>
-        : Record<string, never>
+export type InferArgs<A> = A extends $ZodType & { shape: infer S extends Record<string, $ZodType> }
+  ? { [K in keyof S]: zinfer<S[K]> }
+  : A extends Record<string, $ZodType>
+    ? { [K in keyof A]: zinfer<A[K]> }
+    : A extends $ZodType
+      ? zinfer<A>
+      : Record<string, never>
 
-// Return type inference - uses z.output for Zod schemas
+// Return type inference - uses zoutput for Zod schemas
 // Previously had bailouts for unions/custom to avoid TypeScript depth errors,
 // but research (Issue #20) showed convex-helpers handles these without issues.
 // Removing bailouts fixes Issue #19 (Promise<any> return types).
 export type InferReturns<R> =
-  R extends z.ZodType<any, any, any> ? z.output<R> : R extends undefined ? any : R
+  R extends $ZodType<any, any> ? zoutput<R> : R extends undefined ? any : R
 
 // For handler authoring: what the handler returns before wrapper validation/encoding
-// Uses z.output since the handler produces the internal representation (e.g., Date),
+// Uses zoutput since the handler produces the internal representation (e.g., Date),
 // which is then encoded to wire format (e.g., string) before sending to the client
-export type InferHandlerReturns<R> = R extends z.ZodType<any, any, any> ? z.output<R> : any
+export type InferHandlerReturns<R> = R extends $ZodType<any, any> ? zoutput<R> : any
 
 /**
  * Extract the visibility type from a Convex builder function
@@ -74,14 +74,15 @@ export type PreserveReturnType<Builder extends (...args: any) => any, ArgsType, 
         : ReturnType<Builder>
 
 // Preserve keys and Id types for proper Convex type generation
-export type ZodToConvexArgs<A> =
-  A extends z.ZodObject<any>
-    ? z.infer<A>
-    : A extends Record<string, z.ZodTypeAny>
-      ? { [K in keyof A]: z.infer<A[K]> }
-      : A extends z.ZodTypeAny
-        ? { value: z.infer<A> }
-        : Record<string, never>
+export type ZodToConvexArgs<A> = A extends $ZodType & {
+  shape: infer S extends Record<string, $ZodType>
+}
+  ? { [K in keyof S]: zinfer<S[K]> }
+  : A extends Record<string, $ZodType>
+    ? { [K in keyof A]: zinfer<A[K]> }
+    : A extends $ZodType
+      ? { value: zinfer<A> }
+      : Record<string, never>
 
 /**
  * Brand symbol for preserving wire schema type through type aliases.
@@ -105,7 +106,7 @@ export { ZodvexWireSchema }
  *   z.ZodCustom<MyClass<T>>
  * >
  *
- * function myCodec<T extends z.ZodTypeAny>(inner: T): MyCodec<T> {
+ * function myCodec<T extends $ZodType>(inner: T): MyCodec<T> {
  *   return zodvexCodec(
  *     z.object({ value: inner }),
  *     z.custom<MyClass<z.output<T>>>(() => true),
@@ -114,7 +115,7 @@ export { ZodvexWireSchema }
  * }
  * ```
  */
-export type ZodvexCodec<Wire extends z.ZodTypeAny, Runtime extends z.ZodTypeAny> = z.ZodCodec<
+export type ZodvexCodec<Wire extends $ZodType, Runtime extends $ZodType> = z.ZodCodec<
   Wire,
   Runtime
 > & {
@@ -136,4 +137,4 @@ export type Overwrite<T, U> = keyof U extends never ? T : Omit<T, keyof U> & U
  * Produced by zodvex codegen into `_zodvex/api.ts` and consumed by all
  * four codec boundary implementations: hooks, client, actionCtx, initZodvex.
  */
-export type AnyRegistry = Record<string, { args?: z.ZodTypeAny; returns?: z.ZodTypeAny }>
+export type AnyRegistry = Record<string, { args?: $ZodType; returns?: $ZodType }>

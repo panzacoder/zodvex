@@ -4,6 +4,7 @@
  */
 import { ConvexError } from 'convex/values'
 import { z } from 'zod'
+import { $ZodError, $ZodType, encode, parse } from './zod-core'
 
 // Format ZodError issues into a compact, consistent structure
 export function formatZodIssues(
@@ -29,8 +30,8 @@ export function handleZodValidationError(
   e: unknown,
   context: 'args' | 'returns' | 'input' | 'output' | 'codec'
 ): never {
-  if (e instanceof z.ZodError) {
-    throw new ConvexError(formatZodIssues(e, context))
+  if (e instanceof $ZodError) {
+    throw new ConvexError(formatZodIssues(e as z.ZodError, context))
   }
   throw e
 }
@@ -50,15 +51,15 @@ export function handleZodValidationError(
  * @returns The validated/encoded value
  * @throws Calls handleZodValidationError on validation failure
  */
-export function validateReturns(schema: z.ZodTypeAny, value: unknown): unknown {
+export function validateReturns(schema: $ZodType, value: unknown): unknown {
   try {
     // Try encode first - works for codecs and plain schemas
-    return z.encode(schema, value)
+    return encode(schema, value)
   } catch (e: any) {
     // If it's a unidirectional transform error, fall back to parse
     if (e?.message?.includes('unidirectional transform')) {
       try {
-        return schema.parse(value)
+        return parse(schema, value)
       } catch (parseError) {
         handleZodValidationError(parseError, 'returns')
       }

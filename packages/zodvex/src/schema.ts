@@ -11,6 +11,7 @@ import type { z } from 'zod'
 import type { ZodvexFilterBuilder } from './db'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 import type { SearchIndexConfig, VectorIndexConfig } from './model'
+import type { $ZodShape, $ZodType, output as zoutput } from './zod-core'
 
 /**
  * The set of Zod schemas produced by zodTable() or defineZodModel() for a single table.
@@ -18,13 +19,13 @@ import type { SearchIndexConfig, VectorIndexConfig } from './model'
  * update (partial user fields + _id), base, and docArray.
  */
 export type ZodTableSchemas = {
-  doc: z.ZodTypeAny
-  docArray: z.ZodTypeAny
+  doc: $ZodType
+  docArray: $ZodType
   /** Optional — only used by codegen, not by the DB wrapper at runtime. */
-  paginatedDoc?: z.ZodTypeAny
-  base: z.ZodTypeAny
-  insert: z.ZodTypeAny
-  update: z.ZodTypeAny
+  paginatedDoc?: $ZodType
+  base: $ZodType
+  insert: $ZodType
+  update: $ZodType
 }
 
 /**
@@ -42,14 +43,14 @@ type ZodTableEntry = {
 // Accept defineZodModel() results
 export type ZodModelEntry = {
   name: string
-  fields: z.ZodRawShape
+  fields: $ZodShape
   schema: {
-    doc: z.ZodTypeAny
-    base: z.ZodTypeAny
-    insert: z.ZodTypeAny
-    update: z.ZodTypeAny
-    docArray: z.ZodTypeAny
-    paginatedDoc: z.ZodTypeAny
+    doc: $ZodType
+    base: $ZodType
+    insert: $ZodType
+    update: $ZodType
+    docArray: $ZodType
+    paginatedDoc: $ZodType
   }
   indexes: Record<string, readonly string[]>
   searchIndexes: Record<string, SearchIndexConfig>
@@ -85,7 +86,7 @@ type ConvexTableFor<E> =
     ? T
     : // model entry — compute from fields + indexes + search/vector indexes
       E extends {
-          fields: infer F extends Record<string, z.ZodTypeAny>
+          fields: infer F extends Record<string, $ZodType>
           indexes: infer I extends Record<string, readonly string[]>
           searchIndexes: infer SI extends Record<string, SearchIndexConfig>
           vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
@@ -118,11 +119,11 @@ type ConvexTablesFrom<T extends Record<string, ZodSchemaEntry>> = {
  * (e.g., zx.date() wire number → runtime Date).
  *
  * This is a phantom type — it exists only for TypeScript inference, never accessed at runtime.
- * The constraint uses the structural shape `{ schema: { doc: z.ZodTypeAny } }` rather than
+ * The constraint uses the structural shape `{ schema: { doc: $ZodType } }` rather than
  * ZodSchemaEntry so it can be exported without exposing internal union types.
  */
-export type DecodedDocFor<T extends Record<string, { schema: { doc: z.ZodTypeAny } }>> = {
-  [K in keyof T & string]: z.output<T[K]['schema']['doc']>
+export type DecodedDocFor<T extends Record<string, { schema: { doc: $ZodType } }>> = {
+  [K in keyof T & string]: zoutput<T[K]['schema']['doc']>
 }
 
 // ============================================================================

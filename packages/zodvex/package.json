@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Codec-first Zod v4 integration for Convex -- type-safe validation, encoding, DB wrapping, and codegen.",
   "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
   "homepage": "https://github.com/panzacoder/zodvex#readme",
@@ -30,15 +30,15 @@
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
     },
+    "./mini": {
+      "types": "./dist/mini/index.d.ts",
+      "import": "./dist/mini/index.js",
+      "default": "./dist/mini/index.js"
+    },
     "./server": {
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js",
       "default": "./dist/server/index.js"
-    },
-    "./transform": {
-      "types": "./dist/transform/index.d.ts",
-      "import": "./dist/transform/index.js",
-      "default": "./dist/transform/index.js"
     },
     "./codegen": {
       "types": "./dist/codegen/index.d.ts",

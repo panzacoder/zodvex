@@ -1,22 +1,22 @@
-import type { z } from 'zod'
+import type { $ZodType } from './zod-core'
 
 const META_KEY = '__zodvexMeta'
 
 export type ZodvexFunctionMeta = {
   type: 'function'
-  zodArgs?: z.ZodTypeAny
-  zodReturns?: z.ZodTypeAny
+  zodArgs?: $ZodType
+  zodReturns?: $ZodType
 }
 
 export type ZodvexModelMeta = {
   type: 'model'
   tableName: string
   schemas: {
-    doc: z.ZodTypeAny
-    insert: z.ZodTypeAny
-    update: z.ZodTypeAny
-    docArray: z.ZodTypeAny
-    paginatedDoc: z.ZodTypeAny
+    doc: $ZodType
+    insert: $ZodType
+    update: $ZodType
+    docArray: $ZodType
+    paginatedDoc: $ZodType
   }
 }
 

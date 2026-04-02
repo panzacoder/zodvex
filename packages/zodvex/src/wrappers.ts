@@ -16,15 +16,25 @@ import type {
   ZodToConvexArgs
 } from './types'
 import { assertNoNativeZodDate, stripUndefined } from './utils'
+import {
+  $ZodCustom,
+  $ZodDefault,
+  $ZodNullable,
+  $ZodObject,
+  $ZodOptional,
+  $ZodType,
+  $ZodUnion,
+  parse as zodParse
+} from './zod-core'
 
 // Cache to avoid re-checking the same schema
-const customCheckCache = new WeakMap<z.ZodTypeAny, boolean>()
+const customCheckCache = new WeakMap<$ZodType, boolean>()
 
 /**
  * Check if a schema contains z.custom types (runtime check).
  * Includes depth limit to prevent stack overflow on deeply nested schemas.
  */
-function containsCustom(schema: z.ZodTypeAny, maxDepth = 50, currentDepth = 0): boolean {
+function containsCustom(schema: $ZodType, maxDepth = 50, currentDepth = 0): boolean {
   // Check cache first
   const cached = customCheckCache.get(schema)
   if (cached !== undefined) {
@@ -39,18 +49,16 @@ function containsCustom(schema: z.ZodTypeAny, maxDepth = 50, currentDepth = 0): 
   let result = false
 
   // Zod v4 exports ZodCustom and instances expose `schema.type === "custom"`.
-  if (schema instanceof z.ZodCustom) {
+  if (schema instanceof $ZodCustom) {
     result = true
-  } else if (schema instanceof z.ZodUnion) {
-    result = (schema.options as z.ZodTypeAny[]).some(opt =>
-      containsCustom(opt, maxDepth, currentDepth + 1)
-    )
-  } else if (schema instanceof z.ZodOptional) {
-    result = containsCustom(schema.unwrap() as z.ZodTypeAny, maxDepth, currentDepth + 1)
-  } else if (schema instanceof z.ZodNullable) {
-    result = containsCustom(schema.unwrap() as z.ZodTypeAny, maxDepth, currentDepth + 1)
-  } else if (schema instanceof z.ZodDefault) {
-    result = containsCustom(schema.removeDefault() as z.ZodTypeAny, maxDepth, currentDepth + 1)
+  } else if (schema instanceof $ZodUnion) {
+    result = schema._zod.def.options.some(opt => containsCustom(opt, maxDepth, currentDepth + 1))
+  } else if (schema instanceof $ZodOptional) {
+    result = containsCustom(schema._zod.def.innerType, maxDepth, currentDepth + 1)
+  } else if (schema instanceof $ZodNullable) {
+    result = containsCustom(schema._zod.def.innerType, maxDepth, currentDepth + 1)
+  } else if (schema instanceof $ZodDefault) {
+    result = containsCustom(schema._zod.def.innerType, maxDepth, currentDepth + 1)
   }
 
   customCheckCache.set(schema, result)
@@ -59,8 +67,8 @@ function containsCustom(schema: z.ZodTypeAny, maxDepth = 50, currentDepth = 0): 
 
 export function zQuery<
   Builder extends (fn: any) => any,
-  A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-  R extends z.ZodTypeAny | undefined = undefined,
+  A extends $ZodType | Record<string, $ZodType>,
+  R extends $ZodType | undefined = undefined,
   Visibility extends FunctionVisibility = ExtractVisibility<Builder>
 >(
   query: Builder,
@@ -71,13 +79,13 @@ export function zQuery<
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
 ): RegisteredQuery<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
-  let zodSchema: z.ZodTypeAny
+  let zodSchema: $ZodType
   let args: Record<string, any>
-  if (input instanceof z.ZodObject) {
+  if (input instanceof $ZodObject) {
     const zodObj = input as z.ZodObject<any>
     zodSchema = zodObj
     args = zodToConvexFields(getObjectShape(zodObj))
-  } else if (input instanceof z.ZodType) {
+  } else if (input instanceof $ZodType) {
     // Single schema → normalize to { value }
     zodSchema = z.object({ value: input as any })
     args = { value: zodToConvex(input as any) }
@@ -92,7 +100,7 @@ export function zQuery<
   // Check for z.date() usage at construction time (once), not on every invocation
   assertNoNativeZodDate(zodSchema, 'args')
   if (options?.returns) {
-    assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+    assertNoNativeZodDate(options.returns as $ZodType, 'returns')
   }
 
   return query({
@@ -102,14 +110,14 @@ export function zQuery<
       // Zod handles codec transforms natively via parse
       let parsed: any
       try {
-        parsed = zodSchema.parse(argsObject) as any
+        parsed = zodParse(zodSchema, argsObject) as any
       } catch (e) {
         handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
         // Validate and encode using z.encode (Zod handles codecs natively)
-        const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
+        const validated = validateReturns(options.returns as $ZodType, raw)
         return stripUndefined(validated)
       }
       // Strip undefined even without returns schema (Convex rejects explicit undefined)
@@ -120,8 +128,8 @@ export function zQuery<
 
 export function zInternalQuery<
   Builder extends (fn: any) => any,
-  A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-  R extends z.ZodTypeAny | undefined = undefined,
+  A extends $ZodType | Record<string, $ZodType>,
+  R extends $ZodType | undefined = undefined,
   Visibility extends FunctionVisibility = ExtractVisibility<Builder>
 >(
   internalQuery: Builder,
@@ -137,8 +145,8 @@ export function zInternalQuery<
 
 export function zMutation<
   Builder extends (fn: any) => any,
-  A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-  R extends z.ZodTypeAny | undefined = undefined,
+  A extends $ZodType | Record<string, $ZodType>,
+  R extends $ZodType | undefined = undefined,
   Visibility extends FunctionVisibility = ExtractVisibility<Builder>
 >(
   mutation: Builder,
@@ -149,13 +157,13 @@ export function zMutation<
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
 ): RegisteredMutation<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
-  let zodSchema: z.ZodTypeAny
+  let zodSchema: $ZodType
   let args: Record<string, any>
-  if (input instanceof z.ZodObject) {
+  if (input instanceof $ZodObject) {
     const zodObj = input as z.ZodObject<any>
     zodSchema = zodObj
     args = zodToConvexFields(getObjectShape(zodObj))
-  } else if (input instanceof z.ZodType) {
+  } else if (input instanceof $ZodType) {
     zodSchema = z.object({ value: input as any })
     args = { value: zodToConvex(input as any) }
   } else {
@@ -169,7 +177,7 @@ export function zMutation<
   // Check for z.date() usage at construction time (once), not on every invocation
   assertNoNativeZodDate(zodSchema, 'args')
   if (options?.returns) {
-    assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+    assertNoNativeZodDate(options.returns as $ZodType, 'returns')
   }
 
   return mutation({
@@ -179,14 +187,14 @@ export function zMutation<
       // Zod handles codec transforms natively via parse
       let parsed: any
       try {
-        parsed = zodSchema.parse(argsObject) as any
+        parsed = zodParse(zodSchema, argsObject) as any
       } catch (e) {
         handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
         // Validate and encode using z.encode (Zod handles codecs natively)
-        const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
+        const validated = validateReturns(options.returns as $ZodType, raw)
         return stripUndefined(validated)
       }
       // Strip undefined even without returns schema (Convex rejects explicit undefined)
@@ -197,8 +205,8 @@ export function zMutation<
 
 export function zInternalMutation<
   Builder extends (fn: any) => any,
-  A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-  R extends z.ZodTypeAny | undefined = undefined,
+  A extends $ZodType | Record<string, $ZodType>,
+  R extends $ZodType | undefined = undefined,
   Visibility extends FunctionVisibility = ExtractVisibility<Builder>
 >(
   internalMutation: Builder,
@@ -214,8 +222,8 @@ export function zInternalMutation<
 
 export function zAction<
   Builder extends (fn: any) => any,
-  A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-  R extends z.ZodTypeAny | undefined = undefined,
+  A extends $ZodType | Record<string, $ZodType>,
+  R extends $ZodType | undefined = undefined,
   Visibility extends FunctionVisibility = ExtractVisibility<Builder>
 >(
   action: Builder,
@@ -226,13 +234,13 @@ export function zAction<
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
 ): RegisteredAction<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
-  let zodSchema: z.ZodTypeAny
+  let zodSchema: $ZodType
   let args: Record<string, any>
-  if (input instanceof z.ZodObject) {
+  if (input instanceof $ZodObject) {
     const zodObj = input as z.ZodObject<any>
     zodSchema = zodObj
     args = zodToConvexFields(getObjectShape(zodObj))
-  } else if (input instanceof z.ZodType) {
+  } else if (input instanceof $ZodType) {
     zodSchema = z.object({ value: input as any })
     args = { value: zodToConvex(input as any) }
   } else {
@@ -246,7 +254,7 @@ export function zAction<
   // Check for z.date() usage at construction time (once), not on every invocation
   assertNoNativeZodDate(zodSchema, 'args')
   if (options?.returns) {
-    assertNoNativeZodDate(options.returns as z.ZodTypeAny, 'returns')
+    assertNoNativeZodDate(options.returns as $ZodType, 'returns')
   }
 
   return action({
@@ -256,14 +264,14 @@ export function zAction<
       // Zod handles codec transforms natively via parse
       let parsed: any
       try {
-        parsed = zodSchema.parse(argsObject) as any
+        parsed = zodParse(zodSchema, argsObject) as any
       } catch (e) {
         handleZodValidationError(e, 'args')
       }
       const raw = await handler(ctx, parsed)
       if (options?.returns) {
         // Validate and encode using z.encode (Zod handles codecs natively)
-        const validated = validateReturns(options.returns as z.ZodTypeAny, raw)
+        const validated = validateReturns(options.returns as $ZodType, raw)
         return stripUndefined(validated)
       }
       // Strip undefined even without returns schema (Convex rejects explicit undefined)
@@ -274,8 +282,8 @@ export function zAction<
 
 export function zInternalAction<
   Builder extends (fn: any) => any,
-  A extends z.ZodTypeAny | Record<string, z.ZodTypeAny>,
-  R extends z.ZodTypeAny | undefined = undefined,
+  A extends $ZodType | Record<string, $ZodType>,
+  R extends $ZodType | undefined = undefined,
   Visibility extends FunctionVisibility = ExtractVisibility<Builder>
 >(
   internalAction: Builder,

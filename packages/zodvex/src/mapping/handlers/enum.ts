@@ -1,10 +1,11 @@
 import type { GenericValidator, Validator } from 'convex/values'
 import { v } from 'convex/values'
-import { z } from 'zod'
+import { $ZodEnum, type $ZodType } from '../../zod-core'
 
 // Helper: Convert Zod enum types to Convex validators
-export function convertEnumType(actualValidator: z.ZodEnum<any>): GenericValidator {
-  const options = (actualValidator as any).options
+export function convertEnumType(actualValidator: $ZodEnum): GenericValidator {
+  const entries = actualValidator._zod.def.entries
+  const options = Object.keys(entries)
   if (options && Array.isArray(options) && options.length > 0) {
     // Filter out undefined/null and convert to Convex validators
     const validLiterals = options

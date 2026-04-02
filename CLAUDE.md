@@ -11,7 +11,10 @@ zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping
 This is a bun workspaces monorepo:
 
 - `packages/zodvex/` — the publishable library (source, tests, build config)
-- `examples/task-manager/` — example app using zodvex via `workspace:*`
+- `examples/task-manager/` — full example app using zodvex via `workspace:*`
+- `examples/task-manager-mini/` — same app using `zod/mini` to verify mini compatibility
+- `examples/quickstart/` — minimal getting-started example
+- `examples/stress-test/` — performance/edge-case testing
 - Root `package.json` — workspace root (private, not published)
 
 All commands can be run from the repo root — they delegate to `packages/zodvex/`.
@@ -42,10 +45,7 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 - Tag push triggers `.github/workflows/release.yml` → npm publish with `--tag beta`
 - No GitHub Release created for betas
 
-**Stable releases** (automated via release-please):
-- Conventional commits on `main` are accumulated by release-please into a persistent Release PR
-- Merge the Release PR → `.github/workflows/release-please.yml` → npm publish with `--tag latest` + GitHub Release + CHANGELOG
-- release-please config: `release-please-config.json`, manifest: `.release-please-manifest.json`
+**Stable releases**: No automated stable release workflow yet. Stable releases are cut manually.
 
 **PR titles** must follow conventional commit format (`feat:`, `fix:`, `chore:`, etc.) — enforced by `.github/workflows/pr-title.yml`
 
@@ -55,19 +55,37 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 
 The library is organized into focused modules in `packages/zodvex/src/`:
 
-- **mapping.ts** - Core Zod to Convex validator conversion logic. Handles the translation of Zod schemas to Convex validators with proper optional/nullable semantics.
+- **zod-core.ts** - Central re-export of `zod/v4/core` types and functions. All instanceof checks and type constraints use these core types so zodvex works with both `zod` and `zod/mini`.
 
-- **codec.ts** - Provides the `convexCodec` abstraction for encoding/decoding between Zod-shaped data and Convex-safe JSON (handling Date conversions, undefined omission).
+- **model.ts** - `defineZodModel()` — the primary API for defining Convex table schemas with codec support. Client-safe.
+
+- **init.ts** - `initZodvex()` — one-time project setup that returns pre-configured function builders (`zq`, `zm`, `za`) with codec-wrapped `ctx.db`.
+
+- **mapping/** - Core Zod to Convex validator conversion logic (`mapping/core.ts`) with type-specific handlers in `mapping/handlers/`.
+
+- **codec.ts** - `convexCodec` / `zodvexCodec` for encoding/decoding between Zod-shaped data and Convex-safe JSON.
 
 - **wrappers.ts** - Function wrappers (`zQuery`, `zMutation`, `zAction` and their internal variants) that add Zod validation to Convex functions.
 
-- **custom.ts** - Custom function builders (`zCustomQuery`, `zCustomMutation`, `zCustomAction`) for more advanced use cases. Supports convex-helpers' `onSuccess` callback convention.
+- **custom.ts** - Custom function builders (`zCustomQuery`, `zCustomMutation`, `zCustomAction`). Supports convex-helpers' `onSuccess` callback convention.
 
-- **tables.ts** - Table helpers including `zodTable` for defining Convex tables from Zod schemas.
+- **codegen/** - `zodvex generate` CLI. Runtime discovery (`discover.ts`), schema-to-source serialization (`zodToSource.ts`), and file generation (`generate.ts`).
 
-- **types.ts** - TypeScript type definitions and utility types used throughout the library.
+- **tables.ts** - `zodTable` for defining Convex tables from Zod schemas (legacy — prefer `defineZodModel`).
+
+- **types.ts** - TypeScript type definitions and utility types.
 
 - **utils.ts** - Shared utility functions.
+
+### Entrypoints
+
+- `zodvex` — everything (re-exports core + server)
+- `zodvex/core` — client-safe: validators, codecs, model definitions, registry
+- `zodvex/mini` — same as core but with `zx` typed for `zod/mini` compatibility
+- `zodvex/server` — server-only: `initZodvex`, function builders, DB wrappers
+- `zodvex/react` — React hooks (`useZodQuery`, `useZodMutation`)
+- `zodvex/client` — vanilla JS client
+- `zodvex/codegen` — CLI and generation utilities
 
 ### Key Design Principles
 
@@ -80,9 +98,11 @@ The library is organized into focused modules in `packages/zodvex/src/`:
 
 3. **Type Safety**: Provides full TypeScript type inference from Zod schemas through to Convex validators and function arguments.
 
+4. **zod/mini Compatibility**: All type constraints and instanceof checks use `$ZodType` and subclasses from `zod/v4/core`, following [Zod's library author guidance](https://zod.dev/library-authors). This ensures zodvex works with both full `zod` and `zod/mini`. Schema construction still uses `z.*()` from full zod internally.
+
 ## Testing Approach
 
-Tests are located in `packages/zodvex/__tests__/` and use Bun's test runner. Run a specific test file:
+Tests are located in `packages/zodvex/__tests__/` and use vitest. Run a specific test file:
 
 ```bash
 bun run test -- packages/zodvex/__tests__/mapping.test.ts
@@ -111,5 +131,5 @@ See `docs/convex_rules.txt` for official Convex agent guidance (query patterns, 
 - **Runtime/Package Manager**: Bun (replaces pnpm)
 - **Linting/Formatting**: Biome (replaces ESLint + Prettier)
 - **Building**: tsup (powered by esbuild)
-- **Testing**: Bun test runner
+- **Testing**: vitest
 - **TypeScript**: v5.x with strict mode

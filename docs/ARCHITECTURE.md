@@ -216,62 +216,66 @@ The type system checks for this brand before falling back to structural `z.ZodCo
 
 ---
 
-## zodTable Design
+## zod/mini Compatibility
 
-`zodTable()` creates Convex table definitions from Zod schemas with full type inference.
+zodvex works with both full `zod` and `zod/mini`. This is achieved by using `$ZodType` and its subclasses from `zod/v4/core` for all `instanceof` checks and type constraints, following [Zod's library author guidance](https://zod.dev/library-authors).
 
-### Input Formats
+### How It Works
 
-`zodTable` accepts two input formats that produce equivalent results:
+`zod/v4/core` exports the base classes (`$ZodType`, `$ZodObject`, etc.) that both `zod` and `zod/mini` extend. By constraining on these base types instead of `z.ZodType`, zodvex accepts schemas from either variant.
+
+The internal module `src/zod-core.ts` acts as the centralized import hub — all `instanceof` checks and `_zod.def.*` property access flows through core types.
+
+### Entrypoints
+
+| Entrypoint | Use when |
+|------------|----------|
+| `zodvex/core` | Your project uses full `zod` |
+| `zodvex/mini` | Your project uses `zod/mini` |
+| `zodvex/server` | Works with both (uses core types internally) |
+
+The `zodvex/mini` entrypoint re-exports everything from `zodvex/core` but overrides `zx` with types that return `$ZodType` instead of `z.ZodType`. This means `zx.id('users').optional()` chaining is not available — use `z.optional(zx.id('users'))` instead.
+
+### Schema Construction vs Type Constraints
+
+zodvex *constructs* schemas using full `zod` internally (e.g., `z.object()`, `z.union()`), but *constrains* its public API with `$ZodType` from core. This means:
+
+- zodvex's own schemas are always full-zod objects
+- Consumer schemas can be either full-zod or zod-mini
+- Both pass the `$ZodType` constraint and work through zodvex's pipeline
+
+---
+
+## defineZodModel (Preferred Model API)
+
+`defineZodModel()` is the primary API for defining Convex table schemas, replacing the older `zodTable()`. It provides full codec support, index/search/vector index chaining, and integrates with `initZodvex()` for automatic DB wrapping.
 
 ```typescript
-// Raw object shape (recommended)
-const Users = zodTable('users', {
+import { z } from 'zod'
+import { defineZodModel, zx } from 'zodvex/core'
+
+const users = defineZodModel('users', {
   name: z.string(),
-  email: z.string().email()
+  email: z.string().email(),
+  createdAt: zx.date(),
 })
-
-// z.object() wrapper (also supported)
-const Users = zodTable('users', z.object({
-  name: z.string(),
-  email: z.string().email()
-}))
+  .index('email', ['email'])
+  .searchIndex('search_name', { searchField: 'name' })
 ```
 
-Both produce identical type signatures. When a `z.ZodObject` is passed, zodTable extracts its `.shape` and processes it through the same type-preserving path.
+### initZodvex
 
-### Generated Schema Namespace
-
-`zodTable` returns a rich object with multiple schema variants:
+`initZodvex()` is the one-time project setup that returns pre-configured function builders with codec-wrapped `ctx.db`:
 
 ```typescript
-const Users = zodTable('users', shape)
+import { initZodvex } from 'zodvex/server'
+import schema from './schema'
+import { server } from './_generated/server'
 
-Users.table          // Convex TableDefinition
-Users.doc            // Convex validator for documents
-Users.shape          // Original Zod shape
-Users.schema.doc     // Zod schema with system fields (_id, _creationTime)
-Users.schema.docArray // Array of documents
-Users.schema.base    // User fields only (for inserts)
-Users.schema.insert  // Alias for base
-Users.schema.update  // Partial fields + required _id
+export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, server, { wrapDb: true })
 ```
 
-### System Fields
-
-zodTable automatically adds Convex system fields to document schemas:
-
-```typescript
-// User defines:
-{ name: z.string() }
-
-// schema.doc becomes:
-{
-  _id: zx.id('users'),
-  _creationTime: z.number(),
-  name: z.string()
-}
-```
+The `wrapDb: true` option wraps `ctx.db` with `ZodvexDatabaseReader`/`ZodvexDatabaseWriter`, which automatically decode documents on read and encode on write using each table's codec schemas.
 
 ---
 
@@ -281,4 +285,4 @@ zodTable automatically adds Convex system fields to document schemas:
 2. **Type safety end-to-end**: Wire types flow correctly through validators and document types
 3. **Leverage Zod's codec system**: Use `z.encode()`/`schema.parse()` instead of custom transforms
 4. **Fail fast with guidance**: Clear errors when incompatible patterns (like `z.date()`) are used
-5. **Backwards compatible**: Support both raw shapes and `z.object()` wrappers
+5. **zod/mini compatible**: All type constraints use `zod/v4/core` base classes so zodvex works with both `zod` and `zod/mini`

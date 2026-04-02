@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { $ZodType } from './zod-core'
 
 // ============================================================================
 // Types
@@ -74,7 +75,7 @@ export const formFailure = <T>(data: T, error: FormError) =>
  * Use in `returns` option to validate mutation responses.
  * @example zMutationResult(z.object({ id: zid('users') }))
  */
-export const zMutationResult = <T extends z.ZodTypeAny>(dataSchema: T) =>
+export const zMutationResult = <T extends $ZodType>(dataSchema: T) =>
   z.discriminatedUnion('success', [
     z.object({ success: z.literal(true), data: dataSchema }),
     z.object({ success: z.literal(false), error: z.string() })
@@ -103,7 +104,7 @@ export const zFormError = z.object({
  * Use in `returns` option for form submissions.
  * @example zFormResult(z.object({ email: z.string() }))
  */
-export const zFormResult = <T extends z.ZodTypeAny>(dataSchema: T) =>
+export const zFormResult = <T extends $ZodType>(dataSchema: T) =>
   z.discriminatedUnion('success', [
     z.object({ success: z.literal(true), data: dataSchema }),
     z.object({ success: z.literal(false), data: dataSchema, error: zFormError })

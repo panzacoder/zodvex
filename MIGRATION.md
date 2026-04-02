@@ -4,6 +4,9 @@ This guide helps you upgrade between zodvex versions with breaking changes.
 
 ## Table of Contents
 
+- [Upgrading to v0.7.0](#upgrading-to-v070)
+  - [zodvex/transform Removed](#zodvextransform-removed)
+  - [Using zodvex with zod/mini](#using-zodvex-with-zodmini)
 - [Upgrading to Codec-First Architecture](#upgrading-to-codec-first-architecture)
   - [z.date() Now Throws an Error](#zdate-now-throws-an-error)
   - [toConvexJS and fromConvexJS Removed](#toconvexjs-and-fromconvexjs-removed)
@@ -16,6 +19,76 @@ This guide helps you upgrade between zodvex versions with breaking changes.
   - [zid() Implementation Change](#zid-implementation-change)
   - [zCrud Removal](#zcrud-removal)
   - [skipConvexValidation Behavior Change](#skipconvexvalidation-behavior-change)
+
+---
+
+## Upgrading to v0.7.0
+
+### zodvex/transform Removed
+
+**What changed:**
+
+The `zodvex/transform` subpath export has been removed. The transform/traverse utilities were superseded by Zod's native codec system and `zx.codec()`.
+
+**Before:**
+```ts
+import { transformSchema, traverseSchema } from 'zodvex/transform'
+```
+
+**After:**
+
+Use `zx.codec()` for custom wire ↔ runtime transformations:
+
+```ts
+import { zx } from 'zodvex/core'
+
+const myCodec = zx.codec(wireSchema, runtimeSchema, {
+  decode: (wire) => /* wire → runtime */,
+  encode: (runtime) => /* runtime → wire */,
+})
+```
+
+Or use Zod's native `z.codec()` directly:
+
+```ts
+import { z } from 'zod'
+
+const myCodec = z.codec(wireSchema, runtimeSchema, {
+  decode: (wire) => /* wire → runtime */,
+  encode: (runtime) => /* runtime → wire */,
+})
+```
+
+### Using zodvex with zod/mini
+
+v0.7.0 adds full `zod/mini` compatibility. If your project uses `zod/mini` instead of full `zod`:
+
+1. Import from `zodvex/mini` instead of `zodvex/core`:
+
+```ts
+// Before (full zod)
+import { zx, defineZodModel } from 'zodvex/core'
+
+// After (zod/mini)
+import { zx, defineZodModel } from 'zodvex/mini'
+```
+
+2. The `zx` helpers from `zodvex/mini` return `$ZodType` (from `zod/v4/core`) instead of `z.ZodType`. This means they don't have `.optional()` / `.nullable()` chaining. Use the functional form instead:
+
+```ts
+import { z } from 'zod/mini'
+import { zx } from 'zodvex/mini'
+
+// Full zod style (won't work with mini):
+// zx.id('users').optional()
+
+// Mini style:
+z.optional(zx.id('users'))
+```
+
+3. Server-side imports (`zodvex/server`) work with both `zod` and `zod/mini` without changes — the function builders and DB wrappers use `zod/v4/core` types internally.
+
+**No changes needed if you use full `zod`** — the type constraint widenings (`z.ZodTypeAny` → `$ZodType`) are backwards-compatible.
 
 ---
 
@@ -458,8 +531,9 @@ const myQuery = customQuery({
 
 | zodvex | Zod | Convex | convex-helpers |
 |--------|-----|--------|----------------|
-| 0.3.x  | ^4.1.0 | >= 1.27.0 | >= 0.1.104 |
-| 0.2.x  | ^4.0.0 | >= 1.27.0 | >= 0.1.101-alpha.1 |
+| 0.7.x  | ^4.1.0 (or zod/mini) | >= 1.27.0 | >= 0.1.101-alpha.1 |
+| 0.6.x  | ^4.1.0 | >= 1.27.0 | >= 0.1.101-alpha.1 |
+| 0.5.x  | ^4.1.0 | >= 1.27.0 | >= 0.1.101-alpha.1 |
 | 0.1.x  | ^4.0.0 | >= 1.27.0 | >= 0.1.101-alpha.1 |
 
 ---

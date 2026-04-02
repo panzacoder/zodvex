@@ -1,9 +1,9 @@
 import { v } from 'convex/values'
-import { z } from 'zod'
 import { registryHelpers, type Zid } from '../ids'
+import { $ZodObject, $ZodType } from '../zod-core'
 
 // Helper to check if a schema is a Zid
-export function isZid<T extends string>(schema: z.ZodType): schema is Zid<T> {
+export function isZid<T extends string>(schema: $ZodType): schema is Zid<T> {
   // Check our metadata registry for ConvexId marker
   const metadata = registryHelpers.getMetadata(schema)
   return (
@@ -20,11 +20,10 @@ export function makeUnion(members: any[]): any {
 }
 
 export function getObjectShape(obj: any): Record<string, any> {
-  // Use public API .shape property for ZodObject
-  if (obj instanceof z.ZodObject) {
-    return obj.shape
+  if (obj instanceof $ZodObject) {
+    return obj._zod.def.shape as Record<string, any>
   }
-  // Fallback for edge cases
+  // Fallback for plain shape objects
   if (obj && typeof obj === 'object' && typeof obj.shape === 'object') {
     return obj.shape as Record<string, any>
   }

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { $ZodCodec, $ZodNullable, $ZodObject, $ZodOptional, $ZodType } from '../zod-core'
 import type {
   DiscoveredFunction,
   DiscoveredModel,
@@ -19,10 +19,9 @@ export type GeneratedFile = { js: string; dts: string }
  * with the same arguments produce the same fingerprint, enabling dedup
  * even when object identity differs.
  */
-function fingerprintCodec(schema: z.ZodTypeAny): string {
-  const def = (schema as any)._zod?.def
-  if (!def?.in || !def?.out) return ''
-  return `${zodToSource(def.in)}|${zodToSource(def.out)}`
+function fingerprintCodec(schema: $ZodType): string {
+  if (!(schema instanceof $ZodCodec)) return ''
+  return `${zodToSource(schema._zod.def.in)}|${zodToSource(schema._zod.def.out)}`
 }
 
 /**
@@ -50,7 +49,7 @@ type SchemaRef = {
 export type CodecForGeneration = {
   exportName: string
   sourceFile: string
-  schema: z.ZodTypeAny
+  schema: $ZodType
 }
 
 /**
@@ -59,21 +58,20 @@ export type CodecForGeneration = {
  * suffix string to reconstruct the wrappers in source output.
  */
 function tryUnwrapToIdentity(
-  schema: z.ZodTypeAny,
-  identityMap: Map<z.ZodTypeAny, SchemaRef>
+  schema: $ZodType,
+  identityMap: Map<$ZodType, SchemaRef>
 ): { ref: SchemaRef; suffix: string } | null {
   let current = schema
   const suffixes: string[] = []
   const maxDepth = 5
 
   for (let i = 0; i < maxDepth; i++) {
-    const def = current._zod?.def as any
-    if (current instanceof z.ZodOptional) {
+    if (current instanceof $ZodOptional) {
       suffixes.push('.optional()')
-      current = def.innerType
-    } else if (current instanceof z.ZodNullable) {
+      current = current._zod.def.innerType
+    } else if (current instanceof $ZodNullable) {
       suffixes.push('.nullable()')
-      current = def.innerType
+      current = current._zod.def.innerType
     } else {
       break
     }
@@ -97,16 +95,16 @@ function tryUnwrapToIdentity(
  * is ZodOptional, and each inner type === the original model field.
  */
 function tryMatchPartial(
-  schema: z.ZodTypeAny,
-  identityMap: Map<z.ZodTypeAny, SchemaRef>
+  schema: $ZodType,
+  identityMap: Map<$ZodType, SchemaRef>
 ): { ref: SchemaRef; suffix: string } | null {
-  if (!(schema instanceof z.ZodObject)) return null
-  const candidateShape = schema.shape as Record<string, z.ZodTypeAny>
+  if (!(schema instanceof $ZodObject)) return null
+  const candidateShape = schema._zod.def.shape as Record<string, $ZodType>
   const candidateKeys = Object.keys(candidateShape).sort()
 
   for (const [modelSchema, ref] of identityMap) {
-    if (!(modelSchema instanceof z.ZodObject)) continue
-    const modelShape = modelSchema.shape as Record<string, z.ZodTypeAny>
+    if (!(modelSchema instanceof $ZodObject)) continue
+    const modelShape = modelSchema._zod.def.shape as Record<string, $ZodType>
     const modelKeys = Object.keys(modelShape).sort()
 
     // Same key count and same keys
@@ -117,11 +115,11 @@ function tryMatchPartial(
     let allMatch = true
     for (const key of candidateKeys) {
       const candidateField = candidateShape[key]
-      if (!(candidateField instanceof z.ZodOptional)) {
+      if (!(candidateField instanceof $ZodOptional)) {
         allMatch = false
         break
       }
-      const inner = (candidateField as any)._zod?.def?.innerType
+      const inner = candidateField._zod.def.innerType
       if (inner !== modelShape[key]) {
         allMatch = false
         break
@@ -168,13 +166,13 @@ export function generateApiFile(
   functionCodecs?: FunctionEmbeddedCodec[]
 ): GeneratedFile {
   // Build identity map: runtime schema object → model reference string
-  const identityMap = new Map<z.ZodTypeAny, SchemaRef>()
+  const identityMap = new Map<$ZodType, SchemaRef>()
   const neededModelImports = new Set<string>()
 
   for (const model of models) {
     const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
     for (const key of ['doc', 'insert', 'update', 'docArray', 'paginatedDoc'] as const) {
-      identityMap.set(model.schemas[key] as z.ZodTypeAny, {
+      identityMap.set(model.schemas[key] as $ZodType, {
         importPath,
         exportName: model.exportName,
         schemaKey: key
@@ -183,7 +181,7 @@ export function generateApiFile(
   }
 
   // Build codec identity map for zodToSource
-  const codecMap = new Map<z.ZodTypeAny, CodecRef>()
+  const codecMap = new Map<$ZodType, CodecRef>()
   if (codecs) {
     for (const codec of codecs) {
       const importPath = `../${codec.sourceFile.replace(/\.ts$/, '.js')}`
@@ -251,32 +249,33 @@ export function generateApiFile(
   let needsZx = false
 
   // Resolve each schema to either a model reference or serialized source
-  function resolveSchema(schema: z.ZodTypeAny | undefined): string {
+  function resolveSchema(schema: $ZodType | unknown): string {
     if (!schema) return 'undefined'
+    const s = schema as $ZodType
 
     // 1. Direct identity match
-    const ref = identityMap.get(schema)
+    const ref = identityMap.get(s)
     if (ref) {
       neededModelImports.add(ref.exportName)
       return `${ref.exportName}.schema.${ref.schemaKey}`
     }
 
     // 2. Wrapper-aware identity match (peel .nullable()/.optional())
-    const unwrapped = tryUnwrapToIdentity(schema, identityMap)
+    const unwrapped = tryUnwrapToIdentity(s, identityMap)
     if (unwrapped) {
       neededModelImports.add(unwrapped.ref.exportName)
       return `${unwrapped.ref.exportName}.schema.${unwrapped.ref.schemaKey}${unwrapped.suffix}`
     }
 
     // 3. Partial-aware match (detect .partial() of a model schema)
-    const partialMatch = tryMatchPartial(schema, identityMap)
+    const partialMatch = tryMatchPartial(s, identityMap)
     if (partialMatch) {
       neededModelImports.add(partialMatch.ref.exportName)
       return `${partialMatch.ref.exportName}.schema.${partialMatch.ref.schemaKey}${partialMatch.suffix}`
     }
 
     // 4. Fall back to zodToSource (with codec context)
-    const source = zodToSource(schema, zodToSourceCtx)
+    const source = zodToSource(s, zodToSourceCtx)
     if (source.includes('z.')) needsZod = true
     if (source.includes('zx.')) needsZx = true
     return source

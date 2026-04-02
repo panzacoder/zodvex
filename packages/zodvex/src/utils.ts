@@ -1,9 +1,23 @@
 import { z } from 'zod'
+import {
+  $ZodArray,
+  $ZodCodec,
+  $ZodDate,
+  $ZodDefault,
+  $ZodNullable,
+  $ZodObject,
+  $ZodOptional,
+  $ZodRecord,
+  $ZodTuple,
+  $ZodType,
+  $ZodUnion,
+  type input as zinput
+} from './zod-core'
 
 // Private copy — importing from ./mapping pulls convex/values into client bundles
 // (mapping/utils.ts imports `v` from convex/values which is server-only).
 function getObjectShape(obj: any): Record<string, any> {
-  if (obj instanceof z.ZodObject) return obj.shape
+  if (obj instanceof $ZodObject) return obj._zod.def.shape as Record<string, any>
   if (obj && typeof obj === 'object' && typeof obj.shape === 'object')
     return obj.shape as Record<string, any>
   return {}
@@ -21,8 +35,8 @@ export function pick<T extends Record<string, any>, K extends keyof T>(
 }
 
 // Typed identity helper for returns schemas
-export function returnsAs<R extends z.ZodTypeAny>() {
-  return <T extends z.input<R>>(v: T) => v
+export function returnsAs<R extends $ZodType>() {
+  return <T extends zinput<R>>(v: T) => v
 }
 
 /**
@@ -60,7 +74,7 @@ export function stripUndefined<T>(value: T): T {
 }
 
 // Helper: standard Convex paginate() result schema
-export function zPaginated<T extends z.ZodTypeAny>(item: T) {
+export function zPaginated<T extends $ZodType>(item: T) {
   return z.object({
     page: z.array(item),
     isDone: z.boolean(),
@@ -75,26 +89,26 @@ export function zPaginated<T extends z.ZodTypeAny>(item: T) {
  *
  * @deprecated Use `zx.date()` instead for automatic Date ↔ timestamp conversion.
  */
-export function mapDateFieldToNumber(field: z.ZodTypeAny): z.ZodTypeAny {
+export function mapDateFieldToNumber(field: $ZodType): $ZodType {
   // Direct Date field
-  if (field instanceof z.ZodDate) {
+  if (field instanceof $ZodDate) {
     return z.number()
   }
 
   // Optional Date field
-  if (field instanceof z.ZodOptional && field.unwrap() instanceof z.ZodDate) {
+  if (field instanceof $ZodOptional && field._zod.def.innerType instanceof $ZodDate) {
     return z.number().optional()
   }
 
   // Nullable Date field
-  if (field instanceof z.ZodNullable && field.unwrap() instanceof z.ZodDate) {
+  if (field instanceof $ZodNullable && field._zod.def.innerType instanceof $ZodDate) {
     return z.number().nullable()
   }
 
   // Date with default value
-  if (field instanceof z.ZodDefault) {
-    const inner = field.removeDefault()
-    if (inner instanceof z.ZodDate) {
+  if (field instanceof $ZodDefault) {
+    const inner = field._zod.def.innerType
+    if (inner instanceof $ZodDate) {
       return z.number().optional()
     }
   }
@@ -121,7 +135,7 @@ export function pickShape(
 ): Record<string, any> {
   const keys = toKeys(mask)
   const shape =
-    schemaOrShape instanceof z.ZodObject ? getObjectShape(schemaOrShape) : schemaOrShape || {}
+    schemaOrShape instanceof $ZodObject ? getObjectShape(schemaOrShape) : schemaOrShape || {}
 
   const out: Record<string, any> = {}
   for (const k of keys) {
@@ -151,49 +165,49 @@ export function safeOmit(schema: z.ZodObject<any>, mask: Mask): z.ZodObject<any>
  * Recursively checks if a schema contains native z.date().
  * Stops recursion at ZodCodec boundaries since codecs handle their own transforms.
  */
-function containsNativeZodDate(schema: z.ZodTypeAny): boolean {
+function containsNativeZodDate(schema: $ZodType): boolean {
   // Check if this is a native ZodDate (not our codec)
-  if (schema instanceof z.ZodDate) {
+  if (schema instanceof $ZodDate) {
     return true
   }
 
   // Codecs handle their own transforms - don't recurse into them
-  if (schema instanceof z.ZodCodec) {
+  if (schema instanceof $ZodCodec) {
     return false
   }
 
   // Recurse into wrappers - cast unwrap result to ZodTypeAny for Zod v4 compatibility
   if (
-    schema instanceof z.ZodOptional ||
-    schema instanceof z.ZodNullable ||
-    schema instanceof z.ZodDefault
+    schema instanceof $ZodOptional ||
+    schema instanceof $ZodNullable ||
+    schema instanceof $ZodDefault
   ) {
-    return containsNativeZodDate(schema.unwrap() as unknown as z.ZodTypeAny)
+    return containsNativeZodDate(schema._zod.def.innerType)
   }
 
   // Recurse into objects
-  if (schema instanceof z.ZodObject) {
-    return Object.values(schema.shape).some(field => containsNativeZodDate(field as z.ZodTypeAny))
+  if (schema instanceof $ZodObject) {
+    return Object.values(schema._zod.def.shape).some(field => containsNativeZodDate(field))
   }
 
-  // Recurse into arrays - cast element for Zod v4 compatibility
-  if (schema instanceof z.ZodArray) {
-    return containsNativeZodDate(schema.element as unknown as z.ZodTypeAny)
+  // Recurse into arrays
+  if (schema instanceof $ZodArray) {
+    return containsNativeZodDate(schema._zod.def.element)
   }
 
-  // Recurse into unions - cast options for Zod v4 compatibility
-  if (schema instanceof z.ZodUnion) {
-    return (schema.options as unknown as z.ZodTypeAny[]).some(opt => containsNativeZodDate(opt))
+  // Recurse into unions
+  if (schema instanceof $ZodUnion) {
+    return schema._zod.def.options.some(opt => containsNativeZodDate(opt))
   }
 
-  // Recurse into records - use valueType property (Zod v4)
-  if (schema instanceof z.ZodRecord) {
-    return containsNativeZodDate(schema.valueType as unknown as z.ZodTypeAny)
+  // Recurse into records
+  if (schema instanceof $ZodRecord) {
+    return containsNativeZodDate(schema._zod.def.valueType)
   }
 
-  // Recurse into tuples - access items via def (Zod v4)
-  if (schema instanceof z.ZodTuple) {
-    const items = (schema as any).def?.items as z.ZodTypeAny[] | undefined
+  // Recurse into tuples
+  if (schema instanceof $ZodTuple) {
+    const items = schema._zod.def.items
     return items ? items.some(item => containsNativeZodDate(item)) : false
   }
 
@@ -209,7 +223,7 @@ function containsNativeZodDate(schema: z.ZodTypeAny): boolean {
  * @throws Error with migration guidance if z.date() is found
  */
 export function assertNoNativeZodDate(
-  schema: z.ZodTypeAny,
+  schema: $ZodType,
   context: 'args' | 'returns' | 'schema'
 ): void {
   if (containsNativeZodDate(schema)) {
