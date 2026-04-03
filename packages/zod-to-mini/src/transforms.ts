@@ -199,19 +199,21 @@ export function transformChecks(file: SourceFile): number {
 // ---------------------------------------------------------------------------
 
 /** Methods that become z.methodName(schema, ...args) */
-const TOP_LEVEL_METHODS = ['describe', 'pipe', 'brand'] as const
+const TOP_LEVEL_METHODS = [
+  'describe', 'pipe', 'brand',
+  'partial', 'extend', 'catchall', 'omit', 'pick',
+] as const
 
-/** schema.transform(fn) is special — equivalent is z.pipe(schema, z.transform(fn)) */
+/** schema.default(val) → z._default(schema, val) — underscore-prefixed in mini */
+const RENAMED_METHODS: Record<string, string> = {
+  'default': '_default',
+}
+
+/** schema.transform(fn) → z.pipe(schema, z.transform(fn)) */
 const TRANSFORM_METHOD = 'transform'
 
 /** Methods that become schema.check(z.methodName(...args)) */
 const CHECK_WRAP_METHODS = ['refine', 'superRefine'] as const
-
-/** Methods with no mini equivalent — flagged as warnings */
-const MANUAL_METHODS = [
-  'default',  // z.default is undefined in mini
-  'ip', 'cidr', 'datetime', 'duration', 'finite', 'safe',  // no standalone check fns
-] as const
 
 export function transformMethods(file: SourceFile): number {
   let count = 0
@@ -238,6 +240,15 @@ export function transformMethods(file: SourceFile): number {
       continue
     }
 
+    // Renamed methods: schema.default(val) → z._default(schema, val)
+    if (method in RENAMED_METHODS) {
+      const newName = RENAMED_METHODS[method]
+      const argsStr = args.length > 0 ? `, ${args.join(', ')}` : ''
+      call.replaceWithText(`z.${newName}(${obj}${argsStr})`)
+      count++
+      continue
+    }
+
     // schema.transform(fn) → z.pipe(schema, z.transform(fn))
     if (method === TRANSFORM_METHOD) {
       const argsStr = args.join(', ')
@@ -253,28 +264,28 @@ export function transformMethods(file: SourceFile): number {
       count++
       continue
     }
+
+    // schema.passthrough() → z.looseObject (deprecated, needs manual rewrite)
+    // schema.strict() → z.strictObject (deprecated, needs manual rewrite)
+    // These change the constructor, not a wrapper — can't auto-convert
   }
 
   return count
 }
 
 // ---------------------------------------------------------------------------
-// Transform: object methods → manual equivalents or skip markers
-// .partial() — no mini equivalent, needs manual shape manipulation
-// .extend() — no mini equivalent, use spread
-// .pick() — no mini equivalent
-// .omit() — no mini equivalent
-// .passthrough() — no mini equivalent
-// .strict() — no mini equivalent
-// .catchall() — no mini equivalent
-//
-// These are NOT auto-transformed — they're flagged for manual review.
+// Warnings: methods that need manual attention
+// .passthrough() / .strict() are deprecated → z.looseObject() / z.strictObject()
+//   These change the schema constructor, not just wrap it.
+// .datetime() → z.iso.datetime() — different namespace path
 // ---------------------------------------------------------------------------
 
-const OBJECT_ONLY_METHODS = [
-  'partial', 'extend', 'pick', 'omit',
-  'passthrough', 'strict', 'catchall', 'merge',
-  ...MANUAL_METHODS,
+/** Methods that need manual attention — not auto-convertible */
+const WARN_METHODS = [
+  'passthrough',  // deprecated → z.looseObject()
+  'strict',       // deprecated → z.strictObject()
+  'merge',        // use z.extend() or spread
+  'datetime',     // → z.iso.datetime() (different namespace)
 ] as const
 
 export function findObjectOnlyMethods(file: SourceFile): Array<{ line: number; method: string; text: string }> {
@@ -283,7 +294,7 @@ export function findObjectOnlyMethods(file: SourceFile): Array<{ line: number; m
 
   for (const call of calls) {
     const method = getMethodName(call)
-    if (!method || !(OBJECT_ONLY_METHODS as readonly string[]).includes(method)) continue
+    if (!method || !(WARN_METHODS as readonly string[]).includes(method)) continue
     results.push({
       line: call.getStartLineNumber(),
       method,

@@ -148,29 +148,55 @@ describe('transformClassRefs', () => {
   })
 })
 
-describe('findObjectOnlyMethods', () => {
-  it('flags .partial()', () => {
-    const project = new Project({ useInMemoryFileSystem: true })
-    const file = project.createSourceFile('test.ts', 'schema.partial()')
-    const result = transformFile(file)
-    expect(result.objectOnlyWarnings).toHaveLength(1)
-    expect(result.objectOnlyWarnings[0].method).toBe('partial')
+describe('transformMethods — object methods', () => {
+  it('.partial() → z.partial(schema)', () => {
+    expect(transform('schema.partial()')).toBe('z.partial(schema)')
   })
 
-  it('flags .extend()', () => {
-    const project = new Project({ useInMemoryFileSystem: true })
-    const file = project.createSourceFile('test.ts', 'schema.extend({ foo: z.string() })')
-    const result = transformFile(file)
-    expect(result.objectOnlyWarnings).toHaveLength(1)
-    expect(result.objectOnlyWarnings[0].method).toBe('extend')
+  it('.extend(shape) → z.extend(schema, shape)', () => {
+    expect(transform('schema.extend({ foo: z.string() })')).toBe('z.extend(schema, { foo: z.string() })')
   })
 
-  it('flags .default()', () => {
+  it('.pick(keys) → z.pick(schema, keys)', () => {
+    expect(transform('schema.pick({ name: true })')).toBe('z.pick(schema, { name: true })')
+  })
+
+  it('.omit(keys) → z.omit(schema, keys)', () => {
+    expect(transform('schema.omit({ age: true })')).toBe('z.omit(schema, { age: true })')
+  })
+
+  it('.catchall(schema) → z.catchall(schema, catchallSchema)', () => {
+    expect(transform('obj.catchall(z.string())')).toBe('z.catchall(obj, z.string())')
+  })
+
+  it('.default(val) → z._default(schema, val)', () => {
+    expect(transform('z.string().default("hello")')).toBe('z._default(z.string(), "hello")')
+  })
+})
+
+describe('findObjectOnlyMethods (warnings)', () => {
+  it('flags .passthrough() (deprecated)', () => {
     const project = new Project({ useInMemoryFileSystem: true })
-    const file = project.createSourceFile('test.ts', 'z.string().default("hello")')
+    const file = project.createSourceFile('test.ts', 'schema.passthrough()')
     const result = transformFile(file)
     expect(result.objectOnlyWarnings).toHaveLength(1)
-    expect(result.objectOnlyWarnings[0].method).toBe('default')
+    expect(result.objectOnlyWarnings[0].method).toBe('passthrough')
+  })
+
+  it('flags .strict() (deprecated)', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', 'schema.strict()')
+    const result = transformFile(file)
+    expect(result.objectOnlyWarnings).toHaveLength(1)
+    expect(result.objectOnlyWarnings[0].method).toBe('strict')
+  })
+
+  it('flags .datetime() (→ z.iso.datetime())', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', 'z.string().datetime()')
+    const result = transformFile(file)
+    expect(result.objectOnlyWarnings).toHaveLength(1)
+    expect(result.objectOnlyWarnings[0].method).toBe('datetime')
   })
 })
 
