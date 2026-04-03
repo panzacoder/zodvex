@@ -1,9 +1,10 @@
 import type { FunctionReference } from 'convex/server'
-import { z } from 'zod'
+import type { z } from 'zod'
+import type { $ZodIssue } from 'zod/v4/core'
 import { safeEncode } from './normalizeCodecPaths'
 import type { AnyRegistry } from './types'
 import { stripUndefined } from './utils'
-import { safeParse } from './zod-core'
+import { $ZodError, safeParse } from './zod-core'
 
 /**
  * Resolves a Convex FunctionReference to its string path.
@@ -40,14 +41,14 @@ export type BoundaryHelpersOptions = {
 
 /**
  * Decode error with function path and wire data context.
- * Extends z.ZodError for compatibility with existing Zod tooling
- * (instanceof ZodError checks, Sentry, error boundaries, etc.).
+ * Extends $ZodError from zod/v4/core for compatibility with both zod and zod/mini.
+ * instanceof $ZodError checks work in both variants.
  */
-export class ZodvexDecodeError extends z.ZodError {
+export class ZodvexDecodeError extends $ZodError {
   readonly functionPath: string
   readonly wireData: unknown
 
-  constructor(functionPath: string, issues: z.core.$ZodIssue[], wireData: unknown) {
+  constructor(functionPath: string, issues: $ZodIssue[], wireData: unknown) {
     super(issues)
     this.functionPath = functionPath
     this.wireData = wireData
@@ -130,7 +131,7 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
     const preview = JSON.stringify(wireResult)
     const truncated = preview.length > 200 ? `${preview.slice(0, 200)}...` : preview
     console.warn(
-      `[zodvex] Decode failed for ${path}: ${result.error.issues.map((i: z.core.$ZodIssue) => `${i.path.join('.')}: ${i.message}`).join(', ')}. Returning raw wire data. Preview: ${truncated}`
+      `[zodvex] Decode failed for ${path}: ${result.error.issues.map((i: $ZodIssue) => `${i.path.join('.')}: ${i.message}`).join(', ')}. Returning raw wire data. Preview: ${truncated}`
     )
     return wireResult
   }

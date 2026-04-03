@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createBoundaryHelpers, ZodvexDecodeError } from '../src/boundaryHelpers'
 import { zx } from '../src/zx'
+import { $ZodError } from '../src/zod-core'
 
 const functionNameSymbol = Symbol.for('functionName')
 
@@ -21,9 +22,10 @@ const registry = {
 } as any
 
 describe('ZodvexDecodeError', () => {
-  it('is an instance of z.ZodError', () => {
+  it('is an instance of $ZodError and ZodvexDecodeError', () => {
     const err = new ZodvexDecodeError('tasks:get', [], { bad: 'data' })
-    expect(err).toBeInstanceOf(z.ZodError)
+    // Extends $ZodError from zod/v4/core (works with both zod and zod/mini)
+    expect(err).toBeInstanceOf($ZodError)
     expect(err).toBeInstanceOf(ZodvexDecodeError)
   })
 
@@ -61,7 +63,7 @@ describe('decodeResult', () => {
       expect(true).toBe(false) // should not reach
     } catch (err: any) {
       expect(err).toBeInstanceOf(ZodvexDecodeError)
-      expect(err).toBeInstanceOf(z.ZodError)
+      expect(err).toBeInstanceOf($ZodError)
       expect(err.functionPath).toBe('tasks:get')
       expect(err.wireData).toBe(wire)
     }

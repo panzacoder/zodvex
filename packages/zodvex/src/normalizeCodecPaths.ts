@@ -1,4 +1,3 @@
-import { ZodError } from 'zod'
 import {
   $ZodArray,
   $ZodCodec,
@@ -90,12 +89,12 @@ function truncateAtCodecBoundary(path: (string | number)[], schema: $ZodType): (
  * This function strips the wire-internal segments so consumers see
  * clean field-level paths (e.g., ["email"]).
  */
-export function normalizeCodecPaths(error: ZodError, schema: $ZodType): ZodError {
+export function normalizeCodecPaths(error: $ZodError, schema: $ZodType): $ZodError {
   const normalized = error.issues.map(issue => ({
     ...issue,
     path: truncateAtCodecBoundary(issue.path as (string | number)[], schema)
   }))
-  return new ZodError(normalized)
+  return new $ZodError(normalized)
 }
 
 /**
@@ -108,7 +107,7 @@ export function safeEncode(schema: $ZodType, value: unknown): unknown {
   try {
     return encode(schema, value)
   } catch (e) {
-    if (e instanceof $ZodError) throw normalizeCodecPaths(e as ZodError, schema)
+    if (e instanceof $ZodError) throw normalizeCodecPaths(e as $ZodError, schema)
     throw e
   }
 }

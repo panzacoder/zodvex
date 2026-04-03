@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { normalizeCodecPaths, safeEncode } from '../src/normalizeCodecPaths'
 import { zx } from '../src/zx'
+import { $ZodError } from '../src/zod-core'
 
 // Helper: create a ZodError with specific issues
 function makeZodError(issues: Array<{ path: (string | number)[]; message: string }>): z.ZodError {
@@ -178,7 +179,7 @@ describe('safeEncode', () => {
       safeEncode(schema, { email: 123, name: 42 })
       expect.unreachable('should have thrown')
     } catch (e) {
-      expect(e).toBeInstanceOf(z.ZodError)
+      expect(e).toBeInstanceOf($ZodError)
       const err = e as z.ZodError
       // Paths should be normalized — no wire-internal segments
       const paths = err.issues.map(i => i.path)
