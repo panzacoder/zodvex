@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { ensureConcurrently, rewriteDeployScript, rewriteDevScript } from '../src/cli/init'
+import {
+  ensureConcurrently,
+  gitignoreEntry,
+  rewriteDeployScript,
+  rewriteDevScript
+} from '../src/cli/init'
 
 describe('rewriteDevScript', () => {
   it('wraps bunx convex dev', () => {
@@ -54,5 +59,26 @@ describe('ensureConcurrently', () => {
 
   it('returns exists when already present in dependencies', () => {
     expect(ensureConcurrently({ dependencies: { concurrently: '^9.0.0' } })).toBe('exists')
+  })
+})
+
+describe('gitignoreEntry', () => {
+  it('adds entry to empty content', () => {
+    const result = gitignoreEntry('')
+    expect(result).toContain('convex/_zodvex/')
+  })
+
+  it('appends entry to existing content', () => {
+    const result = gitignoreEntry('node_modules\n.env')
+    expect(result).toContain('convex/_zodvex/')
+    expect(result).toContain('node_modules')
+  })
+
+  it('returns null if already present', () => {
+    expect(gitignoreEntry('convex/_zodvex/')).toBeNull()
+  })
+
+  it('returns null if already present among other entries', () => {
+    expect(gitignoreEntry('convex/_zodvex/\nnode_modules')).toBeNull()
   })
 })
