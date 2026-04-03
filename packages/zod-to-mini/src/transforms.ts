@@ -198,22 +198,19 @@ export function transformChecks(file: SourceFile): number {
 // schema.brand(tag) → z.brand(schema, tag)
 // ---------------------------------------------------------------------------
 
-/** Methods that become z.methodName(schema, ...args).
- *  NOTE: .transform() and .pipe() produce structurally different schemas
- *  that may break tests relying on schema inspection. Only convert when
- *  the consumer explicitly opts in via a separate flag. For now, we warn. */
-const TOP_LEVEL_METHODS: readonly string[] = []
+/** Methods that become z.methodName(schema, ...args) */
+const TOP_LEVEL_METHODS = ['describe', 'pipe', 'brand'] as const
 
-/** Methods that become schema.check(z.methodName(...args)).
- *  NOTE: .refine() → .check(z.refine()) is structurally different and
- *  may break validation behavior. Warn instead of auto-converting. */
-const CHECK_WRAP_METHODS: readonly string[] = []
+/** schema.transform(fn) is special — equivalent is z.pipe(schema, z.transform(fn)) */
+const TRANSFORM_METHOD = 'transform'
 
-/** Methods that need manual conversion — flagged as warnings.
- *  Includes methods with no standalone z.methodName() equivalent. */
+/** Methods that become schema.check(z.methodName(...args)) */
+const CHECK_WRAP_METHODS = ['refine', 'superRefine'] as const
+
+/** Methods with no mini equivalent — flagged as warnings */
 const MANUAL_METHODS = [
-  'transform', 'pipe', 'refine', 'superRefine', 'describe', 'brand', 'default',
-  'ip', 'cidr', 'datetime', 'duration', 'finite', 'safe',
+  'default',  // z.default is undefined in mini
+  'ip', 'cidr', 'datetime', 'duration', 'finite', 'safe',  // no standalone check fns
 ] as const
 
 export function transformMethods(file: SourceFile): number {
@@ -237,6 +234,14 @@ export function transformMethods(file: SourceFile): number {
     if ((TOP_LEVEL_METHODS as readonly string[]).includes(method)) {
       const argsStr = args.length > 0 ? `, ${args.join(', ')}` : ''
       call.replaceWithText(`z.${method}(${obj}${argsStr})`)
+      count++
+      continue
+    }
+
+    // schema.transform(fn) → z.pipe(schema, z.transform(fn))
+    if (method === TRANSFORM_METHOD) {
+      const argsStr = args.join(', ')
+      call.replaceWithText(`z.pipe(${obj}, z.transform(${argsStr}))`)
       count++
       continue
     }
