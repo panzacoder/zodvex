@@ -1,11 +1,9 @@
 // Central re-export of zod/v4/core types and functions.
 // zodvex uses these for instanceof checks and standalone parse/encode operations.
-// Schema CONSTRUCTION still uses 'zod' (full) — see zx.ts, utils.ts.
 //
 // Per Zod's library author guidance (https://zod.dev/library-authors),
 // importing from 'zod/v4/core' ensures zodvex works with both zod and zod/mini.
-import { z as _zodFull } from 'zod'
-
+// Schema construction uses the swappable factory (getZ) set by the entrypoint.
 export {
   $ZodAny,
   $ZodArray,
@@ -83,7 +81,7 @@ import type { z as ZodNamespace } from 'zod'
  */
 export type ZodFactory = typeof ZodNamespace
 
-let _z: ZodFactory = _zodFull
+let _z: ZodFactory | undefined
 
 /**
  * Set the Zod namespace used for all internal schema construction.
@@ -94,9 +92,17 @@ export function setZodFactory(z: ZodFactory): void {
 }
 
 /**
- * Get the current Zod namespace. Falls back to full `zod` if no
- * entrypoint has called setZodFactory() yet (backwards compatibility).
+ * Get the current Zod namespace. Throws if no entrypoint has been loaded.
+ *
+ * In production, the entrypoint (zodvex/core, zodvex/mini, or root zodvex)
+ * calls setZodFactory() at module load time before any getZ() call.
+ * In tests, vitest setup calls setZodFactory() before test files run.
  */
 export function getZ(): ZodFactory {
+  if (!_z) {
+    throw new Error(
+      'zodvex: No Zod namespace configured. Import from zodvex/core or zodvex/mini before using zodvex APIs.'
+    )
+  }
   return _z
 }

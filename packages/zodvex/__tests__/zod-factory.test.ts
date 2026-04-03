@@ -1,21 +1,28 @@
-import { describe, test, expect, beforeEach } from 'vitest'
+import { describe, test, expect } from 'vitest'
 import { z } from 'zod'
 import { z as zm } from 'zod/mini'
+import { getZ, setZodFactory } from '../src/zod-core'
 
 describe('zod-factory', () => {
-  test('getZ() returns full zod by default', async () => {
-    const { getZ } = await import('../src/zod-core')
-    const z = getZ()
-    expect(typeof z.object).toBe('function')
-    expect(typeof z.string).toBe('function')
+  test('setZodFactory(z) makes getZ() return full zod', () => {
+    setZodFactory(z)
+    const got = getZ()
+    expect(typeof got.object).toBe('function')
+    expect(typeof got.string).toBe('function')
+    // Full zod schemas have many own properties (fluent API methods)
+    const obj = got.object({ name: got.string() })
+    expect(Object.getOwnPropertyNames(obj).length).toBeGreaterThan(30)
   })
 
-  test('setZodFactory switches the z namespace', async () => {
-    const { getZ, setZodFactory } = await import('../src/zod-core')
+  test('setZodFactory(zm) switches to zod/mini', () => {
     setZodFactory(zm as any)
-    const z = getZ()
-    // Schemas from mini should have fewer own properties
-    const obj = z.object({ name: z.string() })
+    const got = getZ()
+    expect(typeof got.object).toBe('function')
+    expect(typeof got.string).toBe('function')
+    // Mini schemas have fewer own properties (no fluent methods)
+    const obj = got.object({ name: got.string() })
     expect(Object.getOwnPropertyNames(obj).length).toBeLessThan(30)
+    // Restore full zod for other tests
+    setZodFactory(z)
   })
 })
