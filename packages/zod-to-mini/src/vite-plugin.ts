@@ -34,7 +34,12 @@ export function zodToMiniPlugin(options?: ZodToMiniPluginOptions): Plugin {
       if (options?.include && !options.include.test(id)) return
       if (options?.exclude && options.exclude.test(id)) return
 
-      // Quick bail: skip files that don't reference zod
+      // Only transform files that import from 'zod' (not 'zod/mini' or 'zod/v4/core').
+      // The quoted 'zod' substring does NOT match 'zod/mini' because the closing quote
+      // position differs. This correctly skips files already using mini syntax.
+      // Limitation: files that use schema method chains without importing 'zod' directly
+      // (e.g., only importing local model variables) won't be transformed. In practice
+      // this is rare — any file constructing schemas imports z from 'zod'.
       if (!code.includes("'zod'") && !code.includes('"zod"') && !code.includes('z.Zod')) return
 
       const result = transformCode(code, { filename: id })

@@ -108,8 +108,9 @@ function tryUnwrapToIdentity(
  */
 function tryMatchPartial(
   schema: $ZodType,
-  identityMap: Map<$ZodType, SchemaRef>
-): { ref: SchemaRef; suffix: string } | null {
+  identityMap: Map<$ZodType, SchemaRef>,
+  mini?: boolean
+): { ref: SchemaRef; wrapSource: (inner: string) => string } | null {
   if (!(schema instanceof $ZodObject)) return null
   const candidateShape = schema._zod.def.shape as Record<string, $ZodType>
   const candidateKeys = Object.keys(candidateShape).sort()
@@ -139,7 +140,10 @@ function tryMatchPartial(
     }
 
     if (allMatch) {
-      return { ref, suffix: '.partial()' }
+      return {
+        ref,
+        wrapSource: (inner: string) => (mini ? `z.partial(${inner})` : `${inner}.partial()`)
+      }
     }
   }
 
@@ -283,10 +287,11 @@ export function generateApiFile(
     }
 
     // 3. Partial-aware match (detect .partial() of a model schema)
-    const partialMatch = tryMatchPartial(s, identityMap)
+    const partialMatch = tryMatchPartial(s, identityMap, options?.mini)
     if (partialMatch) {
       neededModelImports.add(partialMatch.ref.exportName)
-      return `${partialMatch.ref.exportName}.schema.${partialMatch.ref.schemaKey}${partialMatch.suffix}`
+      const inner = `${partialMatch.ref.exportName}.schema.${partialMatch.ref.schemaKey}`
+      return partialMatch.wrapSource(inner)
     }
 
     // 4. Fall back to zodToSource (with codec context)

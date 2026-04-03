@@ -200,7 +200,7 @@ export function transformChecks(file: SourceFile): number {
 
 /** Methods that become z.methodName(schema, ...args) */
 const TOP_LEVEL_METHODS = [
-  'describe', 'pipe', 'brand',
+  'pipe', 'brand',
   'partial', 'extend', 'catchall', 'omit', 'pick',
 ] as const
 
@@ -213,7 +213,7 @@ const RENAMED_METHODS = new Map<string, string>([
 const TRANSFORM_METHOD = 'transform'
 
 /** Methods that become schema.check(z.methodName(...args)) */
-const CHECK_WRAP_METHODS = ['refine', 'superRefine'] as const
+const CHECK_WRAP_METHODS = ['refine', 'superRefine', 'describe'] as const
 
 export function transformMethods(file: SourceFile): number {
   let count = 0

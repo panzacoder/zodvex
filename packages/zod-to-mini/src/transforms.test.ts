@@ -98,8 +98,8 @@ describe('transformChecks', () => {
 })
 
 describe('transformMethods', () => {
-  it('.describe(str) → z.describe(schema, str)', () => {
-    expect(transform('z.string().describe("a name")')).toBe('z.describe(z.string(), "a name")')
+  it('.describe(str) → .check(z.describe(str))', () => {
+    expect(transform('z.string().describe("a name")')).toBe('z.string().check(z.describe("a name"))')
   })
 
   it('.pipe(other) → z.pipe(schema, other)', () => {
@@ -121,7 +121,7 @@ describe('transformMethods', () => {
   })
 
   it('does NOT convert z.describe() namespace call', () => {
-    expect(transform('z.describe(schema, "name")')).toBe('z.describe(schema, "name")')
+    expect(transform('z.describe("name")')).toBe('z.describe("name")')
   })
 
   it('does NOT convert .toString() (Object.prototype method)', () => {
@@ -244,7 +244,7 @@ describe('combined transforms', () => {
   it('handles .refine().describe() chain', () => {
     const input = `z.string().refine(v => v.length > 0, { message: "Required" }).describe("name")`
     const result = transform(input)
-    expect(result).toBe(`z.describe(z.string().check(z.refine(v => v.length > 0, { message: "Required" })), "name")`)
+    expect(result).toBe(`z.string().check(z.refine(v => v.length > 0, { message: "Required" })).check(z.describe("name"))`)
   })
 
   it('handles complex nested schema', () => {
@@ -288,7 +288,7 @@ describe('transformCode', () => {
     expect(result.code).toContain('.check(z.positive())')
     expect(result.code).toContain('z._default(')
     expect(result.code).toContain('z.extend(z.partial(UserSchema)')
-    expect(result.code).toContain('z.describe(schema, "validated")')
+    expect(result.code).toContain('schema.check(z.describe("validated"))')
   })
 
   it('handles fixture-style code with non-z schema expressions', () => {

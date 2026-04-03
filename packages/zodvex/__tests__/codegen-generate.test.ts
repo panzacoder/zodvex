@@ -544,6 +544,26 @@ describe('partial-aware identity matching', () => {
     expect(output).not.toContain('.optional().optional()')
   })
 
+  it('emits z.partial() in mini mode', () => {
+    const partialDoc = (sampleModels[0].schemas.doc as z.ZodObject<any>).partial()
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:update',
+        exportName: 'update',
+        sourceFile: 'users.ts',
+        zodArgs: partialDoc,
+        zodReturns: undefined
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, sampleModels, undefined, undefined, undefined, {
+      mini: true
+    })
+
+    // Mini mode: z.partial(ref) instead of ref.partial()
+    expect(output).toContain('z.partial(UserModel.schema.doc)')
+    expect(output).not.toContain('.partial()')
+  })
+
   it('doc.partial().extend() double-wraps already-optional fields', () => {
     // Zod's .partial() wraps every field in ZodOptional, even already-optional ones.
     // .extend() then breaks tryMatchPartial (not all fields are optional-wrapped),
