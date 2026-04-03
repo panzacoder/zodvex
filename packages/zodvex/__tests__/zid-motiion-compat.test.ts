@@ -112,7 +112,7 @@ describe('zid - motiion compatibility', () => {
 
     it('handles optional zid fields correctly', () => {
       const schema = z.object({
-        agencyId: z.optional(zid('agencies')),
+        agencyId: zid('agencies').optional(),
         name: z.string()
       })
 
@@ -127,11 +127,12 @@ describe('zid - motiion compatibility', () => {
 
     it('handles nested objects with zid fields', () => {
       const representationSchema = z.object({
-        representation: z.optional(z
-                    .object({
-                      agencyId: z.optional(zid('agencies')),
-                      displayRep: z.optional(z.boolean())
-                    }))
+        representation: z
+          .object({
+            agencyId: zid('agencies').optional(),
+            displayRep: z.boolean().optional()
+          })
+          .optional()
       })
 
       const defaults = getDefaults(representationSchema)
@@ -198,7 +199,7 @@ describe('zid - motiion compatibility', () => {
     })
 
     it('works with optional wrapper (agencyId pattern)', () => {
-      const agencyIdOptional = z.optional(zid('agencies'))
+      const agencyIdOptional = zid('agencies').optional()
 
       // Optional wrapper should preserve access to inner schema
       const innerSchema = (agencyIdOptional as any)._def.innerType

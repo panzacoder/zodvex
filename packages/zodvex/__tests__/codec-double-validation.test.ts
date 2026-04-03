@@ -82,10 +82,10 @@ class CustomWrapper<T> {
 // Create custom codec (matches a consumer's custom() pattern)
 function createCustomCodec<T extends z.ZodTypeAny>(inner: T) {
   const wireSchema = z.object({
-    value: z.nullable(inner),
+    value: inner.nullable(),
     status: z.enum(['full', 'hidden']),
-    reason: z.optional(z.string()),
-    __customField: z.optional(z.string())
+    reason: z.string().optional(),
+    __customField: z.string().optional()
   })
 
   const fieldSchema = z.custom<CustomWrapper<z.output<T>>>(val => val instanceof CustomWrapper)
@@ -121,7 +121,7 @@ const createSimpleCodec = <T extends z.ZodTypeAny>(inner: T) =>
   zodvexCodec(
     z.object({
       value: inner,
-      meta: z.optional(z.string())
+      meta: z.string().optional()
     }),
     z.custom<SimpleWrapper<z.output<T>>>(val => val instanceof SimpleWrapper),
     {
@@ -139,15 +139,15 @@ describe('Codec-first: safeParse decodes wire → runtime', () => {
 
   const customSchema = z.object({
     clinicId: z.string(),
-    email: z.optional(customString),
-    firstName: z.optional(customString)
+    email: customString.optional(),
+    firstName: customString.optional()
   })
 
   const simpleString = createSimpleCodec(z.string())
 
   const simpleSchema = z.object({
     name: z.string(),
-    wrapped: z.optional(simpleString)
+    wrapped: simpleString.optional()
   })
 
   it('parses wire format directly to CustomWrapper instance', () => {
@@ -219,15 +219,15 @@ describe('Codec-first: z.encode encodes runtime → wire', () => {
 
   const customSchema = z.object({
     clinicId: z.string(),
-    email: z.optional(customString),
-    firstName: z.optional(customString)
+    email: customString.optional(),
+    firstName: customString.optional()
   })
 
   const simpleString = createSimpleCodec(z.string())
 
   const simpleSchema = z.object({
     name: z.string(),
-    wrapped: z.optional(simpleString)
+    wrapped: simpleString.optional()
   })
 
   it('encodes CustomWrapper instance to wire format', () => {
@@ -369,7 +369,7 @@ describe('Codec-first: Round-trip verification', () => {
 
   const schema = z.object({
     clinicId: z.string(),
-    email: z.optional(customString)
+    email: customString.optional()
   })
 
   it('wire → runtime → wire round-trip preserves data', () => {
@@ -421,7 +421,7 @@ describe('Codec-first: Validation errors preserved', () => {
 
   const schema = z.object({
     clinicId: z.string(),
-    email: z.optional(customString)
+    email: customString.optional()
   })
 
   it('preserves validation errors for non-codec fields', () => {
@@ -465,7 +465,7 @@ describe('Verify Zod native behavior matches fromConvexJS semantics', () => {
   describe('Optional field handling', () => {
     const schema = z.object({
       required: z.string(),
-      optional: z.optional(z.string())
+      optional: z.string().optional()
     })
 
     it('should NOT include missing optional keys in output (matches fromConvexJS)', () => {
@@ -499,7 +499,7 @@ describe('Verify Zod native behavior matches fromConvexJS semantics', () => {
       const customString = createCustomCodec(z.string())
       const schemaWithCodec = z.object({
         required: z.string(),
-        custom: z.optional(customString)
+        custom: customString.optional()
       })
 
       const input = { required: 'hello' } // 'custom' key is missing

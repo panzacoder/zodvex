@@ -4,7 +4,6 @@ import { z } from 'zod'
 import { zid } from '../src/ids'
 import { zodToConvex } from '../src/mapping'
 import { zodTable } from '../src/tables'
-import { $ZodArray, $ZodObject, $ZodUnion } from "zod/v4/core";
 
 describe('zodTable - union support', () => {
   describe('Basic discriminated unions', () => {
@@ -64,7 +63,7 @@ describe('zodTable - union support', () => {
       const baseShape = z.object({
         color: z.string(),
         strokeWidth: z.number(),
-        isFilled: z.optional(z.boolean()),
+        isFilled: z.boolean().optional(),
         index: z.number()
       })
 
@@ -175,7 +174,7 @@ describe('zodTable - union support', () => {
       const withFields = Shapes.withSystemFields()
 
       // Should be a union schema
-      expect(withFields).toBeInstanceOf($ZodUnion)
+      expect(withFields).toBeInstanceOf(z.ZodUnion)
 
       // Each variant should have _id and _creationTime
       const options = (withFields as z.ZodUnion<any>).options
@@ -277,11 +276,11 @@ describe('zodTable - union support', () => {
       expect(Shapes.docArray).toBeDefined()
 
       // Should be an array schema
-      expect(Shapes.docArray).toBeInstanceOf($ZodArray)
+      expect(Shapes.docArray).toBeInstanceOf(z.ZodArray)
 
       // Element should be the union with system fields
       const elementType = (Shapes.docArray as z.ZodArray<any>).element
-      expect(elementType).toBeInstanceOf($ZodUnion)
+      expect(elementType).toBeInstanceOf(z.ZodUnion)
 
       // Each variant should have system fields
       const options = (elementType as z.ZodUnion<any>).options
@@ -405,12 +404,12 @@ describe('zodTable - union support', () => {
         z.object({
           type: z.literal('a'),
           required: z.string(),
-          optional: z.optional(z.number())
+          optional: z.number().optional()
         }),
         z.object({
           type: z.literal('b'),
           required: z.boolean(),
-          different: z.optional(z.string())
+          different: z.string().optional()
         })
       ])
 
@@ -429,11 +428,11 @@ describe('zodTable - union support', () => {
       const schema = z.union([
         z.object({
           type: z.literal('a'),
-          nullable: z.nullable(z.string())
+          nullable: z.string().nullable()
         }),
         z.object({
           type: z.literal('b'),
-          optionalNullable: z.nullable(z.optional(z.number()))
+          optionalNullable: z.number().optional().nullable()
         })
       ])
 
@@ -479,7 +478,7 @@ describe('zodTable - union support', () => {
     it('still accepts object shapes as before', () => {
       const testShape = {
         name: z.string(),
-        age: z.optional(z.number())
+        age: z.number().optional()
       }
 
       const TestTable = zodTable('test', testShape)
@@ -502,10 +501,10 @@ describe('zodTable - union support', () => {
       expect(TestTable.shape).toEqual(testShape)
 
       // Should have zDoc (object schema with system fields)
-      expect(TestTable.zDoc).toBeInstanceOf($ZodObject)
+      expect(TestTable.zDoc).toBeInstanceOf(z.ZodObject)
 
       // Should have docArray
-      expect(TestTable.docArray).toBeInstanceOf($ZodArray)
+      expect(TestTable.docArray).toBeInstanceOf(z.ZodArray)
     })
   })
 

@@ -46,7 +46,7 @@ const _vCheck4: _v4 = true
 
 describe('defineZodModel with union schema', () => {
   const visitSchema = z.discriminatedUnion('type', [
-    z.object({ type: z.literal('phone'), duration: z.number(), notes: z.optional(z.string()) }),
+    z.object({ type: z.literal('phone'), duration: z.number(), notes: z.string().optional() }),
     z.object({ type: z.literal('in-person'), roomId: z.string(), checkedIn: z.boolean() })
   ])
 

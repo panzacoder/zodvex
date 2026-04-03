@@ -416,10 +416,10 @@ describe('FieldPaths type-level spike', () => {
     // Simulate a custom() codec using zodvexCodec directly
     const customString = zodvexCodec(
       z.object({
-        value: z.nullable(z.string()),
+        value: z.string().nullable(),
         status: z.enum(['full', 'hidden']),
-        __customField: z.optional(z.string()),
-        reason: z.optional(z.string())
+        __customField: z.string().optional(),
+        reason: z.string().optional()
       }),
       z.custom<{ _brand: 'CustomField' }>(() => true),
       {
@@ -451,7 +451,7 @@ describe('FieldPaths type-level spike', () => {
   it('.index() with optional custom field preserves paths', () => {
     const customString = zodvexCodec(
       z.object({
-        value: z.nullable(z.string()),
+        value: z.string().nullable(),
         status: z.enum(['full', 'hidden'])
       }),
       z.custom<{ _brand: 'CustomField' }>(() => true),
@@ -463,8 +463,8 @@ describe('FieldPaths type-level spike', () => {
 
     const model = defineZodModel('contacts', {
       name: z.string(),
-      email: z.optional(customString),
-      phone: z.nullable(customString)
+      email: customString.optional(),
+      phone: customString.nullable()
     })
 
     // These compile ✓ — optional/nullable don't block nested path access
@@ -513,7 +513,7 @@ describe('FieldPaths edge cases', () => {
       content: z.object({
         header: z.object({
           title: z.string(),
-          subtitle: z.optional(z.string())
+          subtitle: z.string().optional()
         }),
         body: z.string()
       })

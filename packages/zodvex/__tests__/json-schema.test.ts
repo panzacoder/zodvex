@@ -29,7 +29,7 @@ describe('isZidSchema', () => {
   })
 
   it('should return false for schemas with unrelated descriptions', () => {
-    const describedSchema = z.describe(z.string(), 'some description')
+    const describedSchema = z.string().describe('some description')
     expect(isZidSchema(describedSchema)).toBe(false)
   })
 })
@@ -158,7 +158,7 @@ describe('toJSONSchema', () => {
 
   it('should handle optional zid', () => {
     const schema = z.object({
-      userId: z.optional(zid('users')),
+      userId: zid('users').optional(),
       name: z.string()
     })
 
@@ -183,7 +183,7 @@ describe('toJSONSchema', () => {
 
   it('should handle optional z.date() fields', () => {
     const schema = z.object({
-      createdAt: z.optional(z.date()),
+      createdAt: z.date().optional(),
       name: z.string()
     })
 
@@ -196,7 +196,7 @@ describe('toJSONSchema', () => {
 
   it('should handle nullable z.date() fields', () => {
     const schema = z.object({
-      createdAt: z.nullable(z.date())
+      createdAt: z.date().nullable()
     })
 
     const jsonSchema = toJSONSchema(schema)
@@ -227,7 +227,7 @@ describe('toJSONSchema', () => {
   it('should allow custom override to be chained', () => {
     const schema = z.object({
       userId: zid('users'),
-      email: z.string().check(z.email())
+      email: z.string().email()
     })
 
     let customOverrideCalled = false
@@ -368,7 +368,7 @@ describe('AI SDK compatibility', () => {
     // This is the example from Issue #22
     const schema = z.object({
       userId: zid('users'),
-      email: z.string().check(z.email()),
+      email: z.string().email(),
       preferences: z.object({
         theme: z.enum(['light', 'dark']),
         notifications: z.boolean()

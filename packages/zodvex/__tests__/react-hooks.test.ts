@@ -260,7 +260,7 @@ describe('createZodvexHooks', () => {
       // Create a schema with an optional field
       const optionalArgsSchema = z.object({
         title: z.string(),
-        description: z.optional(z.string())
+        description: z.string().optional()
       })
       const optionalRegistry = {
         'notes:create': { args: optionalArgsSchema }

@@ -46,7 +46,14 @@ let totalChanges = 0
 let totalWarnings = 0
 
 for (const file of files) {
-  const result = transformFile(file)
+  let result: TransformResult
+  try {
+    result = transformFile(file)
+  } catch (e) {
+    const shortPath = file.getFilePath().split('zodvex/').pop() || file.getFilePath()
+    console.error(`  ERROR ${shortPath}: ${(e as Error).message?.slice(0, 100)}`)
+    continue
+  }
 
   // Optionally transform imports
   if (transformImportsFlag) {

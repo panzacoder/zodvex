@@ -93,7 +93,7 @@ describe('safeEncode integration — tagged() codec (nested wire)', () => {
 describe('safeEncode integration — zDuration codec (scalar wire)', () => {
   const argsSchema = z.object({
     title: z.string(),
-    estimate: z.optional(zDuration)
+    estimate: zDuration.optional()
   })
 
   it('encodes valid duration', () => {

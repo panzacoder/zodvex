@@ -27,14 +27,14 @@ describe('zodTable with z.object()', () => {
     // Raw shape
     const rawShape = {
       clinicId: z.string(),
-      email: z.optional(z.string().check(z.email()))
+      email: z.string().email().optional()
     }
     const RawTable = zodTable('raw', rawShape)
 
     // z.object() wrapped
     const wrappedSchema = z.object({
       clinicId: z.string(),
-      email: z.optional(z.string().check(z.email()))
+      email: z.string().email().optional()
     })
     const WrappedTable = zodTable('wrapped', wrappedSchema)
 

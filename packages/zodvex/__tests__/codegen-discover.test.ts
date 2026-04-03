@@ -11,7 +11,6 @@ import { registerDiscoveryHooks } from '../src/codegen/discovery-hooks'
 import { extractCodec, findCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
 import { attachMeta } from '../src/meta'
 import { zx } from '../src/zx'
-import { $ZodCodec } from "zod/v4/core";
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
 const componentFixtureDir = path.resolve(__dirname, 'fixtures/codegen-components')
@@ -173,7 +172,7 @@ describe('codec discovery', () => {
     const duration = result.codecs.find(c => c.exportName === 'zDuration')
     expect(duration).toBeDefined()
     // The schema should be the actual ZodCodec instance
-    expect(duration?.schema).toBeInstanceOf($ZodCodec)
+    expect(duration?.schema).toBeInstanceOf(z.ZodCodec)
   })
 })
 
@@ -181,7 +180,7 @@ describe('walkModelCodecs', () => {
   const emptyPaginated = z.object({
     page: z.array(z.object({})),
     isDone: z.boolean(),
-    continueCursor: z.optional(z.nullable(z.string()))
+    continueCursor: z.string().nullable().optional()
   })
 
   function makeSchemas(fields: {
@@ -198,9 +197,9 @@ describe('walkModelCodecs', () => {
 
   it('finds codec in optional field', () => {
     const schemas = makeSchemas({
-      doc: z.object({ _id: z.string(), email: z.optional(testCodec) }),
-      insert: z.object({ email: z.optional(testCodec) }),
-      update: z.object({ email: z.optional(testCodec) })
+      doc: z.object({ _id: z.string(), email: testCodec.optional() }),
+      insert: z.object({ email: testCodec.optional() }),
+      update: z.object({ email: testCodec.optional() })
     })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     expect(result.length).toBeGreaterThanOrEqual(1)
@@ -212,9 +211,9 @@ describe('walkModelCodecs', () => {
 
   it('deduplicates same codec across schema keys', () => {
     const schemas = makeSchemas({
-      doc: z.object({ _id: z.string(), email: z.optional(testCodec) }),
-      insert: z.object({ email: z.optional(testCodec) }),
-      update: z.object({ email: z.optional(testCodec) })
+      doc: z.object({ _id: z.string(), email: testCodec.optional() }),
+      insert: z.object({ email: testCodec.optional() }),
+      update: z.object({ email: testCodec.optional() })
     })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     const emailCodecs = result.filter(c => c.codec === testCodec)
@@ -227,9 +226,9 @@ describe('walkModelCodecs', () => {
       encode: (s: string) => Number(s)
     })
     const schemas = makeSchemas({
-      doc: z.object({ _id: z.string(), email: z.optional(testCodec), phone: z.nullable(otherCodec) }),
-      insert: z.object({ email: z.optional(testCodec), phone: z.nullable(otherCodec) }),
-      update: z.object({ email: z.optional(testCodec), phone: z.optional(otherCodec) })
+      doc: z.object({ _id: z.string(), email: testCodec.optional(), phone: otherCodec.nullable() }),
+      insert: z.object({ email: testCodec.optional(), phone: otherCodec.nullable() }),
+      update: z.object({ email: testCodec.optional(), phone: otherCodec.optional() })
     })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     expect(result.length).toBe(2)
@@ -247,9 +246,9 @@ describe('walkModelCodecs', () => {
 
   it('skips non-codec fields', () => {
     const schemas = makeSchemas({
-      doc: z.object({ _id: z.string(), name: z.string(), active: z.optional(z.boolean()) }),
+      doc: z.object({ _id: z.string(), name: z.string(), active: z.boolean().optional() }),
       insert: z.object({ name: z.string() }),
-      update: z.object({ name: z.optional(z.string()) })
+      update: z.object({ name: z.string().optional() })
     })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
     expect(result.length).toBe(0)
@@ -270,10 +269,10 @@ describe('walkModelCodecs', () => {
   })
 
   it('finds codec nested inside an optional union member', () => {
-    const variant = z.object({ type: z.literal('a'), name: z.optional(testCodec) })
+    const variant = z.object({ type: z.literal('a'), name: testCodec.optional() })
     const schemas = makeSchemas({
-      doc: z.object({ _id: z.string(), payload: z.optional(z.union([variant])) }),
-      insert: z.object({ payload: z.optional(z.union([variant])) }),
+      doc: z.object({ _id: z.string(), payload: z.union([variant]).optional() }),
+      insert: z.object({ payload: z.union([variant]).optional() }),
       update: z.object({})
     })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
@@ -316,10 +315,10 @@ describe('walkModelCodecs', () => {
     const schemas = makeSchemas({
       doc: z.object({
         _id: z.string(),
-        email: z.optional(testCodec),
+        email: testCodec.optional(),
         payload: z.union([z.object({ type: z.literal('a'), score: otherCodec })])
       }),
-      insert: z.object({ email: z.optional(testCodec) }),
+      insert: z.object({ email: testCodec.optional() }),
       update: z.object({})
     })
     const result = walkModelCodecs('TestModel', 'models/test.ts', schemas)
@@ -342,7 +341,7 @@ describe('walkModelCodecs', () => {
       paginatedDoc: z.object({
         page: z.array(unionDoc),
         isDone: z.boolean(),
-        continueCursor: z.optional(z.nullable(z.string()))
+        continueCursor: z.string().nullable().optional()
       })
     })
     expect(result.length).toBe(1)
@@ -382,7 +381,7 @@ describe('walkFunctionCodecs', () => {
   })
 
   it('finds codec in function zodReturns', () => {
-    const fns = [makeFn({ zodReturns: z.object({ data: z.optional(testCodec) }) })]
+    const fns = [makeFn({ zodReturns: z.object({ data: testCodec.optional() }) })]
     const result = walkFunctionCodecs(fns)
     expect(result.length).toBe(1)
     expect(result[0].codec).toBe(testCodec)
@@ -476,36 +475,36 @@ describe('findCodec', () => {
   })
 
   it('unwraps .optional() to find codec', () => {
-    expect(findCodec(z.optional(testCodec))).toBe(testCodec)
+    expect(findCodec(testCodec.optional())).toBe(testCodec)
   })
 
   it('unwraps .nullable() to find codec', () => {
-    expect(findCodec(z.nullable(testCodec))).toBe(testCodec)
+    expect(findCodec(testCodec.nullable())).toBe(testCodec)
   })
 
   it('unwraps .optional().nullable() to find codec', () => {
-    expect(findCodec(z.nullable(z.optional(testCodec)))).toBe(testCodec)
+    expect(findCodec(testCodec.optional().nullable())).toBe(testCodec)
   })
 
   it('unwraps double .optional() (from .partial()) to find codec', () => {
-    expect(findCodec(z.optional(z.optional(testCodec)))).toBe(testCodec)
+    expect(findCodec(testCodec.optional().optional())).toBe(testCodec)
   })
 
   it('returns undefined for non-codec schemas', () => {
     expect(findCodec(z.string())).toBeUndefined()
-    expect(findCodec(z.optional(z.string()))).toBeUndefined()
+    expect(findCodec(z.string().optional())).toBeUndefined()
   })
 
   it('skips zx.date() codecs', () => {
     expect(findCodec(zx.date())).toBeUndefined()
-    expect(findCodec(z.optional(zx.date()))).toBeUndefined()
+    expect(findCodec(zx.date().optional())).toBeUndefined()
   })
 })
 
 describe('extractCodec', () => {
   it('returns codec when present', () => {
     expect(extractCodec(testCodec)).toBe(testCodec)
-    expect(extractCodec(z.optional(testCodec))).toBe(testCodec)
+    expect(extractCodec(testCodec.optional())).toBe(testCodec)
   })
 
   it('throws for non-codec schemas', () => {

@@ -10,8 +10,8 @@ describe('AI SDK integration (JSON Schema)', () => {
     const schema = z.object({
       userId: zid('users'),
       createdAt: z.date(),
-      deletedAt: z.nullable(z.date()),
-      teamId: z.optional(zid('teams'))
+      deletedAt: z.date().nullable(),
+      teamId: zid('teams').optional()
     })
 
     const jsonSchema = toJSONSchema(schema, { target: 'draft-7' })
@@ -44,8 +44,8 @@ describe('AI SDK integration (JSON Schema)', () => {
           const validator = z.object({
             userId: z.string(),
             createdAt: z.string().datetime(),
-            deletedAt: z.nullable(z.string().datetime()),
-            teamId: z.optional(z.string())
+            deletedAt: z.string().datetime().nullable(),
+            teamId: z.string().optional()
           })
           const parsed = validator.safeParse(value)
           return parsed.success

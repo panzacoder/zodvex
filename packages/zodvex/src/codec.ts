@@ -43,9 +43,7 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
       }
       // Handle both array and object formats
       // Use manual shape extraction instead of .pick() — not available on zod/mini
-      const pickKeys = Array.isArray(keys)
-        ? keys
-        : (Object.keys(keys) as K[])
+      const pickKeys = Array.isArray(keys) ? keys : (Object.keys(keys) as K[])
       const shape = (schema as any)._zod.def.shape
       const pickedShape: Record<string, any> = {}
       for (const k of pickKeys) {

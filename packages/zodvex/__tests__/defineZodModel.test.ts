@@ -12,7 +12,6 @@ import { readMeta, type ZodvexModelMeta } from '../src/meta'
 import { defineZodModel, type FieldPaths, type ModelFieldPaths } from '../src/model'
 import type { ZodvexCodec } from '../src/types'
 import { zx } from '../src/zx'
-import { $ZodOptional, $ZodString } from "zod/v4/core";
 
 // ============================================================================
 // Type-Level Assertions (compile-time tests)
@@ -261,7 +260,7 @@ describe('defineZodModel', () => {
   it('schema.update does not double-wrap already-optional fields', () => {
     const model = defineZodModel('users', {
       name: z.string(),
-      email: z.optional(z.string()), // already optional
+      email: z.string().optional(), // already optional
       age: z.number()
     })
 
@@ -270,12 +269,12 @@ describe('defineZodModel', () => {
 
     // email was already optional — should be ZodOptional, not ZodOptional<ZodOptional>
     const emailField = updateShape.email
-    expect(emailField).toBeInstanceOf($ZodOptional)
+    expect(emailField).toBeInstanceOf(z.ZodOptional)
 
     // The inner type should be ZodString, not another ZodOptional
     const inner = (emailField as any)._zod.def.innerType
-    expect(inner).toBeInstanceOf($ZodString)
-    expect(inner).not.toBeInstanceOf($ZodOptional)
+    expect(inner).toBeInstanceOf(z.ZodString)
+    expect(inner).not.toBeInstanceOf(z.ZodOptional)
   })
 
   it('schema.docArray validates array of docs', () => {
@@ -395,10 +394,10 @@ describe('defineZodModel .index()', () => {
   it('validates custom field wire-format paths', () => {
     const customString = zodvexCodec(
       z.object({
-        value: z.nullable(z.string()),
+        value: z.string().nullable(),
         status: z.enum(['full', 'hidden']),
-        __customField: z.optional(z.string()),
-        reason: z.optional(z.string())
+        __customField: z.string().optional(),
+        reason: z.string().optional()
       }),
       z.custom<{ _brand: 'CustomField' }>(() => true),
       {
@@ -432,7 +431,7 @@ describe('defineZodModel .index()', () => {
   it('handles optional custom fields', () => {
     const customString = zodvexCodec(
       z.object({
-        value: z.nullable(z.string()),
+        value: z.string().nullable(),
         status: z.enum(['full', 'hidden'])
       }),
       z.custom<{ _brand: 'CustomField' }>(() => true),
@@ -446,8 +445,8 @@ describe('defineZodModel .index()', () => {
 
     const model = defineZodModel('contacts', {
       name: z.string(),
-      email: z.optional(customString),
-      phone: z.nullable(customString)
+      email: customString.optional(),
+      phone: customString.nullable()
     })
 
     // Optional/nullable don't block nested path access
@@ -473,7 +472,7 @@ describe('defineZodModel .index()', () => {
   it('does not warn when indexing a dot-path into a codec field', () => {
     const customString = zodvexCodec(
       z.object({
-        value: z.nullable(z.string()),
+        value: z.string().nullable(),
         status: z.enum(['full', 'hidden'])
       }),
       z.custom<{ _brand: 'CustomField' }>(() => true),
@@ -540,7 +539,7 @@ describe('defineZodModel .index()', () => {
       content: z.object({
         header: z.object({
           title: z.string(),
-          subtitle: z.optional(z.string())
+          subtitle: z.string().optional()
         }),
         body: z.string()
       })

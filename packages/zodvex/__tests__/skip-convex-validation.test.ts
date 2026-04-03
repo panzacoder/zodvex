@@ -35,8 +35,8 @@ describe('skipConvexValidation', () => {
       const customBuilder = customFnBuilder(builder, {})
 
       const argsSchema = z.object({
-        name: z.string().check(z.minLength(1)),
-        age: z.number().check(z.gte(0))
+        name: z.string().min(1),
+        age: z.number().min(0)
       })
 
       const registered = customBuilder({
@@ -63,7 +63,7 @@ describe('skipConvexValidation', () => {
       const customBuilder = customFnBuilder(builder, {})
 
       const argsSchema = z.object({
-        email: z.string().check(z.email())
+        email: z.string().email()
       })
 
       const registered = customBuilder({
@@ -228,7 +228,7 @@ describe('skipConvexValidation', () => {
 
       const registered = customBuilder({
         args: {
-          name: z.string().check(z.minLength(1))
+          name: z.string().min(1)
         },
         skipConvexValidation: true,
         handler: async (_ctx: any, args: { name: string }) => args.name
