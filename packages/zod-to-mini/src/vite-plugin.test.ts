@@ -70,4 +70,9 @@ describe('zodToMiniPlugin', () => {
     const included = transform.call({}, input, '/project/src/file.ts')
     expect(included).not.toBeUndefined()
   })
+
+  it('accepts tsconfig option', () => {
+    const plugin = zodToMiniPlugin({ tsconfig: '/fake/tsconfig.json' })
+    expect(plugin.name).toBe('zod-to-mini')
+  })
 })

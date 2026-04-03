@@ -1,3 +1,4 @@
+import { Project } from 'ts-morph'
 import type { Plugin } from 'vite'
 import { transformCode } from './transforms'
 
@@ -6,6 +7,11 @@ export interface ZodToMiniPluginOptions {
   include?: RegExp
   /** Skip files matching this pattern. Default: none */
   exclude?: RegExp
+  /** Path to tsconfig.json for type-aware transforms. When provided, ambiguous methods
+   *  (pick, extend, partial, omit, catchall) are only transformed when the receiver is
+   *  confirmed to be a Zod schema via the TypeScript type checker. Without this, falls
+   *  back to a syntactic heuristic (isLikelySchemaExpr). */
+  tsconfig?: string
 }
 
 /**
@@ -22,9 +28,20 @@ export interface ZodToMiniPluginOptions {
  *   etc.
  */
 export function zodToMiniPlugin(options?: ZodToMiniPluginOptions): Plugin {
+  let project: Project | undefined
+
   return {
     name: 'zod-to-mini',
     enforce: 'pre',
+
+    buildStart() {
+      if (options?.tsconfig) {
+        project = new Project({
+          tsConfigFilePath: options.tsconfig,
+          skipAddingFilesFromTsConfig: true,
+        })
+      }
+    },
 
     transform(code, id) {
       // Only process JS/TS files
@@ -35,14 +52,12 @@ export function zodToMiniPlugin(options?: ZodToMiniPluginOptions): Plugin {
       if (options?.exclude && options.exclude.test(id)) return
 
       // Only transform files that import from 'zod' (not 'zod/mini' or 'zod/v4/core').
-      // The quoted 'zod' substring does NOT match 'zod/mini' because the closing quote
-      // position differs. This correctly skips files already using mini syntax.
-      // Limitation: files that use schema method chains without importing 'zod' directly
-      // (e.g., only importing local model variables) won't be transformed. In practice
-      // this is rare — any file constructing schemas imports z from 'zod'.
       if (!code.includes("'zod'") && !code.includes('"zod"') && !code.includes('z.Zod')) return
 
-      const result = transformCode(code, { filename: id })
+      const result = transformCode(code, {
+        filename: id,
+        project,
+      })
 
       if (!result.changed) return
 

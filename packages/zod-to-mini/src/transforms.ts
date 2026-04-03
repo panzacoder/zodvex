@@ -134,17 +134,27 @@ function isLikelySchemaExpr(obj: string): boolean {
  * Uses the TypeScript type checker to determine if the receiver of a method call
  * is a Zod schema. Checks for the `_zod` property which exists on every Zod schema
  * instance (both full zod and zod/mini).
+ *
+ * Returns:
+ *  - `true`  — the receiver is confirmed to be a Zod schema
+ *  - `false` — the receiver is confirmed to NOT be a Zod schema
+ *  - `null`  — the type checker couldn't determine the type (e.g., `any`)
+ *              Callers should fall back to the syntactic heuristic.
  */
-function isZodSchemaByType(call: CallExpression, typeChecker: TypeChecker): boolean {
+function isZodSchemaByType(call: CallExpression, typeChecker: TypeChecker): boolean | null {
   const expr = call.getExpression()
   if (expr.getKind() !== SyntaxKind.PropertyAccessExpression) return false
   const receiver = (expr as PropertyAccessExpression).getExpression()
 
   try {
     const type = typeChecker.getTypeAtLocation(receiver)
+    // If the type resolved to `any`, the checker couldn't determine the actual type.
+    // This happens after AST mutations (e.g., z.partial(...) is not in zod's type defs)
+    // or for unresolvable expressions. Return null to signal "unknown".
+    if (type.isAny()) return null
     return type.getProperties().some(p => p.getName() === '_zod')
   } catch {
-    return false
+    return null
   }
 }
 
@@ -263,9 +273,17 @@ export function transformMethods(file: SourceFile, typeChecker?: TypeChecker): n
 
     // Ambiguous top-level: only transform when receiver is a Zod schema.
     if ((AMBIGUOUS_TOP_LEVEL as readonly string[]).includes(method)) {
-      const isSchema = typeChecker
-        ? isZodSchemaByType(call, typeChecker)
-        : isLikelySchemaExpr(obj)
+      let isSchema: boolean
+      if (typeChecker) {
+        const typeResult = isZodSchemaByType(call, typeChecker)
+        // true = confirmed schema, false = confirmed non-schema, null = unknown (any)
+        // When the type checker returns null (couldn't resolve), fall back to the heuristic.
+        // This happens after AST mutations create z.partial(...) etc. which don't exist in
+        // zod's type definitions (they're zod/mini constructs).
+        isSchema = typeResult === true || (typeResult === null && isLikelySchemaExpr(obj))
+      } else {
+        isSchema = isLikelySchemaExpr(obj)
+      }
       if (!isSchema) continue
 
       const argsStr = args.length > 0 ? `, ${args.join(', ')}` : ''
