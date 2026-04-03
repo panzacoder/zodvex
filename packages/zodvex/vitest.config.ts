@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import { zodToMiniPlugin } from '../zod-to-mini/src/vite-plugin'
 
 export default defineConfig({
   test: {
@@ -27,6 +28,7 @@ export default defineConfig({
           include: ['__tests__/**/*.test.ts'],
           fileParallelism: false,
         },
+        plugins: [zodToMiniPlugin()],
         resolve: {
           alias: [
             // Exact-match alias: only the bare specifier 'zod' is rewritten to
