@@ -14,15 +14,15 @@ describe('mantineResolver (mantine)', () => {
   const registry = {
     'users:create': {
       args: z.object({
-        name: z.string().min(1, 'Name is required'),
-        email: z.string().email('Invalid email'),
-        age: z.number().min(0).optional()
+        name: z.string().check(z.minLength(1, 'Name is required')),
+        email: z.string().check(z.email('Invalid email')),
+        age: z.optional(z.number().check(z.gte(0)))
       })
     },
     'tasks:create': {
       args: z.object({
-        title: z.string().min(1, 'Title is required'),
-        estimate: zx.date().optional()
+        title: z.string().check(z.minLength(1, 'Title is required')),
+        estimate: z.optional(zx.date())
       })
     }
   }

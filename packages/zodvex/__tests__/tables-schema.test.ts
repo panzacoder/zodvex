@@ -1,17 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodTable } from '../src/tables'
+import { $ZodArray, $ZodObject, $ZodUnion } from "zod/v4/core";
 
 describe('zodTable schema namespace', () => {
   describe('object shapes', () => {
     it('provides schema.doc with system fields', () => {
       const Users = zodTable('users', {
         name: z.string(),
-        email: z.string().email()
+        email: z.string().check(z.email())
       })
 
       expect(Users.schema).toBeDefined()
-      expect(Users.schema.doc).toBeInstanceOf(z.ZodObject)
+      expect(Users.schema.doc).toBeInstanceOf($ZodObject)
 
       // Should have system fields
       const shape = Users.schema.doc.shape
@@ -26,7 +27,7 @@ describe('zodTable schema namespace', () => {
         name: z.string()
       })
 
-      expect(Users.schema.docArray).toBeInstanceOf(z.ZodArray)
+      expect(Users.schema.docArray).toBeInstanceOf($ZodArray)
 
       // Element should be doc schema
       const element = Users.schema.docArray.element
@@ -48,11 +49,11 @@ describe('zodTable schema namespace', () => {
     it('provides update schema with _id required, _creationTime optional, user fields partial', () => {
       const Users = zodTable('users', {
         name: z.string(),
-        email: z.string().email(),
+        email: z.string().check(z.email()),
         age: z.number()
       })
 
-      expect(Users.schema.update).toBeInstanceOf(z.ZodObject)
+      expect(Users.schema.update).toBeInstanceOf($ZodObject)
 
       // _id is required, user fields are optional
       const result = Users.schema.update.parse({ _id: 'users:123' as any })
@@ -95,7 +96,7 @@ describe('zodTable schema namespace', () => {
     it('handles already-optional fields correctly', () => {
       const Users = zodTable('users', {
         name: z.string(),
-        nickname: z.string().optional()
+        nickname: z.optional(z.string())
       })
 
       // Both user fields should be optional in update schema, but _id is required
@@ -114,10 +115,10 @@ describe('zodTable schema namespace', () => {
     it('provides base schema with user fields only (no system fields)', () => {
       const Users = zodTable('users', {
         name: z.string(),
-        email: z.string().email()
+        email: z.string().check(z.email())
       })
 
-      expect(Users.schema.base).toBeInstanceOf(z.ZodObject)
+      expect(Users.schema.base).toBeInstanceOf($ZodObject)
 
       const shape = Users.schema.base.shape
       expect(shape.name).toBeDefined()
@@ -139,11 +140,11 @@ describe('zodTable schema namespace', () => {
     it('provides insert schema with user fields only (no system fields)', () => {
       const Users = zodTable('users', {
         name: z.string(),
-        email: z.string().email(),
-        age: z.number().optional()
+        email: z.string().check(z.email()),
+        age: z.optional(z.number())
       })
 
-      expect(Users.schema.insert).toBeInstanceOf(z.ZodObject)
+      expect(Users.schema.insert).toBeInstanceOf($ZodObject)
 
       const shape = Users.schema.insert.shape
       expect(shape.name).toBeDefined()
@@ -158,7 +159,7 @@ describe('zodTable schema namespace', () => {
     it('insert schema validates correctly', () => {
       const Users = zodTable('users', {
         name: z.string(),
-        email: z.string().email()
+        email: z.string().check(z.email())
       })
 
       const valid = Users.schema.insert.parse({ name: 'John', email: 'john@example.com' })
@@ -192,7 +193,7 @@ describe('zodTable schema namespace', () => {
       )
 
       expect(Shapes.schema).toBeDefined()
-      expect(Shapes.schema.doc).toBeInstanceOf(z.ZodUnion)
+      expect(Shapes.schema.doc).toBeInstanceOf($ZodUnion)
 
       // Each variant should have system fields
       const options = Shapes.schema.doc.options
@@ -209,7 +210,7 @@ describe('zodTable schema namespace', () => {
         ])
       )
 
-      expect(Shapes.schema.docArray).toBeInstanceOf(z.ZodArray)
+      expect(Shapes.schema.docArray).toBeInstanceOf($ZodArray)
     })
 
     it('provides schema.base for unions (original schema)', () => {
@@ -243,7 +244,7 @@ describe('zodTable schema namespace', () => {
         ])
       )
 
-      expect(Shapes.schema.update).toBeInstanceOf(z.ZodUnion)
+      expect(Shapes.schema.update).toBeInstanceOf($ZodUnion)
 
       // Each variant has _id required and user fields partial
       const result = Shapes.schema.update.parse({ _id: 'shapes:123' as any, kind: 'circle' })

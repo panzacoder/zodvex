@@ -15,13 +15,14 @@ import {
   generateServerFile
 } from '../src/codegen/generate'
 import { zx } from '../src/zx'
+import { $ZodOptional } from "zod/v4/core";
 
 const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.string() })
 
 const userPaginatedDocSchema = z.object({
   page: z.array(userDocSchema),
   isDone: z.boolean(),
-  continueCursor: z.string().nullable().optional()
+  continueCursor: z.optional(z.nullable(z.string()))
 })
 
 const sampleModels: DiscoveredModel[] = [
@@ -32,7 +33,7 @@ const sampleModels: DiscoveredModel[] = [
     schemas: {
       doc: userDocSchema,
       insert: z.object({ name: z.string(), email: z.string() }),
-      update: z.object({ name: z.string().optional() }),
+      update: z.object({ name: z.optional(z.string()) }),
       docArray: z.array(userDocSchema),
       paginatedDoc: userPaginatedDocSchema
     }
@@ -161,7 +162,7 @@ describe('wrapper-aware identity matching', () => {
         exportName: 'get',
         sourceFile: 'users.ts',
         zodArgs: z.object({ id: zx.id('users') }),
-        zodReturns: userDocSchema.nullable()
+        zodReturns: z.nullable(userDocSchema)
       }
     ]
     const { js: output } = generateApiFile(funcs, sampleModels)
@@ -175,7 +176,7 @@ describe('wrapper-aware identity matching', () => {
         exportName: 'get',
         sourceFile: 'users.ts',
         zodArgs: z.object({ id: zx.id('users') }),
-        zodReturns: userDocSchema.optional()
+        zodReturns: z.optional(userDocSchema)
       }
     ]
     const { js: output } = generateApiFile(funcs, sampleModels)
@@ -189,7 +190,7 @@ describe('wrapper-aware identity matching', () => {
         exportName: 'get',
         sourceFile: 'users.ts',
         zodArgs: z.object({}),
-        zodReturns: userDocSchema.nullable().optional()
+        zodReturns: z.optional(z.nullable(userDocSchema))
       }
     ]
     const { js: output } = generateApiFile(funcs, sampleModels)
@@ -325,16 +326,16 @@ describe('model-embedded codec resolution', () => {
     tableName: 'users',
     sourceFile: 'models/user.ts',
     schemas: {
-      doc: z.object({ _id: z.string(), name: z.string(), email: testCodec.optional() }),
-      insert: z.object({ name: z.string(), email: testCodec.optional() }),
-      update: z.object({ name: z.string().optional(), email: testCodec.optional() }),
+      doc: z.object({ _id: z.string(), name: z.string(), email: z.optional(testCodec) }),
+      insert: z.object({ name: z.string(), email: z.optional(testCodec) }),
+      update: z.object({ name: z.optional(z.string()), email: z.optional(testCodec) }),
       docArray: z.array(
-        z.object({ _id: z.string(), name: z.string(), email: testCodec.optional() })
+        z.object({ _id: z.string(), name: z.string(), email: z.optional(testCodec) })
       ),
       paginatedDoc: z.object({
-        page: z.array(z.object({ _id: z.string(), name: z.string(), email: testCodec.optional() })),
+        page: z.array(z.object({ _id: z.string(), name: z.string(), email: z.optional(testCodec) })),
         isDone: z.boolean(),
-        continueCursor: z.string().nullable().optional()
+        continueCursor: z.optional(z.nullable(z.string()))
       })
     }
   }
@@ -449,7 +450,7 @@ describe('model-embedded codec resolution', () => {
         paginatedDoc: z.object({
           page: z.array(z.object({})),
           isDone: z.boolean(),
-          continueCursor: z.string().nullable().optional()
+          continueCursor: z.optional(z.nullable(z.string()))
         })
       }
     }
@@ -490,12 +491,12 @@ describe('model-embedded codec resolution', () => {
       schemas: {
         doc: z.object({ _id: z.string(), firstName: codec }),
         insert: z.object({ firstName: codec }),
-        update: z.object({ firstName: codec.optional() }),
+        update: z.object({ firstName: z.optional(codec) }),
         docArray: z.array(z.object({ _id: z.string(), firstName: codec })),
         paginatedDoc: z.object({
           page: z.array(z.object({})),
           isDone: z.boolean(),
-          continueCursor: z.string().nullable().optional()
+          continueCursor: z.optional(z.nullable(z.string()))
         })
       }
     }
@@ -514,7 +515,7 @@ describe('model-embedded codec resolution', () => {
         exportName: 'update',
         sourceFile: 'patients.ts',
         // Extra field prevents partial matching, so codec var naming is exercised
-        zodArgs: z.object({ firstName: codec.optional(), reason: z.string() }),
+        zodArgs: z.object({ firstName: z.optional(codec), reason: z.string() }),
         zodReturns: undefined
       }
     ]
@@ -553,7 +554,7 @@ describe('partial-aware identity matching', () => {
       _id: z.string(),
       _creationTime: z.number(),
       name: z.string(),
-      email: z.string().optional()
+      email: z.optional(z.string())
     })
 
     const extended = (docSchema as z.ZodObject<any>).partial().extend({
@@ -562,9 +563,9 @@ describe('partial-aware identity matching', () => {
     const shape = extended.shape as Record<string, z.ZodTypeAny>
 
     // email is now ZodOptional<ZodOptional<ZodString>> — double wrapped
-    expect(shape.email).toBeInstanceOf(z.ZodOptional)
+    expect(shape.email).toBeInstanceOf($ZodOptional)
     const inner = (shape.email as any)._zod?.def?.innerType
-    expect(inner).toBeInstanceOf(z.ZodOptional)
+    expect(inner).toBeInstanceOf($ZodOptional)
   })
 })
 

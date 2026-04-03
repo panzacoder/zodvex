@@ -6,7 +6,7 @@ import { zx } from '../src/zx'
 
 // Helper: create a ZodError with specific issues
 function makeZodError(issues: Array<{ path: (string | number)[]; message: string }>): z.ZodError {
-  return new z.ZodError(
+  return new $ZodError(
     issues.map(i => ({
       code: 'custom' as const,
       path: i.path,
@@ -89,7 +89,7 @@ describe('normalizeCodecPaths', () => {
 
   describe('codecs inside wrappers', () => {
     it('optional codec field', () => {
-      const schema = z.object({ email: customString.optional() })
+      const schema = z.object({ email: z.optional(customString) })
       const error = makeZodError([{ path: ['email', 'value'], message: 'Invalid' }])
 
       const normalized = normalizeCodecPaths(error, schema)
@@ -98,7 +98,7 @@ describe('normalizeCodecPaths', () => {
     })
 
     it('nullable codec field', () => {
-      const schema = z.object({ email: customString.nullable() })
+      const schema = z.object({ email: z.nullable(customString) })
       const error = makeZodError([{ path: ['email', 'value'], message: 'Invalid' }])
 
       const normalized = normalizeCodecPaths(error, schema)

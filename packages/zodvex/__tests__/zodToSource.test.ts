@@ -46,15 +46,15 @@ describe('zodToSource', () => {
 
   describe('modifiers', () => {
     it('.optional()', () => {
-      expect(zodToSource(z.string().optional())).toBe('z.string().optional()')
+      expect(zodToSource(z.optional(z.string()))).toBe('z.string().optional()')
     })
 
     it('.nullable()', () => {
-      expect(zodToSource(z.string().nullable())).toBe('z.string().nullable()')
+      expect(zodToSource(z.nullable(z.string()))).toBe('z.string().nullable()')
     })
 
     it('.optional().nullable()', () => {
-      expect(zodToSource(z.string().optional().nullable())).toBe('z.string().optional().nullable()')
+      expect(zodToSource(z.nullable(z.optional(z.string())))).toBe('z.string().optional().nullable()')
     })
   })
 
@@ -158,7 +158,7 @@ describe('zodToSource', () => {
         codecMap: new Map([[zTestCodec, { exportName: 'zDuration', sourceFile: '../codecs' }]]),
         neededCodecImports: new Map()
       }
-      expect(zodToSource(zTestCodec.optional(), ctx)).toBe('zDuration.optional()')
+      expect(zodToSource(z.optional(zTestCodec), ctx)).toBe('zDuration.optional()')
     })
 
     it('unknown codec falls back to wire schema with warning', () => {

@@ -11,7 +11,7 @@ describe('z.encode() preserves explicit undefined (the problem)', () => {
   it('preserves explicit undefined at top level', () => {
     const schema = z.object({
       required: z.string(),
-      optional: z.string().optional()
+      optional: z.optional(z.string())
     })
 
     const input = { required: 'hello', optional: undefined }
@@ -25,7 +25,7 @@ describe('z.encode() preserves explicit undefined (the problem)', () => {
   it('preserves explicit undefined in nested objects', () => {
     const schema = z.object({
       outer: z.object({
-        inner: z.string().optional()
+        inner: z.optional(z.string())
       })
     })
 
@@ -39,7 +39,7 @@ describe('z.encode() preserves explicit undefined (the problem)', () => {
   it('preserves explicit undefined in arrays', () => {
     const schema = z.array(
       z.object({
-        value: z.string().optional()
+        value: z.optional(z.string())
       })
     )
 
@@ -53,7 +53,7 @@ describe('z.encode() preserves explicit undefined (the problem)', () => {
   it('does not add keys for missing optional fields', () => {
     const schema = z.object({
       required: z.string(),
-      optional: z.string().optional()
+      optional: z.optional(z.string())
     })
 
     const input = { required: 'hello' }

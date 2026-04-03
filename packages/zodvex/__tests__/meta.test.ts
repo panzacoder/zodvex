@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { attachMeta, readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../src/meta'
+import { $ZodArray, $ZodObject, $ZodString } from "zod/v4/core";
 
 describe('attachMeta / readMeta', () => {
   it('attaches function metadata as non-enumerable property', () => {
@@ -20,8 +21,8 @@ describe('attachMeta / readMeta', () => {
     const read = readMeta(target)
     expect(read).toBeDefined()
     expect(read?.type).toBe('function')
-    expect((read as ZodvexFunctionMeta).zodArgs).toBeInstanceOf(z.ZodObject)
-    expect((read as ZodvexFunctionMeta).zodReturns).toBeInstanceOf(z.ZodString)
+    expect((read as ZodvexFunctionMeta).zodArgs).toBeInstanceOf($ZodObject)
+    expect((read as ZodvexFunctionMeta).zodReturns).toBeInstanceOf($ZodString)
   })
 
   it('attaches model metadata', () => {
@@ -32,7 +33,7 @@ describe('attachMeta / readMeta', () => {
       schemas: {
         doc: z.object({ _id: z.string(), name: z.string() }),
         insert: z.object({ name: z.string() }),
-        update: z.object({ name: z.string().optional() }),
+        update: z.object({ name: z.optional(z.string()) }),
         docArray: z.array(z.object({ _id: z.string(), name: z.string() }))
       }
     }
@@ -42,10 +43,10 @@ describe('attachMeta / readMeta', () => {
     expect(read).toBeDefined()
     expect(read?.type).toBe('model')
     expect((read as ZodvexModelMeta).tableName).toBe('users')
-    expect((read as ZodvexModelMeta).schemas.doc).toBeInstanceOf(z.ZodObject)
-    expect((read as ZodvexModelMeta).schemas.insert).toBeInstanceOf(z.ZodObject)
-    expect((read as ZodvexModelMeta).schemas.update).toBeInstanceOf(z.ZodObject)
-    expect((read as ZodvexModelMeta).schemas.docArray).toBeInstanceOf(z.ZodArray)
+    expect((read as ZodvexModelMeta).schemas.doc).toBeInstanceOf($ZodObject)
+    expect((read as ZodvexModelMeta).schemas.insert).toBeInstanceOf($ZodObject)
+    expect((read as ZodvexModelMeta).schemas.update).toBeInstanceOf($ZodObject)
+    expect((read as ZodvexModelMeta).schemas.docArray).toBeInstanceOf($ZodArray)
   })
 
   it('readMeta returns undefined for objects without metadata', () => {

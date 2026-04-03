@@ -82,10 +82,10 @@ class CustomWrapper<T> {
 // Create custom codec (matches a consumer's custom() pattern)
 function createCustomCodec<T extends z.ZodTypeAny>(inner: T) {
   const wireSchema = z.object({
-    value: inner.nullable(),
+    value: z.nullable(inner),
     status: z.enum(['full', 'hidden']),
-    reason: z.string().optional(),
-    __customField: z.string().optional()
+    reason: z.optional(z.string()),
+    __customField: z.optional(z.string())
   })
 
   const fieldSchema = z.custom<CustomWrapper<z.output<T>>>(val => val instanceof CustomWrapper)
@@ -105,7 +105,7 @@ describe('Codec-first: Validation errors preserved', () => {
 
   const schema = z.object({
     clinicId: z.string(),
-    email: customString.optional()
+    email: z.optional(customString)
   })
 
   it('preserves validation errors for non-codec fields', () => {
@@ -149,7 +149,7 @@ describe('Verify Zod native behavior matches fromConvexJS semantics', () => {
   describe('Optional field handling', () => {
     const schema = z.object({
       required: z.string(),
-      optional: z.string().optional()
+      optional: z.optional(z.string())
     })
 
     it('should NOT include missing optional keys in output (matches fromConvexJS)', () => {
@@ -183,7 +183,7 @@ describe('Verify Zod native behavior matches fromConvexJS semantics', () => {
       const customString = createCustomCodec(z.string())
       const schemaWithCodec = z.object({
         required: z.string(),
-        custom: customString.optional()
+        custom: z.optional(customString)
       })
 
       const input = { required: 'hello' } // 'custom' key is missing

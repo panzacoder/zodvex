@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { convexCodec, zodvexCodec } from '../src/codec'
 import { zx } from '../src/zx'
+import { $ZodCodec } from "zod/v4/core";
 
 describe('convexCodec', () => {
   it('creates codec from Zod schema', () => {
@@ -36,7 +37,7 @@ describe('convexCodec', () => {
   it('handles optional fields correctly', () => {
     const schema = z.object({
       name: z.string(),
-      nickname: z.string().optional()
+      nickname: z.optional(z.string())
     })
 
     const codec = convexCodec(schema)
@@ -51,7 +52,7 @@ describe('convexCodec', () => {
   it('strips explicit undefined from encoded output', () => {
     const schema = z.object({
       name: z.string(),
-      nickname: z.string().optional()
+      nickname: z.optional(z.string())
     })
 
     const codec = convexCodec(schema)
@@ -68,7 +69,7 @@ describe('convexCodec', () => {
     const schema = z.object({
       user: z.object({
         name: z.string(),
-        email: z.string().optional()
+        email: z.optional(z.string())
       })
     })
 
@@ -99,7 +100,7 @@ describe('convexCodec', () => {
 
   it('handles nullable dates with zx.date()', () => {
     const schema = z.object({
-      birthday: zx.date().nullable()
+      birthday: z.nullable(zx.date())
     })
 
     const codec = convexCodec(schema)
@@ -148,7 +149,7 @@ describe('zodvexCodec', () => {
       }
     )
 
-    expect(codec instanceof z.ZodCodec).toBe(true)
+    expect(codec instanceof $ZodCodec).toBe(true)
   })
 
   it('encodes with z.encode()', () => {

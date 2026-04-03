@@ -158,7 +158,7 @@ describe('toJSONSchema', () => {
 
   it('should handle optional zid', () => {
     const schema = z.object({
-      userId: zid('users').optional(),
+      userId: z.optional(zid('users')),
       name: z.string()
     })
 
@@ -183,7 +183,7 @@ describe('toJSONSchema', () => {
 
   it('should handle optional z.date() fields', () => {
     const schema = z.object({
-      createdAt: z.date().optional(),
+      createdAt: z.optional(z.date()),
       name: z.string()
     })
 
@@ -196,7 +196,7 @@ describe('toJSONSchema', () => {
 
   it('should handle nullable z.date() fields', () => {
     const schema = z.object({
-      createdAt: z.date().nullable()
+      createdAt: z.nullable(z.date())
     })
 
     const jsonSchema = toJSONSchema(schema)
@@ -227,7 +227,7 @@ describe('toJSONSchema', () => {
   it('should allow custom override to be chained', () => {
     const schema = z.object({
       userId: zid('users'),
-      email: z.string().email()
+      email: z.string().check(z.email())
     })
 
     let customOverrideCalled = false
@@ -368,7 +368,7 @@ describe('AI SDK compatibility', () => {
     // This is the example from Issue #22
     const schema = z.object({
       userId: zid('users'),
-      email: z.string().email(),
+      email: z.string().check(z.email()),
       preferences: z.object({
         theme: z.enum(['light', 'dark']),
         notifications: z.boolean()

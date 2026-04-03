@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { type ZodvexCodec, zodvexCodec } from '../src/codec'
 import { zodToConvex } from '../src/mapping'
+import { $ZodCodec } from "zod/v4/core";
 
 /**
  * Tests for ZodvexCodec branded type and zodvexCodec helper function.
@@ -41,7 +42,7 @@ describe('zodvexCodec', () => {
       }
     )
 
-    expect(codec instanceof z.ZodCodec).toBe(true)
+    expect(codec instanceof $ZodCodec).toBe(true)
   })
 
   it('zodToConvex produces correct validator from branded codec', () => {
@@ -151,7 +152,7 @@ describe('zodvexCodec', () => {
     const codec = zodvexCodec(
       z.object({
         required: z.string(),
-        optional: z.string().optional()
+        optional: z.optional(z.string())
       }),
       z.custom<{ combined: string }>(() => true),
       {
@@ -173,7 +174,7 @@ describe('zodvexCodec', () => {
   it('handles wire schema with nullable fields', () => {
     const codec = zodvexCodec(
       z.object({
-        value: z.string().nullable(),
+        value: z.nullable(z.string()),
         status: z.enum(['active', 'inactive'])
       }),
       z.custom<{ display: string }>(() => true),
@@ -214,6 +215,6 @@ describe('ZodvexCodec type inference', () => {
     const _typed: MyCodec = codec
 
     // Runtime check to ensure it's actually a codec
-    expect(codec instanceof z.ZodCodec).toBe(true)
+    expect(codec instanceof $ZodCodec).toBe(true)
   })
 })

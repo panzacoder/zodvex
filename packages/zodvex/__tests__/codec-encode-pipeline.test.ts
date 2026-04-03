@@ -16,6 +16,7 @@ import { zodvexCodec } from '../src/codec'
 import { extractCodec } from '../src/codegen/extractCodec'
 import { safeEncode } from '../src/normalizeCodecPaths'
 import { stripUndefined } from '../src/utils'
+import { $ZodCodec } from "zod/v4/core";
 
 const functionNameSymbol = Symbol.for('functionName')
 
@@ -81,7 +82,7 @@ class CustomWrapper<T> {
 
 function createCustomCodec<T extends z.ZodTypeAny>(inner: T) {
   const wireSchema = z.object({
-    value: inner.nullable(),
+    value: z.nullable(inner),
     status: z.enum(['full', 'hidden'])
   })
 
@@ -97,16 +98,16 @@ function createCustomCodec<T extends z.ZodTypeAny>(inner: T) {
 // Model schema (like a consumer's data model)
 // ---------------------------------------------------------------------------
 
-const customEmail = createCustomCodec(z.string().email())
+const customEmail = createCustomCodec(z.string().check(z.email()))
 const customName = createCustomCodec(z.string())
 
 const userDocSchema = z.object({
   _id: z.string(),
   _creationTime: z.number(),
   orgId: z.string(),
-  email: customEmail.optional(),
-  firstName: customName.optional(),
-  lastName: customName.optional()
+  email: z.optional(customEmail),
+  firstName: z.optional(customName),
+  lastName: z.optional(customName)
 })
 
 // ---------------------------------------------------------------------------
@@ -118,7 +119,7 @@ describe('Exact consumer encode pipeline reproduction', () => {
   const _mc0 = extractCodec(userDocSchema.shape.email)
 
   it('extractCodec returns a ZodCodec', () => {
-    expect(_mc0).toBeInstanceOf(z.ZodCodec)
+    expect(_mc0).toBeInstanceOf($ZodCodec)
   })
 
   // Step 2: Build registry args schema (like generated api.ts)
@@ -128,7 +129,7 @@ describe('Exact consumer encode pipeline reproduction', () => {
   const registry = {
     'users/index:getByEmail': {
       args: argsSchema,
-      returns: userDocSchema.nullable()
+      returns: z.nullable(userDocSchema)
     }
   }
 

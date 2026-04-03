@@ -64,7 +64,7 @@ describe('createBoundaryHelpers', () => {
     it('strips undefined values after encoding', () => {
       const optionalArgsSchema = z.object({
         title: z.string(),
-        description: z.string().optional()
+        description: z.optional(z.string())
       })
       const optionalRegistry = {
         'notes:create': { args: optionalArgsSchema }

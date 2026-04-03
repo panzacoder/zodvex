@@ -36,14 +36,14 @@ describe('zid', () => {
   })
 
   it('converts optional zid to v.optional(v.id())', () => {
-    const userId = zid('users').optional()
+    const userId = z.optional(zid('users'))
     const validator = zodToConvex(userId)
 
     expect(validator).toEqual(v.optional(v.id('users')))
   })
 
   it('converts nullable zid to v.union(v.id(), v.null())', () => {
-    const userId = zid('users').nullable()
+    const userId = z.nullable(zid('users'))
     const validator = zodToConvex(userId)
 
     expect(validator).toEqual(v.union(v.id('users'), v.null()))
@@ -52,7 +52,7 @@ describe('zid', () => {
   it('works in object schemas', () => {
     const schema = z.object({
       userId: zid('users'),
-      teamId: zid('teams').optional()
+      teamId: z.optional(zid('teams'))
     })
 
     const validator = zodToConvex(schema)
@@ -94,8 +94,8 @@ describe('zid - AI SDK compatibility', () => {
     const userSchema = z.object({
       id: zid('users'),
       name: z.string(),
-      email: z.string().email(),
-      teamId: zid('teams').optional()
+      email: z.string().check(z.email()),
+      teamId: z.optional(zid('teams'))
     })
 
     // AI SDK checks that all schemas are serializable (no transforms)

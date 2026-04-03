@@ -6,6 +6,7 @@ import {
   getUnionOptions,
   isZodUnion
 } from '../src/schemaHelpers'
+import { $ZodObject, $ZodUnion } from "zod/v4/core";
 
 describe('union helpers', () => {
   describe('isZodUnion', () => {
@@ -116,7 +117,7 @@ describe('union helpers', () => {
 
       const union = createUnionFromOptions(options)
 
-      expect(union).toBeInstanceOf(z.ZodUnion)
+      expect(union).toBeInstanceOf($ZodUnion)
       expect(union.options).toHaveLength(2)
     })
 
@@ -166,7 +167,7 @@ describe('union helpers', () => {
 
       const options = getUnionOptions(union)
       const extendedOptions = options.map(variant => {
-        if (variant instanceof z.ZodObject) {
+        if (variant instanceof $ZodObject) {
           return variant.extend({
             _id: z.string(),
             _creationTime: z.number()
@@ -196,7 +197,7 @@ describe('union helpers', () => {
 
       const options = getUnionOptions(union)
       const partialOptions = options.map(variant => {
-        if (variant instanceof z.ZodObject) {
+        if (variant instanceof $ZodObject) {
           return variant.partial()
         }
         return variant

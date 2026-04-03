@@ -6,8 +6,8 @@ import { zodToConvex } from '../src/mapping'
 describe('Issue #16: nested optional fields inside .partial()', () => {
   it('should preserve nested optional fields when parent object is wrapped with .partial() in a union', () => {
     const Experience = z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
+      min: z.optional(z.number()),
+      max: z.optional(z.number())
     })
 
     const Live = z.object({
@@ -48,8 +48,8 @@ describe('Issue #16: nested optional fields inside .partial()', () => {
 
   it('should handle object with nested optional fields after .partial()', () => {
     const Experience = z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
+      min: z.optional(z.number()),
+      max: z.optional(z.number())
     })
 
     const Live = z.object({
@@ -89,8 +89,8 @@ describe('Issue #16: nested optional fields inside .partial()', () => {
 
   it('should preserve nested optional fields in discriminated unions', () => {
     const Experience = z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
+      min: z.optional(z.number()),
+      max: z.optional(z.number())
     })
 
     const Live = z.object({

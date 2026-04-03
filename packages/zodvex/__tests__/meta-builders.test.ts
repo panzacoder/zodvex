@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { zActionBuilder, zMutationBuilder, zQueryBuilder } from '../src/builders'
 import { zCustomQuery } from '../src/custom'
 import { readMeta, type ZodvexFunctionMeta } from '../src/meta'
+import { $ZodBoolean, $ZodNumber, $ZodObject, $ZodString } from "zod/v4/core";
 
 // Mock builder that just returns whatever function config it receives
 const mockBuilder = (fn: any) => fn
@@ -21,8 +22,8 @@ describe('__zodvexMeta in customFnBuilder', () => {
     expect(meta?.type).toBe('function')
 
     const fmeta = meta as ZodvexFunctionMeta
-    expect(fmeta.zodArgs).toBeInstanceOf(z.ZodObject)
-    expect(fmeta.zodReturns).toBeInstanceOf(z.ZodString)
+    expect(fmeta.zodArgs).toBeInstanceOf($ZodObject)
+    expect(fmeta.zodReturns).toBeInstanceOf($ZodString)
   })
 
   it('attaches metadata with args only (no returns)', () => {
@@ -37,7 +38,7 @@ describe('__zodvexMeta in customFnBuilder', () => {
     expect(meta?.type).toBe('function')
 
     const fmeta = meta as ZodvexFunctionMeta
-    expect(fmeta.zodArgs).toBeInstanceOf(z.ZodObject)
+    expect(fmeta.zodArgs).toBeInstanceOf($ZodObject)
     expect(fmeta.zodReturns).toBeUndefined()
   })
 
@@ -69,8 +70,8 @@ describe('__zodvexMeta in direct builders', () => {
     expect(meta?.type).toBe('function')
 
     const fmeta = meta as ZodvexFunctionMeta
-    expect(fmeta.zodArgs).toBeInstanceOf(z.ZodObject)
-    expect(fmeta.zodReturns).toBeInstanceOf(z.ZodNumber)
+    expect(fmeta.zodArgs).toBeInstanceOf($ZodObject)
+    expect(fmeta.zodReturns).toBeInstanceOf($ZodNumber)
   })
 
   it('zMutationBuilder with args only', () => {
@@ -86,7 +87,7 @@ describe('__zodvexMeta in direct builders', () => {
     expect(meta).toBeDefined()
 
     const fmeta = meta as ZodvexFunctionMeta
-    expect(fmeta.zodArgs).toBeInstanceOf(z.ZodObject)
+    expect(fmeta.zodArgs).toBeInstanceOf($ZodObject)
     expect(fmeta.zodReturns).toBeUndefined()
   })
 
@@ -102,8 +103,8 @@ describe('__zodvexMeta in direct builders', () => {
     expect(meta).toBeDefined()
 
     const fmeta = meta as ZodvexFunctionMeta
-    expect(fmeta.zodArgs).toBeInstanceOf(z.ZodObject)
-    expect(fmeta.zodReturns).toBeInstanceOf(z.ZodBoolean)
+    expect(fmeta.zodArgs).toBeInstanceOf($ZodObject)
+    expect(fmeta.zodReturns).toBeInstanceOf($ZodBoolean)
   })
 
   it('args as z.object() preserves the ZodObject instance', () => {

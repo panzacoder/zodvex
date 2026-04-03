@@ -2,22 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodToConvexFields } from '../src/mapping'
 import { pickShape, safePick } from '../src/utils'
+import { $ZodOptional, $ZodString } from "zod/v4/core";
 
 describe('pick helpers', () => {
   const User = z.object({
     id: z.string(),
-    email: z.string().email(),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-    createdAt: z.date().nullable()
+    email: z.string().check(z.email()),
+    firstName: z.optional(z.string()),
+    lastName: z.optional(z.string()),
+    createdAt: z.nullable(z.date())
   })
 
   it('pickShape returns subset shape', () => {
     const shape = pickShape(User, ['email', 'firstName', 'createdAt'])
     expect(Object.keys(shape).sort()).toEqual(['createdAt', 'email', 'firstName'])
     // preserve Zod types
-    expect(shape.email).toBeInstanceOf(z.ZodString)
-    expect(shape.firstName).toBeInstanceOf(z.ZodOptional)
+    expect(shape.email).toBeInstanceOf($ZodString)
+    expect(shape.firstName).toBeInstanceOf($ZodOptional)
   })
 
   it('safePick builds a new ZodObject without using .pick()', () => {

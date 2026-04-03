@@ -32,7 +32,7 @@ describe('decodeDoc', () => {
 
   it('handles nullable codec fields', () => {
     const schema = z.object({
-      deletedAt: zx.date().nullable()
+      deletedAt: z.nullable(zx.date())
     })
 
     expect(decodeDoc(schema, { deletedAt: null }).deletedAt).toBe(null)
@@ -42,7 +42,7 @@ describe('decodeDoc', () => {
   it('handles optional codec fields', () => {
     const schema = z.object({
       name: z.string(),
-      updatedAt: zx.date().optional()
+      updatedAt: z.optional(zx.date())
     })
 
     expect(decodeDoc(schema, { name: 'Alice' })).toEqual({ name: 'Alice' })
@@ -73,7 +73,7 @@ describe('encodeDoc', () => {
   it('strips explicit undefined values', () => {
     const schema = z.object({
       name: z.string(),
-      nickname: z.string().optional()
+      nickname: z.optional(z.string())
     })
 
     const result = encodeDoc(schema, { name: 'Alice', nickname: undefined })
@@ -84,7 +84,7 @@ describe('encodeDoc', () => {
 
   it('handles nullable codec fields', () => {
     const schema = z.object({
-      deletedAt: zx.date().nullable()
+      deletedAt: z.nullable(zx.date())
     })
 
     expect(encodeDoc(schema, { deletedAt: null })).toEqual({ deletedAt: null })
@@ -127,7 +127,7 @@ describe('encodePartialDoc', () => {
   it('strips undefined values from partial', () => {
     const schema = z.object({
       name: z.string(),
-      nickname: z.string().optional()
+      nickname: z.optional(z.string())
     })
 
     const result = encodePartialDoc(schema, { name: 'Alice', nickname: undefined })

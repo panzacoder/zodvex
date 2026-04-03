@@ -2,12 +2,13 @@ import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodToConvex, zx } from '../src'
+import { $ZodCodec } from "zod/v4/core";
 
 describe('zx namespace', () => {
   describe('zx.date()', () => {
     it('creates a ZodCodec instance', () => {
       const dateSchema = zx.date()
-      expect(dateSchema instanceof z.ZodCodec).toBe(true)
+      expect(dateSchema instanceof $ZodCodec).toBe(true)
     })
 
     it('encodes Date to timestamp', () => {
@@ -55,7 +56,7 @@ describe('zx namespace', () => {
       const schema = z.object({
         name: z.string(),
         createdAt: zx.date(),
-        updatedAt: zx.date().optional()
+        updatedAt: z.optional(zx.date())
       })
 
       const now = new Date('2024-06-15T12:00:00.000Z')
@@ -79,7 +80,7 @@ describe('zx namespace', () => {
 
     it('handles nullable dates', () => {
       const schema = z.object({
-        deletedAt: zx.date().nullable()
+        deletedAt: z.nullable(zx.date())
       })
 
       // With date
@@ -129,7 +130,7 @@ describe('zx namespace', () => {
     it('works in object schemas', () => {
       const schema = z.object({
         userId: zx.id('users'),
-        teamId: zx.id('teams').optional()
+        teamId: z.optional(zx.id('teams'))
       })
 
       const validator = zodToConvex(schema)
@@ -154,7 +155,7 @@ describe('zx namespace', () => {
         }
       )
 
-      expect(codec instanceof z.ZodCodec).toBe(true)
+      expect(codec instanceof $ZodCodec).toBe(true)
     })
 
     it('encodes and decodes correctly', () => {
@@ -222,10 +223,10 @@ describe('zx namespace', () => {
       const userSchema = z.object({
         id: zx.id('users'),
         name: z.string(),
-        email: z.string().email(),
+        email: z.string().check(z.email()),
         createdAt: zx.date(),
-        teamId: zx.id('teams').optional(),
-        lastLoginAt: zx.date().nullable()
+        teamId: z.optional(zx.id('teams')),
+        lastLoginAt: z.nullable(zx.date())
       })
 
       const validator = zodToConvex(userSchema)

@@ -5,14 +5,14 @@ import { zodToConvex, zodToConvexFields } from '../src/mapping'
 
 describe('zodToConvex optional/nullable handling', () => {
   it('handles optional fields correctly', () => {
-    const schema = z.string().optional()
+    const schema = z.optional(z.string())
     const validator = zodToConvex(schema)
     // Should be v.optional(v.string())
     expect(validator).toEqual(v.optional(v.string()))
   })
 
   it('handles nullable fields correctly', () => {
-    const schema = z.string().nullable()
+    const schema = z.nullable(z.string())
     const validator = zodToConvex(schema)
     // Should be v.union(v.string(), v.null())
     expect(validator).toEqual(v.union(v.string(), v.null()))
@@ -29,14 +29,14 @@ describe('zodToConvex optional/nullable handling', () => {
   })
 
   it('handles optional nullable fields correctly', () => {
-    const schema = z.string().optional().nullable()
+    const schema = z.nullable(z.optional(z.string()))
     const validator = zodToConvex(schema)
     // Should be v.optional(v.union(v.string(), v.null()))
     expect(validator).toEqual(v.optional(v.union(v.string(), v.null())))
   })
 
   it('handles nullable optional fields correctly', () => {
-    const schema = z.string().nullable().optional()
+    const schema = z.optional(z.nullable(z.string()))
     const validator = zodToConvex(schema)
     // The order matters - nullable then optional results in optional(union)
     expect(validator).toEqual(v.optional(v.union(v.string(), v.null())))
@@ -51,19 +51,19 @@ describe('zodToConvex', () => {
   })
 
   it('maps optional string correctly', () => {
-    const schema = z.string().optional()
+    const schema = z.optional(z.string())
     const validator = zodToConvex(schema)
     expect(validator).toEqual(v.optional(v.string()))
   })
 
   it('maps nullable string correctly', () => {
-    const schema = z.string().nullable()
+    const schema = z.nullable(z.string())
     const validator = zodToConvex(schema)
     expect(validator).toEqual(v.union(v.string(), v.null()))
   })
 
   it('maps optional nullable string correctly', () => {
-    const schema = z.string().optional().nullable()
+    const schema = z.nullable(z.optional(z.string()))
     const validator = zodToConvex(schema)
     expect(validator).toEqual(v.optional(v.union(v.string(), v.null())))
   })
@@ -93,7 +93,7 @@ describe('zodToConvex', () => {
   })
 
   it('maps optional arrays', () => {
-    const schema = z.array(z.string()).optional()
+    const schema = z.optional(z.array(z.string()))
     const validator = zodToConvex(schema)
     expect(validator).toEqual(v.optional(v.array(v.string())))
   })
@@ -142,8 +142,8 @@ describe('zodToConvexFields', () => {
     const shape = {
       name: z.string(),
       age: z.number(),
-      email: z.string().email(),
-      isActive: z.boolean().optional()
+      email: z.string().check(z.email()),
+      isActive: z.optional(z.boolean())
     }
 
     const validators = zodToConvexFields(shape)
@@ -161,7 +161,7 @@ describe('zodToConvexFields', () => {
       user: z.object({
         name: z.string(),
         profile: z.object({
-          bio: z.string().optional()
+          bio: z.optional(z.string())
         })
       })
     }
@@ -181,7 +181,7 @@ describe('zodToConvexFields', () => {
   it('accepts ZodObject directly', () => {
     const schema = z.object({
       name: z.string(),
-      age: z.number().optional()
+      age: z.optional(z.number())
     })
 
     const validators = zodToConvexFields(schema)
@@ -195,9 +195,9 @@ describe('zodToConvexFields', () => {
   it('handles mixed optional and nullable fields', () => {
     const shape = {
       required: z.string(),
-      optional: z.string().optional(),
-      nullable: z.string().nullable(),
-      optionalNullable: z.string().optional().nullable()
+      optional: z.optional(z.string()),
+      nullable: z.nullable(z.string()),
+      optionalNullable: z.nullable(z.optional(z.string()))
     }
 
     const validators = zodToConvexFields(shape)
@@ -229,10 +229,10 @@ describe('zodToConvex native z.codec() handling', () => {
 
   it('handles codec with nullable inner value', () => {
     const wireSchema = z.object({
-      value: z.string().nullable(),
+      value: z.nullable(z.string()),
       metadata: z.object({ timestamp: z.number() })
     })
-    const fieldSchema = z.string().nullable()
+    const fieldSchema = z.nullable(z.string())
     const codec = z.codec(wireSchema, fieldSchema, {
       encode: (val: string | null) => ({
         value: val,
@@ -260,7 +260,7 @@ describe('zodToConvex native z.codec() handling', () => {
       decode: (wire: { value: string }) => wire.value
     })
 
-    const optionalCodec = codec.optional()
+    const optionalCodec = z.optional(codec)
     const validator = zodToConvex(optionalCodec)
 
     // Optional codec should be v.optional(wireSchemaValidator)
@@ -275,7 +275,7 @@ describe('zodToConvex native z.codec() handling', () => {
       decode: (wire: { value: string }) => wire.value
     })
 
-    const nullableCodec = codec.nullable()
+    const nullableCodec = z.nullable(codec)
     const validator = zodToConvex(nullableCodec)
 
     // Nullable codec should be v.union(wireSchemaValidator, v.null())
