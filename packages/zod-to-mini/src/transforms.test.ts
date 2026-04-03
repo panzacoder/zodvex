@@ -155,28 +155,51 @@ describe('transformClassRefs', () => {
 })
 
 describe('transformMethods — object methods', () => {
-  it('.partial() → z.partial(schema)', () => {
-    expect(transform('schema.partial()')).toBe('z.partial(schema)')
+  it('.partial() on z.object() → z.partial(schema)', () => {
+    expect(transform('z.object({ a: z.string() }).partial()')).toBe('z.partial(z.object({ a: z.string() }))')
   })
 
-  it('.extend(shape) → z.extend(schema, shape)', () => {
-    expect(transform('schema.extend({ foo: z.string() })')).toBe('z.extend(schema, { foo: z.string() })')
+  it('.extend(shape) on z.object() → z.extend(schema, shape)', () => {
+    expect(transform('z.object({ a: z.string() }).extend({ foo: z.string() })')).toBe('z.extend(z.object({ a: z.string() }), { foo: z.string() })')
   })
 
-  it('.pick(keys) → z.pick(schema, keys)', () => {
-    expect(transform('schema.pick({ name: true })')).toBe('z.pick(schema, { name: true })')
+  it('.pick(keys) on z.object() → z.pick(schema, keys)', () => {
+    expect(transform('z.object({ a: z.string() }).pick({ a: true })')).toBe('z.pick(z.object({ a: z.string() }), { a: true })')
   })
 
-  it('.omit(keys) → z.omit(schema, keys)', () => {
-    expect(transform('schema.omit({ age: true })')).toBe('z.omit(schema, { age: true })')
+  it('.omit(keys) on z.object() → z.omit(schema, keys)', () => {
+    expect(transform('z.object({ a: z.string(), b: z.number() }).omit({ b: true })')).toBe('z.omit(z.object({ a: z.string(), b: z.number() }), { b: true })')
   })
 
-  it('.catchall(schema) → z.catchall(schema, catchallSchema)', () => {
-    expect(transform('obj.catchall(z.string())')).toBe('z.catchall(obj, z.string())')
+  it('.catchall(schema) on z.object() → z.catchall(schema, catchallSchema)', () => {
+    expect(transform('z.object({ a: z.string() }).catchall(z.string())')).toBe('z.catchall(z.object({ a: z.string() }), z.string())')
   })
 
   it('.default(val) → z._default(schema, val)', () => {
     expect(transform('z.string().default("hello")')).toBe('z._default(z.string(), "hello")')
+  })
+})
+
+describe('type-aware ambiguous methods', () => {
+  it('does NOT transform codec.pick() without type checker (ambiguous)', () => {
+    // Without type info, ambiguous methods require isLikelySchemaExpr
+    expect(transform('codec.pick({ name: true })')).toBe('codec.pick({ name: true })')
+  })
+
+  it('does NOT transform myObj.extend() without type checker (ambiguous)', () => {
+    expect(transform('myObj.extend({ foo: 1 })')).toBe('myObj.extend({ foo: 1 })')
+  })
+
+  it('still transforms z.object().pick() without type checker (schema expr)', () => {
+    expect(transform('z.object({ a: z.string() }).pick({ a: true })')).toBe('z.pick(z.object({ a: z.string() }), { a: true })')
+  })
+
+  it('still transforms schema.pipe() unconditionally', () => {
+    expect(transform('schema.pipe(z.number())')).toBe('z.pipe(schema, z.number())')
+  })
+
+  it('still transforms schema.brand() unconditionally', () => {
+    expect(transform('schema.brand("Email")')).toBe('z.brand(schema, "Email")')
   })
 })
 
@@ -287,7 +310,9 @@ describe('transformCode', () => {
     expect(result.code).toContain('.check(z.int())')
     expect(result.code).toContain('.check(z.positive())')
     expect(result.code).toContain('z._default(')
-    expect(result.code).toContain('z.extend(z.partial(UserSchema)')
+    // Without type checker, bare identifiers like UserSchema are not recognized as schemas
+    // so ambiguous methods (.partial(), .extend()) are left untransformed
+    expect(result.code).toContain('UserSchema.partial().extend({ id: z.string() })')
     expect(result.code).toContain('schema.check(z.describe("validated"))')
   })
 

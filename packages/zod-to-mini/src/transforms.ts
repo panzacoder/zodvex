@@ -4,7 +4,7 @@
  * Each transform handles one category of method-to-function conversion.
  * Transforms are applied repeatedly until no more changes are made (fixed-point).
  */
-import { Project, type SourceFile, SyntaxKind, type CallExpression, type PropertyAccessExpression } from 'ts-morph'
+import { Project, type SourceFile, SyntaxKind, type CallExpression, type PropertyAccessExpression, type TypeChecker } from 'ts-morph'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -130,6 +130,24 @@ function isLikelySchemaExpr(obj: string): boolean {
   return false
 }
 
+/**
+ * Uses the TypeScript type checker to determine if the receiver of a method call
+ * is a Zod schema. Checks for the `_zod` property which exists on every Zod schema
+ * instance (both full zod and zod/mini).
+ */
+function isZodSchemaByType(call: CallExpression, typeChecker: TypeChecker): boolean {
+  const expr = call.getExpression()
+  if (expr.getKind() !== SyntaxKind.PropertyAccessExpression) return false
+  const receiver = (expr as PropertyAccessExpression).getExpression()
+
+  try {
+    const type = typeChecker.getTypeAtLocation(receiver)
+    return type.getProperties().some(p => p.getName() === '_zod')
+  } catch {
+    return false
+  }
+}
+
 /** Methods that need renaming for string context */
 const STRING_RENAME: Record<string, string> = {
   min: 'minLength',
@@ -198,11 +216,14 @@ export function transformChecks(file: SourceFile): number {
 // schema.brand(tag) → z.brand(schema, tag)
 // ---------------------------------------------------------------------------
 
-/** Methods that become z.methodName(schema, ...args) */
-const TOP_LEVEL_METHODS = [
-  'pipe', 'brand',
-  'partial', 'extend', 'catchall', 'omit', 'pick',
-] as const
+/** Methods that become z.methodName(schema, ...args) — safe to transform unconditionally */
+const UNCONDITIONAL_TOP_LEVEL = ['pipe', 'brand'] as const
+
+/** Methods that become z.methodName(schema, ...args) — only transform when receiver is
+ *  confirmed as a Zod schema. These method names collide with non-Zod APIs
+ *  (e.g., ConvexCodec.pick(), Lodash.extend()). Without type info, we fall back to
+ *  the isLikelySchemaExpr heuristic. */
+const AMBIGUOUS_TOP_LEVEL = ['partial', 'extend', 'catchall', 'omit', 'pick'] as const
 
 /** schema.default(val) → z._default(schema, val) — underscore-prefixed in mini */
 const RENAMED_METHODS = new Map<string, string>([
@@ -215,7 +236,7 @@ const TRANSFORM_METHOD = 'transform'
 /** Methods that become schema.check(z.methodName(...args)) */
 const CHECK_WRAP_METHODS = ['refine', 'superRefine', 'describe'] as const
 
-export function transformMethods(file: SourceFile): number {
+export function transformMethods(file: SourceFile, typeChecker?: TypeChecker): number {
   let count = 0
   const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).reverse()
 
@@ -232,8 +253,21 @@ export function transformMethods(file: SourceFile): number {
 
     const args = call.getArguments().map(a => a.getText())
 
-    // Top-level function form: schema.method(args) → z.method(schema, args)
-    if ((TOP_LEVEL_METHODS as readonly string[]).includes(method)) {
+    // Unconditional top-level: always safe to transform (no name collisions)
+    if ((UNCONDITIONAL_TOP_LEVEL as readonly string[]).includes(method)) {
+      const argsStr = args.length > 0 ? `, ${args.join(', ')}` : ''
+      call.replaceWithText(`z.${method}(${obj}${argsStr})`)
+      count++
+      continue
+    }
+
+    // Ambiguous top-level: only transform when receiver is a Zod schema.
+    if ((AMBIGUOUS_TOP_LEVEL as readonly string[]).includes(method)) {
+      const isSchema = typeChecker
+        ? isZodSchemaByType(call, typeChecker)
+        : isLikelySchemaExpr(obj)
+      if (!isSchema) continue
+
       const argsStr = args.length > 0 ? `, ${args.join(', ')}` : ''
       call.replaceWithText(`z.${method}(${obj}${argsStr})`)
       count++
@@ -472,7 +506,7 @@ export interface TransformResult {
   totalChanges: number
 }
 
-export function transformFile(file: SourceFile): TransformResult {
+export function transformFile(file: SourceFile, typeChecker?: TypeChecker): TransformResult {
   const filePath = file.getFilePath()
   let constructorReplacements = 0
   let wrappers = 0
@@ -487,7 +521,7 @@ export function transformFile(file: SourceFile): TransformResult {
     const cr = transformConstructorReplacements(file)
     const w = transformWrappers(file)
     const c = transformChecks(file)
-    const m = transformMethods(file)
+    const m = transformMethods(file, typeChecker)
     constructorReplacements += cr
     wrappers += w
     checks += c
@@ -528,15 +562,30 @@ export function transformFile(file: SourceFile): TransformResult {
  * unhandled code pattern), the original code is returned unchanged. This ensures
  * the vite plugin never crashes the build — the file simply runs un-transformed.
  */
-export function transformCode(code: string, options?: { filename?: string }): { code: string; changed: boolean } {
+export function transformCode(
+  code: string,
+  options?: { filename?: string; project?: Project }
+): { code: string; changed: boolean } {
   try {
-    const project = new Project({
+    const project = options?.project ?? new Project({
       useInMemoryFileSystem: true,
       compilerOptions: { strict: false },
     })
-    const file = project.createSourceFile(options?.filename ?? 'transform.ts', code)
-    const result = transformFile(file)
+    const filename = options?.filename ?? 'transform.ts'
+    const file = project.createSourceFile(filename, code, { overwrite: true })
+
+    const typeChecker = options?.project
+      ? project.getTypeChecker()
+      : undefined
+
+    const result = transformFile(file, typeChecker)
     const transformed = file.getFullText()
+
+    // Clean up the source file from the project if we're reusing it
+    if (options?.project) {
+      project.removeSourceFile(file)
+    }
+
     return {
       code: transformed,
       changed: result.totalChanges > 0,
