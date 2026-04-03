@@ -205,9 +205,9 @@ const TOP_LEVEL_METHODS = [
 ] as const
 
 /** schema.default(val) → z._default(schema, val) — underscore-prefixed in mini */
-const RENAMED_METHODS: Record<string, string> = {
-  'default': '_default',
-}
+const RENAMED_METHODS = new Map<string, string>([
+  ['default', '_default'],
+])
 
 /** schema.transform(fn) → z.pipe(schema, z.transform(fn)) */
 const TRANSFORM_METHOD = 'transform'
@@ -241,8 +241,8 @@ export function transformMethods(file: SourceFile): number {
     }
 
     // Renamed methods: schema.default(val) → z._default(schema, val)
-    if (method in RENAMED_METHODS) {
-      const newName = RENAMED_METHODS[method]
+    if (RENAMED_METHODS.has(method)) {
+      const newName = RENAMED_METHODS.get(method)!
       const argsStr = args.length > 0 ? `, ${args.join(', ')}` : ''
       call.replaceWithText(`z.${newName}(${obj}${argsStr})`)
       count++
@@ -265,9 +265,60 @@ export function transformMethods(file: SourceFile): number {
       continue
     }
 
-    // schema.passthrough() → z.looseObject (deprecated, needs manual rewrite)
-    // schema.strict() → z.strictObject (deprecated, needs manual rewrite)
-    // These change the constructor, not a wrapper — can't auto-convert
+  }
+
+  return count
+}
+
+// ---------------------------------------------------------------------------
+// Transform: constructor-replacing methods
+// z.object(shape).passthrough() → z.looseObject(shape)
+// z.object(shape).strict() → z.strictObject(shape)
+//
+// These change the constructor, so the object expression MUST be z.object(shape).
+// We extract the shape argument from z.object() and emit the replacement constructor.
+// ---------------------------------------------------------------------------
+
+const CONSTRUCTOR_REPLACEMENTS: Record<string, string> = {
+  passthrough: 'looseObject',
+  strict: 'strictObject',
+}
+
+export function transformConstructorReplacements(file: SourceFile): number {
+  let count = 0
+  const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).reverse()
+
+  for (const call of calls) {
+    if (call.wasForgotten()) continue
+    const method = getMethodName(call)
+    if (!method) continue
+
+    const obj = getCallObject(call)
+    if (!obj) continue
+
+    // z.object(shape).passthrough() → z.looseObject(shape)
+    // z.object(shape).strict() → z.strictObject(shape)
+    if (method in CONSTRUCTOR_REPLACEMENTS && call.getArguments().length === 0) {
+      // Must be z.object(shape) — allow optional whitespace between z and .object(
+      const match = obj.match(/^z\s*\.object\(([\s\S]*)\)$/)
+      if (!match) continue
+
+      const shape = match[1]
+      const replacement = CONSTRUCTOR_REPLACEMENTS[method]
+      call.replaceWithText(`z.${replacement}(${shape})`)
+      count++
+      continue
+    }
+
+    // z.string().datetime(opts?) → z.iso.datetime(opts?)
+    // In zod/mini, .datetime() is not a method on string — it's z.iso.datetime().
+    if (method === 'datetime' && /^z\s*\.string\(\s*\)$/.test(obj)) {
+      const args = call.getArguments().map(a => a.getText())
+      const argsStr = args.length > 0 ? args.join(', ') : ''
+      call.replaceWithText(`z.iso.datetime(${argsStr})`)
+      count++
+      continue
+    }
   }
 
   return count
@@ -275,17 +326,11 @@ export function transformMethods(file: SourceFile): number {
 
 // ---------------------------------------------------------------------------
 // Warnings: methods that need manual attention
-// .passthrough() / .strict() are deprecated → z.looseObject() / z.strictObject()
-//   These change the schema constructor, not just wrap it.
-// .datetime() → z.iso.datetime() — different namespace path
 // ---------------------------------------------------------------------------
 
 /** Methods that need manual attention — not auto-convertible */
 const WARN_METHODS = [
-  'passthrough',  // deprecated → z.looseObject()
-  'strict',       // deprecated → z.strictObject()
   'merge',        // use z.extend() or spread
-  'datetime',     // → z.iso.datetime() (different namespace)
 ] as const
 
 export function findObjectOnlyMethods(file: SourceFile): Array<{ line: number; method: string; text: string }> {
@@ -417,6 +462,7 @@ export function transformClassRefs(file: SourceFile): number {
 
 export interface TransformResult {
   filePath: string
+  constructorReplacements: number
   wrappers: number
   checks: number
   methods: number
@@ -428,6 +474,7 @@ export interface TransformResult {
 
 export function transformFile(file: SourceFile): TransformResult {
   const filePath = file.getFilePath()
+  let constructorReplacements = 0
   let wrappers = 0
   let checks = 0
   let methods = 0
@@ -435,13 +482,17 @@ export function transformFile(file: SourceFile): TransformResult {
   // Fixed-point loop: transforms may create new opportunities
   // (e.g., unwrapping .optional() reveals .email() underneath)
   for (let i = 0; i < 10; i++) {
+    // Constructor replacements FIRST — they change z.object(shape).passthrough()
+    // into z.looseObject(shape), which may then have .optional() etc. on the outside
+    const cr = transformConstructorReplacements(file)
     const w = transformWrappers(file)
     const c = transformChecks(file)
     const m = transformMethods(file)
+    constructorReplacements += cr
     wrappers += w
     checks += c
     methods += m
-    if (w + c + m === 0) break
+    if (cr + w + c + m === 0) break
   }
 
   const classRefs = transformClassRefs(file)
@@ -454,13 +505,14 @@ export function transformFile(file: SourceFile): TransformResult {
 
   return {
     filePath,
+    constructorReplacements,
     wrappers,
     checks,
     methods,
     imports,
     classRefs,
     objectOnlyWarnings,
-    totalChanges: wrappers + checks + methods + classRefs,
+    totalChanges: constructorReplacements + wrappers + checks + methods + classRefs,
   }
 }
 
@@ -471,17 +523,28 @@ export function transformFile(file: SourceFile): TransformResult {
 /**
  * String-in/string-out transform wrapper.
  * Creates an in-memory ts-morph project, applies all transforms, returns the result.
+ *
+ * If ts-morph throws during transformation (e.g., a manipulation error from an
+ * unhandled code pattern), the original code is returned unchanged. This ensures
+ * the vite plugin never crashes the build — the file simply runs un-transformed.
  */
 export function transformCode(code: string, options?: { filename?: string }): { code: string; changed: boolean } {
-  const project = new Project({
-    useInMemoryFileSystem: true,
-    compilerOptions: { strict: false },
-  })
-  const file = project.createSourceFile(options?.filename ?? 'transform.ts', code)
-  const result = transformFile(file)
-  const transformed = file.getFullText()
-  return {
-    code: transformed,
-    changed: result.totalChanges > 0,
+  try {
+    const project = new Project({
+      useInMemoryFileSystem: true,
+      compilerOptions: { strict: false },
+    })
+    const file = project.createSourceFile(options?.filename ?? 'transform.ts', code)
+    const result = transformFile(file)
+    const transformed = file.getFullText()
+    return {
+      code: transformed,
+      changed: result.totalChanges > 0,
+    }
+  } catch (err) {
+    const filename = options?.filename ?? 'unknown'
+    const message = err instanceof Error ? err.message : String(err)
+    console.warn(`[zod-to-mini] Transform failed for ${filename}, returning original code: ${message}`)
+    return { code, changed: false }
   }
 }

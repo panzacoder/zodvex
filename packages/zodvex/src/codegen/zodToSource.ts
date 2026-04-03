@@ -62,11 +62,18 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
 
   // zodvex extensions — detect before generic types
 
-  // zx.id('tableName') — ZodString with description 'convexId:<tableName>'
-  // cast: .description is a runtime getter not typed on $ZodString
-  if (schema instanceof $ZodString && (schema as any).description?.startsWith('convexId:')) {
-    const tableName = (schema as any).description.slice('convexId:'.length)
-    return `zx.id("${tableName}")`
+  // zx.id('tableName') — ZodString with _tableName property (set by zid())
+  // Prefer _tableName check (works in both zod and zod/mini),
+  // fall back to .description check (full zod only)
+  if (schema instanceof $ZodString) {
+    const tableName =
+      (schema as any)._tableName ??
+      ((schema as any).description?.startsWith('convexId:')
+        ? (schema as any).description.slice('convexId:'.length)
+        : undefined)
+    if (tableName) {
+      return `zx.id("${tableName}")`
+    }
   }
 
   // zx.date() — ZodCodec with in=ZodNumber, out=ZodCustom

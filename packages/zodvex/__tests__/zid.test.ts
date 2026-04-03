@@ -23,9 +23,15 @@ describe('zid', () => {
     expect((userId as any)._tableName).toBe('users')
   })
 
-  it('has description for introspection', () => {
+  it('has _tableName for introspection', () => {
     const userId = zid('users')
-    expect(userId.description).toBe('convexId:users')
+    // _tableName works in both full zod and zod/mini
+    expect((userId as any)._tableName).toBe('users')
+    // description is set via z.describe() check, accessible in full zod
+    // but not exposed as a property in zod/mini
+    if (userId.description !== undefined) {
+      expect(userId.description).toBe('convexId:users')
+    }
   })
 
   it('converts to v.id() via zodToConvex', () => {

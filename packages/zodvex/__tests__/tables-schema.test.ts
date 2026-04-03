@@ -29,7 +29,7 @@ describe('zodTable schema namespace', () => {
       expect(Users.schema.docArray).toBeInstanceOf(z.ZodArray)
 
       // Element should be doc schema
-      const element = Users.schema.docArray.element
+      const element = (Users.schema.docArray as z.ZodArray<any>)._zod.def.element
       expect(element).toBe(Users.schema.doc)
     })
 
@@ -195,7 +195,7 @@ describe('zodTable schema namespace', () => {
       expect(Shapes.schema.doc).toBeInstanceOf(z.ZodUnion)
 
       // Each variant should have system fields
-      const options = Shapes.schema.doc.options
+      const options = (Shapes.schema.doc as z.ZodUnion<any>)._zod.def.options
       expect(options[0].shape._id).toBeDefined()
       expect(options[0].shape._creationTime).toBeDefined()
     })

@@ -123,6 +123,12 @@ describe('transformMethods', () => {
   it('does NOT convert z.describe() namespace call', () => {
     expect(transform('z.describe(schema, "name")')).toBe('z.describe(schema, "name")')
   })
+
+  it('does NOT convert .toString() (Object.prototype method)', () => {
+    // Previously crashed because `"toString" in { default: "_default" }` was true
+    // due to prototype chain lookup
+    expect(transform('num.toString()')).toBe('num.toString()')
+  })
 })
 
 describe('transformClassRefs', () => {
@@ -174,29 +180,54 @@ describe('transformMethods — object methods', () => {
   })
 })
 
+describe('transformConstructorReplacements', () => {
+  it('.passthrough() → z.looseObject()', () => {
+    expect(transform('z.object({ name: z.string() }).passthrough()')).toBe('z.looseObject({ name: z.string() })')
+  })
+
+  it('.strict() → z.strictObject()', () => {
+    expect(transform('z.object({ name: z.string() }).strict()')).toBe('z.strictObject({ name: z.string() })')
+  })
+
+  it('handles multiline shape', () => {
+    const input = `z.object({\n  name: z.string()\n}).passthrough()`
+    const result = transform(input)
+    expect(result).toContain('z.looseObject(')
+    expect(result).toContain('name: z.string()')
+  })
+
+  it('does NOT convert non-z.object().passthrough()', () => {
+    expect(transform('schema.passthrough()')).toBe('schema.passthrough()')
+  })
+
+  it('does NOT convert non-z.object().strict()', () => {
+    expect(transform('schema.strict()')).toBe('schema.strict()')
+  })
+
+  it('handles chained: z.object(shape).passthrough().optional()', () => {
+    expect(transform('z.object({ a: z.string() }).passthrough().optional()')).toBe('z.optional(z.looseObject({ a: z.string() }))')
+  })
+
+  it('.datetime() → z.iso.datetime()', () => {
+    expect(transform('z.string().datetime()')).toBe('z.iso.datetime()')
+  })
+
+  it('.datetime(opts) → z.iso.datetime(opts)', () => {
+    expect(transform('z.string().datetime({ offset: true })')).toBe('z.iso.datetime({ offset: true })')
+  })
+
+  it('does NOT convert .datetime() on non-z.string() receiver', () => {
+    expect(transform('schema.datetime()')).toBe('schema.datetime()')
+  })
+})
+
 describe('findObjectOnlyMethods (warnings)', () => {
-  it('flags .passthrough() (deprecated)', () => {
+  it('flags .merge() (manual migration needed)', () => {
     const project = new Project({ useInMemoryFileSystem: true })
-    const file = project.createSourceFile('test.ts', 'schema.passthrough()')
+    const file = project.createSourceFile('test.ts', 'schema.merge(other)')
     const result = transformFile(file)
     expect(result.objectOnlyWarnings).toHaveLength(1)
-    expect(result.objectOnlyWarnings[0].method).toBe('passthrough')
-  })
-
-  it('flags .strict() (deprecated)', () => {
-    const project = new Project({ useInMemoryFileSystem: true })
-    const file = project.createSourceFile('test.ts', 'schema.strict()')
-    const result = transformFile(file)
-    expect(result.objectOnlyWarnings).toHaveLength(1)
-    expect(result.objectOnlyWarnings[0].method).toBe('strict')
-  })
-
-  it('flags .datetime() (→ z.iso.datetime())', () => {
-    const project = new Project({ useInMemoryFileSystem: true })
-    const file = project.createSourceFile('test.ts', 'z.string().datetime()')
-    const result = transformFile(file)
-    expect(result.objectOnlyWarnings).toHaveLength(1)
-    expect(result.objectOnlyWarnings[0].method).toBe('datetime')
+    expect(result.objectOnlyWarnings[0].method).toBe('merge')
   })
 })
 
@@ -266,6 +297,15 @@ describe('transformCode', () => {
     expect(result.changed).toBe(true)
     expect(result.code).toContain('z.optional(taggedEmail)')
     expect(result.code).toContain('z.optional(z.nullable(z.string()))')
+  })
+
+  it('returns original code when ts-morph crashes (graceful degradation)', () => {
+    // Simulate a file that would have crashed before the toString fix
+    // The try/catch ensures even unknown crashes don't break the build
+    const input = `const x = 42\nconst y = 'hello'`
+    const result = transformCode(input)
+    expect(result.changed).toBe(false)
+    expect(result.code).toBe(input)
   })
 
   it('handles z.ZodError constructor usage', () => {

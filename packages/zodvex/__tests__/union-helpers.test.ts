@@ -117,7 +117,7 @@ describe('union helpers', () => {
       const union = createUnionFromOptions(options)
 
       expect(union).toBeInstanceOf(z.ZodUnion)
-      expect(union.options).toHaveLength(2)
+      expect(union._zod.def.options).toHaveLength(2)
     })
 
     it('created union validates correctly', () => {

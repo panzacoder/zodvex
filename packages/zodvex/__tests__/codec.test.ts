@@ -126,7 +126,9 @@ describe('convexCodec', () => {
     })
 
     const codec = convexCodec(schema)
-    const pickedCodec = codec.pick({ name: true, email: true })
+    // Use bracket access to avoid zod-to-mini transform matching .pick() as a Zod method
+    const pickFn = codec['pick'] as typeof codec.pick
+    const pickedCodec = pickFn({ name: true, email: true })
 
     const picked = { name: 'John', email: 'john@example.com' }
 
