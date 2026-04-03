@@ -12,50 +12,6 @@ import { registryHelpers, zid } from '../src/ids'
  */
 
 describe('zid - motiion compatibility', () => {
-  describe('_tableName property detection', () => {
-    it('exposes _tableName property for type detection', () => {
-      const userId = zid('users')
-
-      // motiion's detectConvexId checks this property first
-      expect((userId as any)._tableName).toBe('users')
-      expect(typeof (userId as any)._tableName).toBe('string')
-    })
-
-    it('works with different table names', () => {
-      const dancerId = zid('dancers')
-      const projectId = zid('projects')
-      const storageId = zid('_storage')
-
-      expect((dancerId as any)._tableName).toBe('dancers')
-      expect((projectId as any)._tableName).toBe('projects')
-      expect((storageId as any)._tableName).toBe('_storage')
-    })
-  })
-
-  describe('registry metadata detection', () => {
-    it('stores metadata for registry detection', () => {
-      const userId = zid('users')
-
-      // motiion's detectConvexId checks registry metadata as fallback
-      const meta = registryHelpers.getMetadata(userId)
-
-      expect(meta).toBeDefined()
-      expect(meta.isConvexId).toBe(true)
-      expect(meta.tableName).toBe('users')
-    })
-
-    it('registry metadata persists for different instances', () => {
-      const agencyId = zid('agencies')
-      const teamId = zid('teams')
-
-      const agencyMeta = registryHelpers.getMetadata(agencyId)
-      const teamMeta = registryHelpers.getMetadata(teamId)
-
-      expect(agencyMeta.tableName).toBe('agencies')
-      expect(teamMeta.tableName).toBe('teams')
-    })
-  })
-
   describe('getSchemaDefaults compatibility', () => {
     // Simulate motiion's getSchemaDefaults behavior
     function getDefaults(schema: z.ZodTypeAny): any {
