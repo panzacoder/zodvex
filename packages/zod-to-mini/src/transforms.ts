@@ -4,7 +4,7 @@
  * Each transform handles one category of method-to-function conversion.
  * Transforms are applied repeatedly until no more changes are made (fixed-point).
  */
-import { type SourceFile, SyntaxKind, type CallExpression, type PropertyAccessExpression } from 'ts-morph'
+import { Project, type SourceFile, SyntaxKind, type CallExpression, type PropertyAccessExpression } from 'ts-morph'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -461,5 +461,27 @@ export function transformFile(file: SourceFile): TransformResult {
     classRefs,
     objectOnlyWarnings,
     totalChanges: wrappers + checks + methods + classRefs,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// String-in/string-out convenience wrapper
+// ---------------------------------------------------------------------------
+
+/**
+ * String-in/string-out transform wrapper.
+ * Creates an in-memory ts-morph project, applies all transforms, returns the result.
+ */
+export function transformCode(code: string, options?: { filename?: string }): { code: string; changed: boolean } {
+  const project = new Project({
+    useInMemoryFileSystem: true,
+    compilerOptions: { strict: false },
+  })
+  const file = project.createSourceFile(options?.filename ?? 'transform.ts', code)
+  const result = transformFile(file)
+  const transformed = file.getFullText()
+  return {
+    code: transformed,
+    changed: result.totalChanges > 0,
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Project } from 'ts-morph'
-import { transformFile } from './transforms'
+import { transformFile, transformCode } from './transforms'
 
 function transform(code: string): string {
   const project = new Project({ useInMemoryFileSystem: true })
@@ -228,5 +228,52 @@ describe('combined transforms', () => {
     expect(result).toContain('z.optional(z.string().check(z.email()))')
     expect(result).toContain('z.number().check(z.int()).check(z.positive())')
     expect(result).toContain('z.nullable(z.string())')
+  })
+})
+
+describe('transformCode', () => {
+  it('transforms a string and returns the result', () => {
+    const input = `import { z } from 'zod'\nconst s = z.string().optional()`
+    const result = transformCode(input)
+    expect(result.code).toContain('z.optional(z.string())')
+    expect(result.changed).toBe(true)
+  })
+
+  it('returns changed=false when no transforms apply', () => {
+    const input = `const x = 42`
+    const result = transformCode(input)
+    expect(result.code).toBe(input)
+    expect(result.changed).toBe(false)
+  })
+
+  it('transforms a realistic file with mixed patterns', () => {
+    const input = `import { z } from 'zod'\n\nconst UserSchema = z.object({\n  name: z.string().min(1),\n  email: z.string().email().optional(),\n  age: z.number().int().positive(),\n  bio: z.string().nullable(),\n  role: z.string().default("user"),\n})\n\nconst InsertSchema = UserSchema.partial().extend({ id: z.string() })\n\nfunction validate(schema: z.ZodType) {\n  return schema.describe("validated")\n}\n`
+    const result = transformCode(input)
+    expect(result.changed).toBe(true)
+    expect(result.code).toContain('z.optional(z.string().check(z.email()))')
+    expect(result.code).toContain('z.nullable(z.string())')
+    expect(result.code).toContain('.check(z.minLength(1))')
+    expect(result.code).toContain('.check(z.int())')
+    expect(result.code).toContain('.check(z.positive())')
+    expect(result.code).toContain('z._default(')
+    expect(result.code).toContain('z.extend(z.partial(UserSchema)')
+    expect(result.code).toContain('z.describe(schema, "validated")')
+  })
+
+  it('handles fixture-style code with non-z schema expressions', () => {
+    const input = `import { z } from 'zod'\n\nconst taggedEmail = tagged(z.string())\nconst schema = z.object({\n  email: taggedEmail.optional(),\n  notes: z.string().nullable().optional(),\n})\n`
+    const result = transformCode(input)
+    expect(result.changed).toBe(true)
+    expect(result.code).toContain('z.optional(taggedEmail)')
+    expect(result.code).toContain('z.optional(z.nullable(z.string()))')
+  })
+
+  it('handles z.ZodError constructor usage', () => {
+    const input = `import { z } from 'zod'\n\nfunction makeError() {\n  return new z.ZodError([{ code: 'custom', path: [], message: 'fail' }])\n}\n\nif (err instanceof z.ZodError) { throw err }\n`
+    const result = transformCode(input)
+    expect(result.changed).toBe(true)
+    expect(result.code).toContain('new $ZodError(')
+    expect(result.code).toContain('instanceof $ZodError')
+    expect(result.code).toContain('from "zod/v4/core"')
   })
 })
