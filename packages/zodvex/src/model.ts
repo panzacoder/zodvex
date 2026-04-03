@@ -241,7 +241,7 @@ export function defineZodModel<Name extends string>(
   }
   const updateSchema = z.object({
     _id: zx.id(name),
-    _creationTime: z.number().optional(),
+    _creationTime: z.optional(z.number()),
     ...partialShape
   })
 
@@ -250,7 +250,7 @@ export function defineZodModel<Name extends string>(
   const paginatedDocSchema = z.object({
     page: z.array(docSchema),
     isDone: z.boolean(),
-    continueCursor: z.string().nullable().optional()
+    continueCursor: z.optional(z.nullable(z.string()))
   })
 
   const schema = {
@@ -312,7 +312,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: $ZodType
   const paginatedDocSchema = z.object({
     page: z.array(docSchema),
     isDone: z.boolean(),
-    continueCursor: z.string().nullable().optional()
+    continueCursor: z.optional(z.nullable(z.string()))
   })
 
   // Build update schema: _id required, _creationTime optional, user fields partial
@@ -327,7 +327,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: $ZodType
         }
         return z.object({
           _id: zx.id(name),
-          _creationTime: z.number().optional(),
+          _creationTime: z.optional(z.number()),
           ...partialShape
         })
       }
@@ -341,7 +341,7 @@ function createUnionModel<Name extends string>(name: Name, inputSchema: $ZodType
     }
     updateSchema = z.object({
       _id: zx.id(name),
-      _creationTime: z.number().optional(),
+      _creationTime: z.optional(z.number()),
       ...partialShape
     })
   } else {

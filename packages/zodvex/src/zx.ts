@@ -87,12 +87,12 @@ export type ZxId<TableName extends string> = z.ZodType<GenericId<TableName>> & {
  */
 function id<TableName extends string>(tableName: TableName): ZxId<TableName> {
   // Create base string validator with refinement
-  const baseSchema = z
-    .string()
-    .refine(val => typeof val === 'string' && val.length > 0, {
+  const baseSchema = z.string().check(
+    z.refine(val => typeof val === 'string' && val.length > 0, {
       message: `Invalid ID for table "${tableName}"`
-    })
-    .describe(`convexId:${tableName}`)
+    }),
+    z.describe(`convexId:${tableName}`)
+  )
 
   // Store metadata for registry lookup so mapping can convert to v.id(tableName)
   registryHelpers.setMetadata(baseSchema, {

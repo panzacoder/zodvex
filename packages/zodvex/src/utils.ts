@@ -78,7 +78,7 @@ export function zPaginated<T extends $ZodType>(item: T) {
   return z.object({
     page: z.array(item),
     isDone: z.boolean(),
-    continueCursor: z.string().nullable().optional()
+    continueCursor: z.optional(z.nullable(z.string()))
   })
 }
 
@@ -97,19 +97,19 @@ export function mapDateFieldToNumber(field: $ZodType): $ZodType {
 
   // Optional Date field
   if (field instanceof $ZodOptional && field._zod.def.innerType instanceof $ZodDate) {
-    return z.number().optional()
+    return z.optional(z.number())
   }
 
   // Nullable Date field
   if (field instanceof $ZodNullable && field._zod.def.innerType instanceof $ZodDate) {
-    return z.number().nullable()
+    return z.nullable(z.number())
   }
 
   // Date with default value
   if (field instanceof $ZodDefault) {
     const inner = field._zod.def.innerType
     if (inner instanceof $ZodDate) {
-      return z.number().optional()
+      return z.optional(z.number())
     }
   }
 

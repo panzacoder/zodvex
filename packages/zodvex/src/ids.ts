@@ -33,14 +33,14 @@ export function zid<TableName extends string>(
   tableName: TableName
 ): z.ZodType<GenericId<TableName>> & { _tableName: TableName } {
   // Create base string validator with refinement (no transform or brand)
-  const baseSchema = z
-    .string()
-    .refine(val => typeof val === 'string' && val.length > 0, {
+  const baseSchema = z.string().check(
+    z.refine(val => typeof val === 'string' && val.length > 0, {
       message: `Invalid ID for table "${tableName}"`
-    })
+    }),
     // Add a human-readable marker for client-side introspection utilities
     // used in apps/native (e.g., to detect relationship fields in dynamic forms).
-    .describe(`convexId:${tableName}`)
+    z.describe(`convexId:${tableName}`)
+  )
 
   // Store metadata for registry lookup so mapping can convert to v.id(tableName)
   registryHelpers.setMetadata(baseSchema, {

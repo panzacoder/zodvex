@@ -389,7 +389,7 @@ export function zodTable<
     const paginatedDoc = z.object({
       page: z.array(zDoc),
       isDone: z.boolean(),
-      continueCursor: z.string().nullable().optional()
+      continueCursor: z.optional(z.nullable(z.string()))
     })
 
     // Create partial shape for user fields
@@ -401,7 +401,7 @@ export function zodTable<
     // Create update schema: _id required, _creationTime optional, user fields partial
     const updateSchema = z.object({
       _id: zx.id(name),
-      _creationTime: z.number().optional(),
+      _creationTime: z.optional(z.number()),
       ...partialShape
     })
 
@@ -445,7 +445,7 @@ export function zodTable<
     const paginatedDoc = z.object({
       page: z.array(docSchema),
       isDone: z.boolean(),
-      continueCursor: z.string().nullable().optional()
+      continueCursor: z.optional(z.nullable(z.string()))
     })
 
     // Create update schema: _id required, _creationTime optional, user fields partial
@@ -462,7 +462,7 @@ export function zodTable<
           // Add system fields: _id required, _creationTime optional
           return z.object({
             _id: zx.id(name),
-            _creationTime: z.number().optional(),
+            _creationTime: z.optional(z.number()),
             ...partialShape
           })
         }
@@ -478,7 +478,7 @@ export function zodTable<
       // Add system fields: _id required, _creationTime optional
       updateSchema = z.object({
         _id: zx.id(name),
-        _creationTime: z.number().optional(),
+        _creationTime: z.optional(z.number()),
         ...partialShape
       })
     } else {
