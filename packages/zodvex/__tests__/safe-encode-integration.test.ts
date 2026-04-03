@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { safeEncode } from '../src/normalizeCodecPaths'
 import { stripUndefined } from '../src/utils'
-import { zx } from '../src/zx'
 import { $ZodError } from '../src/zod-core'
+import { zx } from '../src/zx'
 
 /**
  * Integration tests for safeEncode with realistic codec patterns.
