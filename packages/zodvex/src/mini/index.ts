@@ -1,7 +1,3 @@
-import { z } from 'zod/mini'
-import { setZodFactory } from '../zod-core'
-setZodFactory(z as any)
-
 /**
  * zodvex/mini - Client-safe validators typed for zod-mini compatibility
  *
