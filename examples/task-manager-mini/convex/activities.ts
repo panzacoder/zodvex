@@ -7,7 +7,7 @@ export const get = zq({
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id)
   },
-  returns: ActivityModel.schema.doc.nullable(),
+  returns: z.nullable(ActivityModel.schema.doc),
 })
 
 export const listByActor = zq({

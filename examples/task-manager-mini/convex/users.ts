@@ -9,7 +9,7 @@ export const get = zq({
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id);
   },
-  returns: UserModel.schema.doc.nullable(),
+  returns: z.nullable(UserModel.schema.doc),
 });
 
 export const getByEmail = zq({
@@ -20,7 +20,7 @@ export const getByEmail = zq({
       .withIndex("by_email", (q) => q.eq("email.value", email.value))
       .unique();
   },
-  returns: UserModel.schema.doc.nullable(),
+  returns: z.nullable(UserModel.schema.doc),
 });
 
 export const create = zm({
