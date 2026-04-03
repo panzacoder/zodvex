@@ -4,6 +4,8 @@
 //
 // Per Zod's library author guidance (https://zod.dev/library-authors),
 // importing from 'zod/v4/core' ensures zodvex works with both zod and zod/mini.
+import { z as _zodFull } from 'zod'
+
 export {
   $ZodAny,
   $ZodArray,
@@ -68,3 +70,33 @@ export {
   safeParse,
   safeParseAsync
 } from 'zod/v4/core'
+
+// ---------------------------------------------------------------------------
+// Swappable z namespace — the entrypoint (core/ or mini/) calls setZodFactory()
+// at module load time, before any schema construction runs.
+// ---------------------------------------------------------------------------
+import type { z as ZodNamespace } from 'zod'
+
+/**
+ * The z namespace type. Compatible with both `zod` and `zod/mini` since
+ * mini exports the same construction functions (object, array, string, etc.).
+ */
+export type ZodFactory = typeof ZodNamespace
+
+let _z: ZodFactory = _zodFull
+
+/**
+ * Set the Zod namespace used for all internal schema construction.
+ * Called once by the entrypoint module (zodvex/core or zodvex/mini).
+ */
+export function setZodFactory(z: ZodFactory): void {
+  _z = z
+}
+
+/**
+ * Get the current Zod namespace. Falls back to full `zod` if no
+ * entrypoint has called setZodFactory() yet (backwards compatibility).
+ */
+export function getZ(): ZodFactory {
+  return _z
+}
