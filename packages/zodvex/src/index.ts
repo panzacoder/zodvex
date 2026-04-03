@@ -1,3 +1,7 @@
+import { z } from 'zod'
+import { setZodFactory } from './zod-core'
+setZodFactory(z)
+
 /**
  * zodvex - Full library (backwards compatible)
  *
