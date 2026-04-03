@@ -54,28 +54,34 @@ function applyVariant(source: string, variant: GenerateConfig['variant']): strin
   if (variant === 'baseline') return source
 
   if (variant === 'zod-mini') {
-    // Replace zod import with zod/mini and adapt API differences.
-    // zod-mini uses z.optional(x) instead of x.optional(), same for z.nullable(x).
-    // z.discriminatedUnion() → z.union() (mini doesn't have discriminatedUnion).
     let result = source
+      // Switch to zod/mini and zodvex/mini imports
       .replace("import { z } from 'zod'", "import { z } from 'zod/mini'")
+      .replace("from 'zodvex/core'", "from 'zodvex/mini'")
       // discriminatedUnion → union (mini doesn't have discriminatedUnion)
       .replace(/z\.discriminatedUnion\('[^']+',\s*/g, 'z.union(')
 
     // Rewrite .optional() and .nullable() chaining → z.optional()/z.nullable() wrapping.
-    // zod-mini uses z.optional(x) not x.optional().
-    // We process line by line. Two patterns:
-    // 1. Property value: `  key: z.string().optional(),` → `  key: z.optional(z.string()),`
-    // 2. Closing brace: `  }).optional(),` → closing handled by wrapping the value
-    result = result.split('\n').map(line => {
-      // Pattern 1: property line like `  key: <expr>.optional(),`
-      // Capture: indent, key, colon, value expression, .optional()/.nullable(), trailing comma
-      line = line.replace(/^(\s*\w+:\s*)(.+)\.optional\(\)(,?)$/, '$1z.optional($2)$3')
-      line = line.replace(/^(\s*\w+:\s*)(.+)\.nullable\(\)(,?)$/, '$1z.nullable($2)$3')
-      // Note: multiline z.object({...}).optional() is avoided in templates by
-      // extracting nested objects into named variables (e.g., {{NAME}}Metadata).
-      return line
-    }).join('\n')
+    // zod-mini uses functional form: z.optional(x) not x.optional().
+    //
+    // Three expression categories that appear in templates:
+    //   1. z.func(args) / zx.func(args) — e.g., z.string(), zx.id('users'), z.object(Fields)
+    //   2. Identifier — e.g., Model0004Metadata, Model0004Config
+    //   3. expr.prop.prop — e.g., Model0004Model.schema.doc
+
+    // Category 1: z.func(args).optional() / zx.func(args).optional()
+    // [^)]* handles single-level parens (no nesting — templates extract nested objects to variables)
+    result = result.replace(/(zx?\.\w+\([^)]*\))\.optional\(\)/g, 'z.optional($1)')
+    result = result.replace(/(zx?\.\w+\([^)]*\))\.nullable\(\)/g, 'z.nullable($1)')
+
+    // Category 3: dotted.path.expr.optional() — e.g., Model.schema.doc.nullable()
+    // Must run before Category 2 so the full dotted path is captured, not just the last segment.
+    result = result.replace(/(\b[A-Z]\w+(?:\.\w+)+)\.optional\(\)/g, 'z.optional($1)')
+    result = result.replace(/(\b[A-Z]\w+(?:\.\w+)+)\.nullable\(\)/g, 'z.nullable($1)')
+
+    // Category 2: Identifier.optional() — e.g., ModelMetadata.optional()
+    result = result.replace(/(\b[A-Z]\w+)\.optional\(\)/g, 'z.optional($1)')
+    result = result.replace(/(\b[A-Z]\w+)\.nullable\(\)/g, 'z.nullable($1)')
 
     return result
   }
