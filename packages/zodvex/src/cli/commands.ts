@@ -11,7 +11,7 @@ import {
 /**
  * One-shot codegen. Discovers modules, generates files.
  */
-export async function generate(convexDir?: string): Promise<void> {
+export async function generate(convexDir?: string, options?: { mini?: boolean }): Promise<void> {
   const resolved = resolveConvexDir(convexDir)
   const zodvexDir = path.join(resolved, '_zodvex')
 
@@ -28,9 +28,10 @@ export async function generate(convexDir?: string): Promise<void> {
     result.models,
     result.codecs,
     result.modelCodecs,
-    result.functionCodecs
+    result.functionCodecs,
+    { mini: options?.mini }
   )
-  const clientContent = generateClientFile()
+  const clientContent = generateClientFile({ mini: options?.mini })
   const serverContent = generateServerFile()
 
   fs.mkdirSync(zodvexDir, { recursive: true })
@@ -53,11 +54,11 @@ export async function generate(convexDir?: string): Promise<void> {
 /**
  * Watch mode. Runs generate() once, then watches for changes.
  */
-export async function dev(convexDir?: string): Promise<void> {
+export async function dev(convexDir?: string, options?: { mini?: boolean }): Promise<void> {
   const resolved = resolveConvexDir(convexDir)
 
   console.log('[zodvex] Starting watch mode...')
-  await generate(resolved)
+  await generate(resolved, options)
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -76,7 +77,7 @@ export async function dev(convexDir?: string): Promise<void> {
     debounceTimer = setTimeout(async () => {
       console.log('[zodvex] Regenerating...')
       try {
-        await generate(resolved)
+        await generate(resolved, options)
       } catch (err) {
         console.error('[zodvex] Generation failed:', (err as Error).message)
       }

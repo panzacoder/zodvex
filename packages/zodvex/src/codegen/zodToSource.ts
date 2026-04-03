@@ -36,6 +36,8 @@ export type ZodToSourceContext = {
   neededCodecImports: Map<string, Set<string>>
   /** Codecs found during serialization that aren't in the codecMap */
   undiscoverableCodecs: UndiscoverableCodec[]
+  /** Emit functional forms (z.optional(x)) instead of chaining (x.optional()) for zod/mini */
+  mini?: boolean
 }
 
 /**
@@ -50,10 +52,12 @@ export type ZodToSourceContext = {
 export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string {
   // Peel off wrappers first (optional, nullable)
   if (schema instanceof $ZodOptional) {
-    return `${zodToSource(schema._zod.def.innerType, ctx)}.optional()`
+    const inner = zodToSource(schema._zod.def.innerType, ctx)
+    return ctx?.mini ? `z.optional(${inner})` : `${inner}.optional()`
   }
   if (schema instanceof $ZodNullable) {
-    return `${zodToSource(schema._zod.def.innerType, ctx)}.nullable()`
+    const inner = zodToSource(schema._zod.def.innerType, ctx)
+    return ctx?.mini ? `z.nullable(${inner})` : `${inner}.nullable()`
   }
 
   // zodvex extensions — detect before generic types

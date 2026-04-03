@@ -2,15 +2,17 @@
 import { dev, generate } from './commands'
 
 const command = process.argv[2]
-const convexDir = process.argv[3]
+const miniFlag = process.argv.includes('--mini')
+// The convex dir arg needs to skip flags
+const convexDir = process.argv.slice(3).find(a => !a.startsWith('--'))
 
 async function main() {
   switch (command) {
     case 'generate':
-      await generate(convexDir)
+      await generate(convexDir, { mini: miniFlag })
       break
     case 'dev':
-      await dev(convexDir)
+      await dev(convexDir, { mini: miniFlag })
       break
     case 'init': {
       // Dynamic import to keep init dependencies lazy
@@ -68,12 +70,15 @@ function printHelp() {
 zodvex - Convex codegen for Zod schemas
 
 Usage:
-  zodvex generate [convex-dir]  Generate schema and validator files
-  zodvex dev [convex-dir]       Watch mode — regenerate on changes
-  zodvex init                   Set up zodvex in an existing Convex project
-  zodvex migrate [dir]           Migrate pre-0.6 APIs (renames + import fixes)
-  zodvex migrate [dir] --dry-run Preview changes without writing
-  zodvex help                   Show this help message
+  zodvex generate [convex-dir] [--mini]  Generate schema and validator files
+  zodvex dev [convex-dir] [--mini]       Watch mode — regenerate on changes
+  zodvex init                            Set up zodvex in an existing Convex project
+  zodvex migrate [dir]                   Migrate pre-0.6 APIs (renames + import fixes)
+  zodvex migrate [dir] --dry-run         Preview changes without writing
+  zodvex help                            Show this help message
+
+Flags:
+  --mini  Emit zod/mini-compatible output (functional forms, zodvex/mini imports)
 `)
 }
 

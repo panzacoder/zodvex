@@ -54,23 +54,25 @@ export type CodecForGeneration = {
 
 /**
  * Peels .optional() and .nullable() wrappers from a schema and checks
- * the identity map at each level. Returns the matched ref plus the
- * suffix string to reconstruct the wrappers in source output.
+ * the identity map at each level. Returns the matched ref plus a
+ * function that wraps an inner source string with the appropriate
+ * optional/nullable syntax (chaining or functional for mini mode).
  */
 function tryUnwrapToIdentity(
   schema: $ZodType,
-  identityMap: Map<$ZodType, SchemaRef>
-): { ref: SchemaRef; suffix: string } | null {
+  identityMap: Map<$ZodType, SchemaRef>,
+  mini?: boolean
+): { ref: SchemaRef; wrapSource: (inner: string) => string } | null {
   let current = schema
-  const suffixes: string[] = []
+  const wrappers: Array<'optional' | 'nullable'> = []
   const maxDepth = 5
 
   for (let i = 0; i < maxDepth; i++) {
     if (current instanceof $ZodOptional) {
-      suffixes.push('.optional()')
+      wrappers.push('optional')
       current = current._zod.def.innerType
     } else if (current instanceof $ZodNullable) {
-      suffixes.push('.nullable()')
+      wrappers.push('nullable')
       current = current._zod.def.innerType
     } else {
       break
@@ -78,8 +80,18 @@ function tryUnwrapToIdentity(
 
     const ref = identityMap.get(current)
     if (ref) {
-      // Reverse: suffixes were collected outermost-first, but source reads innermost-first
-      return { ref, suffix: suffixes.reverse().join('') }
+      // Wrappers collected outermost-first, apply innermost-first
+      const reversed = [...wrappers].reverse()
+      return {
+        ref,
+        wrapSource: (inner: string) => {
+          let result = inner
+          for (const w of reversed) {
+            result = mini ? `z.${w}(${result})` : `${result}.${w}()`
+          }
+          return result
+        }
+      }
     }
   }
 
@@ -163,7 +175,8 @@ export function generateApiFile(
   models: DiscoveredModel[],
   codecs?: CodecForGeneration[],
   modelCodecs?: ModelEmbeddedCodec[],
-  functionCodecs?: FunctionEmbeddedCodec[]
+  functionCodecs?: FunctionEmbeddedCodec[],
+  options?: { mini?: boolean }
 ): GeneratedFile {
   // Build identity map: runtime schema object → model reference string
   const identityMap = new Map<$ZodType, SchemaRef>()
@@ -241,7 +254,8 @@ export function generateApiFile(
   const zodToSourceCtx: ZodToSourceContext = {
     codecMap,
     neededCodecImports: new Map(),
-    undiscoverableCodecs: []
+    undiscoverableCodecs: [],
+    mini: options?.mini
   }
 
   // Track which imports we need
@@ -261,10 +275,11 @@ export function generateApiFile(
     }
 
     // 2. Wrapper-aware identity match (peel .nullable()/.optional())
-    const unwrapped = tryUnwrapToIdentity(s, identityMap)
+    const unwrapped = tryUnwrapToIdentity(s, identityMap, options?.mini)
     if (unwrapped) {
       neededModelImports.add(unwrapped.ref.exportName)
-      return `${unwrapped.ref.exportName}.schema.${unwrapped.ref.schemaKey}${unwrapped.suffix}`
+      const inner = `${unwrapped.ref.exportName}.schema.${unwrapped.ref.schemaKey}`
+      return unwrapped.wrapSource(inner)
     }
 
     // 3. Partial-aware match (detect .partial() of a model schema)
@@ -305,14 +320,16 @@ export function generateApiFile(
 
   // Build imports
   const imports: string[] = []
-  if (needsZod) imports.push("import { z } from 'zod'")
+  const zodImport = options?.mini ? 'zod/mini' : 'zod'
+  if (needsZod) imports.push(`import { z } from '${zodImport}'`)
 
-  // Build single zodvex/core import (zx, extractCodec)
+  // Build single zodvex/core (or zodvex/mini) import (zx, extractCodec)
+  const zodvexImport = options?.mini ? 'zodvex/mini' : 'zodvex/core'
   const coreImports: string[] = []
   if (needsZx) coreImports.push('zx')
   if (usedModelCodecVars.length > 0) coreImports.push('extractCodec')
   if (coreImports.length > 0) {
-    imports.push(`import { ${coreImports.join(', ')} } from 'zodvex/core'`)
+    imports.push(`import { ${coreImports.join(', ')} } from '${zodvexImport}'`)
   }
 
   for (const exportName of neededModelImports) {
@@ -338,7 +355,13 @@ export function generateApiFile(
 
   const js = `${HEADER}\n${importSection}${codecVarSection}export const zodvexRegistry = {\n${entries},\n}\n`
 
-  const dts = `${HEADER}
+  const dts = options?.mini
+    ? `${HEADER}
+import type { $ZodType } from 'zod/v4/core'
+
+export declare const zodvexRegistry: Record<string, { args: $ZodType; returns: $ZodType | undefined }>
+`
+    : `${HEADER}
 import type { ZodTypeAny } from 'zod'
 
 export declare const zodvexRegistry: Record<string, { args: ZodTypeAny; returns: ZodTypeAny | undefined }>
@@ -380,13 +403,14 @@ export type ActionCtx = ZodvexActionCtx<DataModel>
  * Generates the client file content — pre-bound hooks and client factory.
  * Returns { js, dts } for .js + .d.ts output.
  */
-export function generateClientFile(): GeneratedFile {
+export function generateClientFile(options?: { mini?: boolean }): GeneratedFile {
+  const zodvexCoreImport = options?.mini ? 'zodvex/mini' : 'zodvex/core'
   // --- JS ---
   const jsImports = [
     "import { createZodvexHooks } from 'zodvex/react'",
     "import { createZodvexReactClient } from 'zodvex/react'",
     "import { createZodvexClient } from 'zodvex/client'",
-    "import { createBoundaryHelpers } from 'zodvex/core'",
+    `import { createBoundaryHelpers } from '${zodvexCoreImport}'`,
     "import { zodvexRegistry } from './api.js'"
   ]
 
@@ -409,7 +433,7 @@ export function generateClientFile(): GeneratedFile {
     "import type { ZodvexHooks } from 'zodvex/react'",
     "import type { ZodvexClientOptions, ZodvexClient } from 'zodvex/client'",
     "import type { ZodvexReactClientOptions, ZodvexReactClient } from 'zodvex/react'",
-    "import type { BoundaryHelpers } from 'zodvex/core'"
+    `import type { BoundaryHelpers } from '${zodvexCoreImport}'`
   ]
 
   const dtsDeclarations = [
