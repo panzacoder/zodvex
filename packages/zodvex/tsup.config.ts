@@ -1,26 +1,62 @@
 import { defineConfig } from 'tsup'
+import type { Plugin } from 'esbuild'
 
-export default defineConfig({
-  entry: [
-    'src/index.ts',
-    'src/core/index.ts',
-    'src/mini/index.ts',
-    'src/server/index.ts',
-    'src/cli/index.ts',
-    'src/codegen/index.ts',
-    'src/react/index.ts',
-    'src/client/index.ts',
-    'src/form/mantine/index.ts',
-  ],
-  format: ['esm'],
+const shared = {
+  format: ['esm'] as const,
   // DTS handled by tsc in build script - tsup's dts doesn't output individual files
   dts: false,
   splitting: false,
   sourcemap: true,
-  clean: true,
   treeshake: true,
   minify: false,
-  external: ['zod', 'convex', 'convex-helpers', 'bun', 'react', '@mantine/form', 'mantine-form-zod-resolver'],
-  outDir: 'dist',
-  target: 'node18'
-})
+  target: 'node18' as const,
+}
+
+const external = ['zod', 'zod/v4/core', 'convex', 'convex-helpers', 'bun', 'react', '@mantine/form', 'mantine-form-zod-resolver']
+
+/**
+ * esbuild plugin that rewrites `import ... from 'zod'` to `import ... from 'zod/mini'`
+ * for the mini entrypoint build. Source code keeps `import { z } from 'zod'` unchanged —
+ * the aliasing happens only in the built output.
+ */
+const zodMiniAliasPlugin: Plugin = {
+  name: 'alias-zod-to-mini',
+  setup(build) {
+    build.onResolve({ filter: /^zod$/ }, () => ({
+      path: 'zod/mini',
+      external: true,
+    }))
+  },
+}
+
+export default defineConfig([
+  // All entrypoints except mini — standard build with 'zod' as external
+  {
+    ...shared,
+    entry: [
+      'src/index.ts',
+      'src/core/index.ts',
+      'src/server/index.ts',
+      'src/cli/index.ts',
+      'src/codegen/index.ts',
+      'src/react/index.ts',
+      'src/client/index.ts',
+      'src/form/mantine/index.ts',
+    ],
+    external,
+    outDir: 'dist',
+    clean: true,
+  },
+  // Mini entrypoint — 'zod' imports rewritten to 'zod/mini' at build time.
+  // noExternal prevents tsup from auto-externalizing 'zod' so the esbuild
+  // plugin can intercept and redirect it.
+  {
+    ...shared,
+    entry: { 'mini/index': 'src/mini/index.ts' },
+    external: [...external.filter(e => e !== 'zod'), 'zod/mini'],
+    noExternal: [/^zod$/],
+    esbuildPlugins: [zodMiniAliasPlugin],
+    outDir: 'dist',
+    clean: false,
+  },
+])
