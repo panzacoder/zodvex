@@ -1,11 +1,13 @@
-import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'fs'
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync } from 'fs'
 import { join } from 'path'
+import { transformCode, transformImports } from 'zod-to-mini'
+import { Project, type SourceFile } from 'ts-morph'
 
 // --- Configuration ---
 interface GenerateConfig {
   count: number
   mode: 'tables-only' | 'functions-only' | 'both'
-  variant: 'baseline' | 'zod-mini'
+  variant: 'baseline' | 'compiled' | 'zod-mini'
   convex: boolean
   outputDir: string
 }
@@ -22,8 +24,8 @@ function parseArgs(): GenerateConfig {
 }
 
 // --- Template Loading ---
-function loadTemplate(name: string): string {
-  return readFileSync(join(import.meta.dir, 'templates', `${name}.ts.tmpl`), 'utf-8')
+function loadTemplate(dir: string, name: string): string {
+  return readFileSync(join(import.meta.dir, 'templates', dir, `${name}.ts.tmpl`), 'utf-8')
 }
 
 // --- Name Generation ---
@@ -49,44 +51,25 @@ function tierFor(i: number, count: number): Tier {
   return 'large'
 }
 
-// --- Variant Transforms ---
-function applyVariant(source: string, variant: GenerateConfig['variant']): string {
-  if (variant === 'baseline') return source
+// --- Compiler Integration ---
+function compileFile(filePath: string): void {
+  const code = readFileSync(filePath, 'utf-8')
 
-  if (variant === 'zod-mini') {
-    let result = source
-      // Switch to zod/mini and zodvex/mini imports
-      .replace("import { z } from 'zod'", "import { z } from 'zod/mini'")
-      .replace("from 'zodvex/core'", "from 'zodvex/mini'")
-      // discriminatedUnion → union (mini doesn't have discriminatedUnion)
-      .replace(/z\.discriminatedUnion\('[^']+',\s*/g, 'z.union(')
+  // Apply all zod->mini transforms (method chains, class refs, etc.)
+  const result = transformCode(code)
+  let output = result.code
 
-    // Rewrite .optional() and .nullable() chaining → z.optional()/z.nullable() wrapping.
-    // zod-mini uses functional form: z.optional(x) not x.optional().
-    //
-    // Three expression categories that appear in templates:
-    //   1. z.func(args) / zx.func(args) — e.g., z.string(), zx.id('users'), z.object(Fields)
-    //   2. Identifier — e.g., Model0004Metadata, Model0004Config
-    //   3. expr.prop.prop — e.g., Model0004Model.schema.doc
-
-    // Category 1: z.func(args).optional() / zx.func(args).optional()
-    // [^)]* handles single-level parens (no nesting — templates extract nested objects to variables)
-    result = result.replace(/(zx?\.\w+\([^)]*\))\.optional\(\)/g, 'z.optional($1)')
-    result = result.replace(/(zx?\.\w+\([^)]*\))\.nullable\(\)/g, 'z.nullable($1)')
-
-    // Category 3: dotted.path.expr.optional() — e.g., Model.schema.doc.nullable()
-    // Must run before Category 2 so the full dotted path is captured, not just the last segment.
-    result = result.replace(/(\b[A-Z]\w+(?:\.\w+)+)\.optional\(\)/g, 'z.optional($1)')
-    result = result.replace(/(\b[A-Z]\w+(?:\.\w+)+)\.nullable\(\)/g, 'z.nullable($1)')
-
-    // Category 2: Identifier.optional() — e.g., ModelMetadata.optional()
-    result = result.replace(/(\b[A-Z]\w+)\.optional\(\)/g, 'z.optional($1)')
-    result = result.replace(/(\b[A-Z]\w+)\.nullable\(\)/g, 'z.nullable($1)')
-
-    return result
+  // Transform imports: 'zod' -> 'zod/mini', 'zodvex/core' -> 'zodvex/mini'
+  const project = new Project({ useInMemoryFileSystem: true })
+  const sf = project.createSourceFile('tmp.ts', output)
+  transformImports(sf)
+  for (const imp of sf.getImportDeclarations()) {
+    const spec = imp.getModuleSpecifierValue()
+    if (spec === 'zodvex/core') imp.setModuleSpecifier('zodvex/mini')
   }
+  output = sf.getFullText()
 
-  return source
+  writeFileSync(filePath, output)
 }
 
 // --- Extra Args for Function Templates ---
@@ -122,13 +105,16 @@ function generate() {
   mkdirSync(modelsDir, { recursive: true })
   mkdirSync(endpointsDir, { recursive: true })
 
+  // Select template directory based on variant
+  const templateDir = variant === 'zod-mini' ? 'mini' : 'zod'
+
   // Load templates
   const templates = {
-    small: loadTemplate('model-small'),
-    medium: loadTemplate('model-medium'),
-    large: loadTemplate('model-large'),
-    functions: loadTemplate('functions'),
-    schema: loadTemplate('schema'),
+    small: loadTemplate(templateDir, 'model-small'),
+    medium: loadTemplate(templateDir, 'model-medium'),
+    large: loadTemplate(templateDir, 'model-large'),
+    functions: loadTemplate(templateDir, 'functions'),
+    schema: loadTemplate(templateDir, 'schema'),
   }
 
   // Generate models
@@ -154,14 +140,13 @@ function generate() {
           /export const (\w+)Model = defineZodModel\([^)]+\)[\s\S]*$/,
           `export const $1Model = { schema: { doc: z.object(${name}Fields).nullable() } } as any`
         )
-      writeFileSync(join(modelsDir, `${file}.ts`), applyVariant(stubSource, variant))
+      writeFileSync(join(modelsDir, `${file}.ts`), stubSource)
     } else {
-      let modelSource = templates[tier]
+      const modelSource = templates[tier]
         .replaceAll('{{NAME}}', name)
         .replaceAll('{{TABLE_NAME}}', table)
         .replaceAll('{{INDEX_FIELD}}', String(i % 10))
 
-      modelSource = applyVariant(modelSource, variant)
       writeFileSync(join(modelsDir, `${file}.ts`), modelSource)
 
       modelImports.push(`import { ${name}Model } from './models/${file}'`)
@@ -171,13 +156,12 @@ function generate() {
     // Generate function file
     if (mode !== 'tables-only') {
       const extraArgs = extraArgsForTier(tier)
-      let fnSource = templates.functions
+      const fnSource = templates.functions
         .replaceAll('{{NAME}}', name)
         .replaceAll('{{TABLE_NAME}}', table)
         .replaceAll('{{FILE_NAME}}', file)
         .replaceAll('{{EXTRA_ARGS}}', extraArgs)
 
-      fnSource = applyVariant(fnSource, variant)
       writeFileSync(join(endpointsDir, `${file}.ts`), fnSource)
     }
   }
@@ -191,12 +175,36 @@ function generate() {
     writeFileSync(join(outputDir, 'schema.ts'), schemaSource)
   }
 
+  // For 'compiled' variant: run the zod-to-mini compiler on all generated files
+  if (variant === 'compiled') {
+    console.log('Running zod-to-mini compiler on generated files...')
+
+    // Compile model files
+    for (const f of readdirSync(modelsDir)) {
+      if (f.endsWith('.ts')) compileFile(join(modelsDir, f))
+    }
+
+    // Compile endpoint files
+    if (mode !== 'tables-only') {
+      for (const f of readdirSync(endpointsDir)) {
+        if (f.endsWith('.ts')) compileFile(join(endpointsDir, f))
+      }
+    }
+
+    // Compile schema.ts
+    if (mode !== 'functions-only' && existsSync(join(outputDir, 'schema.ts'))) {
+      compileFile(join(outputDir, 'schema.ts'))
+    }
+
+    console.log('Compiler pass complete.')
+  }
+
   // Generate functions.ts bootstrap
   if (mode !== 'tables-only') {
     let functionsSource: string
     if (config.convex) {
       functionsSource = readFileSync(
-        join(import.meta.dir, 'templates', 'functions-bootstrap.ts.tmpl'),
+        join(import.meta.dir, 'templates', templateDir, 'functions-bootstrap.ts.tmpl'),
         'utf-8'
       )
     } else {

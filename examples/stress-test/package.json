@@ -11,7 +11,9 @@
   "dependencies": {
     "convex": "^1.28.0",
     "convex-helpers": ">=0.1.101-alpha.1",
+    "ts-morph": "^25.0.0",
     "zod": "4.3.6",
+    "zod-to-mini": "workspace:*",
     "zodvex": "workspace:*"
   }
 }

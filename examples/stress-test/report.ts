@@ -3,7 +3,7 @@ import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 
 const SCALE_POINTS = [50, 100, 150, 200, 250]
-const VARIANTS = ['baseline', 'zod-mini'] as const
+const VARIANTS = ['baseline', 'compiled', 'zod-mini'] as const
 const MODES = ['tables-only', 'functions-only', 'both'] as const
 
 interface ResultRow {
@@ -152,6 +152,7 @@ async function main() {
     '- [ ] What is the lazy loading upper bound (baseline - convex_only)?',
     '- [ ] What is the Convex-validator-only cost at scale?',
     '- [ ] At what scale point does baseline hit the ~64MB wall?',
+    '- [ ] Does compiled output match zod-mini memory profile (within ±5%)?',
   ]
 
   const reportPath = join(resultsDir, 'report.md')
