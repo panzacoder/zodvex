@@ -29,7 +29,7 @@ describe('isZidSchema', () => {
   })
 
   it('should return false for schemas with unrelated descriptions', () => {
-    const describedSchema = z.string().describe('some description')
+    const describedSchema = z.describe(z.string(), 'some description')
     expect(isZidSchema(describedSchema)).toBe(false)
   })
 })

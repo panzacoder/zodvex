@@ -129,7 +129,7 @@ describe('zodToConvex', () => {
   })
 
   it('extracts input schema from transforms', () => {
-    const schema = z.string().transform(s => s.toUpperCase())
+    const schema = z.pipe(z.string(), z.transform(s => s.toUpperCase()))
     const validator = zodToConvex(schema)
     // Transform schemas now correctly extract the input schema (z.string())
     // This allows Convex validation while warning that encoding won't work
