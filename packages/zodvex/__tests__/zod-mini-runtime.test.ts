@@ -35,7 +35,7 @@ describe('zod-mini runtime compatibility', () => {
       const schema = zm.object({
         name: zm.string(),
         age: zm.number(),
-        email: zm.string(),
+        email: zm.string()
       })
       const codec = convexCodec(schema as any)
       const picked = codec.pick(['name', 'email'] as any)
@@ -48,7 +48,7 @@ describe('zod-mini runtime compatibility', () => {
       const schema = zm.object({
         name: zm.string(),
         age: zm.number(),
-        email: zm.string(),
+        email: zm.string()
       })
       const codec = convexCodec(schema as any)
       const picked = codec.pick({ name: true, age: true } as any)
@@ -66,7 +66,7 @@ describe('zod-mini runtime compatibility', () => {
       const schema = zm.object({
         name: zm.string(),
         age: zm.number(),
-        active: zm.boolean(),
+        active: zm.boolean()
       })
 
       const result = encodePartialDoc(schema as any, { name: 'updated' })
@@ -76,7 +76,7 @@ describe('zod-mini runtime compatibility', () => {
     it('preserves already-optional fields', () => {
       const schema = zm.object({
         name: zm.string(),
-        nickname: zm.optional(zm.string()),
+        nickname: zm.optional(zm.string())
       })
 
       const result = encodePartialDoc(schema as any, { nickname: 'Nick' })
@@ -101,7 +101,7 @@ describe('zod-mini runtime compatibility', () => {
     it('works with zx.date() codec in mini object', () => {
       const schema = zm.object({
         name: zm.string(),
-        createdAt: zx.date(),
+        createdAt: zx.date()
       })
 
       const decoded = decodeDoc(schema as any, { name: 'test', createdAt: 1000 })
@@ -121,7 +121,7 @@ describe('zod-mini runtime compatibility', () => {
       const model = defineZodModel('test_table', {
         name: zm.string(),
         age: zm.number(),
-        active: zm.boolean(),
+        active: zm.boolean()
       } as any)
 
       expect(model.name).toBe('test_table')
@@ -135,7 +135,7 @@ describe('zod-mini runtime compatibility', () => {
       const model = defineZodModel('test_table', {
         name: zm.string(),
         nickname: zm.optional(zm.string()),
-        bio: zm.nullable(zm.string()),
+        bio: zm.nullable(zm.string())
       } as any)
 
       expect(model.schema.doc).toBeDefined()
@@ -150,7 +150,7 @@ describe('zod-mini runtime compatibility', () => {
     it('produces JSON schema from a mini object', () => {
       const schema = zm.object({
         name: zm.string(),
-        count: zm.number(),
+        count: zm.number()
       })
 
       const jsonSchema = toJSONSchema(schema as any)
@@ -161,7 +161,7 @@ describe('zod-mini runtime compatibility', () => {
     it('handles zx.id() in JSON schema output', () => {
       const schema = zm.object({
         userId: zx.id('users'),
-        name: zm.string(),
+        name: zm.string()
       })
 
       // Should not crash — zid detection uses globalRegistry, not .description
@@ -180,7 +180,7 @@ describe('zod-mini runtime compatibility', () => {
 
       const codec = zodvexCodec(wire as any, runtime as any, {
         decode: (w: any) => ({ ...w, display: `[${w.tag}] ${w.value}` }),
-        encode: (r: any) => ({ value: r.value, tag: r.tag }),
+        encode: (r: any) => ({ value: r.value, tag: r.tag })
       })
 
       expect(codec).toBeDefined()
