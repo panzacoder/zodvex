@@ -4,6 +4,7 @@ import { type ZodvexCodec } from './types'
 import { assertNoNativeZodDate, stripUndefined } from './utils'
 import {
   $ZodObject,
+  $ZodOptional,
   $ZodType,
   encode,
   parse,
@@ -41,10 +42,16 @@ export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
         throw new Error('pick() can only be called on object schemas')
       }
       // Handle both array and object formats
-      const pickObj = Array.isArray(keys)
-        ? keys.reduce((acc, k) => ({ ...acc, [k]: true }), {} as any)
-        : keys
-      const pickedSchema = (schema as any).pick(pickObj as any)
+      // Use manual shape extraction instead of .pick() — not available on zod/mini
+      const pickKeys = Array.isArray(keys)
+        ? keys
+        : (Object.keys(keys) as K[])
+      const shape = (schema as any)._zod.def.shape
+      const pickedShape: Record<string, any> = {}
+      for (const k of pickKeys) {
+        if (k in shape) pickedShape[k as string] = shape[k as string]
+      }
+      const pickedSchema = z.object(pickedShape)
       return convexCodec(pickedSchema) as ConvexCodec<Pick<T, K>>
     }
   }
@@ -79,7 +86,16 @@ export function encodePartialDoc<S extends $ZodType>(
     // Cast needed: Partial<output<S>> is structurally compatible but not assignable to output<S>
     return stripUndefined(encode(schema, partial as zoutput<S>)) as Partial<zinput<S>>
   }
-  const partialSchema = (schema as any).partial()
+  // Use manual shape wrapping instead of .partial() — not available on zod/mini
+  const shape = (schema as any)._zod.def.shape
+  const partialShape: Record<string, any> = {}
+  for (const [key, value] of Object.entries(shape)) {
+    partialShape[key] =
+      value instanceof $ZodOptional
+        ? value
+        : new $ZodOptional({ type: 'optional', innerType: value as any })
+  }
+  const partialSchema = z.object(partialShape)
   return stripUndefined(encode(partialSchema, partial)) as Partial<zinput<S>>
 }
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { $ZodDate, $ZodType } from './zod-core'
+import { $ZodDate, $ZodType, globalRegistry } from './zod-core'
 
 // ============================================================================
 // JSON Schema Override Support
@@ -13,7 +13,7 @@ import { $ZodDate, $ZodType } from './zod-core'
  * zid schemas are marked with "convexId:{tableName}" in their description.
  */
 export function isZidSchema(schema: $ZodType): boolean {
-  const description = (schema as any).description
+  const description = globalRegistry.get(schema)?.description
   return typeof description === 'string' && description.startsWith('convexId:')
 }
 
@@ -22,7 +22,7 @@ export function isZidSchema(schema: $ZodType): boolean {
  * Returns undefined if not a zid schema.
  */
 export function getZidTableName(schema: $ZodType): string | undefined {
-  const description = (schema as any).description
+  const description = globalRegistry.get(schema)?.description
   if (typeof description === 'string' && description.startsWith('convexId:')) {
     return description.slice('convexId:'.length)
   }
@@ -75,8 +75,10 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
       jsonSchema.format = `convex-id:${tableName}`
     }
     // Preserve the description from .describe() - this is what the LLM sees
-    if (zodSchema.description) {
-      jsonSchema.description = zodSchema.description
+    // Use globalRegistry for mini compatibility (zod/mini lacks the .description getter)
+    const schemaDescription = globalRegistry.get(zodSchema)?.description
+    if (schemaDescription) {
+      jsonSchema.description = schemaDescription
     }
     return
   }

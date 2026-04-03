@@ -58,6 +58,8 @@ export {
   clone,
   decode,
   encode,
+  // Global metadata registry (mini-compatible alternative to .description getter)
+  globalRegistry,
   // Type utilities
   type infer,
   type input,
