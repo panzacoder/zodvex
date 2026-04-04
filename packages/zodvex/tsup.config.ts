@@ -12,7 +12,7 @@ const shared = {
   target: 'node18' as const,
 }
 
-const external = ['zod', 'zod/v4/core', 'convex', 'convex-helpers', 'bun', 'react', '@mantine/form', 'mantine-form-zod-resolver']
+const external = ['zod', 'zod/v4/core', 'convex', 'convex-helpers', 'bun', 'react', '@mantine/form', 'mantine-form-zod-resolver', 'ts-morph', 'zod-to-mini']
 
 /**
  * esbuild plugin that rewrites `import ... from 'zod'` to `import ... from 'zod/mini'`
@@ -42,6 +42,7 @@ export default defineConfig([
       'src/react/index.ts',
       'src/client/index.ts',
       'src/form/mantine/index.ts',
+      'src/labs/index.ts',
     ],
     external,
     outDir: 'dist',

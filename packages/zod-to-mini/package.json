@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Codemod that converts Zod v4 full syntax to zod/mini functional forms",
   "main": "src/index.ts",
+  "types": "src/index.ts",
   "scripts": {
     "transform": "bun run src/cli.ts",
     "test": "bunx vitest run"
