@@ -9,10 +9,7 @@
     "generate": "zodvex generate",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:smoke": "bun run test/smoke.ts",
-    "compile:mini": "bun run scripts/compile-mini.ts",
-    "deploy:mini": "bun run scripts/compile-mini.ts && zodvex generate convex-mini --mini && bunx convex deploy --config convex.mini.json",
-    "dev:mini": "bun run scripts/compile-mini.ts && zodvex generate convex-mini --mini && concurrently \"zodvex dev convex-mini --mini\" \"bunx convex dev --config convex.mini.json\" \"vite\""
+    "test:smoke": "bun run test/smoke.ts"
   },
   "dependencies": {
     "@convex-dev/action-retrier": "^0.3.0",
@@ -23,8 +20,6 @@
     "zodvex": "workspace:*"
   },
   "devDependencies": {
-    "zod-to-mini": "workspace:*",
-    "ts-morph": "^25.0.0",
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.0",
