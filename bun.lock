@@ -94,6 +94,7 @@
       },
       "dependencies": {
         "tinyglobby": "^0.2.15",
+        "ts-morph": "^25.0.0",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.2.6",
@@ -109,12 +110,10 @@
         "convex": "^1.28.0",
         "convex-helpers": "^0.1.104",
         "react": "^18.0.0 || ^19.0.0",
-        "ts-morph": "^25.0.0",
         "zod": "^4.3.6",
       },
       "optionalPeers": [
         "react",
-        "ts-morph",
       ],
     },
   },
