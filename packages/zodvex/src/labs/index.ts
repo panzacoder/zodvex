@@ -15,15 +15,13 @@
  * // plugins: [zodToMiniPlugin({ tsconfig: './tsconfig.json' })]
  * ```
  */
+
+export type { TransformResult, ZodToMiniPluginOptions } from 'zod-to-mini'
 export {
+  findObjectOnlyMethods,
+  transformClassRefs,
   transformCode,
   transformFile,
   transformImports,
-  transformClassRefs,
-  findObjectOnlyMethods
+  zodToMiniPlugin
 } from 'zod-to-mini'
-
-export type { TransformResult } from 'zod-to-mini'
-
-export { zodToMiniPlugin } from 'zod-to-mini'
-export type { ZodToMiniPluginOptions } from 'zod-to-mini'
