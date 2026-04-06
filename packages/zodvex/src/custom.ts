@@ -35,7 +35,7 @@ type ReturnValueInput<ReturnsValidator extends $ZodType | ZodValidator | void> =
 ] extends [$ZodType]
   ? Returns<z.output<ReturnsValidator>>
   : [ReturnsValidator] extends [ZodValidator]
-    ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
+    ? Returns<z.output<$ZodObject<ReturnsValidator>>>
     : any
 
 // The return value after it's been validated: returned to the client
@@ -44,27 +44,27 @@ type ReturnValueOutput<ReturnsValidator extends $ZodType | ZodValidator | void> 
 ] extends [$ZodType]
   ? Returns<z.output<ReturnsValidator>>
   : [ReturnsValidator] extends [ZodValidator]
-    ? Returns<z.output<z.ZodObject<ReturnsValidator>>>
+    ? Returns<z.output<$ZodObject<ReturnsValidator>>>
     : any
 
 // The args as seen by the caller: runtime types (z.output), not wire types (z.input).
 // For codecs (e.g., custom field types), z.output = runtime class, z.input = wire object.
 // Callers pass runtime types; encoding to wire format happens inside the wrapper.
-type ArgsInput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
-  ArgsValidator
-] extends [z.ZodObject<any>]
+type ArgsInput<ArgsValidator extends ZodValidator | $ZodObject | void> = [ArgsValidator] extends [
+  $ZodObject
+]
   ? [z.output<ArgsValidator>]
   : [ArgsValidator] extends [ZodValidator]
-    ? [z.output<z.ZodObject<ArgsValidator>>]
+    ? [z.output<$ZodObject<ArgsValidator>>]
     : OneArgArray
 
 // The args after they've been validated: passed to the handler
-type ArgsOutput<ArgsValidator extends ZodValidator | z.ZodObject<any> | void> = [
-  ArgsValidator
-] extends [z.ZodObject<any>]
+type ArgsOutput<ArgsValidator extends ZodValidator | $ZodObject | void> = [ArgsValidator] extends [
+  $ZodObject
+]
   ? [z.output<ArgsValidator>]
   : [ArgsValidator] extends [ZodValidator]
-    ? [z.output<z.ZodObject<ArgsValidator>>]
+    ? [z.output<$ZodObject<ArgsValidator>>]
     : OneArgArray
 
 // Re-export for backwards compatibility (canonical definition in types.ts)
@@ -117,7 +117,7 @@ export type CustomBuilder<
   ExtraArgs extends Record<string, any>
 > = {
   <
-    ArgsValidator extends ZodValidator | z.ZodObject<any> | void,
+    ArgsValidator extends ZodValidator | $ZodObject | void,
     ReturnsZodValidator extends $ZodType | ZodValidator | void = void,
     ReturnValue extends ReturnValueInput<ReturnsZodValidator> = any
   >(
@@ -202,11 +202,11 @@ export function customFnBuilder<
 
     if (args) {
       let argsValidator = args
-      let argsSchema: z.ZodObject<any>
+      let argsSchema: $ZodObject
 
       if (argsValidator instanceof $ZodType) {
         if (argsValidator instanceof $ZodObject) {
-          argsSchema = argsValidator as unknown as z.ZodObject<any>
+          argsSchema = argsValidator as unknown as $ZodObject
           // cast: reassigning schema variable to its shape for zodToConvexFields
           argsValidator = argsValidator._zod.def.shape as any
         } else {

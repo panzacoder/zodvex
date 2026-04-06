@@ -82,7 +82,7 @@ export function zQuery<
   let zodSchema: $ZodType
   let args: Record<string, any>
   if (input instanceof $ZodObject) {
-    const zodObj = input as z.ZodObject<any>
+    const zodObj = input as $ZodObject
     zodSchema = zodObj
     args = zodToConvexFields(getObjectShape(zodObj))
   } else if (input instanceof $ZodType) {
@@ -160,7 +160,7 @@ export function zMutation<
   let zodSchema: $ZodType
   let args: Record<string, any>
   if (input instanceof $ZodObject) {
-    const zodObj = input as z.ZodObject<any>
+    const zodObj = input as $ZodObject
     zodSchema = zodObj
     args = zodToConvexFields(getObjectShape(zodObj))
   } else if (input instanceof $ZodType) {
@@ -237,7 +237,7 @@ export function zAction<
   let zodSchema: $ZodType
   let args: Record<string, any>
   if (input instanceof $ZodObject) {
-    const zodObj = input as z.ZodObject<any>
+    const zodObj = input as $ZodObject
     zodSchema = zodObj
     args = zodToConvexFields(getObjectShape(zodObj))
   } else if (input instanceof $ZodType) {

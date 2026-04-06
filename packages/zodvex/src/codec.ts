@@ -25,7 +25,7 @@ export type ConvexCodec<T> = {
 }
 
 /** @deprecated Use `initZodvex` or `decodeDoc`/`encodeDoc` instead. Will be removed in a future release. */
-export function convexCodec<T>(schema: z.ZodType<T>): ConvexCodec<T> {
+export function convexCodec<T>(schema: $ZodType<T>): ConvexCodec<T> {
   // Fail fast if z.date() is used - it won't encode correctly
   // Use zx.date() instead for Date ↔ timestamp conversion
   assertNoNativeZodDate(schema as $ZodType, 'schema')

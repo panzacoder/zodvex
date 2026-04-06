@@ -31,7 +31,7 @@ export const registryHelpers = {
  */
 export function zid<TableName extends string>(
   tableName: TableName
-): z.ZodType<GenericId<TableName>> & { _tableName: TableName } {
+): $ZodType<GenericId<TableName>> & { _tableName: TableName } {
   // Create base string validator with refinement (no transform or brand)
   const baseSchema = z.string().check(
     z.refine(val => typeof val === 'string' && val.length > 0, {
@@ -54,7 +54,7 @@ export function zid<TableName extends string>(
 
   // Type assertion provides GenericId<TableName> typing without runtime transform
   // This maintains type safety while being compatible with AI SDK and similar tools
-  return branded as z.ZodType<GenericId<TableName>> & { _tableName: TableName }
+  return branded as $ZodType<GenericId<TableName>> & { _tableName: TableName }
 }
 
 export type Zid<TableName extends string> = ReturnType<typeof zid<TableName>>
