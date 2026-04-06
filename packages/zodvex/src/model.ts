@@ -8,6 +8,7 @@
  * Exported from zodvex/core (no server imports).
  */
 
+import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 import { attachMeta } from './meta'
 import {
@@ -16,7 +17,6 @@ import {
   getUnionOptions,
   isZodUnion
 } from './schemaHelpers'
-import type { GenericId } from 'convex/values'
 import {
   $ZodArray,
   $ZodBoolean,
