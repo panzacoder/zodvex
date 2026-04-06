@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Project } from 'ts-morph'
-import { transformFile, transformCode } from './transforms'
+import { transformFile, transformCode, findInternalPropertyAccess } from './transforms'
 
 function transform(code: string): string {
   const project = new Project({ useInMemoryFileSystem: true })
@@ -304,6 +304,148 @@ describe('combined transforms', () => {
     expect(result).toContain('z.optional(z.string().check(z.email()))')
     expect(result).toContain('z.number().check(z.int()).check(z.positive())')
     expect(result).toContain('z.nullable(z.string())')
+  })
+})
+
+describe('transformMethods — .parse() and .safeParse()', () => {
+  it('.parse(value) → z.parse(schema, value)', () => {
+    expect(transform('schema.parse(data)')).toBe('z.parse(schema, data)')
+  })
+
+  it('.safeParse(value) → z.safeParse(schema, value)', () => {
+    expect(transform('schema.safeParse(data)')).toBe('z.safeParse(schema, data)')
+  })
+
+  it('.parse() with complex expression receiver', () => {
+    expect(transform('z.string().parse(input)')).toBe('z.parse(z.string(), input)')
+  })
+
+  it('.safeParse() with complex expression receiver', () => {
+    expect(transform('z.number().safeParse(val)')).toBe('z.safeParse(z.number(), val)')
+  })
+
+  it('does NOT convert z.parse() namespace call', () => {
+    expect(transform('z.parse(schema, data)')).toBe('z.parse(schema, data)')
+  })
+
+  it('does NOT convert z.safeParse() namespace call', () => {
+    expect(transform('z.safeParse(schema, data)')).toBe('z.safeParse(schema, data)')
+  })
+})
+
+describe('transformMethods — .unwrap()', () => {
+  it('.unwrap() → ._zod.def.innerType', () => {
+    expect(transform('schema.unwrap()')).toBe('schema._zod.def.innerType')
+  })
+
+  it('.unwrap() on z.optional() result', () => {
+    expect(transform('z.optional(z.string()).unwrap()')).toBe('z.optional(z.string())._zod.def.innerType')
+  })
+
+  it('does NOT convert .unwrap() with arguments', () => {
+    // .unwrap(something) is not the Zod unwrap pattern
+    expect(transform('schema.unwrap(arg)')).toBe('schema.unwrap(arg)')
+  })
+
+  it('does NOT convert z.unwrap() namespace call', () => {
+    expect(transform('z.unwrap()')).toBe('z.unwrap()')
+  })
+})
+
+describe('transformPropertyAccessors', () => {
+  it('.shape on z.object() → ._zod.def.shape', () => {
+    expect(transform('z.object({ a: z.string() }).shape')).toBe('z.object({ a: z.string() })._zod.def.shape')
+  })
+
+  it('.element on z.array() → ._zod.def.element', () => {
+    expect(transform('z.array(z.string()).element')).toBe('z.array(z.string())._zod.def.element')
+  })
+
+  it('.options on z.union() → ._zod.def.options', () => {
+    expect(transform('z.union([z.string(), z.number()]).options')).toBe('z.union([z.string(), z.number()])._zod.def.options')
+  })
+
+  it('does NOT convert .shape on non-schema expression', () => {
+    // "geometry.shape" should NOT be converted
+    expect(transform('geometry.shape')).toBe('geometry.shape')
+  })
+
+  it('does NOT convert .element on non-schema expression', () => {
+    expect(transform('dom.element')).toBe('dom.element')
+  })
+
+  it('does NOT convert .options on non-schema expression', () => {
+    expect(transform('select.options')).toBe('select.options')
+  })
+
+  it('does NOT double-transform ._zod.def.shape', () => {
+    // Already internal access — should be left alone
+    expect(transform('schema._zod.def.shape')).toBe('schema._zod.def.shape')
+  })
+})
+
+describe('findInternalPropertyAccess (warnings)', () => {
+  it('warns about .shape on non-schema expression', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', 'mySchema.shape')
+    const warnings = findInternalPropertyAccess(file)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].property).toBe('shape')
+  })
+
+  it('does NOT warn about .shape on z.object() (auto-transformed)', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', 'z.object({ a: z.string() }).shape')
+    const warnings = findInternalPropertyAccess(file)
+    expect(warnings).toHaveLength(0)
+  })
+
+  it('does NOT warn about already-internal ._zod.def.shape', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', 'schema._zod.def.shape')
+    const warnings = findInternalPropertyAccess(file)
+    expect(warnings).toHaveLength(0)
+  })
+})
+
+describe('transformClassRefs — import type', () => {
+  it('type-position class refs use import type', () => {
+    const input = `import { z } from 'zod'\nfunction validate(schema: z.ZodType) { return schema }`
+    const result = transform(input)
+    expect(result).toContain('schema: $ZodType')
+    expect(result).toContain('import type { $ZodType }')
+  })
+
+  it('runtime class refs use regular import', () => {
+    const input = `import { z } from 'zod'\nif (x instanceof z.ZodError) {}`
+    const result = transform(input)
+    expect(result).toContain('instanceof $ZodError')
+    expect(result).toContain('import { $ZodError }')
+    expect(result).not.toContain('import type { $ZodError }')
+  })
+
+  it('mixed runtime + type refs: runtime import only (no duplicate)', () => {
+    const input = `import { z } from 'zod'\nif (x instanceof z.ZodError) {}\nfunction f(e: z.ZodError) {}`
+    const result = transform(input)
+    // $ZodError used in both runtime (instanceof) and type positions
+    // Should appear as regular import only, not duplicated
+    expect(result).toContain('import { $ZodError }')
+    expect(result).not.toContain('import type { $ZodError }')
+  })
+
+  it('separate type-only and runtime imports for different names', () => {
+    const input = `import { z } from 'zod'\nif (x instanceof z.ZodError) {}\nfunction f(s: z.ZodType) {}`
+    const result = transform(input)
+    // $ZodError = runtime, $ZodType = type-only
+    expect(result).toContain('import { $ZodError }')
+    expect(result).toContain('import type { $ZodType }')
+  })
+
+  it('z.ZodReadonly → $ZodReadonly', () => {
+    const input = `import { z } from 'zod'\nfunction f(s: z.ZodReadonly) { return s }`
+    const result = transform(input)
+    expect(result).toContain('s: $ZodReadonly')
+    expect(result).toContain('$ZodReadonly')
   })
 })
 

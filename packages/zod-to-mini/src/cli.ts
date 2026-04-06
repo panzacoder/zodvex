@@ -62,7 +62,7 @@ for (const file of files) {
     result.totalChanges += result.imports
   }
 
-  if (result.totalChanges > 0 || result.objectOnlyWarnings.length > 0) {
+  if (result.totalChanges > 0 || result.objectOnlyWarnings.length > 0 || result.propertyAccessWarnings.length > 0) {
     results.push(result)
     totalChanges += result.totalChanges
 
@@ -71,11 +71,16 @@ for (const file of files) {
     if (result.wrappers > 0) console.log(`    ${result.wrappers} wrapper(s) → functional form`)
     if (result.checks > 0) console.log(`    ${result.checks} check(s) → .check(z.method())`)
     if (result.methods > 0) console.log(`    ${result.methods} method(s) → top-level function`)
+    if (result.propertyAccessors > 0) console.log(`    ${result.propertyAccessors} property accessor(s) → ._zod.def.*`)
     if (result.classRefs > 0) console.log(`    ${result.classRefs} class ref(s) → core types`)
     if (result.imports > 0) console.log(`    ${result.imports} import(s) → zod/mini`)
 
     for (const warn of result.objectOnlyWarnings) {
       console.log(`    ⚠ line ${warn.line}: .${warn.method}() — no mini equivalent, needs manual fix`)
+      totalWarnings++
+    }
+    for (const warn of result.propertyAccessWarnings) {
+      console.log(`    ⚠ line ${warn.line}: .${warn.property} — use ._zod.def.${warn.property} in mini`)
       totalWarnings++
     }
   }

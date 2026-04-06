@@ -226,8 +226,12 @@ export function transformChecks(file: SourceFile): number {
 // schema.brand(tag) → z.brand(schema, tag)
 // ---------------------------------------------------------------------------
 
-/** Methods that become z.methodName(schema, ...args) — safe to transform unconditionally */
-const UNCONDITIONAL_TOP_LEVEL = ['pipe', 'brand'] as const
+/** Methods that become z.methodName(schema, ...args) — safe to transform unconditionally.
+ *  `parse` and `safeParse` exist as instance methods on mini schemas at runtime, but
+ *  `$ZodType` from `zod/v4/core` doesn't declare them in its interface. Transforming to
+ *  the functional form `z.parse(schema, value)` works at both the type AND runtime level
+ *  and is the recommended idiom in mini. */
+const UNCONDITIONAL_TOP_LEVEL = ['pipe', 'brand', 'parse', 'safeParse'] as const
 
 /** Methods that become z.methodName(schema, ...args) — only transform when receiver is
  *  confirmed as a Zod schema. These method names collide with non-Zod APIs
@@ -309,6 +313,15 @@ export function transformMethods(file: SourceFile, typeChecker?: TypeChecker): n
       continue
     }
 
+    // schema.unwrap() → schema._zod.def.innerType
+    // .unwrap() on ZodOptional/ZodNullable returns the inner type.
+    // In mini, the accessor is the internal ._zod.def.innerType property.
+    if (method === 'unwrap' && call.getArguments().length === 0) {
+      call.replaceWithText(`${obj}._zod.def.innerType`)
+      count++
+      continue
+    }
+
     // Check-wrap form: schema.method(args) → schema.check(z.method(args))
     if ((CHECK_WRAP_METHODS as readonly string[]).includes(method)) {
       const argsStr = args.join(', ')
@@ -374,6 +387,124 @@ export function transformConstructorReplacements(file: SourceFile): number {
   }
 
   return count
+}
+
+// ---------------------------------------------------------------------------
+// Transform: internal property accessors
+// schema.shape → schema._zod.def.shape
+// schema.element → schema._zod.def.element
+// schema.options → schema._zod.def.options
+//
+// These are property accesses (not method calls) that exist on full-zod schemas
+// but not on zod/mini schemas. The mini equivalent accesses the internal _zod.def.
+//
+// Because .shape, .element, .options are common property names, we only auto-
+// transform when the type checker confirms the receiver is a Zod schema.
+// Without type info, we emit warnings instead.
+// ---------------------------------------------------------------------------
+
+/** Property names that are Zod schema accessors in full zod but not in mini */
+const INTERNAL_PROPERTY_ACCESSORS: Record<string, string> = {
+  shape: '_zod.def.shape',
+  element: '_zod.def.element',
+  options: '_zod.def.options',
+}
+
+/**
+ * Uses the TypeScript type checker to determine if the receiver of a property
+ * access is a Zod schema. Same logic as isZodSchemaByType but for PropertyAccessExpression
+ * instead of CallExpression.
+ */
+function isZodSchemaByTypePA(pa: PropertyAccessExpression, typeChecker: TypeChecker): boolean | null {
+  const receiver = pa.getExpression()
+  try {
+    const type = typeChecker.getTypeAtLocation(receiver)
+    if (type.isAny()) return null
+    return type.getProperties().some(p => p.getName() === '_zod')
+  } catch {
+    return null
+  }
+}
+
+export function transformPropertyAccessors(file: SourceFile, typeChecker?: TypeChecker): number {
+  let count = 0
+  const propAccesses = file.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression).reverse()
+
+  for (const pa of propAccesses) {
+    if (pa.wasForgotten()) continue
+    const propName = pa.getName()
+    const replacement = INTERNAL_PROPERTY_ACCESSORS[propName]
+    if (!replacement) continue
+
+    const receiver = pa.getExpression()
+    const receiverText = receiver.getText()
+
+    // Skip namespace calls like z.shape (shouldn't happen but be safe)
+    if (NAMESPACE_IDENTIFIERS.has(receiverText.trim())) continue
+
+    // Skip if this is already an internal access (e.g., foo._zod.def.shape)
+    // Check both "contains" (for deeply nested) and "ends with" (the receiver of
+    // ._zod.def.shape is "foo._zod.def" which ends with but doesn't contain "._zod.def.")
+    if (receiverText.includes('._zod.def.') || receiverText.endsWith('._zod.def')) continue
+
+    // Determine if receiver is a Zod schema
+    let isSchema: boolean
+    if (typeChecker) {
+      const typeResult = isZodSchemaByTypePA(pa, typeChecker)
+      isSchema = typeResult === true || (typeResult === null && isLikelySchemaExpr(receiverText))
+    } else {
+      isSchema = isLikelySchemaExpr(receiverText)
+    }
+
+    if (!isSchema) continue
+
+    pa.replaceWithText(`${receiverText}.${replacement}`)
+    count++
+  }
+
+  return count
+}
+
+/**
+ * Find property accesses that may need manual migration (.shape, .element, .options)
+ * when the type checker can't confirm the receiver is a Zod schema.
+ */
+export function findInternalPropertyAccess(
+  file: SourceFile,
+  typeChecker?: TypeChecker,
+): Array<{ line: number; property: string; text: string }> {
+  const results: Array<{ line: number; property: string; text: string }> = []
+  const propAccesses = file.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)
+
+  for (const pa of propAccesses) {
+    if (pa.wasForgotten()) continue
+    const propName = pa.getName()
+    if (!(propName in INTERNAL_PROPERTY_ACCESSORS)) continue
+
+    const receiver = pa.getExpression()
+    const receiverText = receiver.getText()
+
+    // Skip namespace and already-internal accesses
+    if (NAMESPACE_IDENTIFIERS.has(receiverText.trim())) continue
+    if (receiverText.includes('._zod.def.') || receiverText.endsWith('._zod.def')) continue
+
+    // Skip if already transformed by transformPropertyAccessors (heuristic matched)
+    if (isLikelySchemaExpr(receiverText)) continue
+
+    // If type checker says it's definitely not a schema, skip the warning
+    if (typeChecker) {
+      const typeResult = isZodSchemaByTypePA(pa, typeChecker)
+      if (typeResult === false) continue
+    }
+
+    results.push({
+      line: pa.getStartLineNumber(),
+      property: propName,
+      text: pa.getText().slice(0, 80),
+    })
+  }
+
+  return results
 }
 
 // ---------------------------------------------------------------------------
@@ -456,11 +587,15 @@ const CLASS_RENAMES: Record<string, string> = {
   'z.ZodLazy': '$ZodLazy',
   'z.ZodPipe': '$ZodPipe',
   'z.ZodTransform': '$ZodTransform',
+  'z.ZodReadonly': '$ZodReadonly',
 }
 
 export function transformClassRefs(file: SourceFile): number {
   let count = 0
-  const neededImports = new Set<string>()
+  /** Names that appear in runtime (value) positions — need regular `import` */
+  const runtimeImports = new Set<string>()
+  /** Names that appear ONLY in type positions — can use `import type` */
+  const typeOnlyImports = new Set<string>()
 
   // Find runtime property access expressions like z.ZodError in `instanceof z.ZodError`
   const propAccesses = file.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)
@@ -472,7 +607,7 @@ export function transformClassRefs(file: SourceFile): number {
     if (!replacement) continue
 
     pa.replaceWithText(replacement)
-    neededImports.add(replacement)
+    runtimeImports.add(replacement)
     count++
   }
 
@@ -487,39 +622,70 @@ export function transformClassRefs(file: SourceFile): number {
     if (!replacement) continue
 
     qn.replaceWithText(replacement)
-    neededImports.add(replacement)
+    // Only type-only if NOT also seen in a runtime position
+    if (!runtimeImports.has(replacement)) {
+      typeOnlyImports.add(replacement)
+    }
     count++
   }
 
-  // Add import for the core types if needed
-  if (neededImports.size > 0) {
+  // Reconcile: if a name is in both sets, it must be a runtime import
+  for (const name of runtimeImports) {
+    typeOnlyImports.delete(name)
+  }
+
+  // Helper: add named imports to an existing import declaration
+  const addToExistingImport = (imp: ReturnType<SourceFile['getImportDeclaration']>, names: Set<string>) => {
+    if (!imp) return
+    for (const name of names) {
+      if (!imp.getNamedImports().some(n => n.getName() === name)) {
+        imp.addNamedImport(name)
+      }
+    }
+  }
+
+  // Add runtime imports (regular `import`)
+  if (runtimeImports.size > 0) {
     const existingCoreImport = file.getImportDeclaration(d =>
-      d.getModuleSpecifierValue() === 'zod/v4/core'
+      d.getModuleSpecifierValue() === 'zod/v4/core' && !d.isTypeOnly()
     )
 
     if (existingCoreImport) {
-      // Add to existing import
-      for (const name of neededImports) {
-        if (!existingCoreImport.getNamedImports().some(n => n.getName() === name)) {
-          existingCoreImport.addNamedImport(name)
-        }
-      }
+      addToExistingImport(existingCoreImport, runtimeImports)
     } else {
-      // Check for ../src/zod-core import (internal zodvex tests)
       const internalImport = file.getImportDeclaration(d =>
-        d.getModuleSpecifierValue().endsWith('/zod-core')
+        d.getModuleSpecifierValue().endsWith('/zod-core') && !d.isTypeOnly()
       )
       if (internalImport) {
-        for (const name of neededImports) {
-          if (!internalImport.getNamedImports().some(n => n.getName() === name)) {
-            internalImport.addNamedImport(name)
-          }
-        }
+        addToExistingImport(internalImport, runtimeImports)
       } else {
-        // Add new import
         file.addImportDeclaration({
           moduleSpecifier: 'zod/v4/core',
-          namedImports: [...neededImports].sort(),
+          namedImports: [...runtimeImports].sort(),
+        })
+      }
+    }
+  }
+
+  // Add type-only imports (`import type`)
+  if (typeOnlyImports.size > 0) {
+    const existingTypeImport = file.getImportDeclaration(d =>
+      d.getModuleSpecifierValue() === 'zod/v4/core' && d.isTypeOnly()
+    )
+
+    if (existingTypeImport) {
+      addToExistingImport(existingTypeImport, typeOnlyImports)
+    } else {
+      const internalTypeImport = file.getImportDeclaration(d =>
+        d.getModuleSpecifierValue().endsWith('/zod-core') && d.isTypeOnly()
+      )
+      if (internalTypeImport) {
+        addToExistingImport(internalTypeImport, typeOnlyImports)
+      } else {
+        file.addImportDeclaration({
+          moduleSpecifier: 'zod/v4/core',
+          namedImports: [...typeOnlyImports].sort(),
+          isTypeOnly: true,
         })
       }
     }
@@ -538,9 +704,11 @@ export interface TransformResult {
   wrappers: number
   checks: number
   methods: number
+  propertyAccessors: number
   imports: number
   classRefs: number
   objectOnlyWarnings: Array<{ line: number; method: string; text: string }>
+  propertyAccessWarnings: Array<{ line: number; property: string; text: string }>
   totalChanges: number
 }
 
@@ -550,6 +718,7 @@ export function transformFile(file: SourceFile, typeChecker?: TypeChecker): Tran
   let wrappers = 0
   let checks = 0
   let methods = 0
+  let propertyAccessors = 0
 
   // Fixed-point loop: transforms may create new opportunities
   // (e.g., unwrapping .optional() reveals .email() underneath)
@@ -560,15 +729,18 @@ export function transformFile(file: SourceFile, typeChecker?: TypeChecker): Tran
     const w = transformWrappers(file)
     const c = transformChecks(file)
     const m = transformMethods(file, typeChecker)
+    const pa = transformPropertyAccessors(file, typeChecker)
     constructorReplacements += cr
     wrappers += w
     checks += c
     methods += m
-    if (cr + w + c + m === 0) break
+    propertyAccessors += pa
+    if (cr + w + c + m + pa === 0) break
   }
 
   const classRefs = transformClassRefs(file)
   const objectOnlyWarnings = findObjectOnlyMethods(file)
+  const propertyAccessWarnings = findInternalPropertyAccess(file, typeChecker)
 
   // Import transform is done LAST (after all other transforms)
   // so we don't accidentally affect the transform logic
@@ -581,10 +753,12 @@ export function transformFile(file: SourceFile, typeChecker?: TypeChecker): Tran
     wrappers,
     checks,
     methods,
+    propertyAccessors,
     imports,
     classRefs,
     objectOnlyWarnings,
-    totalChanges: constructorReplacements + wrappers + checks + methods + classRefs,
+    propertyAccessWarnings,
+    totalChanges: constructorReplacements + wrappers + checks + methods + propertyAccessors + classRefs,
   }
 }
 
