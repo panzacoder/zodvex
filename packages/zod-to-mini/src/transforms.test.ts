@@ -139,22 +139,22 @@ describe('transformClassRefs', () => {
     expect(result).toContain("import { $ZodError } from")
   })
 
-  it('z.ZodObject → $ZodObject', () => {
+  it('z.ZodObject → z.ZodMiniObject', () => {
     const input = `import { z } from 'zod'\nfoo instanceof z.ZodObject`
     const result = transform(input)
-    expect(result).toContain('instanceof $ZodObject')
+    expect(result).toContain('instanceof z.ZodMiniObject')
   })
 
-  it('z.ZodTypeAny → $ZodType (runtime usage)', () => {
+  it('z.ZodTypeAny → z.ZodMiniType (runtime usage)', () => {
     const input = `import { z } from 'zod'\nfoo instanceof z.ZodTypeAny`
     const result = transform(input)
-    expect(result).toContain('instanceof $ZodType')
+    expect(result).toContain('instanceof z.ZodMiniType')
   })
 
-  it('z.ZodType in type annotation → $ZodType', () => {
+  it('z.ZodType in type annotation → z.ZodMiniType', () => {
     const input = `import { z } from 'zod'\nfunction validate(schema: z.ZodType) { return schema }`
     const result = transform(input)
-    expect(result).toContain('schema: $ZodType')
+    expect(result).toContain('schema: z.ZodMiniType')
   })
 
   it('z.ZodRawShape in type annotation → $ZodShape', () => {
@@ -163,16 +163,16 @@ describe('transformClassRefs', () => {
     expect(result).toContain('shape: $ZodShape')
   })
 
-  it('z.ZodTypeAny in generic constraint → $ZodType', () => {
+  it('z.ZodTypeAny in generic constraint → z.ZodMiniType', () => {
     const input = `import { z } from 'zod'\nfunction wrap<T extends z.ZodTypeAny>(s: T) { return s }`
     const result = transform(input)
-    expect(result).toContain('extends $ZodType')
+    expect(result).toContain('extends z.ZodMiniType')
   })
 
-  it('z.ZodObject in type alias → $ZodObject', () => {
+  it('z.ZodObject in type alias → z.ZodMiniObject', () => {
     const input = `import { z } from 'zod'\ntype MySchema = z.ZodObject<any>`
     const result = transform(input)
-    expect(result).toContain('$ZodObject<any>')
+    expect(result).toContain('z.ZodMiniObject<any>')
   })
 })
 
@@ -409,14 +409,16 @@ describe('findInternalPropertyAccess (warnings)', () => {
 })
 
 describe('transformClassRefs — import type', () => {
-  it('type-position class refs use import type', () => {
+  it('mini type refs do NOT need core imports', () => {
     const input = `import { z } from 'zod'\nfunction validate(schema: z.ZodType) { return schema }`
     const result = transform(input)
-    expect(result).toContain('schema: $ZodType')
-    expect(result).toContain('import type { $ZodType }')
+    expect(result).toContain('schema: z.ZodMiniType')
+    // No core import needed — stays on z namespace
+    expect(result).not.toContain('import type')
+    expect(result).not.toContain('zod/v4/core')
   })
 
-  it('runtime class refs use regular import', () => {
+  it('runtime class refs for core types use regular import', () => {
     const input = `import { z } from 'zod'\nif (x instanceof z.ZodError) {}`
     const result = transform(input)
     expect(result).toContain('instanceof $ZodError')
@@ -424,7 +426,7 @@ describe('transformClassRefs — import type', () => {
     expect(result).not.toContain('import type { $ZodError }')
   })
 
-  it('mixed runtime + type refs: runtime import only (no duplicate)', () => {
+  it('mixed runtime + type refs for core type: runtime import only (no duplicate)', () => {
     const input = `import { z } from 'zod'\nif (x instanceof z.ZodError) {}\nfunction f(e: z.ZodError) {}`
     const result = transform(input)
     // $ZodError used in both runtime (instanceof) and type positions
@@ -433,19 +435,28 @@ describe('transformClassRefs — import type', () => {
     expect(result).not.toContain('import type { $ZodError }')
   })
 
-  it('separate type-only and runtime imports for different names', () => {
+  it('core runtime + mini type refs: only core import for $ZodError', () => {
     const input = `import { z } from 'zod'\nif (x instanceof z.ZodError) {}\nfunction f(s: z.ZodType) {}`
     const result = transform(input)
-    // $ZodError = runtime, $ZodType = type-only
+    // $ZodError = runtime core import, z.ZodType → z.ZodMiniType (no import needed)
     expect(result).toContain('import { $ZodError }')
-    expect(result).toContain('import type { $ZodType }')
+    expect(result).toContain('z.ZodMiniType')
+    // No type-only core import needed for ZodMiniType
+    expect(result).not.toContain('import type')
   })
 
-  it('z.ZodReadonly → $ZodReadonly', () => {
+  it('z.ZodReadonly → z.ZodMiniReadonly (no core import)', () => {
     const input = `import { z } from 'zod'\nfunction f(s: z.ZodReadonly) { return s }`
     const result = transform(input)
-    expect(result).toContain('s: $ZodReadonly')
-    expect(result).toContain('$ZodReadonly')
+    expect(result).toContain('s: z.ZodMiniReadonly')
+    expect(result).not.toContain('zod/v4/core')
+  })
+
+  it('z.ZodRawShape in type annotation → $ZodShape (core type-only import)', () => {
+    const input = `import { z } from 'zod'\nfunction makeObj(shape: z.ZodRawShape) { return z.object(shape) }`
+    const result = transform(input)
+    expect(result).toContain('shape: $ZodShape')
+    expect(result).toContain('import type { $ZodShape }')
   })
 })
 
@@ -478,6 +489,9 @@ describe('transformCode', () => {
     // so ambiguous methods (.partial(), .extend()) are left untransformed
     expect(result.code).toContain('UserSchema.partial().extend({ id: z.string() })')
     expect(result.code).toContain('schema.check(z.describe("validated"))')
+    // z.ZodType → z.ZodMiniType (stays on z namespace, no core import needed)
+    expect(result.code).toContain('z.ZodMiniType')
+    expect(result.code).not.toContain('zod/v4/core')
   })
 
   it('handles fixture-style code with non-z schema expressions', () => {

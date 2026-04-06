@@ -556,82 +556,106 @@ export function transformImports(file: SourceFile): number {
 
 // ---------------------------------------------------------------------------
 // Transform: class references
-// z.ZodError → $ZodError (+ add import from zod/v4/core)
-// z.ZodObject → $ZodObject
-// z.ZodType → $ZodType
-// z.ZodTypeAny → $ZodType
+// z.ZodType → z.ZodMiniType (stays on z namespace, no extra import)
+// z.ZodObject → z.ZodMiniObject
+// z.ZodError → $ZodError (+ add import from zod/v4/core — no mini equivalent)
+// z.ZodRawShape → $ZodShape (+ add import from zod/v4/core — type alias, not on z)
 // etc.
 // ---------------------------------------------------------------------------
 
-const CLASS_RENAMES: Record<string, string> = {
+/** Class refs that map to ZodMini* equivalents on the z namespace.
+ *  These stay as z.ZodMiniX — no extra import needed since z is already imported from 'zod/mini'. */
+const MINI_CLASS_RENAMES: Record<string, string> = {
+  'z.ZodType': 'z.ZodMiniType',
+  'z.ZodTypeAny': 'z.ZodMiniType',
+  'z.ZodObject': 'z.ZodMiniObject',
+  'z.ZodArray': 'z.ZodMiniArray',
+  'z.ZodString': 'z.ZodMiniString',
+  'z.ZodNumber': 'z.ZodMiniNumber',
+  'z.ZodBoolean': 'z.ZodMiniBoolean',
+  'z.ZodOptional': 'z.ZodMiniOptional',
+  'z.ZodNullable': 'z.ZodMiniNullable',
+  'z.ZodUnion': 'z.ZodMiniUnion',
+  'z.ZodEnum': 'z.ZodMiniEnum',
+  'z.ZodLiteral': 'z.ZodMiniLiteral',
+  'z.ZodCodec': 'z.ZodMiniCodec',
+  'z.ZodCustom': 'z.ZodMiniCustom',
+  'z.ZodDefault': 'z.ZodMiniDefault',
+  'z.ZodRecord': 'z.ZodMiniRecord',
+  'z.ZodTuple': 'z.ZodMiniTuple',
+  'z.ZodDiscriminatedUnion': 'z.ZodMiniDiscriminatedUnion',
+  'z.ZodLazy': 'z.ZodMiniLazy',
+  'z.ZodPipe': 'z.ZodMiniPipe',
+  'z.ZodTransform': 'z.ZodMiniTransform',
+  'z.ZodReadonly': 'z.ZodMiniReadonly',
+}
+
+/** Class refs that must come from zod/v4/core (no mini equivalent on z namespace) */
+const CORE_CLASS_RENAMES: Record<string, string> = {
   'z.ZodError': '$ZodError',
-  'z.ZodType': '$ZodType',
-  'z.ZodTypeAny': '$ZodType',
   'z.ZodRawShape': '$ZodShape',
-  'z.ZodObject': '$ZodObject',
-  'z.ZodArray': '$ZodArray',
-  'z.ZodString': '$ZodString',
-  'z.ZodNumber': '$ZodNumber',
-  'z.ZodBoolean': '$ZodBoolean',
-  'z.ZodOptional': '$ZodOptional',
-  'z.ZodNullable': '$ZodNullable',
-  'z.ZodUnion': '$ZodUnion',
-  'z.ZodEnum': '$ZodEnum',
-  'z.ZodLiteral': '$ZodLiteral',
-  'z.ZodCodec': '$ZodCodec',
-  'z.ZodCustom': '$ZodCustom',
-  'z.ZodDefault': '$ZodDefault',
-  'z.ZodRecord': '$ZodRecord',
-  'z.ZodTuple': '$ZodTuple',
-  'z.ZodDiscriminatedUnion': '$ZodDiscriminatedUnion',
-  'z.ZodLazy': '$ZodLazy',
-  'z.ZodPipe': '$ZodPipe',
-  'z.ZodTransform': '$ZodTransform',
-  'z.ZodReadonly': '$ZodReadonly',
 }
 
 export function transformClassRefs(file: SourceFile): number {
   let count = 0
-  /** Names that appear in runtime (value) positions — need regular `import` */
-  const runtimeImports = new Set<string>()
-  /** Names that appear ONLY in type positions — can use `import type` */
-  const typeOnlyImports = new Set<string>()
+  /** Core names that appear in runtime (value) positions — need regular `import` */
+  const runtimeCoreImports = new Set<string>()
+  /** Core names that appear ONLY in type positions — can use `import type` */
+  const typeOnlyCoreImports = new Set<string>()
 
-  // Find runtime property access expressions like z.ZodError in `instanceof z.ZodError`
+  // --- Process runtime (PropertyAccessExpression) nodes ---
   const propAccesses = file.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)
 
   for (const pa of propAccesses) {
     if (pa.wasForgotten()) continue
     const text = pa.getText()
-    const replacement = CLASS_RENAMES[text]
-    if (!replacement) continue
 
-    pa.replaceWithText(replacement)
-    runtimeImports.add(replacement)
-    count++
+    // Check mini renames first (no import needed)
+    const miniReplacement = MINI_CLASS_RENAMES[text]
+    if (miniReplacement) {
+      pa.replaceWithText(miniReplacement)
+      count++
+      continue
+    }
+
+    // Check core renames (need import)
+    const coreReplacement = CORE_CLASS_RENAMES[text]
+    if (coreReplacement) {
+      pa.replaceWithText(coreReplacement)
+      runtimeCoreImports.add(coreReplacement)
+      count++
+    }
   }
 
-  // Find type-level qualified names like z.ZodType in `function foo(x: z.ZodType)`
-  // These are QualifiedName nodes in the AST, distinct from PropertyAccessExpression.
+  // --- Process type-level (QualifiedName) nodes ---
   const qualNames = file.getDescendantsOfKind(SyntaxKind.QualifiedName)
 
   for (const qn of qualNames) {
     if (qn.wasForgotten()) continue
     const text = qn.getText()
-    const replacement = CLASS_RENAMES[text]
-    if (!replacement) continue
 
-    qn.replaceWithText(replacement)
-    // Only type-only if NOT also seen in a runtime position
-    if (!runtimeImports.has(replacement)) {
-      typeOnlyImports.add(replacement)
+    // Check mini renames first
+    const miniReplacement = MINI_CLASS_RENAMES[text]
+    if (miniReplacement) {
+      qn.replaceWithText(miniReplacement)
+      count++
+      continue
     }
-    count++
+
+    // Check core renames
+    const coreReplacement = CORE_CLASS_RENAMES[text]
+    if (coreReplacement) {
+      qn.replaceWithText(coreReplacement)
+      if (!runtimeCoreImports.has(coreReplacement)) {
+        typeOnlyCoreImports.add(coreReplacement)
+      }
+      count++
+    }
   }
 
-  // Reconcile: if a name is in both sets, it must be a runtime import
-  for (const name of runtimeImports) {
-    typeOnlyImports.delete(name)
+  // Reconcile: runtime imports take precedence over type-only
+  for (const name of runtimeCoreImports) {
+    typeOnlyCoreImports.delete(name)
   }
 
   // Helper: add named imports to an existing import declaration
@@ -644,47 +668,49 @@ export function transformClassRefs(file: SourceFile): number {
     }
   }
 
+  // Add core imports only for $ZodError / $ZodShape (the rest stay on z namespace)
+
   // Add runtime imports (regular `import`)
-  if (runtimeImports.size > 0) {
+  if (runtimeCoreImports.size > 0) {
     const existingCoreImport = file.getImportDeclaration(d =>
       d.getModuleSpecifierValue() === 'zod/v4/core' && !d.isTypeOnly()
     )
 
     if (existingCoreImport) {
-      addToExistingImport(existingCoreImport, runtimeImports)
+      addToExistingImport(existingCoreImport, runtimeCoreImports)
     } else {
       const internalImport = file.getImportDeclaration(d =>
         d.getModuleSpecifierValue().endsWith('/zod-core') && !d.isTypeOnly()
       )
       if (internalImport) {
-        addToExistingImport(internalImport, runtimeImports)
+        addToExistingImport(internalImport, runtimeCoreImports)
       } else {
         file.addImportDeclaration({
           moduleSpecifier: 'zod/v4/core',
-          namedImports: [...runtimeImports].sort(),
+          namedImports: [...runtimeCoreImports].sort(),
         })
       }
     }
   }
 
   // Add type-only imports (`import type`)
-  if (typeOnlyImports.size > 0) {
+  if (typeOnlyCoreImports.size > 0) {
     const existingTypeImport = file.getImportDeclaration(d =>
       d.getModuleSpecifierValue() === 'zod/v4/core' && d.isTypeOnly()
     )
 
     if (existingTypeImport) {
-      addToExistingImport(existingTypeImport, typeOnlyImports)
+      addToExistingImport(existingTypeImport, typeOnlyCoreImports)
     } else {
       const internalTypeImport = file.getImportDeclaration(d =>
         d.getModuleSpecifierValue().endsWith('/zod-core') && d.isTypeOnly()
       )
       if (internalTypeImport) {
-        addToExistingImport(internalTypeImport, typeOnlyImports)
+        addToExistingImport(internalTypeImport, typeOnlyCoreImports)
       } else {
         file.addImportDeclaration({
           moduleSpecifier: 'zod/v4/core',
-          namedImports: [...typeOnlyImports].sort(),
+          namedImports: [...typeOnlyCoreImports].sort(),
           isTypeOnly: true,
         })
       }
