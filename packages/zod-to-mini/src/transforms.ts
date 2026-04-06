@@ -125,9 +125,33 @@ function isLikelySchemaExpr(obj: string): boolean {
   if (obj.match(/^z\.\w+\(/)) return true
   // zx.id(...), zx.date(), etc.
   if (obj.match(/^zx\.\w+\(/)) return true
-  // Chained schema: something.check(...), z.optional(...)
-  if (obj.match(/^z\.(optional|nullable)\(/)) return true
   return false
+}
+
+/**
+ * Scope-aware schema variable lookup for a specific call expression.
+ * Walks up from the call to find the nearest variable declaration matching
+ * the given name and checks if its initializer is a schema expression.
+ * Avoids false positives from same-named variables in different scopes.
+ */
+function isSchemaVariable(call: CallExpression, varName: string): boolean {
+  // Find all variable declarations in the file, closest to the call site first
+  const file = call.getSourceFile()
+  const varDecls = file.getDescendantsOfKind(SyntaxKind.VariableDeclaration)
+
+  // Find the closest declaration of this variable that comes before the call
+  let closestDecl: typeof varDecls[0] | undefined
+  for (const decl of varDecls) {
+    if (decl.getName() !== varName) continue
+    if (decl.getStart() >= call.getStart()) continue
+    // Keep the closest (last one before the call)
+    closestDecl = decl
+  }
+
+  if (!closestDecl) return false
+  const init = closestDecl.getInitializer()
+  if (!init) return false
+  return isLikelySchemaExpr(init.getText())
 }
 
 /**
@@ -281,12 +305,15 @@ export function transformMethods(file: SourceFile, typeChecker?: TypeChecker): n
       if (typeChecker) {
         const typeResult = isZodSchemaByType(call, typeChecker)
         // true = confirmed schema, false = confirmed non-schema, null = unknown (any)
-        // When the type checker returns null (couldn't resolve), fall back to the heuristic.
-        // This happens after AST mutations create z.partial(...) etc. which don't exist in
-        // zod's type definitions (they're zod/mini constructs).
+        // When the type checker returns null (couldn't resolve), fall back to heuristics.
         isSchema = typeResult === true || (typeResult === null && isLikelySchemaExpr(obj))
       } else {
         isSchema = isLikelySchemaExpr(obj)
+      }
+      // Fall back to scope-aware variable tracking: if the receiver is a variable
+      // whose closest declaration is assigned from a schema expression, treat it as a schema.
+      if (!isSchema && isSchemaVariable(call, obj.trim())) {
+        isSchema = true
       }
       if (!isSchema) continue
 
@@ -651,6 +678,52 @@ export function transformClassRefs(file: SourceFile): number {
       }
       count++
     }
+  }
+
+  // --- Process inline import type expressions (ImportType nodes) ---
+  // e.g., import('zod').ZodTypeAny → import('zod/mini').ZodMiniType
+  const importTypes = file.getDescendantsOfKind(SyntaxKind.ImportType)
+
+  for (const itn of importTypes) {
+    if (itn.wasForgotten()) continue
+
+    const arg = itn.getArgument()
+    if (!arg) continue
+    // Extract module specifier from the LiteralType wrapper
+    const argText = arg.getText()
+    const moduleSpec = argText.replace(/^['"]|['"]$/g, '')
+    if (moduleSpec !== 'zod' && moduleSpec !== 'zodvex/core') continue
+
+    const qualifier = itn.getQualifier()
+    if (!qualifier) continue
+    const qualText = qualifier.getText()
+
+    // Check mini renames: import('zod').ZodObject → import('zod/mini').ZodMiniObject
+    const miniKey = `z.${qualText}`
+    const miniReplacement = MINI_CLASS_RENAMES[miniKey]
+    if (miniReplacement) {
+      const newQualifier = miniReplacement.replace('z.', '')
+      const typeArgs = itn.getTypeArguments()
+      const typeArgsStr = typeArgs.length > 0 ? `<${typeArgs.map(a => a.getText()).join(', ')}>` : ''
+      itn.replaceWithText(`import('zod/mini').${newQualifier}${typeArgsStr}`)
+      count++
+      continue
+    }
+
+    // Check core renames: import('zod').ZodError → import('zod/v4/core').$ZodError
+    const coreReplacement = CORE_CLASS_RENAMES[miniKey]
+    if (coreReplacement) {
+      const typeArgs = itn.getTypeArguments()
+      const typeArgsStr = typeArgs.length > 0 ? `<${typeArgs.map(a => a.getText()).join(', ')}>` : ''
+      itn.replaceWithText(`import('zod/v4/core').${coreReplacement}${typeArgsStr}`)
+      count++
+      continue
+    }
+
+    // No class rename match, but module specifier still needs updating
+    // import('zod').infer → import('zod/mini').infer
+    itn.replaceWithText(`import('zod/mini').${qualText}${itn.getTypeArguments().length > 0 ? `<${itn.getTypeArguments().map(a => a.getText()).join(', ')}>` : ''}`)
+    count++
   }
 
   // Reconcile: runtime imports take precedence over type-only

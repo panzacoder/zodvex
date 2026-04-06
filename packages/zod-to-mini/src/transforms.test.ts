@@ -223,6 +223,28 @@ describe('type-aware ambiguous methods', () => {
   it('still transforms schema.brand() unconditionally', () => {
     expect(transform('schema.brand("Email")')).toBe('z.brand(schema, "Email")')
   })
+
+  it('transforms .extend() on variable assigned from z.object()', () => {
+    const input = `import { z } from 'zod'\nconst base = z.object({ a: z.string() })\nbase.extend({ b: z.number() })`
+    const result = transform(input)
+    expect(result).toContain('z.extend(base, { b: z.number() })')
+  })
+
+  it('transforms .extend() on variable assigned from z.omit()', () => {
+    const input = `import { z } from 'zod'\nconst base = z.omit(z.object({ a: z.string(), b: z.number() }), { b: true })\nbase.extend({ c: z.boolean() })`
+    const result = transform(input)
+    expect(result).toContain('z.extend(base, { c: z.boolean() })')
+  })
+
+  it('transforms .pick() on variable assigned from z.partial()', () => {
+    const input = `import { z } from 'zod'\nconst partial = z.partial(z.object({ a: z.string(), b: z.number() }))\npartial.pick({ a: true })`
+    const result = transform(input)
+    expect(result).toContain('z.pick(partial, { a: true })')
+  })
+
+  it('does NOT transform .extend() on unknown variable', () => {
+    expect(transform('unknownVar.extend({ foo: 1 })')).toBe('unknownVar.extend({ foo: 1 })')
+  })
 })
 
 describe('transformConstructorReplacements', () => {
@@ -460,6 +482,44 @@ describe('transformClassRefs — import type', () => {
   })
 })
 
+describe('transformClassRefs — inline import types', () => {
+  it("import('zod').ZodTypeAny → import('zod/mini').ZodMiniType", () => {
+    const input = `type Schema = import('zod').ZodTypeAny`
+    const result = transform(input)
+    expect(result).toContain("import('zod/mini').ZodMiniType")
+  })
+
+  it("import('zod').ZodObject<Shape> → import('zod/mini').ZodMiniObject<Shape>", () => {
+    const input = `type Doc = import('zod').ZodObject<MyShape>`
+    const result = transform(input)
+    expect(result).toContain("import('zod/mini').ZodMiniObject<MyShape>")
+  })
+
+  it("import('zod').ZodError → import('zod/v4/core').$ZodError", () => {
+    const input = `type Err = import('zod').ZodError`
+    const result = transform(input)
+    expect(result).toContain("import('zod/v4/core').$ZodError")
+  })
+
+  it("import('zodvex/core').ZodType → import('zod/mini').ZodMiniType", () => {
+    const input = `type Schema = import('zodvex/core').ZodType`
+    const result = transform(input)
+    expect(result).toContain("import('zod/mini').ZodMiniType")
+  })
+
+  it("skips import('other-lib').SomeType", () => {
+    const input = `type T = import('lodash').DeepPartial`
+    const result = transform(input)
+    expect(result).toContain("import('lodash').DeepPartial")
+  })
+
+  it("import('zod').infer → import('zod/mini').infer (non-class qualifier)", () => {
+    const input = `type Out = import('zod').infer<typeof schema>`
+    const result = transform(input)
+    expect(result).toContain("import('zod/mini').infer")
+  })
+})
+
 describe('transformCode', () => {
   it('transforms a string and returns the result', () => {
     const input = `import { z } from 'zod'\nconst s = z.string().optional()`
@@ -485,9 +545,9 @@ describe('transformCode', () => {
     expect(result.code).toContain('.check(z.int())')
     expect(result.code).toContain('.check(z.positive())')
     expect(result.code).toContain('z._default(')
-    // Without type checker, bare identifiers like UserSchema are not recognized as schemas
-    // so ambiguous methods (.partial(), .extend()) are left untransformed
-    expect(result.code).toContain('UserSchema.partial().extend({ id: z.string() })')
+    // Schema variable tracking recognizes UserSchema (assigned from z.object())
+    // so ambiguous methods (.partial(), .extend()) are transformed
+    expect(result.code).toContain('z.extend(z.partial(UserSchema), { id: z.string() })')
     expect(result.code).toContain('schema.check(z.describe("validated"))')
     // z.ZodType → z.ZodMiniType (stays on z namespace, no core import needed)
     expect(result.code).toContain('z.ZodMiniType')
