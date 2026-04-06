@@ -9,6 +9,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { z as zm } from 'zod/mini'
+import { $ZodObject, $ZodArray } from 'zod/v4/core'
 import { defineZodModel, type ZodModel, type FullZodModelSchemas } from '../src/model'
 import { defineZodModel as defineZodModelMini, type MiniModelSchemas } from '../src/mini'
 import { zx } from '../src/zx'
@@ -22,7 +23,7 @@ import type { output as zoutput } from 'zod/v4/core'
 const fields = {
   name: z.string(),
   email: z.string().optional(),
-  createdAt: zx.date(),
+  createdAt: zx.date()
 }
 
 const coreModel = defineZodModel('test_table', fields)
@@ -81,7 +82,7 @@ describe('ZodModel type inference: core vs mini', () => {
       email: 'alice@test.com',
       createdAt: 1000,
       _id: 'test_id' as any,
-      _creationTime: 2000,
+      _creationTime: 2000
     }
 
     // Both models create schemas at runtime with full zod (z.object)
@@ -113,23 +114,23 @@ describe('field type lookup for index range builders', () => {
   const taskModel = defineZodModel('tasks', {
     title: z.string(),
     status: z.enum(['todo', 'done']),
-    createdAt: zx.date(),
+    createdAt: zx.date()
   }).index('by_created', ['createdAt'])
 
   const userModel = defineZodModel('users', {
     name: z.string(),
-    createdAt: zx.date(),
+    createdAt: zx.date()
   }).index('by_created', ['createdAt'])
 
   const taskModelMini = defineZodModelMini('tasks', {
     title: z.string(),
     status: z.enum(['todo', 'done']),
-    createdAt: zx.date(),
+    createdAt: zx.date()
   }).index('by_created', ['createdAt'])
 
   const userModelMini = defineZodModelMini('users', {
     name: z.string(),
-    createdAt: zx.date(),
+    createdAt: zx.date()
   }).index('by_created', ['createdAt'])
 
   it('core: inferred doc types have correct field types', () => {
@@ -155,5 +156,38 @@ describe('field type lookup for index range builders', () => {
 
     // Should also be number — same inference, different type wrapper
     expectTypeOf<CreatedAtType>().toBeNumber()
+  })
+})
+
+// ============================================================================
+// Runtime verification: mini build produces correct instances
+// ============================================================================
+
+describe('mini runtime: schemas are core-compatible instances', () => {
+  it('model.schema.doc is an instanceof $ZodObject', () => {
+    expect(miniModel.schema.doc).toBeInstanceOf($ZodObject)
+  })
+
+  it('model.schema.insert is an instanceof $ZodObject', () => {
+    expect(miniModel.schema.insert).toBeInstanceOf($ZodObject)
+  })
+
+  it('model.schema.docArray is an instanceof $ZodArray', () => {
+    expect(miniModel.schema.docArray).toBeInstanceOf($ZodArray)
+  })
+
+  it('model.schema.update is an instanceof $ZodObject', () => {
+    expect(miniModel.schema.update).toBeInstanceOf($ZodObject)
+  })
+
+  it('model.schema.paginatedDoc is an instanceof $ZodObject', () => {
+    expect(miniModel.schema.paginatedDoc).toBeInstanceOf($ZodObject)
+  })
+
+  it('core and mini models produce structurally equivalent schemas', () => {
+    // Both should have the same field names in their shape
+    const coreShape = Object.keys((coreModel.schema.doc as any)._zod.def.shape)
+    const miniShape = Object.keys((miniModel.schema.doc as any)._zod.def.shape)
+    expect(coreShape.sort()).toEqual(miniShape.sort())
   })
 })
