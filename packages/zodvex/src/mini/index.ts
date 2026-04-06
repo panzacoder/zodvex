@@ -52,8 +52,70 @@ export {
   zPaginated
 } from '../core'
 
-// Re-export model (includes defineZodModel)
-export * from '../model'
+// Re-export model types (ZodModel generic works for both full/mini via Schemas param)
+export {
+  type FieldPaths,
+  type FullZodModelSchemas,
+  type ModelFieldPaths,
+  type ModelSchemas,
+  type SearchIndexConfig,
+  type VectorIndexConfig,
+  type ZodModel
+} from '../model'
+
+// --- Mini-typed defineZodModel ---
+// Same runtime, but return type uses ZodMiniObject/ZodMiniArray etc.
+// so that model.schema.doc is assignable to z.ZodMiniType and has the mini API surface.
+import type {
+  ZodMiniArray,
+  ZodMiniBoolean,
+  ZodMiniNullable,
+  ZodMiniNumber,
+  ZodMiniObject,
+  ZodMiniOptional,
+  ZodMiniString
+} from 'zod/mini'
+import {
+  defineZodModel as _defineZodModel,
+  type ModelSchemas as _ModelSchemas,
+  type ZodModel as _ZodModel
+} from '../model'
+import type { $ZodObject, $ZodShape } from '../zod-core'
+
+/** Mini-typed schema bundle for ZodModel from zodvex/mini */
+export type MiniModelSchemas<Name extends string, Fields extends $ZodShape> = {
+  readonly doc: ZodMiniObject<Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber }>
+  readonly base: ZodMiniObject<Fields>
+  readonly insert: ZodMiniObject<Fields>
+  readonly update: ZodMiniObject<
+    { _id: ZxMiniId<Name>; _creationTime: ZodMiniOptional<ZodMiniNumber> } & {
+      [K in keyof Fields]: ZodMiniOptional<Fields[K]>
+    }
+  >
+  readonly docArray: ZodMiniArray<
+    ZodMiniObject<Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber }>
+  >
+  readonly paginatedDoc: ZodMiniObject<{
+    page: ZodMiniArray<
+      ZodMiniObject<Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber }>
+    >
+    isDone: ZodMiniBoolean
+    continueCursor: ZodMiniOptional<ZodMiniNullable<ZodMiniString>>
+  }>
+}
+
+export const defineZodModel: {
+  <Name extends string, Fields extends $ZodShape>(
+    name: Name,
+    fields: Fields
+    // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
+  ): _ZodModel<Name, Fields, $ZodObject<Fields>, MiniModelSchemas<Name, Fields>, {}, {}, {}>
+  <Name extends string, Schema extends $ZodType>(
+    name: Name,
+    schema: Schema
+    // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
+  ): _ZodModel<Name, $ZodShape, Schema, _ModelSchemas, {}, {}, {}>
+} = _defineZodModel as any
 
 // Re-export registry
 export * from '../registry'

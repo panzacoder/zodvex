@@ -8,7 +8,6 @@
  * Exported from zodvex/core (no server imports).
  */
 
-import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 import { attachMeta } from './meta'
 import {
@@ -18,23 +17,13 @@ import {
   isZodUnion
 } from './schemaHelpers'
 import {
-  $ZodArray,
-  $ZodBoolean,
-  $ZodNullable,
-  $ZodNumber,
   $ZodObject,
   $ZodOptional,
   type $ZodShape,
-  $ZodString,
   $ZodType,
   type input as zinput
 } from './zod-core'
-import { zx } from './zx'
-
-/** Core-typed Convex ID — uses $ZodType for zod/mini compatibility */
-type $ZxId<TableName extends string> = $ZodType<GenericId<TableName>> & {
-  _tableName: TableName
-}
+import { type ZxId, zx } from './zx'
 
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
 function ensureOptional(schema: $ZodType): z.ZodOptional<any> {
@@ -100,10 +89,51 @@ export type VectorIndexConfig = {
 // ============================================================================
 
 /**
+ * Constraint for the schema bundle carried by ZodModel.
+ * Concrete types (FullZodModelSchemas, MiniModelSchemas) satisfy this.
+ */
+export type ModelSchemas = {
+  readonly doc: $ZodType
+  readonly base: $ZodType
+  readonly insert: $ZodType
+  readonly update: $ZodType
+  readonly docArray: $ZodType
+  readonly paginatedDoc: $ZodType
+}
+
+/**
+ * Full-zod schema types — the default for zodvex/core consumers.
+ * Each property uses z.ZodObject / z.ZodArray etc. from full zod,
+ * providing method chaining (.parse(), .shape, .nullable(), etc.).
+ */
+export type FullZodModelSchemas<Name extends string, Fields extends $ZodShape> = {
+  readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
+  readonly base: z.ZodObject<Fields>
+  readonly insert: z.ZodObject<Fields>
+  readonly update: z.ZodObject<
+    { _id: ZxId<Name>; _creationTime: z.ZodOptional<z.ZodNumber> } & {
+      [K in keyof Fields]: z.ZodOptional<Fields[K]>
+    }
+  >
+  readonly docArray: z.ZodArray<
+    z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
+  >
+  readonly paginatedDoc: z.ZodObject<{
+    page: z.ZodArray<z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>>
+    isDone: z.ZodBoolean
+    continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+  }>
+}
+
+/**
  * A client-safe model definition with type-safe schemas and index metadata.
  *
  * Produced by defineZodModel(). Chainable via .index(), .searchIndex(), .vectorIndex().
  * Each chain call returns a new immutable model with accumulated metadata.
+ *
+ * The `Schemas` parameter carries the concrete schema types — full-zod types
+ * from zodvex/core, mini types from zodvex/mini. Chain methods preserve `Schemas`
+ * unchanged since they only modify index metadata.
  *
  * Downstream consumers wrap this to add domain metadata (e.g., security rules).
  */
@@ -111,31 +141,14 @@ export type ZodModel<
   Name extends string = string,
   Fields extends $ZodShape = $ZodShape,
   InsertSchema extends $ZodType = $ZodType,
+  Schemas extends ModelSchemas = ModelSchemas,
   Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
   SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
   VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
 > = {
   readonly name: Name
   readonly fields: Fields
-  readonly schema: {
-    readonly doc: $ZodObject<Fields & { _id: $ZxId<Name>; _creationTime: $ZodNumber }>
-    /** User fields only — alias for insert */
-    readonly base: $ZodObject<Fields>
-    readonly insert: $ZodObject<Fields>
-    readonly update: $ZodObject<
-      { _id: $ZxId<Name>; _creationTime: $ZodOptional<$ZodNumber> } & {
-        [K in keyof Fields]: $ZodOptional<Fields[K]>
-      }
-    >
-    readonly docArray: $ZodArray<
-      $ZodObject<Fields & { _id: $ZxId<Name>; _creationTime: $ZodNumber }>
-    >
-    readonly paginatedDoc: $ZodObject<{
-      page: $ZodArray<$ZodObject<Fields & { _id: $ZxId<Name>; _creationTime: $ZodNumber }>>
-      isDone: $ZodBoolean
-      continueCursor: $ZodOptional<$ZodNullable<$ZodString>>
-    }>
-  }
+  readonly schema: Schemas
   readonly indexes: Indexes
   readonly searchIndexes: SearchIndexes
   readonly vectorIndexes: VectorIndexes
@@ -151,6 +164,7 @@ export type ZodModel<
     Name,
     Fields,
     InsertSchema,
+    Schemas,
     Indexes & Record<IndexName, readonly [First, ...Rest, '_creationTime']>,
     SearchIndexes,
     VectorIndexes
@@ -163,6 +177,7 @@ export type ZodModel<
     Name,
     Fields,
     InsertSchema,
+    Schemas,
     Indexes,
     SearchIndexes & Record<IndexName, SearchIndexConfig>,
     VectorIndexes
@@ -175,6 +190,7 @@ export type ZodModel<
     Name,
     Fields,
     InsertSchema,
+    Schemas,
     Indexes,
     SearchIndexes,
     VectorIndexes & Record<IndexName, VectorIndexConfig>
@@ -220,14 +236,14 @@ export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   name: Name,
   fields: Fields
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-): ZodModel<Name, Fields, $ZodObject<Fields>, {}, {}, {}>
+): ZodModel<Name, Fields, z.ZodObject<Fields>, FullZodModelSchemas<Name, Fields>, {}, {}, {}>
 
 // Overload 2: pre-built schema (union or object)
 export function defineZodModel<Name extends string, Schema extends $ZodType>(
   name: Name,
   schema: Schema
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-): ZodModel<Name, $ZodShape, Schema, {}, {}, {}>
+): ZodModel<Name, $ZodShape, Schema, ModelSchemas, {}, {}, {}>
 
 // Implementation
 export function defineZodModel<Name extends string>(
