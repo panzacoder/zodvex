@@ -41,6 +41,7 @@ export {
   // Shape types (equivalent to z.ZodRawShape)
   type $ZodShape,
   $ZodString,
+  type $strip,
   $ZodSymbol,
   // Transform/pipe
   $ZodTransform,

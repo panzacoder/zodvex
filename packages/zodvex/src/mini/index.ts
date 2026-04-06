@@ -64,44 +64,49 @@ export {
 } from '../model'
 
 // --- Mini-typed defineZodModel ---
-// Same runtime, but return type uses ZodMiniObject/ZodMiniArray etc.
-// so that model.schema.doc is assignable to z.ZodMiniType and has the mini API surface.
-import type {
-  ZodMiniArray,
-  ZodMiniBoolean,
-  ZodMiniNullable,
-  ZodMiniNumber,
-  ZodMiniObject,
-  ZodMiniOptional,
-  ZodMiniString
-} from 'zod/mini'
+// Same runtime, but return type uses $ZodObject/$ZodArray etc. from zod/v4/core
+// (with $strip config) so that types are compatible with both zod and zod/mini consumers.
 import {
   defineZodModel as _defineZodModel,
   type ModelSchemas as _ModelSchemas,
   type ZodModel as _ZodModel
 } from '../model'
-import type { $ZodObject, $ZodShape } from '../zod-core'
+import type {
+  $ZodArray,
+  $ZodBoolean,
+  $ZodNullable,
+  $ZodNumber,
+  $ZodObject,
+  $ZodOptional,
+  $ZodShape,
+  $ZodString,
+  $strip
+} from '../zod-core'
 
 /** Mini-typed schema bundle for ZodModel from zodvex/mini */
 export type MiniModelSchemas<Name extends string, Fields extends $ZodShape> = {
-  readonly doc: ZodMiniObject<Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber }>
-  readonly base: ZodMiniObject<Fields>
-  readonly insert: ZodMiniObject<Fields>
-  readonly update: ZodMiniObject<
-    { _id: ZxMiniId<Name>; _creationTime: ZodMiniOptional<ZodMiniNumber> } & {
-      [K in keyof Fields]: ZodMiniOptional<Fields[K]>
-    }
+  readonly doc: $ZodObject<Fields & { _id: ZxMiniId<Name>; _creationTime: $ZodNumber }, $strip>
+  readonly base: $ZodObject<Fields, $strip>
+  readonly insert: $ZodObject<Fields, $strip>
+  readonly update: $ZodObject<
+    { _id: ZxMiniId<Name>; _creationTime: $ZodOptional<$ZodNumber> } & {
+      [K in keyof Fields]: $ZodOptional<Fields[K]>
+    },
+    $strip
   >
-  readonly docArray: ZodMiniArray<
-    ZodMiniObject<Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber }>
+  readonly docArray: $ZodArray<
+    $ZodObject<Fields & { _id: ZxMiniId<Name>; _creationTime: $ZodNumber }, $strip>
   >
-  readonly paginatedDoc: ZodMiniObject<{
-    page: ZodMiniArray<
-      ZodMiniObject<Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber }>
-    >
-    isDone: ZodMiniBoolean
-    continueCursor: ZodMiniOptional<ZodMiniNullable<ZodMiniString>>
-  }>
+  readonly paginatedDoc: $ZodObject<
+    {
+      page: $ZodArray<
+        $ZodObject<Fields & { _id: ZxMiniId<Name>; _creationTime: $ZodNumber }, $strip>
+      >
+      isDone: $ZodBoolean
+      continueCursor: $ZodOptional<$ZodNullable<$ZodString>>
+    },
+    $strip
+  >
 }
 
 export const defineZodModel: {
@@ -109,7 +114,7 @@ export const defineZodModel: {
     name: Name,
     fields: Fields
     // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-  ): _ZodModel<Name, Fields, $ZodObject<Fields>, MiniModelSchemas<Name, Fields>, {}, {}, {}>
+  ): _ZodModel<Name, Fields, $ZodObject<Fields, $strip>, MiniModelSchemas<Name, Fields>, {}, {}, {}>
   <Name extends string, Schema extends $ZodType>(
     name: Name,
     schema: Schema
