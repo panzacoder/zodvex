@@ -436,6 +436,7 @@ const CLASS_RENAMES: Record<string, string> = {
   'z.ZodError': '$ZodError',
   'z.ZodType': '$ZodType',
   'z.ZodTypeAny': '$ZodType',
+  'z.ZodRawShape': '$ZodShape',
   'z.ZodObject': '$ZodObject',
   'z.ZodArray': '$ZodArray',
   'z.ZodString': '$ZodString',
@@ -451,13 +452,17 @@ const CLASS_RENAMES: Record<string, string> = {
   'z.ZodDefault': '$ZodDefault',
   'z.ZodRecord': '$ZodRecord',
   'z.ZodTuple': '$ZodTuple',
+  'z.ZodDiscriminatedUnion': '$ZodDiscriminatedUnion',
+  'z.ZodLazy': '$ZodLazy',
+  'z.ZodPipe': '$ZodPipe',
+  'z.ZodTransform': '$ZodTransform',
 }
 
 export function transformClassRefs(file: SourceFile): number {
   let count = 0
   const neededImports = new Set<string>()
 
-  // Find all property access expressions like z.ZodError
+  // Find runtime property access expressions like z.ZodError in `instanceof z.ZodError`
   const propAccesses = file.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)
 
   for (const pa of propAccesses) {
@@ -467,6 +472,21 @@ export function transformClassRefs(file: SourceFile): number {
     if (!replacement) continue
 
     pa.replaceWithText(replacement)
+    neededImports.add(replacement)
+    count++
+  }
+
+  // Find type-level qualified names like z.ZodType in `function foo(x: z.ZodType)`
+  // These are QualifiedName nodes in the AST, distinct from PropertyAccessExpression.
+  const qualNames = file.getDescendantsOfKind(SyntaxKind.QualifiedName)
+
+  for (const qn of qualNames) {
+    if (qn.wasForgotten()) continue
+    const text = qn.getText()
+    const replacement = CLASS_RENAMES[text]
+    if (!replacement) continue
+
+    qn.replaceWithText(replacement)
     neededImports.add(replacement)
     count++
   }

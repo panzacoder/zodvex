@@ -88,8 +88,8 @@ Usage:
   zodvex init                            Set up zodvex in an existing Convex project
   zodvex migrate [dir]                   Migrate pre-0.6 APIs (renames + import fixes)
   zodvex migrate [dir] --dry-run         Preview changes without writing
-  zodvex codemod --to-mini [dir]         Convert full-zod code to zod/mini syntax
-  zodvex codemod --to-mini [dir] --dry-run  Preview changes without writing
+  zodvex codemod --to-mini [dir]           Convert full-zod code to zod/mini syntax
+  zodvex codemod --to-mini [dir] --dry-run Preview changes without writing
   zodvex help                            Show this help message
 
 Flags:

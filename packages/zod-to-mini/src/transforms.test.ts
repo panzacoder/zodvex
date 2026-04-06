@@ -146,11 +146,33 @@ describe('transformClassRefs', () => {
   })
 
   it('z.ZodTypeAny → $ZodType (runtime usage)', () => {
-    // Type annotations are erased at compile time — the codemod only handles
-    // runtime PropertyAccessExpression nodes, not type-position references.
     const input = `import { z } from 'zod'\nfoo instanceof z.ZodTypeAny`
     const result = transform(input)
     expect(result).toContain('instanceof $ZodType')
+  })
+
+  it('z.ZodType in type annotation → $ZodType', () => {
+    const input = `import { z } from 'zod'\nfunction validate(schema: z.ZodType) { return schema }`
+    const result = transform(input)
+    expect(result).toContain('schema: $ZodType')
+  })
+
+  it('z.ZodRawShape in type annotation → $ZodShape', () => {
+    const input = `import { z } from 'zod'\nfunction makeObj(shape: z.ZodRawShape) { return z.object(shape) }`
+    const result = transform(input)
+    expect(result).toContain('shape: $ZodShape')
+  })
+
+  it('z.ZodTypeAny in generic constraint → $ZodType', () => {
+    const input = `import { z } from 'zod'\nfunction wrap<T extends z.ZodTypeAny>(s: T) { return s }`
+    const result = transform(input)
+    expect(result).toContain('extends $ZodType')
+  })
+
+  it('z.ZodObject in type alias → $ZodObject', () => {
+    const input = `import { z } from 'zod'\ntype MySchema = z.ZodObject<any>`
+    const result = transform(input)
+    expect(result).toContain('$ZodObject<any>')
   })
 })
 

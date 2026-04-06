@@ -7,9 +7,21 @@
  * This modifies files in-place. Use --dry-run to preview changes.
  * To undo: git restore <dir>
  */
-import { readFileSync, writeFileSync } from 'fs'
-import { relative, resolve } from 'path'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { relative, resolve, join } from 'path'
 import { globSync } from 'tinyglobby'
+
+/** Walk up from dir to find the nearest tsconfig.json */
+function findTsconfig(startDir: string): string | undefined {
+  let dir = startDir
+  while (true) {
+    const candidate = join(dir, 'tsconfig.json')
+    if (existsSync(candidate)) return candidate
+    const parent = resolve(dir, '..')
+    if (parent === dir) return undefined // reached root
+    dir = parent
+  }
+}
 
 export async function runToMiniCodemod(
   targetDir: string,
@@ -26,6 +38,17 @@ export async function runToMiniCodemod(
     absolute: true
   })
 
+  // Auto-detect tsconfig for type-aware transforms
+  let typeProject: InstanceType<typeof Project> | undefined
+  const tsconfigPath = findTsconfig(dir)
+  if (tsconfigPath) {
+    typeProject = new Project({
+      tsConfigFilePath: tsconfigPath,
+      skipAddingFilesFromTsConfig: true
+    })
+    console.log(`[zodvex codemod] Using type checker (${relative(process.cwd(), tsconfigPath)})`)
+  }
+
   console.log(
     `[zodvex codemod] ${options.dryRun ? 'Dry run — ' : ''}Processing ${files.length} files in ${targetDir}/`
   )
@@ -39,8 +62,11 @@ export async function runToMiniCodemod(
     // Skip files that don't reference zod
     if (!code.includes("'zod'") && !code.includes('"zod"')) continue
 
-    // Apply all zod→mini code transforms
-    const result = transformCode(code)
+    // Apply all zod→mini code transforms (with type checker if available)
+    const result = transformCode(code, {
+      filename: filePath,
+      project: typeProject
+    })
     let output = result.code
 
     // Transform imports: 'zod' → 'zod/mini', 'zodvex/core' → 'zodvex/mini'
