@@ -8,7 +8,7 @@
  * To undo: git restore <dir>
  */
 import { readFileSync, writeFileSync } from 'fs'
-import { resolve, relative } from 'path'
+import { relative, resolve } from 'path'
 import { globSync } from 'tinyglobby'
 
 export async function runToMiniCodemod(
