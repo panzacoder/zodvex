@@ -22,16 +22,16 @@ This has caused 5 iterations of "plan, implement, discover new breakage" on the 
 
 | File | Errors | Category |
 |---|---|---|
-| `notifications.ts` | 11 | Union model: same class as full example |
-| `tasks.ts` | 7 | `GenericDocument` mismatch — DataModel poisoned by notifications |
-| `users.ts` | 4 | Same DataModel poisoning |
-| `filters.ts` | 4 | Same DataModel poisoning |
-| `activities.ts` | 3 | Same DataModel poisoning |
-| `securedTasks.ts` | 2 | Same DataModel poisoning |
-| `comments.ts` | 2 | Same DataModel poisoning |
-| `functions.ts` | 1 | `initZodvex` overload match fails due to poisoned DataModel |
-| `crons.ts` | 1 | Same as full example |
-| `api/reports.ts` | 1 | Same DataModel poisoning |
+| `notifications.ts` | 11 | Union model: same class as full example (Cause A) |
+| `tasks.ts` | 7 | DataModel poisoned by notifications (Cause A) |
+| `users.ts` | 4 | DataModel poisoning (Cause A) |
+| `filters.ts` | 4 | Mix: some DataModel poisoning (Cause A), some `"required"` from codec brand loss (Cause B) |
+| `activities.ts` | 3 | Missing `import { z } from 'zod/mini'` (Cause D) — `z.nullable()` on line 10 has no `z` in scope |
+| `securedTasks.ts` | 2 | DataModel poisoning (Cause A) |
+| `comments.ts` | 2 | DataModel poisoning (Cause A) |
+| `functions.ts` | 1 | `initZodvex` overload match fails due to poisoned DataModel (Cause A) |
+| `crons.ts` | 1 | Same as full example (Cause D) |
+| `api/reports.ts` | 1 | DataModel poisoning (Cause A) |
 
 ### Root cause analysis
 
@@ -69,26 +69,35 @@ Two sub-parts:
 
 **2a: Preserve union Schema type through the model.**
 
-Add `UnionModelSchemas<Schema>` that preserves the specific union type in ALL consumer-facing positions, not just `base`/`insert`:
+Add `UnionModelSchemas<Name, Schema>` that preserves the specific union type in all consumer-facing positions, not just `base`/`insert`.
+
+The doc schema for union models is the union-with-system-fields — each variant gets `_id` and `_creationTime` appended. This computation currently exists as `AddSystemFieldsResult` in `tables.ts:173`, but it's private and written entirely in `z.Zod*` terms (full zod). It cannot be reused in shared code.
+
+**Required new type:** A core-compatible `AddSystemFieldsToUnion<Name, Schema>` type that does the same computation using `$Zod*` types. It must handle three cases:
+- `Schema extends $ZodObject<Shape>` → `$ZodObject<Shape & { _id: ...; _creationTime: ... }>`
+- `Schema extends $ZodUnion<Options>` → `$ZodUnion<mapped variants>`
+- `Schema extends $ZodDiscriminatedUnion<Options, Disc>` → `$ZodDiscriminatedUnion<mapped variants, Disc>`
+
+This type should live in `schemaHelpers.ts` (which already has the runtime `addSystemFields` function and the system field types) and be exported. The existing `tables.ts` private version can then be removed or aliased.
+
+With that in place:
 
 ```ts
 export type UnionModelSchemas<
   Name extends string,
   Schema extends $ZodType
 > = {
-  readonly doc: AddSystemFieldsResult<Name, Schema>  // computed union with system fields
+  readonly doc: AddSystemFieldsToUnion<Name, Schema>
   readonly base: Schema
   readonly insert: Schema
-  readonly update: $ZodType  // partial union — hard to type precisely, $ZodType is acceptable
-  readonly docArray: $ZodArray<AddSystemFieldsResult<Name, Schema>>
+  readonly update: $ZodType  // partial union — hard to type precisely, $ZodType acceptable
+  readonly docArray: $ZodArray<AddSystemFieldsToUnion<Name, Schema>>
   readonly paginatedDoc: $ZodType  // compound type, $ZodType acceptable
 }
 ```
 
-`AddSystemFieldsResult` is the existing type in `schemaHelpers.ts` that computes the union-with-system-fields type. Using it here ensures `schema.doc` has the correct discriminated union shape with `_id` and `_creationTime` — not bare `$ZodType`.
-
 This preserves:
-- `schema.doc` — consumers can call `.nullable()` (full zod) or use `z.nullable(schema.doc)` (mini), and type inference extracts the discriminated union shape
+- `schema.doc` — consumers get the actual discriminated union shape with system fields, supporting `.nullable()` (full zod) or `z.nullable(schema.doc)` (mini)
 - `schema.base` / `schema.insert` — the raw union for ConvexTableFor
 - `schema.docArray` — typed array of the union doc
 
@@ -104,8 +113,11 @@ In `schema.ts`, `ConvexTableFor` checks `schema.base extends $ZodUnion | $ZodDis
 - `schema.ts`: `'zodvex'` → `'zodvex/mini/server'`
 - `functions.ts`: `'zodvex/server'` → `'zodvex/mini/server'`
 
+**Mini example missing import:**
+- `activities.ts:10`: uses `z.nullable(...)` but `z` is not imported. Add `import { z } from 'zod/mini'`.
+
 **Full example pre-existing issues:**
-- `cleanup.ts`: either add the missing `by_completed` index to the tasks model, or update cleanup.ts to use existing indexes
+- `cleanup.ts`: references index `by_completed` and field `completedAt` that don't exist on the tasks model. Either add the missing index to the model, or update cleanup.ts to use existing indexes.
 - `crons.ts`: fix the `crons.daily()` call arity
 - `notifications.ts`: remaining errors should be resolved by Fix 2, but if `.nullable()` on union doc schema still fails, the example code needs to use `z.nullable(NotificationModel.schema.doc)` (functional form)
 
