@@ -1,12 +1,9 @@
 /**
  * Tests that exercise zodvex APIs with zod/mini schemas.
  *
- * These catch runtime incompatibilities that the main test suite misses,
- * because the main suite uses full `zod` (which has .pick(), .partial(),
- * .description, etc.) while zod/mini does not.
- *
- * Each test constructs schemas using `zod/mini`'s `z` namespace and passes
- * them through zodvex functions that the built mini bundle exports.
+ * These catch runtime AND type incompatibilities — schemas are constructed
+ * with zod/mini and passed directly to zodvex functions WITHOUT `as any` casts.
+ * If these compile and pass, zodvex's public API genuinely accepts mini schemas.
  */
 import { describe, expect, it } from 'vitest'
 import { z as zm } from 'zod/mini'
@@ -22,7 +19,7 @@ describe('zod-mini runtime compatibility', () => {
   describe('convexCodec with mini schemas', () => {
     it('encode and decode work with mini object schema', () => {
       const schema = zm.object({ name: zm.string(), age: zm.number() })
-      const codec = convexCodec(schema as any)
+      const codec = convexCodec(schema)
 
       const encoded = codec.encode({ name: 'Alice', age: 30 })
       expect(encoded).toEqual({ name: 'Alice', age: 30 })
@@ -37,10 +34,10 @@ describe('zod-mini runtime compatibility', () => {
         age: zm.number(),
         email: zm.string()
       })
-      const codec = convexCodec(schema as any)
-      const picked = codec.pick(['name', 'email'] as any)
+      const codec = convexCodec(schema)
+      const picked = codec.pick(['name', 'email'])
 
-      const encoded = picked.encode({ name: 'Alice', email: 'a@b.com' } as any)
+      const encoded = picked.encode({ name: 'Alice', email: 'a@b.com' })
       expect(encoded).toEqual({ name: 'Alice', email: 'a@b.com' })
     })
 
@@ -50,10 +47,10 @@ describe('zod-mini runtime compatibility', () => {
         age: zm.number(),
         email: zm.string()
       })
-      const codec = convexCodec(schema as any)
-      const picked = codec.pick({ name: true, age: true } as any)
+      const codec = convexCodec(schema)
+      const picked = codec.pick({ name: true, age: true })
 
-      const encoded = picked.encode({ name: 'Alice', age: 30 } as any)
+      const encoded = picked.encode({ name: 'Alice', age: 30 })
       expect(encoded).toEqual({ name: 'Alice', age: 30 })
     })
   })
@@ -69,7 +66,7 @@ describe('zod-mini runtime compatibility', () => {
         active: zm.boolean()
       })
 
-      const result = encodePartialDoc(schema as any, { name: 'updated' })
+      const result = encodePartialDoc(schema, { name: 'updated' })
       expect(result).toEqual({ name: 'updated' })
     })
 
@@ -79,7 +76,7 @@ describe('zod-mini runtime compatibility', () => {
         nickname: zm.optional(zm.string())
       })
 
-      const result = encodePartialDoc(schema as any, { nickname: 'Nick' })
+      const result = encodePartialDoc(schema, { nickname: 'Nick' })
       expect(result).toEqual({ nickname: 'Nick' })
     })
   })
@@ -91,10 +88,10 @@ describe('zod-mini runtime compatibility', () => {
     it('round-trips a mini object schema', () => {
       const schema = zm.object({ name: zm.string(), count: zm.number() })
 
-      const decoded = decodeDoc(schema as any, { name: 'test', count: 42 })
+      const decoded = decodeDoc(schema, { name: 'test', count: 42 })
       expect(decoded).toEqual({ name: 'test', count: 42 })
 
-      const encoded = encodeDoc(schema as any, { name: 'test', count: 42 })
+      const encoded = encodeDoc(schema, { name: 'test', count: 42 })
       expect(encoded).toEqual({ name: 'test', count: 42 })
     })
 
@@ -104,11 +101,11 @@ describe('zod-mini runtime compatibility', () => {
         createdAt: zx.date()
       })
 
-      const decoded = decodeDoc(schema as any, { name: 'test', createdAt: 1000 })
+      const decoded = decodeDoc(schema, { name: 'test', createdAt: 1000 })
       expect(decoded.name).toBe('test')
       expect(decoded.createdAt).toBeInstanceOf(Date)
 
-      const encoded = encodeDoc(schema as any, { name: 'test', createdAt: new Date(1000) })
+      const encoded = encodeDoc(schema, { name: 'test', createdAt: new Date(1000) })
       expect(encoded).toEqual({ name: 'test', createdAt: 1000 })
     })
   })
@@ -122,7 +119,7 @@ describe('zod-mini runtime compatibility', () => {
         name: zm.string(),
         age: zm.number(),
         active: zm.boolean()
-      } as any)
+      })
 
       expect(model.name).toBe('test_table')
       expect(model.schema.doc).toBeDefined()
@@ -136,7 +133,7 @@ describe('zod-mini runtime compatibility', () => {
         name: zm.string(),
         nickname: zm.optional(zm.string()),
         bio: zm.nullable(zm.string())
-      } as any)
+      })
 
       expect(model.schema.doc).toBeDefined()
       expect(model.schema.update).toBeDefined()
@@ -153,7 +150,7 @@ describe('zod-mini runtime compatibility', () => {
         count: zm.number()
       })
 
-      const jsonSchema = toJSONSchema(schema as any)
+      const jsonSchema = toJSONSchema(schema)
       expect(jsonSchema).toBeDefined()
       expect(jsonSchema.type).toBe('object')
     })
@@ -165,7 +162,7 @@ describe('zod-mini runtime compatibility', () => {
       })
 
       // Should not crash — zid detection uses globalRegistry, not .description
-      const jsonSchema = toJSONSchema(schema as any)
+      const jsonSchema = toJSONSchema(schema)
       expect(jsonSchema).toBeDefined()
     })
   })
@@ -178,9 +175,9 @@ describe('zod-mini runtime compatibility', () => {
       const wire = zm.object({ value: zm.string(), tag: zm.string() })
       const runtime = zm.custom<{ value: string; tag: string; display: string }>(() => true)
 
-      const codec = zodvexCodec(wire as any, runtime as any, {
-        decode: (w: any) => ({ ...w, display: `[${w.tag}] ${w.value}` }),
-        encode: (r: any) => ({ value: r.value, tag: r.tag })
+      const codec = zodvexCodec(wire, runtime, {
+        decode: w => ({ ...w, display: `[${w.tag}] ${w.value}` }),
+        encode: r => ({ value: r.value, tag: r.tag })
       })
 
       expect(codec).toBeDefined()
