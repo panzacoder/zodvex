@@ -52,6 +52,19 @@ async function main() {
       }
       break
     }
+    case 'codemod': {
+      const toMini = process.argv.includes('--to-mini')
+      if (!toMini) {
+        console.error('[zodvex] No codemod specified. Available: --to-mini')
+        process.exit(1)
+      }
+      const dryRun = process.argv.includes('--dry-run')
+      const targetDir = process.argv.slice(3).find(a => !a.startsWith('--')) ?? 'convex'
+      // Lazy import — pulls in ts-morph only when codemod is used
+      const { runToMiniCodemod } = await import('./codemod')
+      await runToMiniCodemod(targetDir, { dryRun })
+      break
+    }
     case 'help':
     case '--help':
     case '-h':
@@ -75,6 +88,8 @@ Usage:
   zodvex init                            Set up zodvex in an existing Convex project
   zodvex migrate [dir]                   Migrate pre-0.6 APIs (renames + import fixes)
   zodvex migrate [dir] --dry-run         Preview changes without writing
+  zodvex codemod --to-mini [dir]         Convert full-zod code to zod/mini syntax
+  zodvex codemod --to-mini [dir] --dry-run  Preview changes without writing
   zodvex help                            Show this help message
 
 Flags:
