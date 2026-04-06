@@ -53,7 +53,10 @@ export default defineConfig([
   // plugin can intercept and redirect it.
   {
     ...shared,
-    entry: { 'mini/index': 'src/mini/index.ts' },
+    entry: {
+      'mini/index': 'src/mini/index.ts',
+      'mini/server/index': 'src/mini/server/index.ts',
+    },
     external: [...external.filter(e => e !== 'zod'), 'zod/mini'],
     noExternal: [/^zod$/],
     esbuildPlugins: [zodMiniAliasPlugin],
