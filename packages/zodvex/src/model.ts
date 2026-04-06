@@ -16,14 +16,25 @@ import {
   getUnionOptions,
   isZodUnion
 } from './schemaHelpers'
+import type { GenericId } from 'convex/values'
 import {
+  $ZodArray,
+  $ZodBoolean,
+  $ZodNullable,
+  $ZodNumber,
   $ZodObject,
   $ZodOptional,
   type $ZodShape,
+  $ZodString,
   $ZodType,
   type input as zinput
 } from './zod-core'
-import { type ZxId, zx } from './zx'
+import { zx } from './zx'
+
+/** Core-typed Convex ID — uses $ZodType for zod/mini compatibility */
+type $ZxId<TableName extends string> = $ZodType<GenericId<TableName>> & {
+  _tableName: TableName
+}
 
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
 function ensureOptional(schema: $ZodType): z.ZodOptional<any> {
@@ -107,22 +118,22 @@ export type ZodModel<
   readonly name: Name
   readonly fields: Fields
   readonly schema: {
-    readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
+    readonly doc: $ZodObject<Fields & { _id: $ZxId<Name>; _creationTime: $ZodNumber }>
     /** User fields only — alias for insert */
-    readonly base: z.ZodObject<Fields>
-    readonly insert: z.ZodObject<Fields>
-    readonly update: z.ZodObject<
-      { _id: ZxId<Name>; _creationTime: z.ZodOptional<z.ZodNumber> } & {
-        [K in keyof Fields]: z.ZodOptional<Fields[K]>
+    readonly base: $ZodObject<Fields>
+    readonly insert: $ZodObject<Fields>
+    readonly update: $ZodObject<
+      { _id: $ZxId<Name>; _creationTime: $ZodOptional<$ZodNumber> } & {
+        [K in keyof Fields]: $ZodOptional<Fields[K]>
       }
     >
-    readonly docArray: z.ZodArray<
-      z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
+    readonly docArray: $ZodArray<
+      $ZodObject<Fields & { _id: $ZxId<Name>; _creationTime: $ZodNumber }>
     >
-    readonly paginatedDoc: z.ZodObject<{
-      page: z.ZodArray<z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>>
-      isDone: z.ZodBoolean
-      continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+    readonly paginatedDoc: $ZodObject<{
+      page: $ZodArray<$ZodObject<Fields & { _id: $ZxId<Name>; _creationTime: $ZodNumber }>>
+      isDone: $ZodBoolean
+      continueCursor: $ZodOptional<$ZodNullable<$ZodString>>
     }>
   }
   readonly indexes: Indexes
@@ -209,7 +220,7 @@ export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   name: Name,
   fields: Fields
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-): ZodModel<Name, Fields, z.ZodObject<Fields>, {}, {}, {}>
+): ZodModel<Name, Fields, $ZodObject<Fields>, {}, {}, {}>
 
 // Overload 2: pre-built schema (union or object)
 export function defineZodModel<Name extends string, Schema extends $ZodType>(
