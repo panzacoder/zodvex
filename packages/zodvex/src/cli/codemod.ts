@@ -8,7 +8,7 @@
  * To undo: git restore <dir>
  */
 import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { relative, resolve, join } from 'path'
+import { join, relative, resolve } from 'path'
 import { globSync } from 'tinyglobby'
 
 /** Walk up from dir to find the nearest tsconfig.json */

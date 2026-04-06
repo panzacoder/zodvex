@@ -4,10 +4,11 @@
  * Uses the task-manager example project as a real-world test case.
  * The codemod runs against a temp copy so the original is never modified.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+
 import { cpSync, mkdtempSync, readFileSync, rmSync } from 'fs'
-import { join } from 'path'
 import { tmpdir } from 'os'
+import { join } from 'path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const TASK_MANAGER_CONVEX = join(__dirname, '../../../examples/task-manager/convex')
 
