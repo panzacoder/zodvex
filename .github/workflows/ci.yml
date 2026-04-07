@@ -43,6 +43,14 @@ jobs:
             exit 1
           }
 
+      - name: Smoke test task-manager codegen
+        working-directory: examples/task-manager
+        run: bunx convex codegen
+
+      - name: Smoke test task-manager-mini codegen
+        working-directory: examples/task-manager-mini
+        run: bunx convex codegen
+
   lint:
     runs-on: macos-latest
 
