@@ -13,7 +13,7 @@
  * and type-check again to see if the value type changes.
  */
 
-import { z } from 'zod/mini'
+import { z } from 'zod'
 import type { TableNames } from './_generated/dataModel'
 import { zim } from './functions'
 

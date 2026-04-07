@@ -15,7 +15,7 @@ export const get = zq({
 export const list = zq({
   args: {
     status: z.enum(['todo', 'in_progress', 'done']).optional(),
-    ownerId: z.optional(zx.id('users')),
+    ownerId: zx.id('users').optional(),
     paginationOpts: z.object({
       numItems: z.number(),
       cursor: z.string().nullable(),
@@ -52,9 +52,9 @@ export const create = zm({
     status: z.enum(['todo', 'in_progress', 'done']).optional(),
     priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
     ownerId: zx.id('users'),
-    assigneeId: z.optional(zx.id('users')),
-    dueDate: z.optional(zx.date()),
-    estimate: z.optional(zDuration),
+    assigneeId: zx.id('users').optional(),
+    dueDate: zx.date().optional(),
+    estimate: zDuration.optional(),
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert('tasks', {
@@ -75,9 +75,9 @@ export const update = zm({
     description: z.string().optional(),
     status: z.enum(['todo', 'in_progress', 'done']).optional(),
     priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
-    assigneeId: z.optional(zx.id('users')),
-    dueDate: z.optional(zx.date()),
-    estimate: z.optional(zDuration),
+    assigneeId: zx.id('users').optional(),
+    dueDate: zx.date().optional(),
+    estimate: zDuration.optional(),
   },
   handler: async (ctx, { id, ...fields }) => {
     await ctx.db.patch(id, fields)
