@@ -7,7 +7,7 @@ import type {
 import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
 import { type CustomBuilder, customFnBuilder } from './custom'
-import { attachFunctionMeta } from './functionSchemas'
+import { attachFunctionMeta } from './functionContracts'
 import type {
   ExtractCtx,
   ExtractVisibility,
