@@ -8,7 +8,7 @@ export const get = zq({
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id)
   },
-  returns: NotificationModel.schema.doc.nullable(),
+  returns: z.nullable(NotificationModel.schema.doc),
 })
 
 export const listByRecipient = zq({
@@ -54,7 +54,7 @@ export const listByCreated = zq({
   handler: async (ctx, { after }) => {
     return await ctx.db
       .query('notifications')
-      .withIndex('by_created', (q) => q.gte('createdAt', after))
+      .withIndex('by_created', (q) => q.gte('createdAt', after.getTime() as any))
       .collect()
   },
   returns: z.array(NotificationModel.schema.doc),
@@ -123,16 +123,19 @@ export const createInApp = zm({
 export const cleanupOld = zim({
   args: {},
   handler: async (ctx) => {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
     const oldNotifications = await ctx.db
       .query('notifications')
-      .withIndex('by_created', (q) => q.lt('createdAt', thirtyDaysAgo))
+      .withIndex('by_created', (q) => q.lt('createdAt', thirtyDaysAgo as any))
       .collect()
-    
+
     let deleted = 0
     for (const notification of oldNotifications) {
-      if (notification.kind === 'in_app' && notification.read) {
-        await ctx.db.delete(notification._id)
+      // oldNotifications is typed as unknown[] from the union table query.
+      // Cast to access discriminated fields.
+      const n = notification as { kind: string; read?: boolean; _id: any }
+      if (n.kind === 'in_app' && n.read) {
+        await ctx.db.delete(n._id)
         deleted++
       }
     }

@@ -28,3 +28,4 @@ export const activityFields = {
 
 export const ActivityModel = defineZodModel('activities', activityFields)
   .index('by_actor', ['actorId'])
+  .index('by_created', ['createdAt'])

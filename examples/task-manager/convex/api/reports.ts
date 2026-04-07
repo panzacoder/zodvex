@@ -11,7 +11,7 @@ import { TaskModel } from '../models/task'
 
 export const summary = zq({
   args: {
-    ownerId: zx.id('users').optional(),
+    ownerId: z.optional(zx.id('users')),
   },
   handler: async (ctx, { ownerId }) => {
     const q = ownerId

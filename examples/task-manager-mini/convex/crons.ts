@@ -7,7 +7,8 @@ const crons = cronJobs()
 crons.daily(
   'cleanup completed tasks',
   { hourUTC: 4, minuteUTC: 0 },
-  internal.notifications.cleanupOld
+  internal.notifications.cleanupOld,
+  {}
 )
 
 export default crons

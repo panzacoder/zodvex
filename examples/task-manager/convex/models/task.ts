@@ -9,10 +9,10 @@ export const taskFields = {
   status: z.enum(['todo', 'in_progress', 'done']),
   priority: z.enum(['low', 'medium', 'high']).nullable(),
   ownerId: zx.id('users'),
-  assigneeId: zx.id('users').optional(),
-  dueDate: zx.date().optional(),
-  completedAt: zx.date().optional(),
-  estimate: zDuration.optional(),
+  assigneeId: z.optional(zx.id('users')),
+  dueDate: z.optional(zx.date()),
+  completedAt: z.optional(zx.date()),
+  estimate: z.optional(zDuration),
   createdAt: zx.date(),
 }
 
@@ -21,3 +21,4 @@ export const TaskModel = defineZodModel('tasks', taskFields)
   .index('by_status', ['status'])
   .index('by_assignee', ['assigneeId'])
   .index('by_created', ['createdAt'])
+  .index('by_completed', ['completedAt'])

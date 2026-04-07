@@ -1,4 +1,4 @@
-import { initZodvex } from 'zodvex/server'
+import { initZodvex } from 'zodvex/mini/server'
 import {
   query,
   mutation,
