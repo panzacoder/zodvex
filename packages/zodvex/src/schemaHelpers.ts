@@ -12,7 +12,9 @@
 
 import { z } from 'zod'
 import {
+  $ZodArray,
   $ZodDiscriminatedUnion,
+  $ZodNumber,
   $ZodObject,
   type $ZodShape,
   $ZodType,
@@ -30,7 +32,7 @@ import { type ZxId, zx } from './zx'
  */
 export type SystemFields<TableName extends string> = {
   _id: ZxId<TableName>
-  _creationTime: z.ZodNumber
+  _creationTime: $ZodNumber
 }
 
 /**
@@ -42,6 +44,38 @@ export type MapSystemFields<TableName extends string, Options extends readonly $
     ? z.ZodObject<Shape & SystemFields<TableName>>
     : Options[K]
 }
+
+/**
+ * Core-compatible version of MapSystemFields.
+ * Uses $ZodObject from zod/v4/core instead of z.ZodObject from full zod.
+ */
+export type MapSystemFieldsCore<TableName extends string, Options extends readonly $ZodType[]> = {
+  [K in keyof Options]: Options[K] extends $ZodObject<infer Shape extends $ZodShape>
+    ? $ZodObject<Shape & SystemFields<TableName>>
+    : Options[K]
+}
+
+/**
+ * Computes the result of adding system fields to a union/object schema.
+ * Uses only $Zod* types from zod/v4/core — safe for shared code and mini consumers.
+ *
+ * Handles:
+ * - $ZodObject → $ZodObject with system fields
+ * - $ZodUnion → $ZodUnion with system fields on each variant
+ * - $ZodDiscriminatedUnion → $ZodDiscriminatedUnion with system fields on each variant
+ * - Other → returned as-is
+ */
+export type AddSystemFieldsToUnion<TableName extends string, Schema extends $ZodType> =
+  Schema extends $ZodObject<infer Shape extends $ZodShape>
+    ? $ZodObject<Shape & SystemFields<TableName>>
+    : Schema extends $ZodUnion<infer Options extends readonly $ZodType[]>
+      ? $ZodUnion<MapSystemFieldsCore<TableName, Options>>
+      : Schema extends $ZodDiscriminatedUnion<
+            infer Options extends readonly $ZodType[],
+            infer Disc extends string
+          >
+        ? $ZodDiscriminatedUnion<MapSystemFieldsCore<TableName, Options>, Disc>
+        : Schema
 
 /**
  * Minimum tuple type required by z.union() - at least 2 elements.
