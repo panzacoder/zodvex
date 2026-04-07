@@ -8,7 +8,7 @@
     "esModuleInterop": true,
     "outDir": "./dist",
     "rootDir": ".",
-    "types": ["bun-types"]
+    "types": ["node"]
   },
   "include": ["*.ts", "templates/**/*.ts"],
   "exclude": ["convex", "node_modules", "dist"]

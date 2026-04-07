@@ -1,12 +1,16 @@
 import { join } from 'path'
+import { fileURLToPath } from 'url'
 import v8 from 'v8'
 import { writeFileSync, existsSync, readdirSync } from 'fs'
+
+const EXAMPLE_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 // --- Types ---
 interface MeasureConfig {
   variant: 'baseline' | 'zod-mini' | 'convex-only'
   mode: 'tables-only' | 'functions-only' | 'both'
   count: number
+  resultsDir: string
 }
 
 interface MeasureResult {
@@ -48,7 +52,8 @@ function parseArgs(): MeasureConfig {
   const variant = (args.find(a => a.startsWith('--variant='))?.split('=')[1] ?? 'baseline') as MeasureConfig['variant']
   const mode = (args.find(a => a.startsWith('--mode='))?.split('=')[1] ?? 'both') as MeasureConfig['mode']
   const count = parseInt(args.find(a => a.startsWith('--count='))?.split('=')[1] ?? '50')
-  return { variant, mode, count }
+  const resultsDir = args.find(a => a.startsWith('--results='))?.split('=')[1] ?? join(EXAMPLE_DIR, 'results')
+  return { variant, mode, count, resultsDir }
 }
 
 // NOTE: Zod/zod-mini import baselines are measured by report.ts in isolated
@@ -62,7 +67,7 @@ function parseArgs(): MeasureConfig {
 // via --variant, --mode, --count flags).
 async function measureSchemaCreation(config: MeasureConfig): Promise<MeasureResult> {
   const { variant, mode, count } = config
-  const outputDir = join(import.meta.dir, 'convex', 'generated')
+  const outputDir = join(EXAMPLE_DIR, 'convex', 'generated')
 
   if (!existsSync(outputDir)) {
     throw new Error(`Generated modules not found at ${outputDir}. Run generate.ts first.`)
@@ -283,7 +288,7 @@ async function measurePropertyCount(): Promise<void> {
 async function main() {
   const config = parseArgs()
 
-  const resultsDir = join(import.meta.dir, 'results')
+  const resultsDir = config.resultsDir
   if (!existsSync(resultsDir)) {
     const { mkdirSync } = await import('fs')
     mkdirSync(resultsDir, { recursive: true })

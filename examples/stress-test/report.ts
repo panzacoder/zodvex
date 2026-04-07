@@ -1,10 +1,17 @@
 import { execSync } from 'child_process'
 import { join } from 'path'
+import { fileURLToPath } from 'url'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 
-const SCALE_POINTS = [50, 100, 150, 200, 250]
+const EXAMPLE_DIR = fileURLToPath(new URL('.', import.meta.url))
+const DEFAULT_SCALE_POINTS = [50, 100, 150, 200, 250]
 const VARIANTS = ['baseline', 'compiled', 'zod-mini'] as const
 const MODES = ['tables-only', 'functions-only', 'both'] as const
+
+interface ReportConfig {
+  resultsDir: string
+  scalePoints: number[]
+}
 
 interface ResultRow {
   variant: string
@@ -21,11 +28,24 @@ interface ResultRow {
 function run(cmd: string): string {
   console.log(`> ${cmd}`)
   return execSync(cmd, {
-    cwd: join(import.meta.dir),
+    cwd: EXAMPLE_DIR,
     encoding: 'utf-8',
     timeout: 120_000,
     env: { ...process.env, NODE_OPTIONS: '--expose-gc' },
   })
+}
+
+function parseArgs(): ReportConfig {
+  const args = process.argv.slice(2)
+  const resultsDir = args.find(a => a.startsWith('--results='))?.split('=')[1] ?? join(EXAMPLE_DIR, 'results')
+  const scalePoints = args
+    .find(a => a.startsWith('--scales='))
+    ?.split('=')[1]
+    ?.split(',')
+    .map(value => parseInt(value, 10))
+    .filter(Number.isFinite) ?? DEFAULT_SCALE_POINTS
+
+  return { resultsDir, scalePoints }
 }
 
 // Helper: write a temp measurement script and run it in an isolated process.
@@ -44,7 +64,7 @@ function measureImportBaseline(pkg: string): string {
 }
 
 async function main() {
-  const resultsDir = join(import.meta.dir, 'results')
+  const { resultsDir, scalePoints } = parseArgs()
   if (!existsSync(resultsDir)) mkdirSync(resultsDir, { recursive: true })
 
   const rows: ResultRow[] = []
@@ -67,7 +87,7 @@ async function main() {
     JSON.stringify({ zodImportBaseline, miniImportBaseline }, null, 2)
   )
 
-  for (const scale of SCALE_POINTS) {
+  for (const scale of scalePoints) {
     for (const variant of VARIANTS) {
       for (const mode of MODES) {
         console.log(`\n=== ${variant} / ${mode} / ${scale} ===`)
@@ -77,7 +97,7 @@ async function main() {
 
         // Measure — may throw if modules fail to import (e.g., zod-mini API gaps)
         try {
-          run(`bun --expose-gc run measure.ts --count=${scale} --mode=${mode} --variant=${variant}`)
+          run(`bun --expose-gc run measure.ts --count=${scale} --mode=${mode} --variant=${variant} --results=${resultsDir}`)
 
           // Read result
           const resultFile = join(resultsDir, `${variant}-${mode}-${scale}.json`)
@@ -119,7 +139,7 @@ async function main() {
     '# Zod v4 OOM Stress Test Results',
     '',
     `**Date:** ${new Date().toISOString().split('T')[0]}`,
-    `**Scale points:** ${SCALE_POINTS.join(', ')}`,
+    `**Scale points:** ${scalePoints.join(', ')}`,
     `**Variants:** ${VARIANTS.join(', ')}`,
     '',
     '## Import Baselines (memory floor before any user schemas)',

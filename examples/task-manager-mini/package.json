@@ -7,6 +7,7 @@
     "build": "zodvex generate --mini && vite build",
     "deploy": "zodvex generate --mini && bunx convex deploy",
     "generate": "zodvex generate --mini",
+    "typecheck": "bunx tsc --noEmit --declaration false",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:smoke": "bun run test/smoke.ts"

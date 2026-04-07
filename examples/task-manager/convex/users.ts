@@ -29,9 +29,14 @@ export const create = zm({
     email: z.string(),
     avatarUrl: z.string().optional(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { email, ...args }) => {
     const id = await ctx.db.insert("users", {
       ...args,
+      email: {
+        value: email,
+        tag: 'primary',
+        displayValue: `[primary] ${email}`,
+      },
       createdAt: new Date(),
     });
     return id;

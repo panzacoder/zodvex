@@ -54,7 +54,7 @@ export const listByCreated = zq({
   handler: async (ctx, { after }) => {
     return await ctx.db
       .query('notifications')
-      .withIndex('by_created', (q) => q.gte('createdAt', after.getTime() as any))
+      .withIndex('by_created', (q) => q.gte('createdAt', after))
       .collect()
   },
   returns: z.array(NotificationModel.schema.doc),
@@ -123,10 +123,10 @@ export const createInApp = zm({
 export const cleanupOld = zim({
   args: {},
   handler: async (ctx) => {
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const oldNotifications = await ctx.db
       .query('notifications')
-      .withIndex('by_created', (q) => q.lt('createdAt', thirtyDaysAgo as any))
+      .withIndex('by_created', (q) => q.lt('createdAt', thirtyDaysAgo))
       .collect()
 
     let deleted = 0

@@ -358,7 +358,8 @@ export function generateApiFile(
   const allCodecVars = usedModelCodecVars.map(mc => `const ${mc.varName} = ${mc.expression}`)
   const codecVarSection = allCodecVars.length > 0 ? `${allCodecVars.join('\n')}\n\n` : ''
 
-  const js = `${HEADER}\n${importSection}${codecVarSection}export const zodvexRegistry = {\n${entries},\n}\n`
+  const registryEntries = entries.length > 0 ? `${entries},\n` : ''
+  const js = `${HEADER}\n${importSection}${codecVarSection}export const zodvexRegistry = {\n${registryEntries}}\n`
 
   const dts = options?.mini
     ? `${HEADER}

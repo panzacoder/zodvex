@@ -13,5 +13,6 @@
     "declaration": true,
     "paths": {}
   },
-  "include": ["src", "convex", "test"]
+  "include": ["src", "convex"],
+  "exclude": ["convex/**/*.test.ts"]
 }

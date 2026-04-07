@@ -1,7 +1,10 @@
 import { mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync } from 'fs'
+import { fileURLToPath } from 'url'
 import { join } from 'path'
 import { transformCode, transformImports } from 'zod-to-mini'
 import { Project, type SourceFile } from 'ts-morph'
+
+const EXAMPLE_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 // --- Configuration ---
 interface GenerateConfig {
@@ -18,14 +21,14 @@ function parseArgs(): GenerateConfig {
   const mode = (args.find(a => a.startsWith('--mode='))?.split('=')[1] ?? 'both') as GenerateConfig['mode']
   const variant = (args.find(a => a.startsWith('--variant='))?.split('=')[1] ?? 'baseline') as GenerateConfig['variant']
   const convex = args.includes('--convex')
-  const outputDir = args.find(a => a.startsWith('--output='))?.split('=')[1] ?? join(import.meta.dir, 'convex', 'generated')
+  const outputDir = args.find(a => a.startsWith('--output='))?.split('=')[1] ?? join(EXAMPLE_DIR, 'convex', 'generated')
 
   return { count, mode, variant, convex, outputDir }
 }
 
 // --- Template Loading ---
 function loadTemplate(dir: string, name: string): string {
-  return readFileSync(join(import.meta.dir, 'templates', dir, `${name}.ts.tmpl`), 'utf-8')
+  return readFileSync(join(EXAMPLE_DIR, 'templates', dir, `${name}.ts.tmpl`), 'utf-8')
 }
 
 // --- Name Generation ---
@@ -132,13 +135,16 @@ function generate() {
     // In 'functions-only' mode: lightweight stub that creates the Zod schema but does NOT
     // call defineZodModel or register with defineZodSchema.
     if (mode === 'functions-only') {
+      const docSchema = variant === 'zod-mini'
+        ? `z.nullable(z.object(${name}Fields))`
+        : `z.object(${name}Fields).nullable()`
       const stubSource = templates[tier]
         .replaceAll('{{NAME}}', name)
         .replaceAll('{{TABLE_NAME}}', table)
         .replaceAll('{{INDEX_FIELD}}', String(i % 10))
         .replace(
           /export const (\w+)Model = defineZodModel\([^)]+\)[\s\S]*$/,
-          `export const $1Model = { schema: { doc: z.object(${name}Fields).nullable() } } as any`
+          `export const $1Model = { schema: { doc: ${docSchema} } } as any`
         )
       writeFileSync(join(modelsDir, `${file}.ts`), stubSource)
     } else {
@@ -204,16 +210,32 @@ function generate() {
     let functionsSource: string
     if (config.convex) {
       functionsSource = readFileSync(
-        join(import.meta.dir, 'templates', templateDir, 'functions-bootstrap.ts.tmpl'),
+        join(EXAMPLE_DIR, 'templates', templateDir, 'functions-bootstrap.ts.tmpl'),
         'utf-8'
       )
     } else {
-      functionsSource = `// Mock functions.ts for standalone heap measurement (no Convex codegen)
-import { zQueryBuilder, zMutationBuilder } from 'zodvex/server'
+      functionsSource = `// Use initZodvex with wrapDb disabled so generated handlers keep
+// the real Convex ctx types during standalone heap measurement.
+import { initZodvex } from 'zodvex/server'
+import {
+  query,
+  mutation,
+  action,
+  internalQuery,
+  internalMutation,
+  internalAction,
+} from '../_generated/server'
 
-const stubBuilder = (config: any) => config
-export const zq = zQueryBuilder(stubBuilder as any)
-export const zm = zMutationBuilder(stubBuilder as any)
+const schema = { __zodTableMap: {} } as any
+
+export const { zq, zm } = initZodvex(schema, {
+  query,
+  mutation,
+  action,
+  internalQuery,
+  internalMutation,
+  internalAction,
+}, { wrapDb: false })
 `
     }
     writeFileSync(join(outputDir, 'functions.ts'), functionsSource)

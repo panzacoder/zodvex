@@ -138,6 +138,12 @@ describe('generateApiFile', () => {
     expect(output).toContain('returns: undefined')
   })
 
+  it('generates a valid empty registry when no functions are discovered', () => {
+    const { js: output } = generateApiFile([], sampleModels)
+    expect(output).toContain('export const zodvexRegistry = {\n}\n')
+    expect(output).not.toContain('{\n,\n}')
+  })
+
   it('does not include as const in JS output', () => {
     const { js } = generateApiFile(sampleFunctions, sampleModels)
     expect(js).not.toContain('as const')
