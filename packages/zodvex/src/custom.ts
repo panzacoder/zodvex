@@ -100,6 +100,87 @@ type Registration<
     ? import('convex/server').RegisteredMutation<Visibility, Args, Output>
     : import('convex/server').RegisteredAction<Visibility, Args, Output>
 
+type CustomInputResult = {
+  ctx?: Record<string, unknown>
+  args?: Record<string, unknown>
+  onSuccess?: (params: { ctx: unknown; args: unknown; result: unknown }) => unknown
+}
+
+function normalizeCustomArgsValidator(args: ZodValidator | $ZodObject): {
+  argsValidator: ZodValidator
+  argsSchema: $ZodObject
+} {
+  if (args instanceof $ZodType) {
+    if (args instanceof $ZodObject) {
+      return {
+        argsSchema: args as unknown as $ZodObject,
+        argsValidator: args._zod.def.shape as any
+      }
+    }
+    throw new Error(
+      'Unsupported non-object Zod schema for args; please provide an args schema using z.object({...}), e.g. z.object({ foo: z.string() })'
+    )
+  }
+
+  return {
+    argsValidator: args,
+    argsSchema: z.object(args)
+  }
+}
+
+async function runCustomizationInput(
+  customInput: (ctx: unknown, args: unknown, extra?: unknown) => unknown,
+  ctx: unknown,
+  allArgs: Record<string, unknown>,
+  inputArgs: Record<string, unknown>,
+  extra: Record<string, unknown>
+): Promise<CustomInputResult | undefined> {
+  return (await customInput(
+    ctx,
+    // Cast justification: customInput expects ObjectType<CustomArgsValidator>, but pick()
+    // returns Partial<T>. The cast is safe because inputArgs keys are derived from
+    // CustomArgsValidator at the type level.
+    // TODO: Create a type-safe pickArgs<T>() helper that preserves the ObjectType<T>
+    // return type when the keys are statically known from the validator.
+    pick(allArgs, Object.keys(inputArgs)) as any,
+    extra
+  )) as CustomInputResult | undefined
+}
+
+function applyCustomizationResult(
+  ctx: Record<string, unknown>,
+  baseArgs: Record<string, unknown>,
+  added?: CustomInputResult
+): { finalCtx: Record<string, unknown>; finalArgs: Record<string, unknown> } {
+  const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
+  const addedArgs = added?.args ?? {}
+  return {
+    finalCtx,
+    finalArgs: { ...baseArgs, ...addedArgs }
+  }
+}
+
+async function finalizeCustomReturn(
+  ctx: Record<string, unknown>,
+  args: Record<string, unknown>,
+  result: unknown,
+  added: CustomInputResult | undefined,
+  returns?: $ZodType
+): Promise<unknown> {
+  // Fire onSuccess before encoding — consumers see runtime types (e.g., Date),
+  // not wire format (e.g., number). This matches the intent of audit logging.
+  if (added?.onSuccess) {
+    await added.onSuccess({ ctx, args, result })
+  }
+
+  if (returns) {
+    const validated = validateReturns(returns, result)
+    return stripUndefined(validated)
+  }
+
+  return stripUndefined(result)
+}
+
 /**
  * A builder that customizes a Convex function, whether or not it validates
  * arguments. If the customization requires arguments, however, the resulting
@@ -200,23 +281,7 @@ export function customFnBuilder<
     }
 
     if (args) {
-      let argsValidator = args
-      let argsSchema: $ZodObject
-
-      if (argsValidator instanceof $ZodType) {
-        if (argsValidator instanceof $ZodObject) {
-          argsSchema = argsValidator as unknown as $ZodObject
-          // cast: reassigning schema variable to its shape for zodToConvexFields
-          argsValidator = argsValidator._zod.def.shape as any
-        } else {
-          throw new Error(
-            'Unsupported non-object Zod schema for args; please provide an args schema using z.object({...}), e.g. z.object({ foo: z.string() })'
-          )
-        }
-      } else {
-        // It's a raw shape object with Zod validators as values
-        argsSchema = z.object(argsValidator)
-      }
+      const { argsValidator, argsSchema } = normalizeCustomArgsValidator(args)
 
       // Only generate Convex args validator when not skipping Convex validation
       const convexArgs = skipConvexValidation
@@ -230,16 +295,7 @@ export function customFnBuilder<
         args: convexArgs,
         ...returnValidator,
         handler: async (ctx: Ctx, allArgs: any) => {
-          // Cast justification: customInput expects ObjectType<CustomArgsValidator>, but pick()
-          // returns Partial<T>. The cast is safe because inputArgs keys are derived from
-          // CustomArgsValidator at the type level.
-          // TODO: Create a type-safe pickArgs<T>() helper that preserves the ObjectType<T>
-          // return type when the keys are statically known from the validator.
-          const added: any = await customInput(
-            ctx,
-            pick(allArgs, Object.keys(inputArgs)) as any,
-            extra
-          )
+          const added = await runCustomizationInput(customInput as any, ctx, allArgs, inputArgs, extra)
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
           // Zod handles codec transforms natively via safeParse
@@ -247,26 +303,11 @@ export function customFnBuilder<
           if (!parsed.success) {
             handleZodValidationError(parsed.error, 'args')
           }
-          const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
           const baseArgs = parsed.data as Record<string, unknown>
-          const addedArgs = (added?.args as Record<string, unknown>) ?? {}
-          const finalArgs = { ...baseArgs, ...addedArgs }
+          const { finalCtx, finalArgs } = applyCustomizationResult(ctx as any, baseArgs, added)
 
           const ret = await handler(finalCtx, finalArgs)
-          // Fire onSuccess before encoding — consumers see runtime types (e.g., Date),
-          // not wire format (e.g., number). This matches the intent of audit logging.
-          if (added?.onSuccess) {
-            await added.onSuccess({ ctx, args: parsed.data, result: ret })
-          }
-          // Always run Zod return validation when returns schema is provided
-          if (returns) {
-            // Validate and encode using z.encode (Zod handles codecs natively)
-            const validated = validateReturns(returns as $ZodType, ret)
-            // Strip undefined values before returning (Convex rejects explicit undefined)
-            return stripUndefined(validated)
-          }
-          // Strip undefined even without returns schema (Convex rejects explicit undefined)
-          return stripUndefined(ret)
+          return finalizeCustomReturn(ctx as any, baseArgs, ret, added, returns)
         }
       })
       attachFunctionMeta(registered, argsSchema, returns)
@@ -276,34 +317,12 @@ export function customFnBuilder<
       args: inputArgs,
       ...returnValidator,
       handler: async (ctx: Ctx, allArgs: any) => {
-        // Cast justification: Same as above - customInput expects ObjectType<CustomArgsValidator>
-        // but pick() returns Partial<T>. Safe because inputArgs keys match CustomArgsValidator.
-        // TODO: Create a type-safe pickArgs<T>() helper (see comment in with-args path above).
-        const added: any = await customInput(
-          ctx,
-          pick(allArgs, Object.keys(inputArgs)) as any,
-          extra
-        )
-        const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
         const baseArgs = allArgs as Record<string, unknown>
-        const addedArgs = (added?.args as Record<string, unknown>) ?? {}
-        const finalArgs = { ...baseArgs, ...addedArgs }
+        const added = await runCustomizationInput(customInput as any, ctx, allArgs, inputArgs, extra)
+        const { finalCtx, finalArgs } = applyCustomizationResult(ctx as any, baseArgs, added)
 
         const ret = await handler(finalCtx, finalArgs)
-        // Fire onSuccess before encoding — consumers see runtime types (e.g., Date),
-        // not wire format (e.g., number). This matches the intent of audit logging.
-        if (added?.onSuccess) {
-          await added.onSuccess({ ctx, args: allArgs, result: ret })
-        }
-        // Always run Zod return validation when returns schema is provided
-        if (returns) {
-          // Validate and encode using z.encode (Zod handles codecs natively)
-          const validated = validateReturns(returns as $ZodType, ret)
-          // Strip undefined values before returning (Convex rejects explicit undefined)
-          return stripUndefined(validated)
-        }
-        // Strip undefined even without returns schema (Convex rejects explicit undefined)
-        return stripUndefined(ret)
+        return finalizeCustomReturn(ctx as any, baseArgs, ret, added, returns)
       }
     })
     attachFunctionMeta(registered, undefined, returns)
