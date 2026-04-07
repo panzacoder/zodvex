@@ -251,6 +251,22 @@ export function customFnBuilder<
   }
 }
 
+function createCustomBuilderEntrypoint<
+  Builder extends (fn: any) => any,
+  CustomArgsValidator extends PropertyValidators,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  builder: Builder,
+  customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
+) {
+  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+    builder as any,
+    customization as any
+  ) as any
+}
+
 // Overload 1: With constraint - preferred to preserve DataModel types
 export function zCustomQuery<
   CustomArgsValidator extends PropertyValidators,
@@ -313,14 +329,7 @@ export function zCustomQuery<
   // TODO: Consider using a conditional type or branded types to create a single signature
   // that satisfies both overloads without casts. Alternatively, accept this as idiomatic
   // TypeScript for overloaded functions and keep the casts.
-  return customFnBuilder<
-    any,
-    typeof query,
-    CustomArgsValidator,
-    CustomCtx,
-    CustomMadeArgs,
-    ExtraArgs
-  >(query as any, customization as any) as any
+  return createCustomBuilderEntrypoint(query, customization)
 }
 
 // Overload 1: With constraint - preferred to preserve DataModel types
@@ -358,10 +367,7 @@ export function zCustomMutation<
 ) {
   // Cast justification: Same overload implementation pattern as zCustomQuery.
   // See detailed comment there. Type safety is enforced by the overload signature above.
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
-    mutation as any,
-    customization as any
-  ) as any
+  return createCustomBuilderEntrypoint(mutation, customization)
 }
 
 // Overload 1: With constraint - preferred to preserve DataModel types
@@ -399,8 +405,5 @@ export function zCustomAction<
 ) {
   // Cast justification: Same overload implementation pattern as zCustomQuery.
   // See detailed comment there. Type safety is enforced by the overload signature above.
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
-    action as any,
-    customization as any
-  ) as any
+  return createCustomBuilderEntrypoint(action, customization)
 }
