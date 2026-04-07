@@ -10,7 +10,8 @@
     "lint": "bun run --cwd packages/zodvex lint",
     "lint:fix": "bun run --cwd packages/zodvex lint:fix",
     "format": "bun run --cwd packages/zodvex format",
-    "type-check:examples": "tsc --noEmit -p examples/task-manager/convex/tsconfig.json && tsc --noEmit -p examples/task-manager-mini/convex/tsconfig.json"
+    "type-check:examples": "tsc --noEmit -p examples/task-manager/convex/tsconfig.json && tsc --noEmit -p examples/task-manager-mini/convex/tsconfig.json",
+    "guard:mini-imports": "! rg -n \"zodvex/core\" examples/task-manager-mini/convex examples/task-manager-mini/src"
   },
   "devDependencies": {}
 }
