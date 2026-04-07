@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"zodvex dev\" \"bunx convex dev\" \"vite\"",
-    "build": "zodvex generate && vite build",
-    "deploy": "zodvex generate && bunx convex deploy",
-    "generate": "zodvex generate",
+    "dev": "concurrently \"zodvex dev --mini\" \"bunx convex dev\" \"vite\"",
+    "build": "zodvex generate --mini && vite build",
+    "deploy": "zodvex generate --mini && bunx convex deploy",
+    "generate": "zodvex generate --mini",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:smoke": "bun run test/smoke.ts"
