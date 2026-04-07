@@ -6,9 +6,8 @@ import type {
 } from 'convex/server'
 import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
-import { z } from 'zod'
 import { type CustomBuilder, customFnBuilder } from './custom'
-import { attachMeta } from './meta'
+import { attachFunctionMeta } from './functionSchemas'
 import type {
   ExtractCtx,
   ExtractVisibility,
@@ -17,7 +16,39 @@ import type {
   ZodToConvexArgs
 } from './types'
 import { zAction, zMutation, zQuery } from './wrappers'
-import { $ZodObject, $ZodType } from './zod-core'
+import { $ZodType } from './zod-core'
+
+function registerBuilderFunction<
+  Builder extends (fn: any) => any,
+  A extends $ZodType | Record<string, $ZodType> | undefined,
+  R extends $ZodType | undefined,
+  Result
+>(
+  register: (
+    builder: Builder,
+    input: A extends undefined ? Record<string, never> : A,
+    handler: (
+      ctx: ExtractCtx<Builder>,
+      args: ZodToConvexArgs<A extends undefined ? Record<string, never> : A>
+    ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
+    options: { returns?: R }
+  ) => Result,
+  builder: Builder,
+  config: {
+    args?: A
+    handler: (
+      ctx: ExtractCtx<Builder>,
+      args: ZodToConvexArgs<A extends undefined ? Record<string, never> : A>
+    ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>
+    returns?: R
+  }
+): Result {
+  const result = register(builder, (config.args ?? ({} as any)) as any, config.handler, {
+    returns: config.returns
+  })
+  attachFunctionMeta(result as object, config.args, config.returns)
+  return result
+}
 
 /**
  * Creates a reusable query builder from a Convex query builder.
@@ -59,18 +90,7 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
     ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
     Promise<InferReturns<R>>
   > => {
-    const result = zQuery(builder, config.args ?? ({} as any), config.handler, {
-      returns: config.returns
-    })
-    const zodArgs = config.args
-      ? config.args instanceof $ZodObject
-        ? (config.args as unknown as z.ZodObject<any>) // zod-ok
-        : config.args instanceof $ZodType
-          ? undefined
-          : z.object(config.args as Record<string, $ZodType>)
-      : undefined
-    attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
-    return result as any
+    return registerBuilderFunction(zQuery, builder, config) as any
   }
 }
 
@@ -114,18 +134,7 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
     ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
     Promise<InferReturns<R>>
   > => {
-    const result = zMutation(builder, config.args ?? ({} as any), config.handler, {
-      returns: config.returns
-    })
-    const zodArgs = config.args
-      ? config.args instanceof $ZodObject
-        ? (config.args as unknown as z.ZodObject<any>) // zod-ok
-        : config.args instanceof $ZodType
-          ? undefined
-          : z.object(config.args as Record<string, $ZodType>)
-      : undefined
-    attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
-    return result as any
+    return registerBuilderFunction(zMutation, builder, config) as any
   }
 }
 
@@ -169,18 +178,7 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
     ZodToConvexArgs<A extends undefined ? Record<string, never> : A>,
     Promise<InferReturns<R>>
   > => {
-    const result = zAction(builder, config.args ?? ({} as any), config.handler, {
-      returns: config.returns
-    })
-    const zodArgs = config.args
-      ? config.args instanceof $ZodObject
-        ? (config.args as unknown as z.ZodObject<any>) // zod-ok
-        : config.args instanceof $ZodType
-          ? undefined
-          : z.object(config.args as Record<string, $ZodType>)
-      : undefined
-    attachMeta(result, { type: 'function', zodArgs, zodReturns: config.returns })
-    return result as any
+    return registerBuilderFunction(zAction, builder, config) as any
   }
 }
 

@@ -118,4 +118,17 @@ describe('__zodvexMeta in direct builders', () => {
     // When args is already a ZodObject, the same instance should be used
     expect(meta.zodArgs).toBe(argsSchema)
   })
+
+  it('single-schema args do not synthesize object metadata', () => {
+    const zq = zQueryBuilder(mockBuilder)
+    const fn = zq({
+      args: z.string(),
+      returns: z.boolean(),
+      handler: async (_ctx: any, _args: any) => true
+    })
+
+    const meta = readMeta(fn) as ZodvexFunctionMeta
+    expect(meta.zodArgs).toBeUndefined()
+    expect(meta.zodReturns).toBeInstanceOf(z.ZodBoolean)
+  })
 })

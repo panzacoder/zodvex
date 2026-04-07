@@ -14,7 +14,7 @@ import { type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
-import { attachMeta } from './meta'
+import { attachFunctionMeta, normalizeFunctionSchema } from './functionSchemas'
 import { handleZodValidationError, validateReturns } from './serverUtils'
 import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
 import { assertNoNativeZodDate, pick, stripUndefined } from './utils'
@@ -189,8 +189,7 @@ export function customFnBuilder<
     const { args, handler = fn, returns: maybeObject, ...extra } = fn
     const skipConvexValidation = fn.skipConvexValidation ?? false
 
-    const returns =
-      maybeObject && !(maybeObject instanceof $ZodType) ? z.object(maybeObject) : maybeObject
+    const returns = normalizeFunctionSchema(maybeObject)
     // Only generate Convex return validator when not skipping Convex validation
     const returnValidator =
       returns && !skipConvexValidation ? { returns: zodToConvex(returns) } : undefined
@@ -270,7 +269,7 @@ export function customFnBuilder<
           return stripUndefined(ret)
         }
       })
-      attachMeta(registered, { type: 'function', zodArgs: argsSchema, zodReturns: returns })
+      attachFunctionMeta(registered, argsSchema, returns)
       return registered
     }
     const registered = builder({
@@ -307,7 +306,7 @@ export function customFnBuilder<
         return stripUndefined(ret)
       }
     })
-    attachMeta(registered, { type: 'function', zodArgs: undefined, zodReturns: returns })
+    attachFunctionMeta(registered, undefined, returns)
     return registered
   }
 }
