@@ -13,8 +13,8 @@ import type {
   $ZodOptional,
   $ZodShape,
   $ZodString,
-  $ZodType
 } from '../zod-core'
+import { $ZodType } from '../zod-core'
 import type { ZxMiniId } from './zx'
 
 /** Mini-typed schema bundle for ZodModel from zodvex/mini */
@@ -44,15 +44,24 @@ export type MiniModelSchemas<Name extends string, Fields extends $ZodShape> = {
 }
 
 /** Mini-typed defineZodModel surface backed by the shared model runtime. */
-export const defineZodModel: {
-  <Name extends string, Fields extends $ZodShape>(
-    name: Name,
-    fields: Fields
-    // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-  ): _ZodModel<Name, Fields, $ZodObject<Fields, $strip>, MiniModelSchemas<Name, Fields>, {}, {}, {}>
-  <Name extends string, Schema extends $ZodType>(
-    name: Name,
-    schema: Schema
-    // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-  ): _ZodModel<Name, $ZodShape, Schema, _UnionModelSchemas<Name, Schema>, {}, {}, {}>
-} = _defineZodModel as any
+export function defineZodModel<Name extends string, Fields extends $ZodShape>(
+  name: Name,
+  fields: Fields
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
+): _ZodModel<Name, Fields, $ZodObject<Fields, $strip>, MiniModelSchemas<Name, Fields>, {}, {}, {}>
+
+export function defineZodModel<Name extends string, Schema extends $ZodType>(
+  name: Name,
+  schema: Schema
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
+): _ZodModel<Name, $ZodShape, Schema, _UnionModelSchemas<Name, Schema>, {}, {}, {}>
+
+export function defineZodModel<Name extends string>(
+  name: Name,
+  fieldsOrSchema: $ZodShape | $ZodType
+) {
+  if (fieldsOrSchema instanceof $ZodType) {
+    return _defineZodModel(name, fieldsOrSchema)
+  }
+  return _defineZodModel(name, fieldsOrSchema)
+}
