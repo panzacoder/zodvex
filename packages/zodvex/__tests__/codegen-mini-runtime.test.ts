@@ -16,7 +16,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { z as zm } from 'zod/mini'
 import type { DiscoveredFunction, DiscoveredModel } from '../src/codegen/discover'
 import { generateApiFile } from '../src/codegen/generate'
 import { zx } from '../src/zx'
@@ -171,50 +170,6 @@ describe('codegen mini: no method chains in output', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Tests: runtime verification — the operations codegen performs must work
-// with zod/mini. These simulate what the generated api.js does at runtime.
-// ---------------------------------------------------------------------------
-
-describe('codegen mini: runtime operations work with zod/mini', () => {
-  // Create a mini schema to simulate what a mini consumer's model would produce
-  const miniDoc = zm.object({ _id: zm.string(), name: zm.string(), email: zm.string() })
-
-  it('z.nullable(schema) works — schema.nullable() does NOT', () => {
-    // This is the exact operation codegen emits in mini mode
-    expect(() => zm.nullable(miniDoc)).not.toThrow()
-    const result = zm.nullable(miniDoc)
-    expect(result).toBeDefined()
-
-    // This is what codegen USED to emit without --mini — it would crash
-    expect(typeof (miniDoc as any).nullable).not.toBe('function')
-  })
-
-  it('z.optional(schema) works — schema.optional() does NOT', () => {
-    expect(() => zm.optional(miniDoc)).not.toThrow()
-    const result = zm.optional(miniDoc)
-    expect(result).toBeDefined()
-
-    expect(typeof (miniDoc as any).optional).not.toBe('function')
-  })
-
-  it('z.nullable(z.optional(schema)) nests correctly', () => {
-    expect(() => zm.optional(zm.nullable(miniDoc))).not.toThrow()
-    const result = zm.optional(zm.nullable(miniDoc))
-    expect(result).toBeDefined()
-  })
-
-  it('z.array(schema) works', () => {
-    expect(() => zm.array(miniDoc)).not.toThrow()
-  })
-
-  it('z.object with z.optional/z.nullable fields works', () => {
-    expect(() =>
-      zm.object({
-        name: zm.string(),
-        email: zm.optional(zm.string()),
-        status: zm.nullable(zm.string())
-      })
-    ).not.toThrow()
-  })
-})
+// Runtime verification of codegen mini output is in:
+// __tests__/integration/mini-codegen-e2e.test.ts
+// That test imports the actual generated api.js and verifies the registry loads.
