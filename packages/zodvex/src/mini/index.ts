@@ -43,12 +43,10 @@ export {
   // ID utilities
   type Zid,
   type ZodValidator,
-  type ZodvexCodec,
   ZodvexDecodeError,
   zid,
   zodToConvex,
   zodToConvexFields,
-  zodvexCodec,
   zPaginated
 } from '../core'
 
@@ -69,7 +67,19 @@ export * from '../registry'
 export * from '../results'
 // Re-export schema types
 export type { ZodTableMap, ZodTableSchemas } from '../schema'
-// Re-export types
-export * from '../types'
+// Re-export shared types
+export {
+  type AnyRegistry,
+  type ExtractCtx,
+  type ExtractVisibility,
+  type InferArgs,
+  type InferHandlerReturns,
+  type InferReturns,
+  type Overwrite,
+  type PreserveReturnType,
+  type ZodToConvexArgs,
+  ZodvexWireSchema
+} from '../types'
+export { type ZodvexCodec, zodvexCodec } from './codec'
 export { defineZodModel, type MiniModelSchemas } from './model'
 export { type ZxMiniDate, type ZxMiniId, zx } from './zx'

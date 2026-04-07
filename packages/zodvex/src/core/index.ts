@@ -15,16 +15,6 @@ export {
   createBoundaryHelpers,
   ZodvexDecodeError
 } from '../boundaryHelpers'
-// Codec utilities (named — hide internal re-exports)
-export {
-  type ConvexCodec,
-  convexCodec,
-  decodeDoc,
-  encodeDoc,
-  encodePartialDoc,
-  type ZodvexCodec,
-  zodvexCodec
-} from '../codec'
 // Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
 export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
 // ID utilities (named — hide registryHelpers)
@@ -47,7 +37,18 @@ export * from '../results'
 // Schema types (type-only, no server runtime imports)
 export type { ZodTableMap, ZodTableSchemas } from '../schema'
 // Types (server imports are type-only and erased at compile time)
-export * from '../types'
+export {
+  type AnyRegistry,
+  type ExtractCtx,
+  type ExtractVisibility,
+  type InferArgs,
+  type InferHandlerReturns,
+  type InferReturns,
+  type Overwrite,
+  type PreserveReturnType,
+  type ZodToConvexArgs,
+  ZodvexWireSchema
+} from '../types'
 // Utilities (named — hide internal helpers)
 export {
   mapDateFieldToNumber,
@@ -58,6 +59,16 @@ export {
   stripUndefined,
   zPaginated
 } from '../utils'
+// Codec utilities (named — hide internal re-exports)
+export {
+  type ConvexCodec,
+  convexCodec,
+  decodeDoc,
+  encodeDoc,
+  encodePartialDoc,
+  type ZodvexCodec,
+  zodvexCodec
+} from './codec'
 // Full-zod model helper surface
 export * from './model'
 // Full-zod zx helper surface

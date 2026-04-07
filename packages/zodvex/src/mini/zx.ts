@@ -1,7 +1,7 @@
 import type { GenericId } from 'convex/values'
-import type { ZodvexCodec } from '../types'
 import type { $ZodCustom, $ZodNumber, $ZodType } from '../zod-core'
 import { zx as _zx } from '../zx'
+import type { ZodvexCodec } from './codec'
 
 /** zx.id() return type for mini — no .optional() chaining */
 export type ZxMiniId<TableName extends string> = $ZodType<GenericId<TableName>> & {
