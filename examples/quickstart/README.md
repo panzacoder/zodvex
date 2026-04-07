@@ -1,6 +1,6 @@
 # zodvex Quickstart
 
-A minimal example showing zodvex's codec-aware database in action — **no codegen required**.
+A minimal example showing zodvex's codec-aware database in action — **no zodvex codegen required**.
 
 ## What this shows
 
@@ -9,7 +9,7 @@ A minimal example showing zodvex's codec-aware database in action — **no codeg
 - `initZodvex` to get codec-aware `zq`/`zm` function builders
 - Dates (`zx.date()`) round-trip transparently — write a `Date`, read back a `Date`
 
-No zodvex CLI, no generated files, no registry. Just `npx convex dev`.
+No `zodvex generate`, no `_zodvex/` registry output. Just `npx convex dev`.
 
 ## Structure
 
@@ -27,11 +27,12 @@ convex/
 # Install deps
 bun install
 
-# Start Convex dev (handles schema push + function deployment)
+# Start Convex dev (handles schema push, Convex codegen, and function deployment)
 bun run dev
 ```
 
-Convex's own `npx convex dev` (or `bunx convex dev`) is required — zodvex does not replace it.
+Convex's own `npx convex dev` (or `bunx convex dev`) is still required because
+`convex/_generated/` comes from Convex, not zodvex.
 
 ## How codecs work without codegen
 
