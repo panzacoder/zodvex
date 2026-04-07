@@ -30,7 +30,10 @@ import { type $ZodCustom, type $ZodNumber, type $ZodType, type output as zoutput
 /**
  * Date codec type for explicit type annotations
  */
-export type ZxDate = ZodvexCodec<$ZodNumber, $ZodCustom<Date, Date>>
+export type FullZodvexCodec<W extends $ZodType, R extends $ZodType> = z.ZodCodec<W, R> &
+  ZodvexCodec<W, R>
+
+export type ZxDate = FullZodvexCodec<$ZodNumber, $ZodCustom<Date, Date>>
 
 /**
  * Creates a Date codec that transforms between Date objects and timestamps.
@@ -56,13 +59,14 @@ function date(): ZxDate {
       decode: (timestamp: number) => new Date(timestamp),
       encode: (date: Date) => date.getTime()
     }
-  )
+  ) as unknown as ZxDate
 }
 
 /**
  * ID type for explicit type annotations
  */
-export type ZxId<TableName extends string> = $ZodType<GenericId<TableName>> & {
+export type ZxId<TableName extends string> = z.ZodString &
+  z.ZodType<GenericId<TableName>> & {
   _tableName: TableName
 }
 
@@ -136,8 +140,8 @@ function codec<W extends $ZodType, R extends $ZodType, WO = zoutput<W>, RI = zou
     decode: (wire: WO) => RI
     encode: (runtime: RI) => WO
   }
-): ZodvexCodec<W, R> {
-  return zodvexCodec(wire, runtime, transforms)
+): FullZodvexCodec<W, R> {
+  return zodvexCodec(wire, runtime, transforms) as unknown as FullZodvexCodec<W, R>
 }
 
 /**

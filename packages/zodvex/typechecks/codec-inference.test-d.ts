@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { zodvexCodec } from '../src/codec'
 import type { ZodvexCodec } from '../src/types'
-import { zx } from '../src/zx'
+import { type FullZodvexCodec, zx } from '../src/zx'
 import type { Equal, Expect } from './test-helpers'
 
 // --- Test 1: Standard codec (zx.date pattern) infers correctly ---
@@ -13,7 +13,9 @@ const dateCodec = zx.codec(
     encode: (date) => date.getTime(),
   }
 )
-type _DateCodec = Expect<Equal<typeof dateCodec, ZodvexCodec<z.ZodNumber, z.ZodCustom<Date, Date>>>>
+type _DateCodec = Expect<
+  Equal<typeof dateCodec, FullZodvexCodec<z.ZodNumber, z.ZodCustom<Date, Date>>>
+>
 
 // --- Test 2: zodvexCodec() also infers correctly ---
 const innerCodec = zodvexCodec(
@@ -48,7 +50,7 @@ const stringWrapped = genericCodecFactory(z.string())
 type _FactoryReturn = Expect<
   Equal<
     typeof stringWrapped,
-    ZodvexCodec<
+    FullZodvexCodec<
       z.ZodObject<{ value: z.ZodString; tag: z.ZodLiteral<'wrapped'> }>,
       z.ZodCustom<{ unwrapped: string }, { unwrapped: string }>
     >
