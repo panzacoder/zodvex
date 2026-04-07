@@ -102,8 +102,8 @@ export { ZodvexWireSchema }
  * @example
  * ```typescript
  * type MyCodec<T> = ZodvexCodec<
- *   z.ZodObject<{ value: T }>,
- *   z.ZodCustom<MyClass<T>>
+ *   z.ZodObject<{ value: T }>, // zod-ok
+ *   z.ZodCustom<MyClass<T>> // zod-ok
  * >
  *
  * function myCodec<T extends $ZodType>(inner: T): MyCodec<T> {

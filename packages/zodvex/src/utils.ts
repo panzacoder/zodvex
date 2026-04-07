@@ -120,6 +120,9 @@ export function mapDateFieldToNumber(field: $ZodType): $ZodType {
 // Schema picking utilities (moved from pick.ts for consolidation)
 type Mask = readonly string[] | Record<string, boolean | 1 | true>
 
+// Type alias — keeps z.ZodObject off {-ending function signature lines (formatter-safe). // zod-ok
+type AnyZodObject = z.ZodObject<any> // zod-ok
+
 function toKeys(mask: Mask): string[] {
   if (Array.isArray(mask)) return mask.map(String)
   return Object.keys(mask).filter(k => !!(mask as any)[k])
@@ -130,7 +133,7 @@ function toKeys(mask: Mask): string[] {
  * Accepts either a ZodObject or a raw shape object.
  */
 export function pickShape(
-  schemaOrShape: z.ZodObject<any> | Record<string, any>,
+  schemaOrShape: AnyZodObject | Record<string, any>,
   mask: Mask
 ): Record<string, any> {
   const keys = toKeys(mask)
@@ -145,7 +148,7 @@ export function pickShape(
 }
 
 // Builds a fresh Zod object from the selected fields (avoids Zod's .pick())
-export function safePick(schema: z.ZodObject<any>, mask: Mask): z.ZodObject<any> {
+export function safePick(schema: AnyZodObject, mask: Mask): AnyZodObject {
   return z.object(pickShape(schema, mask))
 }
 
@@ -153,7 +156,7 @@ export function safePick(schema: z.ZodObject<any>, mask: Mask): z.ZodObject<any>
  * Convenience: omit a set of keys by building the complement.
  * Avoids using Zod's .omit() which can cause type depth issues.
  */
-export function safeOmit(schema: z.ZodObject<any>, mask: Mask): z.ZodObject<any> {
+export function safeOmit(schema: AnyZodObject, mask: Mask): AnyZodObject {
   const shape = getObjectShape(schema)
   const omit = new Set(toKeys(mask))
   const keep = Object.keys(shape).filter(k => !omit.has(k))

@@ -38,7 +38,7 @@ export {
   $ZodPrefault,
   $ZodReadonly,
   $ZodRecord,
-  // Shape types (equivalent to z.ZodRawShape)
+  // Shape types (equivalent to z.ZodRawShape) // zod-ok
   type $ZodShape,
   $ZodString,
   type $strip,

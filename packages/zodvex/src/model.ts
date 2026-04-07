@@ -27,10 +27,13 @@ import {
 } from './zod-core'
 import { type ZxId, zx } from './zx'
 
+// Return type alias so the function signature line doesn't contain z.Zod* (formatter-safe)
+type AnyOptional = z.ZodOptional<any> // zod-ok
+
 /** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
-function ensureOptional(schema: $ZodType): z.ZodOptional<any> {
-  if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any>
-  return new $ZodOptional({ type: 'optional', innerType: schema }) as z.ZodOptional<any>
+function ensureOptional(schema: $ZodType): AnyOptional {
+  if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any> // zod-ok
+  return new $ZodOptional({ type: 'optional', innerType: schema }) as z.ZodOptional<any> // zod-ok
 }
 
 // ============================================================================
@@ -117,28 +120,40 @@ export type UnionModelSchemas<Name extends string, Schema extends $ZodType> = {
   readonly paginatedDoc: $ZodType
 }
 
+/** @internal Update shape for FullZodModelSchemas — full-zod types only. */ // zod-ok
+type FullUpdateShape<Name extends string, Fields extends $ZodShape> = {
+  // zod-ok
+  _id: ZxId<Name> // zod-ok
+  _creationTime: z.ZodOptional<z.ZodNumber> // zod-ok
+} & { [K in keyof Fields]: z.ZodOptional<Fields[K]> } // zod-ok
+
+/** @internal Doc shape used by docArray and paginatedDoc. */ // zod-ok
+type FullDocShape<Name extends string, Fields extends $ZodShape> = Fields & {
+  // zod-ok
+  _id: ZxId<Name> // zod-ok
+  _creationTime: z.ZodNumber // zod-ok
+} // zod-ok
+
+/** @internal PaginatedDoc shape for FullZodModelSchemas. */ // zod-ok
+type FullPaginatedShape<Name extends string, Fields extends $ZodShape> = {
+  // zod-ok
+  page: z.ZodArray<z.ZodObject<FullDocShape<Name, Fields>>> // zod-ok
+  isDone: z.ZodBoolean // zod-ok
+  continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>> // zod-ok
+} // zod-ok
+
 /**
  * Full-zod schema types — the default for zodvex/core consumers.
- * Each property uses z.ZodObject / z.ZodArray etc. from full zod,
+ * Each property uses z.ZodObject / z.ZodArray etc. from full zod, // zod-ok
  * providing method chaining (.parse(), .shape, .nullable(), etc.).
  */
 export type FullZodModelSchemas<Name extends string, Fields extends $ZodShape> = {
-  readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
-  readonly base: z.ZodObject<Fields>
-  readonly insert: z.ZodObject<Fields>
-  readonly update: z.ZodObject<
-    { _id: ZxId<Name>; _creationTime: z.ZodOptional<z.ZodNumber> } & {
-      [K in keyof Fields]: z.ZodOptional<Fields[K]>
-    }
-  >
-  readonly docArray: z.ZodArray<
-    z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
-  >
-  readonly paginatedDoc: z.ZodObject<{
-    page: z.ZodArray<z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>>
-    isDone: z.ZodBoolean
-    continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
-  }>
+  readonly doc: z.ZodObject<FullDocShape<Name, Fields>> // zod-ok
+  readonly base: z.ZodObject<Fields> // zod-ok
+  readonly insert: z.ZodObject<Fields> // zod-ok
+  readonly update: z.ZodObject<FullUpdateShape<Name, Fields>> // zod-ok
+  readonly docArray: z.ZodArray<z.ZodObject<FullDocShape<Name, Fields>>> // zod-ok
+  readonly paginatedDoc: z.ZodObject<FullPaginatedShape<Name, Fields>> // zod-ok
 }
 
 /**
@@ -252,7 +267,7 @@ export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   name: Name,
   fields: Fields
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-): ZodModel<Name, Fields, z.ZodObject<Fields>, FullZodModelSchemas<Name, Fields>, {}, {}, {}>
+): ZodModel<Name, Fields, z.ZodObject<Fields>, FullZodModelSchemas<Name, Fields>, {}, {}, {}> // zod-ok
 
 // Overload 2: pre-built schema (union or object)
 export function defineZodModel<Name extends string, Schema extends $ZodType>(

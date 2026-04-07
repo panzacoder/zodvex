@@ -105,7 +105,7 @@ export function encodePartialDoc<S extends $ZodType>(
  *
  * @example
  * ```typescript
- * type MyCodec = ZodvexCodec<z.ZodObject<{ ts: z.ZodNumber }>, z.ZodCustom<Date>>
+ * type MyCodec = ZodvexCodec<z.ZodObject<{ ts: z.ZodNumber }>, z.ZodCustom<Date>> // zod-ok
  *
  * function myCodec(): MyCodec {
  *   return zodvexCodec(

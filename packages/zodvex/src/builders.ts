@@ -64,7 +64,7 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
     })
     const zodArgs = config.args
       ? config.args instanceof $ZodObject
-        ? (config.args as unknown as z.ZodObject<any>)
+        ? (config.args as unknown as z.ZodObject<any>) // zod-ok
         : config.args instanceof $ZodType
           ? undefined
           : z.object(config.args as Record<string, $ZodType>)
@@ -119,7 +119,7 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
     })
     const zodArgs = config.args
       ? config.args instanceof $ZodObject
-        ? (config.args as unknown as z.ZodObject<any>)
+        ? (config.args as unknown as z.ZodObject<any>) // zod-ok
         : config.args instanceof $ZodType
           ? undefined
           : z.object(config.args as Record<string, $ZodType>)
@@ -174,7 +174,7 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
     })
     const zodArgs = config.args
       ? config.args instanceof $ZodObject
-        ? (config.args as unknown as z.ZodObject<any>)
+        ? (config.args as unknown as z.ZodObject<any>) // zod-ok
         : config.args instanceof $ZodType
           ? undefined
           : z.object(config.args as Record<string, $ZodType>)

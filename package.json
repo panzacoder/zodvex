@@ -9,7 +9,8 @@
     "test": "bun run --cwd packages/zodvex test",
     "lint": "bun run --cwd packages/zodvex lint",
     "lint:fix": "bun run --cwd packages/zodvex lint:fix",
-    "format": "bun run --cwd packages/zodvex format"
+    "format": "bun run --cwd packages/zodvex format",
+    "type-check:examples": "tsc --noEmit -p examples/task-manager/convex/tsconfig.json && tsc --noEmit -p examples/task-manager-mini/convex/tsconfig.json"
   },
   "devDependencies": {}
 }

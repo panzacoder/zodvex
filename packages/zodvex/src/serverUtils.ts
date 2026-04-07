@@ -8,7 +8,7 @@ import { $ZodError, $ZodType, encode, parse } from './zod-core'
 
 // Format ZodError issues into a compact, consistent structure
 export function formatZodIssues(
-  error: z.ZodError,
+  error: z.ZodError, // zod-ok
   context?: 'args' | 'returns' | 'input' | 'output' | 'codec'
 ) {
   return {
@@ -31,7 +31,7 @@ export function handleZodValidationError(
   context: 'args' | 'returns' | 'input' | 'output' | 'codec'
 ): never {
   if (e instanceof $ZodError) {
-    throw new ConvexError(formatZodIssues(e as z.ZodError, context))
+    throw new ConvexError(formatZodIssues(e as z.ZodError, context)) // zod-ok
   }
   throw e
 }

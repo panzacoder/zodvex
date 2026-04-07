@@ -197,7 +197,7 @@ function encodeIndexValue(schema: $ZodType, fieldPath: string, value: any): any 
 
   // Object schemas: encode through the field's schema directly
   if (schema instanceof $ZodObject) {
-    const fieldSchema = (schema as z.ZodObject<any>).shape[fieldPath]
+    const fieldSchema = (schema as z.ZodObject<any>).shape[fieldPath] // zod-ok
     if (fieldSchema) return encode(fieldSchema, value)
   }
 
@@ -208,7 +208,7 @@ function encodeIndexValue(schema: $ZodType, fieldPath: string, value: any): any 
   if (schema instanceof $ZodUnion) {
     const options = schema._zod.def.options
     const fieldSchemas = options
-      .filter((v): v is z.ZodObject<any> => v instanceof $ZodObject)
+      .filter((v): v is z.ZodObject<any> => v instanceof $ZodObject) // zod-ok
       .map(v => v.shape[fieldPath])
       .filter(Boolean)
     if (fieldSchemas.length === 1) return encode(fieldSchemas[0], value)

@@ -34,7 +34,7 @@ export type BoundaryHelpersOptions = {
    * How to handle decode failures (schema validation errors on wire data).
    *
    * - `'warn'` (default): log a console.warn and return raw wire data untransformed.
-   * - `'throw'`: throw a ZodvexDecodeError (extends z.ZodError).
+   * - `'throw'`: throw a ZodvexDecodeError (extends z.ZodError). // zod-ok
    */
   onDecodeError?: 'warn' | 'throw'
 }
@@ -109,7 +109,7 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
    *
    * Uses `.safeParse()` to decode. On failure:
    * - 'warn' (default): logs warning, returns raw wireResult
-   * - 'throw': throws ZodvexDecodeError (extends z.ZodError)
+   * - 'throw': throws ZodvexDecodeError (extends z.ZodError) // zod-ok
    *
    * Passthrough when:
    * - function is not in the registry

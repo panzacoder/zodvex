@@ -81,7 +81,8 @@
     "lint:fix": "bun x biome check --write src __tests__",
     "format": "bun x biome format --write src __tests__",
     "prepare": "tsup && tsc --emitDeclarationOnly",
-    "prepublishOnly": "bun run type-check"
+    "prepublishOnly": "bun run type-check",
+    "lint:core-types": "! grep -rn 'z\\.Zod[A-Z]' src/ --include='*.ts' --exclude-dir=mini --exclude-dir=core --exclude=tables.ts --exclude-dir=form | grep -v '// zod-ok' | grep -v 'import type'"
   },
   "peerDependencies": {
     "convex": "^1.28.0",
