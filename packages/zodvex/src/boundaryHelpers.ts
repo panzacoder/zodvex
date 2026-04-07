@@ -1,9 +1,8 @@
 import type { FunctionReference } from 'convex/server'
-import type { z } from 'zod'
 import type { $ZodIssue } from 'zod/v4/core'
 import { safeEncode } from './normalizeCodecPaths'
+import { stripUndefined } from './stripUndefined'
 import type { AnyRegistry } from './types'
-import { stripUndefined } from './utils'
 import { $ZodError, safeParse } from './zod-core'
 
 /**

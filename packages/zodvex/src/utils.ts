@@ -50,28 +50,8 @@ export function returnsAs<R extends $ZodType>() {
  * @param value - The value to strip undefined from
  * @returns The value with undefined properties removed from plain objects
  */
-export function stripUndefined<T>(value: T): T {
-  if (value === null || value === undefined) {
-    return value
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(stripUndefined) as T
-  }
-
-  // Only process plain objects (not class instances, Dates, etc.)
-  if (typeof value === 'object' && value.constructor === Object) {
-    const result: Record<string, unknown> = {}
-    for (const [key, val] of Object.entries(value)) {
-      if (val !== undefined) {
-        result[key] = stripUndefined(val)
-      }
-    }
-    return result as T
-  }
-
-  return value
-}
+// Re-export from dedicated module — keeps client-safe code free of zod imports
+export { stripUndefined } from './stripUndefined'
 
 // Helper: standard Convex paginate() result schema
 export function zPaginated<T extends $ZodType>(item: T) {
