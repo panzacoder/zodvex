@@ -5,8 +5,8 @@ import type {
   RegisteredQuery
 } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import type { z } from 'zod'
-import type { $ZodType, infer as zinfer, output as zoutput } from 'zod/v4/core'
+// import type { z } from 'zod' -- removed; replaced by $ZodCodec from zod/v4/core
+import type { $ZodCodec, $ZodType, infer as zinfer, output as zoutput } from 'zod/v4/core'
 
 export type InferArgs<A> = A extends $ZodType & { shape: infer S extends Record<string, $ZodType> }
   ? { [K in keyof S]: zinfer<S[K]> }
@@ -115,7 +115,7 @@ export { ZodvexWireSchema }
  * }
  * ```
  */
-export type ZodvexCodec<Wire extends $ZodType, Runtime extends $ZodType> = z.ZodCodec<
+export type ZodvexCodec<Wire extends $ZodType, Runtime extends $ZodType> = $ZodCodec<
   Wire,
   Runtime
 > & {

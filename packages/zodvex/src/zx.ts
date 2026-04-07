@@ -25,12 +25,12 @@ import { z } from 'zod'
 import { zodvexCodec } from './codec'
 import { registryHelpers } from './ids'
 import type { ZodvexCodec } from './types'
-import { type $ZodType, type output as zoutput } from './zod-core'
+import { type $ZodCustom, type $ZodNumber, type $ZodType, type output as zoutput } from './zod-core'
 
 /**
  * Date codec type for explicit type annotations
  */
-export type ZxDate = ZodvexCodec<z.ZodNumber, z.ZodCustom<Date, Date>>
+export type ZxDate = ZodvexCodec<$ZodNumber, $ZodCustom<Date, Date>>
 
 /**
  * Creates a Date codec that transforms between Date objects and timestamps.
@@ -62,7 +62,7 @@ function date(): ZxDate {
 /**
  * ID type for explicit type annotations
  */
-export type ZxId<TableName extends string> = z.ZodType<GenericId<TableName>> & {
+export type ZxId<TableName extends string> = $ZodType<GenericId<TableName>> & {
   _tableName: TableName
 }
 

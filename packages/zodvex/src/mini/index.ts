@@ -141,7 +141,7 @@ export * from '../types'
 
 import type { GenericId } from 'convex/values'
 import type { ZodvexCodec } from '../types'
-import type { $ZodCodec, $ZodType } from '../zod-core'
+import type { $ZodCustom, $ZodType } from '../zod-core'
 import { zx as _zx } from '../zx'
 
 /** zx.id() return type for mini — no .optional() chaining */
@@ -150,7 +150,7 @@ export type ZxMiniId<TableName extends string> = $ZodType<GenericId<TableName>> 
 }
 
 /** zx.date() return type for mini — no .optional() chaining */
-export type ZxMiniDate = $ZodType<Date>
+export type ZxMiniDate = ZodvexCodec<$ZodNumber, $ZodCustom<Date, Date>>
 
 /** The zx namespace typed for zod-mini compatibility */
 export const zx: {
