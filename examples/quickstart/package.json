@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "bunx convex codegen && bunx tsc --noEmit -p convex/tsconfig.json",
+    "dev:once": "bunx convex dev --once",
     "dev": "bunx convex dev"
   },
   "dependencies": {

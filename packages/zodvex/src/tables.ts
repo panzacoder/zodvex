@@ -46,7 +46,7 @@ function asTableValidator<V extends { kind: string }>(validator: V): TableValida
  * Creates a Zod schema for a Convex document with system fields.
  * Spreads the original def to preserve catchall, checks, and error settings.
  *
- * @deprecated Use `defineZodModel` instead. See migration guide (TODO: link).
+ * @deprecated Use `defineZodModel` instead. See `docs/migration/v0.6.md`.
  *
  * @param tableName - The Convex table name
  * @param schema - The Zod object schema for user fields
@@ -60,7 +60,7 @@ export function zodDoc<TableName extends string, Shape extends $ZodShape>(
 }
 
 /**
- * @deprecated Use `defineZodModel` instead. See migration guide (TODO: link).
+ * @deprecated Use `defineZodModel` instead. See `docs/migration/v0.6.md`.
  */
 export function zodDocOrNull<
   TableName extends string,
@@ -103,7 +103,7 @@ function isObjectShape(input: any): input is Record<string, $ZodType> {
  *
  * Returns the Table definition along with Zod schemas for documents and arrays.
  *
- * @deprecated Use `defineZodModel` instead. See migration guide (TODO: link).
+ * @deprecated Use `defineZodModel` instead. See `docs/migration/v0.6.md`.
  *
  * @param name - The table name
  * @param schemaOrShape - Either a raw object shape or a Zod union schema

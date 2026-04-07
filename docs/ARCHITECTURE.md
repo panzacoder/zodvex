@@ -1,288 +1,300 @@
 # zodvex Architecture
 
-This document describes the key architectural decisions and design patterns in zodvex.
+This document describes the current architectural shape of zodvex after the
+full/mini refactor completed on April 7, 2026.
 
-## Table of Contents
+## Overview
 
-- [Codec-First Philosophy](#codec-first-philosophy)
-- [The zx Namespace](#the-zx-namespace)
-- [Wire vs Runtime Types](#wire-vs-runtime-types)
-- [Type System: WireInfer](#type-system-wireinfer)
-- [Custom Codec Branding](#custom-codec-branding)
-- [zodTable Design](#zodtable-design)
+zodvex now has a deliberately layered design:
 
----
+1. A shared Zod v4 core substrate built on `zod/v4/core`
+2. Flavor-owned public helper surfaces for full Zod and zod/mini
+3. A shared model pipeline for schema bundle assembly and Convex lowering
+4. A shared function-contract pipeline for wrappers, builders, and `initZodvex`
+5. Thin deprecated compatibility layers kept only to avoid breaking users
 
-## Codec-First Philosophy
+The goal is to make flavor differences explicit at the public boundary while
+keeping behavior, schema lowering, and codec semantics centralized.
 
-zodvex adopts an opinionated "codec-first" stance: if you need wire ↔ runtime transformation, use `zx.codec()`. This ensures type safety and consistency across all Convex data flow edges.
+## Layering
 
-### Why Codecs?
+### Shared Core Substrate
 
-Zod's `z.transform()` and `z.pipe()` are **unidirectional** - they only work for parsing (wire → runtime), not encoding (runtime → wire).
+`src/zod-core.ts` is the internal compatibility boundary for Zod v4. All
+shared modules constrain against `$ZodType`, `$ZodObject`, `$ZodUnion`, and the
+other core classes exported from `zod/v4/core`.
 
-In Convex, data flows through four edges:
+That gives zodvex one stable internal type system for:
 
-| Edge | Direction | Transform Works? | Codec Works? |
-|------|-----------|------------------|--------------|
-| Function args | wire → runtime | ✅ Yes | ✅ Yes |
-| Function returns | runtime → wire | ❌ No | ✅ Yes |
-| Database writes | runtime → wire | ❌ No | ✅ Yes |
-| Database reads | wire → runtime | ✅ Yes | ✅ Yes |
+- full `zod`
+- `zod/mini`
+- internal `instanceof` checks
+- codec encode/decode handling
+- schema introspection used by mapping and codegen
 
-Using transforms creates **silent inconsistency** - they appear to work for args and reads, but silently fail (or produce wrong data) for returns and writes. Codecs ensure all edges are handled correctly.
+The shared substrate should be thought of as **Zod v4 core**, not as either the
+full or mini flavor.
 
-### Native Zod Codec Handling
+### Public Flavor Surfaces
 
-zodvex leverages Zod's native codec system:
+Public flavor differences now live at explicit entrypoints:
 
-- `schema.parse(wire)` → runs `codec.decode` → returns runtime value
-- `z.encode(schema, runtime)` → runs `codec.encode` → returns wire value
+- `zodvex/core`: full-Zod helper surface
+- `zodvex/mini`: mini helper surface
+- `zodvex/server`: shared server runtime, compatible with both
 
-This eliminates the need for custom transformation layers like the legacy `fromConvexJS`/`toConvexJS` functions.
+Internally, the flavor-owned public helper modules are:
 
----
+- `src/core/zx.ts`
+- `src/core/model.ts`
+- `src/mini/zx.ts`
+- `src/mini/model.ts`
 
-## The zx Namespace
+This is intentionally different from the old design, where mini behavior was a
+mix of shared runtime exports, handwritten facade casts, and build aliasing.
 
-The `zx` namespace provides zodvex-specific validators and codecs. The name signals "zodvex" or "zod + convex" - explicit transformations for Convex compatibility.
+### Why `full` and `mini`, not `v4` and `mini`
 
-```typescript
-import { z } from 'zod'
-import { zx } from 'zodvex'
+Both flavors are Zod v4. Using `v4` as the name of the "main" flavor blurs the
+difference between version and flavor.
 
-const schema = z.object({
-  id: zx.id('users'),      // Convex ID
-  createdAt: zx.date(),    // Date ↔ timestamp codec
-  secret: zx.codec(...)    // Custom codec
-})
-```
+The clearer mental model is:
 
-### Available Helpers
+- Zod v4 core: shared internal substrate
+- full: classic full-Zod public surface
+- mini: zod/mini public surface
 
-| Helper | Wire Format | Runtime Format | Use Case |
-|--------|-------------|----------------|----------|
-| `zx.id('table')` | `string` | `GenericId<T>` | Convex document IDs |
-| `zx.date()` | `number` | `Date` | Timestamps |
-| `zx.codec(wire, runtime, transforms)` | Custom | Custom | Custom transformations |
+## Model Pipeline
 
-### Why `zx.*` Instead of Extending `z.*`?
+### Preferred API
 
-- Makes Convex-specific transformations explicit (no "magic")
-- Clearly distinct from standard Zod types
-- Discoverable via IDE autocomplete on `zx.`
-- Avoids polluting Zod's namespace
+`defineZodModel()` is the primary model-definition API.
 
----
+Models may be built from:
 
-## Wire vs Runtime Types
+- raw object shapes
+- `z.object(...)`
+- unions or discriminated unions
 
-A key concept in zodvex is the distinction between **wire types** (what's stored/transmitted) and **runtime types** (what your code works with).
+Each model owns:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Convex DB                            │
-│                    (Wire Format)                            │
-│         { createdAt: 1706832000000, ... }                   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            │ schema.parse() / codec.decode
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Your Handler                            │
-│                   (Runtime Format)                          │
-│         { createdAt: Date(...), ... }                       │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            │ z.encode() / codec.encode
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Client Response                         │
-│                    (Wire Format)                            │
-│         { createdAt: 1706832000000, ... }                   │
-└─────────────────────────────────────────────────────────────┘
-```
+- user fields
+- schema bundle (`insert`, `doc`, `update`, `docArray`, `paginatedDoc`)
+- index/search/vector metadata
+- enough metadata for `defineZodSchema()` and `ctx.db` wrappers to reason about
+  decoded versus wire behavior
 
-### Example: Date Handling
+### Canonical Schema Bundle
 
-```typescript
-// zx.date() is a codec:
-// - Wire format: number (timestamp)
-// - Runtime format: Date object
+Schema bundle assembly is centralized in `src/modelSchemaBundle.ts`.
 
-const schema = z.object({
-  createdAt: zx.date()
-})
+That module is the shared source of truth for:
 
-// Convex stores: { createdAt: 1706832000000 }
-// Handler receives: { createdAt: Date(...) }
-// Client receives: { createdAt: 1706832000000 }
-```
+- document schema
+- insert schema
+- update schema
+- array schema
+- paginated schema
 
----
+This is used by both:
 
-## Type System: WireInfer
+- `src/model.ts`
+- `src/tables.ts`
 
-The `WireInfer<Z>` type helper recursively extracts wire types from Zod schemas. This is critical for Convex's `GenericDocument` constraint, which requires document types to reflect what's stored in the database.
+That matters because the old design let `defineZodModel` and `zodTable` each
+reconstruct similar schemas in slightly different ways.
 
-### The Problem
+### Model Metadata and Schema Lowering
 
-When codecs are nested inside objects, `z.infer<Z>` produces the runtime type, not the wire type:
+`defineZodSchema()` should not reverse-engineer model structure from incidental
+details like "does this model have fields". It now consumes explicit model
+metadata and lowers models into Convex tables from that shared representation.
 
-```typescript
-// z.infer gives runtime type (Date), but Convex needs wire type (number)
-type Doc = z.infer<typeof schema>  // { createdAt: Date }
-// Convex expects: { createdAt: number }
-```
+The important modules are:
 
-### The Solution
+- `src/model.ts`
+- `src/meta.ts`
+- `src/schema.ts`
 
-`WireInfer<Z>` recursively walks the schema and extracts wire types for codecs:
+The key architectural rule is:
 
-```typescript
-type WireInfer<Z> =
-  | Z extends ZodCodec<infer Wire, any> → z.infer<Wire>  // Use wire schema
-  | Z extends ZodObject<Shape> → { [K]: WireInfer<Shape[K]> }  // Recurse
-  | Z extends ZodOptional<Inner> → WireInfer<Inner> | undefined
-  | ... // Handle other wrappers
-  | z.infer<Z>  // Fallback for primitives
-```
+**Model creation owns schema semantics. Schema lowering consumes model metadata.
+It does not rediscover model shape independently.**
 
-### Optional Field Handling
+## Function Contract Pipeline
 
-A subtle but critical detail: optional fields must use TypeScript's `?:` syntax rather than `| undefined` for Convex's index path typing to work correctly.
+### Shared Contract Compilation
 
-```typescript
-// ❌ Breaks Convex path extraction
-type Doc = { email: { value: string } | undefined }
+All function registration flows now share the same contract machinery in
+`src/functionContracts.ts`.
 
-// ✅ Works with Convex path extraction
-type Doc = { email?: { value: string } }
-```
+That layer owns:
 
-`WireInfer` uses a separate `WireInferObject` helper that builds objects with proper `?:` syntax for optional fields.
+- args schema normalization
+- return schema normalization
+- Convex validator generation
+- parse/decode of incoming args
+- encode/finalize of outgoing returns
+- metadata attachment
+- customization input merging
 
----
+### Thin Public Builders
 
-## Custom Codec Branding
+The public entrypoints are now mostly shells over that shared contract layer:
 
-When consumers create custom codecs and wrap them in type aliases, TypeScript can lose the codec structure information. The `ZodvexCodec<Wire, Runtime>` branded type solves this.
+- `src/wrappers.ts`
+- `src/builders.ts`
+- `src/custom.ts`
+- `src/init.ts`
 
-### The Problem
+That means `zQuery`, `zMutation`, `zAction`, the legacy builder helpers, custom
+builders, and `initZodvex()` all share the same behavioral core instead of
+copying validation and metadata logic in parallel.
 
-```typescript
-// Consumer wants a clean type alias
-type MyCodec = z.ZodType<RuntimeType>
+### `initZodvex` as the Main Runtime Entry
 
-function createCodec(): MyCodec {
-  return z.codec(wire, runtime, transforms) as MyCodec
-  // ❌ Cast loses ZodCodec structure
-}
+`initZodvex()` is the preferred runtime setup API.
 
-// zodToConvex can't extract wire schema from MyCodec
-zodToConvex(createCodec())  // → v.any() (type lost)
-```
+It composes:
 
-### The Solution
+- a schema created by `defineZodSchema()`
+- Convex server builders from `convex/_generated/server`
+- optional codec DB wrapping
+- optional registry-aware action helpers
 
-```typescript
-import { ZodvexCodec, zodvexCodec } from 'zodvex'
+The returned builders (`zq`, `zm`, `za`, `ziq`, `zim`, `zia`) are the intended
+mainline path for server projects.
 
-// Branded type preserves wire schema
-type MyCodec = ZodvexCodec<WireSchema, RuntimeSchema>
+## Codecs, Wire Types, and Runtime Types
 
-function createCodec(): MyCodec {
-  return zodvexCodec(wire, runtime, transforms)
-  // ✅ Wire schema preserved in type
-}
+zodvex stays codec-first.
 
-// zodToConvex extracts wire schema correctly
-zodToConvex(createCodec())  // → v.object({ ... })
-```
+Every important boundary must preserve the distinction between:
 
-### How It Works
+- wire type: what Convex stores or validates
+- runtime type: what handlers work with
 
-`ZodvexCodec` adds a phantom brand property that preserves the wire schema type:
+This affects:
 
-```typescript
-declare const ZodvexWireSchema: unique symbol
+- function args
+- function returns
+- database reads
+- database writes
+- index/filter comparisons
 
-type ZodvexCodec<Wire, Runtime> = z.ZodCodec<Wire, Runtime> & {
-  readonly [ZodvexWireSchema]: Wire  // Phantom brand
-}
-```
+`zx.date()` remains the canonical example:
 
-The type system checks for this brand before falling back to structural `z.ZodCodec` detection.
+- wire: `number`
+- runtime: `Date`
 
----
+The architectural rule is:
 
-## zod/mini Compatibility
+**shared runtime layers own encode/decode behavior once; examples and wrappers
+should not paper over that behavior manually.**
 
-zodvex works with both full `zod` and `zod/mini`. This is achieved by using `$ZodType` and its subclasses from `zod/v4/core` for all `instanceof` checks and type constraints, following [Zod's library author guidance](https://zod.dev/library-authors).
+This is why the refactor also moved index/filter handling back toward shared DB
+machinery instead of letting examples carry ad hoc `getTime()` workarounds.
 
-### How It Works
+## Codegen
 
-`zod/v4/core` exports the base classes (`$ZodType`, `$ZodObject`, etc.) that both `zod` and `zod/mini` extend. By constraining on these base types instead of `z.ZodType`, zodvex accepts schemas from either variant.
+zodvex codegen is now clearly separate from the main runtime architecture.
 
-The internal module `src/zod-core.ts` acts as the centralized import hub — all `instanceof` checks and `_zod.def.*` property access flows through core types.
+The generated `_zodvex/*` files are optional helper output for:
 
-### Entrypoints
+- function registry metadata
+- typed client helpers
+- typed react helpers
+- typed server helper aliases
 
-| Entrypoint | Use when |
-|------------|----------|
-| `zodvex/core` | Your project uses full `zod` |
-| `zodvex/mini` | Your project uses `zod/mini` |
-| `zodvex/server` | Works with both (uses core types internally) |
+They are not required for `defineZodModel`, `defineZodSchema`, or `initZodvex`
+to work.
 
-The `zodvex/mini` entrypoint re-exports everything from `zodvex/core` but overrides `zx` with types that return `$ZodType` instead of `z.ZodType`. This means `zx.id('users').optional()` chaining is not available — use `z.optional(zx.id('users'))` instead.
+Quickstart should remain the canonical example of:
 
-### Schema Construction vs Type Constraints
+- no `zodvex generate`
+- no checked-in `_zodvex` output
+- still using Convex's own `_generated` files
 
-zodvex *constructs* schemas using full `zod` internally (e.g., `z.object()`, `z.union()`), but *constrains* its public API with `$ZodType` from core. This means:
+## Deprecated Compatibility Surfaces
 
-- zodvex's own schemas are always full-zod objects
-- Consumer schemas can be either full-zod or zod-mini
-- Both pass the `$ZodType` constraint and work through zodvex's pipeline
+### `tables.ts`
 
----
+`src/tables.ts` is now treated as a compatibility layer.
 
-## defineZodModel (Preferred Model API)
+It is intentionally:
 
-`defineZodModel()` is the primary API for defining Convex table schemas, replacing the older `zodTable()`. It provides full codec support, index/search/vector index chaining, and integrates with `initZodvex()` for automatic DB wrapping.
+- full-Zod only
+- deprecated
+- not part of the mini design
+- not a source of truth for newer architecture work
 
-```typescript
-import { z } from 'zod'
-import { defineZodModel, zx } from 'zodvex/core'
+Refactors should continue pushing shared runtime logic downward so `tables.ts`
+becomes cheaper to keep until removal, but it should not receive new capability
+work.
 
-const users = defineZodModel('users', {
-  name: z.string(),
-  email: z.string().email(),
-  createdAt: zx.date(),
-})
-  .index('email', ['email'])
-  .searchIndex('search_name', { searchField: 'name' })
-```
+Migration target:
 
-### initZodvex
+- `zodTable(...)`
+- `zodDoc(...)`
+- `zodDocOrNull(...)`
 
-`initZodvex()` is the one-time project setup that returns pre-configured function builders with codec-wrapped `ctx.db`:
+becomes:
 
-```typescript
-import { initZodvex } from 'zodvex/server'
-import schema from './schema'
-import { server } from './_generated/server'
+- `defineZodModel(...)`
+- `defineZodSchema(...)`
+- `initZodvex(...)`
 
-export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, server, { wrapDb: true })
-```
+See [v0.6 migration](./migration/v0.6.md).
 
-The `wrapDb: true` option wraps `ctx.db` with `ZodvexDatabaseReader`/`ZodvexDatabaseWriter`, which automatically decode documents on read and encode on write using each table's codec schemas.
+### Legacy Builder Helpers
 
----
+The following remain supported but are no longer the design center:
 
-## Design Principles
+- `zQueryBuilder`
+- `zMutationBuilder`
+- `zActionBuilder`
+- `zCustomQueryBuilder`
+- `zCustomMutationBuilder`
+- `zCustomActionBuilder`
 
-1. **Explicit over implicit**: The `zx.*` namespace makes Convex-specific behavior visible
-2. **Type safety end-to-end**: Wire types flow correctly through validators and document types
-3. **Leverage Zod's codec system**: Use `z.encode()`/`schema.parse()` instead of custom transforms
-4. **Fail fast with guidance**: Clear errors when incompatible patterns (like `z.date()`) are used
-5. **zod/mini compatible**: All type constraints use `zod/v4/core` base classes so zodvex works with both `zod` and `zod/mini`
+They now delegate through the shared contract layer and should be treated as
+compatibility APIs.
+
+## Verification Strategy
+
+The repo now distinguishes between two kinds of example verification:
+
+### Offline Verification
+
+Cheap checks that should stay runnable in CI or before a release:
+
+- package typecheck/tests/build
+- task-manager typecheck/test/generate
+- task-manager-mini typecheck/test/generate
+- stress-test typecheck/generate/measure/report using temp result directories
+- mini import guard
+
+The repo root script for this path is `bun run verify:examples`.
+
+### Deployment-Backed Verification
+
+Checks that require a configured Convex deployment:
+
+- `bunx convex dev --once`
+- example smoke tests
+- quickstart Convex bootstrap and typecheck
+
+These are important before a beta release, but they should stay separate from
+the cheap default verification path.
+
+The repo root script for this path is `bun run verify:examples:network`.
+
+## Current Preferred Mental Model
+
+If you are changing zodvex today, use this model:
+
+1. Flavor concerns belong at the public entrypoint boundary.
+2. Shared runtime behavior belongs below that boundary on Zod v4 core types.
+3. Model assembly has one canonical schema bundle path.
+4. Function registration has one canonical contract path.
+5. Deprecated APIs should get thinner, not smarter.

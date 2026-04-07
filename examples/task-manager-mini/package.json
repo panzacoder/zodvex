@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"zodvex dev --mini\" \"bunx convex dev\" \"vite\"",
+    "dev:once": "bunx convex dev --once",
     "build": "zodvex generate --mini && vite build",
     "deploy": "zodvex generate --mini && bunx convex deploy",
     "generate": "zodvex generate --mini",
