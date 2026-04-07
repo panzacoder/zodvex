@@ -12,11 +12,13 @@ import { z } from 'zod'
 import { attachMeta } from './meta'
 import {
   addSystemFields,
+  type AddSystemFieldsToUnion,
   createUnionFromOptions,
   getUnionOptions,
   isZodUnion
 } from './schemaHelpers'
 import {
+  $ZodArray,
   $ZodObject,
   $ZodOptional,
   type $ZodShape,
@@ -98,6 +100,20 @@ export type ModelSchemas = {
   readonly insert: $ZodType
   readonly update: $ZodType
   readonly docArray: $ZodType
+  readonly paginatedDoc: $ZodType
+}
+
+/**
+ * Schema types for union/discriminated union models.
+ * Preserves the specific Schema type so ConvexTableFor can compute
+ * validators from the union, and consumers get typed schema.doc access.
+ */
+export type UnionModelSchemas<Name extends string, Schema extends $ZodType> = {
+  readonly doc: AddSystemFieldsToUnion<Name, Schema>
+  readonly base: Schema
+  readonly insert: Schema
+  readonly update: $ZodType
+  readonly docArray: $ZodArray<AddSystemFieldsToUnion<Name, Schema>>
   readonly paginatedDoc: $ZodType
 }
 
@@ -243,7 +259,7 @@ export function defineZodModel<Name extends string, Schema extends $ZodType>(
   name: Name,
   schema: Schema
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-): ZodModel<Name, $ZodShape, Schema, ModelSchemas, {}, {}, {}>
+): ZodModel<Name, $ZodShape, Schema, UnionModelSchemas<Name, Schema>, {}, {}, {}>
 
 // Implementation
 export function defineZodModel<Name extends string>(

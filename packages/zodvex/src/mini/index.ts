@@ -59,6 +59,7 @@ export {
   type ModelFieldPaths,
   type ModelSchemas,
   type SearchIndexConfig,
+  type UnionModelSchemas,
   type VectorIndexConfig,
   type ZodModel
 } from '../model'
@@ -69,6 +70,7 @@ export {
 import {
   defineZodModel as _defineZodModel,
   type ModelSchemas as _ModelSchemas,
+  type UnionModelSchemas as _UnionModelSchemas,
   type ZodModel as _ZodModel
 } from '../model'
 import type {
@@ -119,7 +121,7 @@ export const defineZodModel: {
     name: Name,
     schema: Schema
     // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
-  ): _ZodModel<Name, $ZodShape, Schema, _ModelSchemas, {}, {}, {}>
+  ): _ZodModel<Name, $ZodShape, Schema, _UnionModelSchemas<Name, Schema>, {}, {}, {}>
 } = _defineZodModel as any
 
 // Re-export registry
