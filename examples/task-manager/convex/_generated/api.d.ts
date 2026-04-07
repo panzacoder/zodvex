@@ -14,6 +14,7 @@ import type * as _zodvex_server from "../_zodvex/server.js";
 import type * as actions from "../actions.js";
 import type * as activities from "../activities.js";
 import type * as api_reports from "../api/reports.js";
+import type * as cleanup from "../cleanup.js";
 import type * as codecs from "../codecs.js";
 import type * as comments from "../comments.js";
 import type * as componentFunctions from "../componentFunctions.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   actions: typeof actions;
   activities: typeof activities;
   "api/reports": typeof api_reports;
+  cleanup: typeof cleanup;
   codecs: typeof codecs;
   comments: typeof comments;
   componentFunctions: typeof componentFunctions;

@@ -373,6 +373,8 @@ import type * as generated_endpoints_model_0361 from "../generated/endpoints/mod
 import type * as generated_endpoints_model_0362 from "../generated/endpoints/model_0362.js";
 import type * as generated_endpoints_model_0363 from "../generated/endpoints/model_0363.js";
 import type * as generated_endpoints_model_0364 from "../generated/endpoints/model_0364.js";
+import type * as generated_endpoints_model_0365 from "../generated/endpoints/model_0365.js";
+import type * as generated_endpoints_model_0366 from "../generated/endpoints/model_0366.js";
 import type * as generated_functions from "../generated/functions.js";
 import type * as generated_models_model_0000 from "../generated/models/model_0000.js";
 import type * as generated_models_model_0001 from "../generated/models/model_0001.js";
@@ -739,6 +741,8 @@ import type * as generated_models_model_0361 from "../generated/models/model_036
 import type * as generated_models_model_0362 from "../generated/models/model_0362.js";
 import type * as generated_models_model_0363 from "../generated/models/model_0363.js";
 import type * as generated_models_model_0364 from "../generated/models/model_0364.js";
+import type * as generated_models_model_0365 from "../generated/models/model_0365.js";
+import type * as generated_models_model_0366 from "../generated/models/model_0366.js";
 
 import type {
   ApiFromModules,
@@ -1112,6 +1116,8 @@ declare const fullApi: ApiFromModules<{
   "generated/endpoints/model_0362": typeof generated_endpoints_model_0362;
   "generated/endpoints/model_0363": typeof generated_endpoints_model_0363;
   "generated/endpoints/model_0364": typeof generated_endpoints_model_0364;
+  "generated/endpoints/model_0365": typeof generated_endpoints_model_0365;
+  "generated/endpoints/model_0366": typeof generated_endpoints_model_0366;
   "generated/functions": typeof generated_functions;
   "generated/models/model_0000": typeof generated_models_model_0000;
   "generated/models/model_0001": typeof generated_models_model_0001;
@@ -1478,6 +1484,8 @@ declare const fullApi: ApiFromModules<{
   "generated/models/model_0362": typeof generated_models_model_0362;
   "generated/models/model_0363": typeof generated_models_model_0363;
   "generated/models/model_0364": typeof generated_models_model_0364;
+  "generated/models/model_0365": typeof generated_models_model_0365;
+  "generated/models/model_0366": typeof generated_models_model_0366;
 }>;
 
 /**
