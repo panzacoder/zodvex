@@ -65,6 +65,87 @@ function containsCustom(schema: $ZodType, maxDepth = 50, currentDepth = 0): bool
   return result
 }
 
+type ZodFunctionInput = $ZodType | Record<string, $ZodType>
+
+function normalizeFunctionInput(input: ZodFunctionInput): {
+  zodSchema: $ZodType
+  args: Record<string, any>
+} {
+  if (input instanceof $ZodObject) {
+    const zodObj = input as $ZodObject
+    return {
+      zodSchema: zodObj,
+      args: zodToConvexFields(getObjectShape(zodObj))
+    }
+  }
+
+  if (input instanceof $ZodType) {
+    return {
+      zodSchema: z.object({ value: input as any }),
+      args: { value: zodToConvex(input as any) }
+    }
+  }
+
+  return {
+    zodSchema: z.object(input as Record<string, any>),
+    args: zodToConvexFields(input as Record<string, any>)
+  }
+}
+
+function createReturnsValidator(schema?: $ZodType): any {
+  return schema && !containsCustom(schema) ? zodToConvex(schema) : undefined
+}
+
+function assertNoNativeDateSchemas(argsSchema: $ZodType, returnsSchema?: $ZodType): void {
+  assertNoNativeZodDate(argsSchema, 'args')
+  if (returnsSchema) {
+    assertNoNativeZodDate(returnsSchema, 'returns')
+  }
+}
+
+function parseArgsOrThrow(zodSchema: $ZodType, argsObject: unknown): any {
+  try {
+    return zodParse(zodSchema, argsObject) as any
+  } catch (e) {
+    handleZodValidationError(e, 'args')
+  }
+}
+
+async function validateReturnValue(raw: unknown, returnsSchema?: $ZodType): Promise<any> {
+  if (returnsSchema) {
+    const validated = validateReturns(returnsSchema, raw)
+    return stripUndefined(validated)
+  }
+  return stripUndefined(raw) as any
+}
+
+function registerZodFunction<
+  Builder extends (fn: any) => any,
+  A extends ZodFunctionInput,
+  R extends $ZodType | undefined
+>(
+  builder: Builder,
+  input: A,
+  handler: (ctx: ExtractCtx<Builder>, args: ZodToConvexArgs<A>) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
+  options?: { returns?: R }
+): any {
+  const { zodSchema, args } = normalizeFunctionInput(input)
+  const returnsSchema = options?.returns as $ZodType | undefined
+  const returns = createReturnsValidator(returnsSchema)
+
+  assertNoNativeDateSchemas(zodSchema, returnsSchema)
+
+  return builder({
+    args,
+    returns,
+    handler: async (ctx: any, argsObject: unknown) => {
+      const parsed = parseArgsOrThrow(zodSchema, argsObject)
+      const raw = await handler(ctx, parsed)
+      return validateReturnValue(raw, returnsSchema)
+    }
+  }) as any
+}
+
 export function zQuery<
   Builder extends (fn: any) => any,
   A extends $ZodType | Record<string, $ZodType>,
@@ -79,51 +160,7 @@ export function zQuery<
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
 ): RegisteredQuery<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
-  let zodSchema: $ZodType
-  let args: Record<string, any>
-  if (input instanceof $ZodObject) {
-    const zodObj = input as $ZodObject
-    zodSchema = zodObj
-    args = zodToConvexFields(getObjectShape(zodObj))
-  } else if (input instanceof $ZodType) {
-    // Single schema → normalize to { value }
-    zodSchema = z.object({ value: input as any })
-    args = { value: zodToConvex(input as any) }
-  } else {
-    zodSchema = z.object(input as Record<string, any>)
-    args = zodToConvexFields(input as Record<string, any>)
-  }
-  // Skip returns validator for schemas with custom types to avoid type depth issues
-  const returns =
-    options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
-
-  // Check for z.date() usage at construction time (once), not on every invocation
-  assertNoNativeZodDate(zodSchema, 'args')
-  if (options?.returns) {
-    assertNoNativeZodDate(options.returns as $ZodType, 'returns')
-  }
-
-  return query({
-    args,
-    returns,
-    handler: async (ctx: any, argsObject: unknown) => {
-      // Zod handles codec transforms natively via parse
-      let parsed: any
-      try {
-        parsed = zodParse(zodSchema, argsObject) as any
-      } catch (e) {
-        handleZodValidationError(e, 'args')
-      }
-      const raw = await handler(ctx, parsed)
-      if (options?.returns) {
-        // Validate and encode using z.encode (Zod handles codecs natively)
-        const validated = validateReturns(options.returns as $ZodType, raw)
-        return stripUndefined(validated)
-      }
-      // Strip undefined even without returns schema (Convex rejects explicit undefined)
-      return stripUndefined(raw) as any
-    }
-  }) as any
+  return registerZodFunction(query, input, handler, options)
 }
 
 export function zInternalQuery<
@@ -157,50 +194,7 @@ export function zMutation<
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
 ): RegisteredMutation<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
-  let zodSchema: $ZodType
-  let args: Record<string, any>
-  if (input instanceof $ZodObject) {
-    const zodObj = input as $ZodObject
-    zodSchema = zodObj
-    args = zodToConvexFields(getObjectShape(zodObj))
-  } else if (input instanceof $ZodType) {
-    zodSchema = z.object({ value: input as any })
-    args = { value: zodToConvex(input as any) }
-  } else {
-    zodSchema = z.object(input as Record<string, any>)
-    args = zodToConvexFields(input as Record<string, any>)
-  }
-  // Skip returns validator for schemas with custom types to avoid type depth issues
-  const returns =
-    options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
-
-  // Check for z.date() usage at construction time (once), not on every invocation
-  assertNoNativeZodDate(zodSchema, 'args')
-  if (options?.returns) {
-    assertNoNativeZodDate(options.returns as $ZodType, 'returns')
-  }
-
-  return mutation({
-    args,
-    returns,
-    handler: async (ctx: any, argsObject: unknown) => {
-      // Zod handles codec transforms natively via parse
-      let parsed: any
-      try {
-        parsed = zodParse(zodSchema, argsObject) as any
-      } catch (e) {
-        handleZodValidationError(e, 'args')
-      }
-      const raw = await handler(ctx, parsed)
-      if (options?.returns) {
-        // Validate and encode using z.encode (Zod handles codecs natively)
-        const validated = validateReturns(options.returns as $ZodType, raw)
-        return stripUndefined(validated)
-      }
-      // Strip undefined even without returns schema (Convex rejects explicit undefined)
-      return stripUndefined(raw) as any
-    }
-  }) as any
+  return registerZodFunction(mutation, input, handler, options)
 }
 
 export function zInternalMutation<
@@ -234,50 +228,7 @@ export function zAction<
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
 ): RegisteredAction<Visibility, ZodToConvexArgs<A>, Promise<InferReturns<R>>> {
-  let zodSchema: $ZodType
-  let args: Record<string, any>
-  if (input instanceof $ZodObject) {
-    const zodObj = input as $ZodObject
-    zodSchema = zodObj
-    args = zodToConvexFields(getObjectShape(zodObj))
-  } else if (input instanceof $ZodType) {
-    zodSchema = z.object({ value: input as any })
-    args = { value: zodToConvex(input as any) }
-  } else {
-    zodSchema = z.object(input as Record<string, any>)
-    args = zodToConvexFields(input as Record<string, any>)
-  }
-  // Skip returns validator for schemas with custom types to avoid type depth issues
-  const returns =
-    options?.returns && !containsCustom(options.returns) ? zodToConvex(options.returns) : undefined
-
-  // Check for z.date() usage at construction time (once), not on every invocation
-  assertNoNativeZodDate(zodSchema, 'args')
-  if (options?.returns) {
-    assertNoNativeZodDate(options.returns as $ZodType, 'returns')
-  }
-
-  return action({
-    args,
-    returns,
-    handler: async (ctx: any, argsObject: unknown) => {
-      // Zod handles codec transforms natively via parse
-      let parsed: any
-      try {
-        parsed = zodParse(zodSchema, argsObject) as any
-      } catch (e) {
-        handleZodValidationError(e, 'args')
-      }
-      const raw = await handler(ctx, parsed)
-      if (options?.returns) {
-        // Validate and encode using z.encode (Zod handles codecs natively)
-        const validated = validateReturns(options.returns as $ZodType, raw)
-        return stripUndefined(validated)
-      }
-      // Strip undefined even without returns schema (Convex rejects explicit undefined)
-      return stripUndefined(raw) as any
-    }
-  }) as any
+  return registerZodFunction(action, input, handler, options)
 }
 
 export function zInternalAction<
