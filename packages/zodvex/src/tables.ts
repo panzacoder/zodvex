@@ -3,29 +3,10 @@ import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
-import {
-  addSystemFields,
-  createUnionFromOptions,
-  getUnionOptions,
-  isZodUnion,
-  type MapSystemFields,
-  type SystemFields
-} from './schemaHelpers'
-import { $ZodObject, $ZodOptional, type $ZodShape, $ZodType, clone } from './zod-core'
+import { createObjectSchemaBundle, createSchemaBundle } from './modelSchemaBundle'
+import { addSystemFields, type MapSystemFields, type SystemFields } from './schemaHelpers'
+import { $ZodObject, type $ZodShape, $ZodType, clone } from './zod-core'
 import { type ZxId, zx } from './zx'
-
-/** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
-function ensureOptional(schema: $ZodType): z.ZodOptional<any> {
-  if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any>
-  return new $ZodOptional({ type: 'optional', innerType: schema }) as z.ZodOptional<any>
-}
-
-/**
- * Makes all properties of a Zod object shape optional.
- */
-type PartialShape<Shape extends $ZodShape> = {
-  [K in keyof Shape]: z.ZodOptional<Shape[K]>
-}
 
 /**
  * System fields added to Convex documents.
@@ -188,7 +169,9 @@ type AddSystemFieldsResult<TableName extends string, Schema extends $ZodType> =
 type UpdateShape<TableName extends string, Shape extends z.ZodRawShape> = {
   _id: ZxId<TableName>
   _creationTime: z.ZodOptional<z.ZodNumber>
-} & PartialShape<Shape>
+} & {
+  [K in keyof Shape]: z.ZodOptional<Shape[K]>
+}
 
 /**
  * Maps over union options for update schema.
@@ -377,43 +360,9 @@ export function zodTable<
     // Create base schema (user fields only, no system fields)
     // When a ZodObject is passed, preserve it to maintain options like .passthrough(), .strict(), .catchall()
     const baseSchema = isZodObject ? (schemaOrShape as z.ZodObject<z.ZodRawShape>) : z.object(shape)
-
-    // Create zDoc schema with system fields
-    // Uses .extend() which preserves object-level options from baseSchema
-    const zDoc = zodDoc(name, baseSchema as z.ZodObject<z.ZodRawShape>)
-
-    // Create docArray helper for return types
-    const docArray = z.array(zDoc)
-
-    // Create paginatedDoc helper matching Convex's PaginationResult shape
-    const paginatedDoc = z.object({
-      page: z.array(zDoc),
-      isDone: z.boolean(),
-      continueCursor: z.optional(z.nullable(z.string()))
-    })
-
-    // Create partial shape for user fields
-    const partialShape: Record<string, $ZodType> = {}
-    for (const [key, value] of Object.entries(shape)) {
-      partialShape[key] = ensureOptional(value as $ZodType)
-    }
-
-    // Create update schema: _id required, _creationTime optional, user fields partial
-    const updateSchema = z.object({
-      _id: zx.id(name),
-      _creationTime: z.optional(z.number()),
-      ...partialShape
-    })
-
-    // Create schema namespace
-    const schema = {
-      doc: zDoc,
-      docArray,
-      paginatedDoc,
-      base: baseSchema,
-      insert: baseSchema, // alias for base
-      update: updateSchema
-    }
+    const schema = createObjectSchemaBundle(name, shape, baseSchema as z.ZodObject<any>)
+    const zDoc = schema.doc
+    const docArray = schema.docArray
 
     // Attach everything for comprehensive usage
     // zDoc and docArray are deprecated but kept for backwards compatibility
@@ -434,66 +383,7 @@ export function zodTable<
     // For unions, use defineTable directly (not Table helper which expects object fields)
     // Convex supports union validators in tables, but TypeScript can't verify the types
     const table = defineTable(asTableValidator(convexValidator))
-
-    // Create document schema with system fields
-    const docSchema = addSystemFields(name, schema)
-
-    // Create docArray helper
-    const docArray = z.array(docSchema)
-
-    // Create paginatedDoc helper matching Convex's PaginationResult shape
-    const paginatedDoc = z.object({
-      page: z.array(docSchema),
-      isDone: z.boolean(),
-      continueCursor: z.optional(z.nullable(z.string()))
-    })
-
-    // Create update schema: _id required, _creationTime optional, user fields partial
-    let updateSchema: $ZodType
-    if (isZodUnion(schema)) {
-      const originalOptions = getUnionOptions(schema)
-      const updateOptions = originalOptions.map((variant: $ZodType) => {
-        if (variant instanceof $ZodObject) {
-          // Create partial shape for user fields
-          const partialShape: Record<string, $ZodType> = {}
-          for (const [key, value] of Object.entries(variant._zod.def.shape)) {
-            partialShape[key] = ensureOptional(value as $ZodType)
-          }
-          // Add system fields: _id required, _creationTime optional
-          return z.object({
-            _id: zx.id(name),
-            _creationTime: z.optional(z.number()),
-            ...partialShape
-          })
-        }
-        return variant
-      })
-      updateSchema = createUnionFromOptions(updateOptions)
-    } else if (schema instanceof $ZodObject) {
-      // Create partial shape for user fields
-      const partialShape: Record<string, $ZodType> = {}
-      for (const [key, value] of Object.entries(schema._zod.def.shape)) {
-        partialShape[key] = ensureOptional(value as $ZodType)
-      }
-      // Add system fields: _id required, _creationTime optional
-      updateSchema = z.object({
-        _id: zx.id(name),
-        _creationTime: z.optional(z.number()),
-        ...partialShape
-      })
-    } else {
-      updateSchema = schema
-    }
-
-    // Create schema namespace
-    const schemaNamespace = {
-      doc: docSchema,
-      docArray,
-      paginatedDoc,
-      base: schema,
-      insert: schema, // alias for base
-      update: updateSchema
-    }
+    const schemaNamespace = createSchemaBundle(name, schema)
 
     // Attach helpers for union tables
     // Return structure similar to Table() but without fields-based helpers
@@ -502,8 +392,8 @@ export function zodTable<
       tableName: name,
       validator: convexValidator,
       schema: schemaNamespace,
-      docArray, // deprecated
-      withSystemFields: () => addSystemFields(name, schema)
+      docArray: schemaNamespace.docArray, // deprecated
+      withSystemFields: () => schemaNamespace.doc
     }
   }
 }

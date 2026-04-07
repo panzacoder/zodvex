@@ -10,118 +10,19 @@
 
 import { z } from 'zod'
 import { attachMeta, type ZodvexModelDefinitionSource } from './meta'
+import { type AddSystemFieldsToUnion } from './schemaHelpers'
 import {
-  type AddSystemFieldsToUnion,
-  addSystemFields,
-  createUnionFromOptions,
-  getUnionOptions,
-  isZodUnion
-} from './schemaHelpers'
+  createObjectSchemaBundle,
+  createSchemaBundle,
+  type RuntimeModelSchemaBundle
+} from './modelSchemaBundle'
 import {
   $ZodArray,
-  $ZodObject,
-  $ZodOptional,
   type $ZodShape,
   $ZodType,
   type input as zinput
 } from './zod-core'
 import { type ZxId, zx } from './zx'
-
-// Return type alias so the function signature line doesn't contain z.Zod* (formatter-safe)
-type AnyOptional = z.ZodOptional<any> // zod-ok
-
-/** Wrap in .optional() only if not already optional. Uses core constructor for zod-mini compat. */
-function ensureOptional(schema: $ZodType): AnyOptional {
-  if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any> // zod-ok
-  return new $ZodOptional({ type: 'optional', innerType: schema }) as z.ZodOptional<any> // zod-ok
-}
-
-type RuntimeModelSchemaBundle = {
-  readonly doc: $ZodType
-  readonly base: $ZodType
-  readonly insert: $ZodType
-  readonly update: $ZodType
-  readonly docArray: $ZodType
-  readonly paginatedDoc: $ZodType
-}
-
-function createPartialShape(shape: Record<string, $ZodType>): Record<string, $ZodType> {
-  const partialShape: Record<string, $ZodType> = {}
-  for (const [key, value] of Object.entries(shape)) {
-    partialShape[key] = ensureOptional(value)
-  }
-  return partialShape
-}
-
-function createUpdateObjectSchema<Name extends string>(
-  name: Name,
-  shape: Record<string, $ZodType>
-): z.ZodObject<any> {
-  return z.object({
-    _id: zx.id(name),
-    _creationTime: z.optional(z.number()),
-    ...createPartialShape(shape)
-  })
-}
-
-function createPaginatedDocSchema(docSchema: $ZodType): z.ZodObject<any> {
-  return z.object({
-    page: z.array(docSchema),
-    isDone: z.boolean(),
-    continueCursor: z.optional(z.nullable(z.string()))
-  })
-}
-
-function createObjectModelSchemaBundle<Name extends string>(
-  name: Name,
-  fields: $ZodShape
-): RuntimeModelSchemaBundle {
-  const insertSchema = z.object(fields)
-  const docSchema = z.object({ ...fields, _id: zx.id(name), _creationTime: z.number() })
-
-  return {
-    doc: docSchema,
-    base: insertSchema,
-    insert: insertSchema,
-    update: createUpdateObjectSchema(name, fields),
-    docArray: z.array(docSchema),
-    paginatedDoc: createPaginatedDocSchema(docSchema)
-  }
-}
-
-function createSchemaModelUpdateSchema<Name extends string>(name: Name, inputSchema: $ZodType): $ZodType {
-  if (isZodUnion(inputSchema)) {
-    const updateOptions = getUnionOptions(inputSchema).map((variant: $ZodType) => {
-      if (variant instanceof $ZodObject) {
-        return createUpdateObjectSchema(name, variant._zod.def.shape)
-      }
-      return variant
-    })
-    return createUnionFromOptions(updateOptions)
-  }
-
-  if (inputSchema instanceof $ZodObject) {
-    return createUpdateObjectSchema(name, inputSchema._zod.def.shape)
-  }
-
-  return inputSchema
-}
-
-function createSchemaModelSchemaBundle<Name extends string>(
-  name: Name,
-  inputSchema: $ZodType
-): RuntimeModelSchemaBundle {
-  const docSchema = addSystemFields(name, inputSchema)
-
-  return {
-    doc: docSchema,
-    base: inputSchema,
-    insert: inputSchema,
-    update: createSchemaModelUpdateSchema(name, inputSchema),
-    docArray: z.array(docSchema),
-    paginatedDoc: createPaginatedDocSchema(docSchema)
-  }
-}
 
 function createModel<Name extends string>(
   name: Name,
@@ -427,9 +328,9 @@ export function defineZodModel<Name extends string>(
 ): any {
   // Detect if input is a pre-built Zod schema (union, object, etc.) vs raw shape
   if (fieldsOrSchema instanceof $ZodType) {
-    return createModel(name, {}, createSchemaModelSchemaBundle(name, fieldsOrSchema as $ZodType), 'schema')
+    return createModel(name, {}, createSchemaBundle(name, fieldsOrSchema as $ZodType), 'schema')
   }
 
   const fields = fieldsOrSchema as $ZodShape
-  return createModel(name, fields, createObjectModelSchemaBundle(name, fields), 'shape')
+  return createModel(name, fields, createObjectSchemaBundle(name, fields), 'shape')
 }
