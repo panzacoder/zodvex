@@ -36,6 +36,144 @@ function ensureOptional(schema: $ZodType): AnyOptional {
   return new $ZodOptional({ type: 'optional', innerType: schema }) as z.ZodOptional<any> // zod-ok
 }
 
+type RuntimeModelSchemaBundle = {
+  readonly doc: $ZodType
+  readonly base: $ZodType
+  readonly insert: $ZodType
+  readonly update: $ZodType
+  readonly docArray: $ZodType
+  readonly paginatedDoc: $ZodType
+}
+
+function createPartialShape(shape: Record<string, $ZodType>): Record<string, $ZodType> {
+  const partialShape: Record<string, $ZodType> = {}
+  for (const [key, value] of Object.entries(shape)) {
+    partialShape[key] = ensureOptional(value)
+  }
+  return partialShape
+}
+
+function createUpdateObjectSchema<Name extends string>(
+  name: Name,
+  shape: Record<string, $ZodType>
+): z.ZodObject<any> {
+  return z.object({
+    _id: zx.id(name),
+    _creationTime: z.optional(z.number()),
+    ...createPartialShape(shape)
+  })
+}
+
+function createPaginatedDocSchema(docSchema: $ZodType): z.ZodObject<any> {
+  return z.object({
+    page: z.array(docSchema),
+    isDone: z.boolean(),
+    continueCursor: z.optional(z.nullable(z.string()))
+  })
+}
+
+function createObjectModelSchemaBundle<Name extends string>(
+  name: Name,
+  fields: $ZodShape
+): RuntimeModelSchemaBundle {
+  const insertSchema = z.object(fields)
+  const docSchema = z.object({ ...fields, _id: zx.id(name), _creationTime: z.number() })
+
+  return {
+    doc: docSchema,
+    base: insertSchema,
+    insert: insertSchema,
+    update: createUpdateObjectSchema(name, fields),
+    docArray: z.array(docSchema),
+    paginatedDoc: createPaginatedDocSchema(docSchema)
+  }
+}
+
+function createSchemaModelUpdateSchema<Name extends string>(name: Name, inputSchema: $ZodType): $ZodType {
+  if (isZodUnion(inputSchema)) {
+    const updateOptions = getUnionOptions(inputSchema).map((variant: $ZodType) => {
+      if (variant instanceof $ZodObject) {
+        return createUpdateObjectSchema(name, variant._zod.def.shape)
+      }
+      return variant
+    })
+    return createUnionFromOptions(updateOptions)
+  }
+
+  if (inputSchema instanceof $ZodObject) {
+    return createUpdateObjectSchema(name, inputSchema._zod.def.shape)
+  }
+
+  return inputSchema
+}
+
+function createSchemaModelSchemaBundle<Name extends string>(
+  name: Name,
+  inputSchema: $ZodType
+): RuntimeModelSchemaBundle {
+  const docSchema = addSystemFields(name, inputSchema)
+
+  return {
+    doc: docSchema,
+    base: inputSchema,
+    insert: inputSchema,
+    update: createSchemaModelUpdateSchema(name, inputSchema),
+    docArray: z.array(docSchema),
+    paginatedDoc: createPaginatedDocSchema(docSchema)
+  }
+}
+
+function createModel<Name extends string>(
+  name: Name,
+  fields: $ZodShape,
+  schema: RuntimeModelSchemaBundle,
+  indexes: Record<string, readonly string[]> = {},
+  searchIndexes: Record<string, SearchIndexConfig> = {},
+  vectorIndexes: Record<string, VectorIndexConfig> = {}
+): any {
+  const model = {
+    name,
+    fields,
+    schema,
+    indexes,
+    searchIndexes,
+    vectorIndexes,
+    index(indexName: string, indexFields: readonly string[]) {
+      return createModel(
+        name,
+        fields,
+        schema,
+        { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
+        searchIndexes,
+        vectorIndexes
+      )
+    },
+    searchIndex(indexName: string, config: SearchIndexConfig) {
+      return createModel(
+        name,
+        fields,
+        schema,
+        indexes,
+        { ...searchIndexes, [indexName]: config },
+        vectorIndexes
+      )
+    },
+    vectorIndex(indexName: string, config: VectorIndexConfig) {
+      return createModel(
+        name,
+        fields,
+        schema,
+        indexes,
+        searchIndexes,
+        { ...vectorIndexes, [indexName]: config }
+      )
+    }
+  }
+
+  attachMeta(model, { type: 'model', tableName: name, schemas: schema })
+  return model
+}
+
 // ============================================================================
 // Field Path Types
 // ============================================================================
@@ -283,170 +421,9 @@ export function defineZodModel<Name extends string>(
 ): any {
   // Detect if input is a pre-built Zod schema (union, object, etc.) vs raw shape
   if (fieldsOrSchema instanceof $ZodType) {
-    return createUnionModel(name, fieldsOrSchema as $ZodType)
+    return createModel(name, {}, createSchemaModelSchemaBundle(name, fieldsOrSchema as $ZodType))
   }
 
-  // Existing raw-shape path
   const fields = fieldsOrSchema as $ZodShape
-
-  const insertSchema = z.object(fields)
-  const docSchema = z.object({ ...fields, _id: zx.id(name), _creationTime: z.number() })
-
-  // Create partial shape for update: _id required, _creationTime optional, user fields partial
-  const partialShape: Record<string, $ZodType> = {}
-  for (const [key, value] of Object.entries(fields)) {
-    partialShape[key] = ensureOptional(value as $ZodType)
-  }
-  const updateSchema = z.object({
-    _id: zx.id(name),
-    _creationTime: z.optional(z.number()),
-    ...partialShape
-  })
-
-  const docArraySchema = z.array(docSchema)
-
-  const paginatedDocSchema = z.object({
-    page: z.array(docSchema),
-    isDone: z.boolean(),
-    continueCursor: z.optional(z.nullable(z.string()))
-  })
-
-  const schema = {
-    doc: docSchema,
-    base: insertSchema,
-    insert: insertSchema,
-    update: updateSchema,
-    docArray: docArraySchema,
-    paginatedDoc: paginatedDocSchema
-  }
-
-  function createModel(
-    indexes: Record<string, readonly string[]>,
-    searchIndexes: Record<string, SearchIndexConfig>,
-    vectorIndexes: Record<string, VectorIndexConfig>
-  ): any {
-    const model = {
-      name,
-      fields,
-      schema,
-      indexes,
-      searchIndexes,
-      vectorIndexes,
-      index(indexName: string, indexFields: readonly string[]) {
-        return createModel(
-          { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
-          searchIndexes,
-          vectorIndexes
-        )
-      },
-      searchIndex(indexName: string, config: SearchIndexConfig) {
-        return createModel(indexes, { ...searchIndexes, [indexName]: config }, vectorIndexes)
-      },
-      vectorIndex(indexName: string, config: VectorIndexConfig) {
-        return createModel(indexes, searchIndexes, { ...vectorIndexes, [indexName]: config })
-      }
-    }
-    attachMeta(model, { type: 'model', tableName: name, schemas: schema })
-    return model
-  }
-
-  return createModel({}, {}, {})
-}
-
-// ============================================================================
-// createUnionModel — Internal helper for union/schema path
-// ============================================================================
-
-/**
- * Creates a ZodModel from a pre-built Zod schema (union, discriminated union, or object).
- * Mirrors the union path logic from zodTable() in tables.ts.
- *
- * @internal
- */
-function createUnionModel<Name extends string>(name: Name, inputSchema: $ZodType): any {
-  const insertSchema = inputSchema
-  const docSchema = addSystemFields(name, inputSchema)
-  const docArraySchema = z.array(docSchema)
-  const paginatedDocSchema = z.object({
-    page: z.array(docSchema),
-    isDone: z.boolean(),
-    continueCursor: z.optional(z.nullable(z.string()))
-  })
-
-  // Build update schema: _id required, _creationTime optional, user fields partial
-  let updateSchema: $ZodType
-  if (isZodUnion(inputSchema)) {
-    const originalOptions = getUnionOptions(inputSchema)
-    const updateOptions = originalOptions.map((variant: $ZodType) => {
-      if (variant instanceof $ZodObject) {
-        const partialShape: Record<string, $ZodType> = {}
-        for (const [key, value] of Object.entries(variant._zod.def.shape)) {
-          partialShape[key] = ensureOptional(value as $ZodType)
-        }
-        return z.object({
-          _id: zx.id(name),
-          _creationTime: z.optional(z.number()),
-          ...partialShape
-        })
-      }
-      return variant
-    })
-    updateSchema = createUnionFromOptions(updateOptions)
-  } else if (inputSchema instanceof $ZodObject) {
-    const partialShape: Record<string, $ZodType> = {}
-    for (const [key, value] of Object.entries(inputSchema._zod.def.shape)) {
-      partialShape[key] = ensureOptional(value as $ZodType)
-    }
-    updateSchema = z.object({
-      _id: zx.id(name),
-      _creationTime: z.optional(z.number()),
-      ...partialShape
-    })
-  } else {
-    updateSchema = inputSchema
-  }
-
-  const schema = {
-    doc: docSchema,
-    base: insertSchema,
-    insert: insertSchema,
-    update: updateSchema,
-    docArray: docArraySchema,
-    paginatedDoc: paginatedDocSchema
-  }
-
-  // For union models, fields is an empty shape (field paths come from InsertSchema generic)
-  const fields: $ZodShape = {}
-
-  function createModel(
-    indexes: Record<string, readonly string[]>,
-    searchIndexes: Record<string, SearchIndexConfig>,
-    vectorIndexes: Record<string, VectorIndexConfig>
-  ): any {
-    const model = {
-      name,
-      fields,
-      schema,
-      indexes,
-      searchIndexes,
-      vectorIndexes,
-      index(indexName: string, indexFields: readonly string[]) {
-        return createModel(
-          { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
-          searchIndexes,
-          vectorIndexes
-        )
-      },
-      searchIndex(indexName: string, config: SearchIndexConfig) {
-        return createModel(indexes, { ...searchIndexes, [indexName]: config }, vectorIndexes)
-      },
-      vectorIndex(indexName: string, config: VectorIndexConfig) {
-        return createModel(indexes, searchIndexes, { ...vectorIndexes, [indexName]: config })
-      }
-    }
-    attachMeta(model, { type: 'model', tableName: name, schemas: schema })
-    return model
-  }
-
-  return createModel({}, {}, {})
+  return createModel(name, fields, createObjectModelSchemaBundle(name, fields))
 }
