@@ -74,6 +74,7 @@ import {
   type ZodModel as _ZodModel
 } from '../model'
 import type {
+  $strip,
   $ZodArray,
   $ZodBoolean,
   $ZodNullable,
@@ -81,8 +82,7 @@ import type {
   $ZodObject,
   $ZodOptional,
   $ZodShape,
-  $ZodString,
-  $strip
+  $ZodString
 } from '../zod-core'
 
 /** Mini-typed schema bundle for ZodModel from zodvex/mini */

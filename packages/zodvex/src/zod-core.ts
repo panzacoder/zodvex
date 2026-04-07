@@ -5,6 +5,7 @@
 // Per Zod's library author guidance (https://zod.dev/library-authors),
 // importing from 'zod/v4/core' ensures zodvex works with both zod and zod/mini.
 export {
+  type $strip,
   $ZodAny,
   $ZodArray,
   $ZodBigInt,
@@ -41,7 +42,6 @@ export {
   // Shape types (equivalent to z.ZodRawShape) // zod-ok
   type $ZodShape,
   $ZodString,
-  type $strip,
   $ZodSymbol,
   // Transform/pipe
   $ZodTransform,

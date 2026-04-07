@@ -143,7 +143,7 @@ describe('codegen mini: no method chains in output', () => {
       }
     ]
 
-    const { js, dts } = generateApiFile(funcs, sampleModels, undefined, undefined, undefined, {
+    const { js } = generateApiFile(funcs, sampleModels, undefined, undefined, undefined, {
       mini: true
     })
 

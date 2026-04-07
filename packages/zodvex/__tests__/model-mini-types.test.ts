@@ -9,12 +9,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { z as zm } from 'zod/mini'
-import { $ZodObject, $ZodArray } from 'zod/v4/core'
-import { defineZodModel, type ZodModel, type FullZodModelSchemas } from '../src/model'
-import { defineZodModel as defineZodModelMini, type MiniModelSchemas } from '../src/mini'
-import { zx } from '../src/zx'
-import type { $ZodShape, $ZodType } from '../src/zod-core'
 import type { output as zoutput } from 'zod/v4/core'
+import { $ZodArray, $ZodObject } from 'zod/v4/core'
+import { defineZodModel as defineZodModelMini, type MiniModelSchemas } from '../src/mini'
+import { defineZodModel, type FullZodModelSchemas, type ZodModel } from '../src/model'
+import type { $ZodShape, $ZodType } from '../src/zod-core'
+import { zx } from '../src/zx'
 
 // ============================================================================
 // Test models — same fields, different entrypoints
@@ -77,7 +77,7 @@ describe('ZodModel type inference: core vs mini', () => {
   })
 
   it('runtime schemas produce the same values', () => {
-    const doc = {
+    const _doc = {
       name: 'Alice',
       email: 'alice@test.com',
       createdAt: 1000,

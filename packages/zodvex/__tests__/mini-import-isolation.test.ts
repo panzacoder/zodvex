@@ -6,9 +6,10 @@
  * This catches regressions where the esbuild alias plugin fails to
  * rewrite an import.
  */
-import { describe, expect, it } from 'vitest'
+
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
 
 const distDir = resolve(__dirname, '../dist/mini')
 

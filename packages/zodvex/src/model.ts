@@ -11,8 +11,8 @@
 import { z } from 'zod'
 import { attachMeta } from './meta'
 import {
-  addSystemFields,
   type AddSystemFieldsToUnion,
+  addSystemFields,
   createUnionFromOptions,
   getUnionOptions,
   isZodUnion
