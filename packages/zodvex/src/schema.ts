@@ -9,9 +9,20 @@ import {
 import type { ObjectType, VObject } from 'convex/values'
 import type { z } from 'zod'
 import type { ZodvexFilterBuilder } from './db'
-import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
+import {
+  type ConvexValidatorFromZod,
+  type ConvexValidatorFromZodFieldsAuto,
+  zodToConvex,
+  zodToConvexFields
+} from './mapping'
 import type { SearchIndexConfig, VectorIndexConfig } from './model'
-import type { $ZodShape, $ZodType, output as zoutput } from './zod-core'
+import type {
+  $ZodDiscriminatedUnion,
+  $ZodShape,
+  $ZodType,
+  $ZodUnion,
+  output as zoutput
+} from './zod-core'
 
 /**
  * The set of Zod schemas produced by zodTable() or defineZodModel() for a single table.
@@ -75,34 +86,46 @@ function isZodModelEntry(entry: ZodSchemaEntry): entry is ZodModelEntry {
  *   (not the widened ZodTableEntry), so `infer` captures the full
  *   TableDefinition<VObject<...>> type.
  *
- * - defineZodModel entries: compute from fields + indexes.
- *   This mirrors what tableFromModel() + defineTable() do at runtime:
- *   fields → zodToConvexFields → ConvexValidatorFromZodFieldsAuto → VObject.
+ * - defineZodModel entries: compute from fields/schema + indexes.
+ *   This mirrors what tableFromModel() + defineTable() do at runtime.
+ *   For union models (schema.base extends $ZodUnion | $ZodDiscriminatedUnion),
+ *   uses ConvexValidatorFromZod<Base> (produces VUnion) instead of
+ *   ConvexValidatorFromZodFieldsAuto<F> (which would see empty fields).
  *   Indexes are converted from readonly tuples to mutable (Convex's format).
  */
 type ConvexTableFor<E> =
   // zodTable entry — extract .table with full VObject type
   E extends { table: infer T extends TableDefinition }
     ? T
-    : // model entry — compute from fields + indexes + search/vector indexes
+    : // model entry — compute from fields/schema + indexes
       E extends {
           fields: infer F extends Record<string, $ZodType>
+          schema: { base: infer Base extends $ZodType }
           indexes: infer I extends Record<string, readonly string[]>
           searchIndexes: infer SI extends Record<string, SearchIndexConfig>
           vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
         }
-      ? TableDefinition<
-          VObject<
-            ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
-            ConvexValidatorFromZodFieldsAuto<F>
-          >,
-          // Convert readonly index tuples to mutable (Convex's format)
-          { [K in keyof I]: [...I[K]] },
-          // Preserve search index names (field paths widen to string)
-          { [K in keyof SI]: { searchField: string; filterFields: string } },
-          // Preserve vector index names (field paths widen to string)
-          { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
-        >
+      ? Base extends $ZodUnion<any> | $ZodDiscriminatedUnion<any, any>
+        ? // Union model — compute validator from schema.base (the union type)
+          TableDefinition<
+            ConvexValidatorFromZod<Base, 'required'>,
+            { [K in keyof I]: [...I[K]] },
+            { [K in keyof SI]: { searchField: string; filterFields: string } },
+            { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+          >
+        : // Regular model — compute from fields
+          TableDefinition<
+            VObject<
+              ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
+              ConvexValidatorFromZodFieldsAuto<F>
+            >,
+            // Convert readonly index tuples to mutable (Convex's format)
+            { [K in keyof I]: [...I[K]] },
+            // Preserve search index names (field paths widen to string)
+            { [K in keyof SI]: { searchField: string; filterFields: string } },
+            // Preserve vector index names (field paths widen to string)
+            { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+          >
       : TableDefinition
 
 /**
