@@ -10,18 +10,13 @@
 
 import { z } from 'zod'
 import { attachMeta, type ZodvexModelDefinitionSource } from './meta'
-import { type AddSystemFieldsToUnion } from './schemaHelpers'
 import {
   createObjectSchemaBundle,
   createSchemaBundle,
   type RuntimeModelSchemaBundle
 } from './modelSchemaBundle'
-import {
-  $ZodArray,
-  type $ZodShape,
-  $ZodType,
-  type input as zinput
-} from './zod-core'
+import { type AddSystemFieldsToUnion } from './schemaHelpers'
+import { $ZodArray, type $ZodShape, $ZodType, type input as zinput } from './zod-core'
 import { type ZxId, zx } from './zx'
 
 function createModel<Name extends string>(
@@ -63,15 +58,10 @@ function createModel<Name extends string>(
       )
     },
     vectorIndex(indexName: string, config: VectorIndexConfig) {
-      return createModel(
-        name,
-        fields,
-        schema,
-        definitionSource,
-        indexes,
-        searchIndexes,
-        { ...vectorIndexes, [indexName]: config }
-      )
+      return createModel(name, fields, schema, definitionSource, indexes, searchIndexes, {
+        ...vectorIndexes,
+        [indexName]: config
+      })
     }
   }
 

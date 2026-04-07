@@ -249,11 +249,7 @@ function createInitBuilderBundle(
     server,
     customizations
   )) {
-    builders[key] = createZodvexBuilder(
-      rawBuilder,
-      customization,
-      customFn as InternalCustomFn
-    )
+    builders[key] = createZodvexBuilder(rawBuilder, customization, customFn as InternalCustomFn)
   }
 
   return builders

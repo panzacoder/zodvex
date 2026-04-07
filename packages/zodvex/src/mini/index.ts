@@ -63,17 +63,13 @@ export {
   type VectorIndexConfig,
   type ZodModel
 } from '../model'
-export { defineZodModel, type MiniModelSchemas } from './model'
-
 // Re-export registry
 export * from '../registry'
-
 // Re-export results
 export * from '../results'
-
 // Re-export schema types
 export type { ZodTableMap, ZodTableSchemas } from '../schema'
-
 // Re-export types
 export * from '../types'
-export { zx, type ZxMiniDate, type ZxMiniId } from './zx'
+export { defineZodModel, type MiniModelSchemas } from './model'
+export { type ZxMiniDate, type ZxMiniId, zx } from './zx'

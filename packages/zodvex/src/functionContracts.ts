@@ -11,8 +11,8 @@ import {
   $ZodOptional,
   $ZodType,
   $ZodUnion,
-  parse as zodParse,
-  safeParse
+  safeParse,
+  parse as zodParse
 } from './zod-core'
 
 export type FunctionSchemaInput = $ZodType | Record<string, $ZodType> | undefined

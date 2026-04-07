@@ -67,8 +67,8 @@ function date(): ZxDate {
  */
 export type ZxId<TableName extends string> = z.ZodString &
   z.ZodType<GenericId<TableName>> & {
-  _tableName: TableName
-}
+    _tableName: TableName
+  }
 
 /**
  * Creates a Convex ID validator for a specific table.

@@ -12,7 +12,7 @@ import type {
   $ZodObject,
   $ZodOptional,
   $ZodShape,
-  $ZodString,
+  $ZodString
 } from '../zod-core'
 import { $ZodType } from '../zod-core'
 import type { ZxMiniId } from './zx'

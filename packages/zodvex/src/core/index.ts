@@ -38,8 +38,6 @@ export {
   zodToConvex,
   zodToConvexFields
 } from '../mapping'
-// Full-zod model helper surface
-export * from './model'
 // Codec error path normalization (safeEncode, normalizeCodecPaths)
 export { normalizeCodecPaths, safeEncode } from '../normalizeCodecPaths'
 // JSON Schema overrides and registry
@@ -60,5 +58,7 @@ export {
   stripUndefined,
   zPaginated
 } from '../utils'
+// Full-zod model helper surface
+export * from './model'
 // Full-zod zx helper surface
 export * from './zx'

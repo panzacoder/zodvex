@@ -1,1 +1,1 @@
-export { zx, type FullZodvexCodec, type ZxDate, type ZxId } from '../zx'
+export { type FullZodvexCodec, type ZxDate, type ZxId, zx } from '../zx'

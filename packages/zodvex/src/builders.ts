@@ -56,12 +56,13 @@ function registerBuilderFunction<
   return result
 }
 
-function createDirectBuilderFactory(register: (builder: any, input: any, handler: any, options: any) => any) {
+function createDirectBuilderFactory(
+  register: (builder: any, input: any, handler: any, options: any) => any
+) {
   return function directBuilderFactory<Builder extends (fn: any) => any>(builder: Builder) {
     return <
       A extends $ZodType | Record<string, $ZodType>,
-      R extends $ZodType | undefined = undefined,
-      Visibility extends FunctionVisibility = ExtractVisibility<Builder>
+      R extends $ZodType | undefined = undefined
     >(
       config: BuilderConfig<Builder, A, R>
     ): any => registerBuilderFunction(register as any, builder, config) as any

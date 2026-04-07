@@ -171,17 +171,21 @@ describe('defineZodSchema', () => {
     const schema = defineZodSchema({ profiles: ProfileModel })
     const profileSchemas = schema.__zodTableMap.profiles
 
-    expect(profileSchemas.doc.safeParse({
-      displayName: 'Alice',
-      birthday: 1700000000000,
-      _id: 'profiles:123',
-      _creationTime: 1
-    }).success).toBe(true)
+    expect(
+      profileSchemas.doc.safeParse({
+        displayName: 'Alice',
+        birthday: 1700000000000,
+        _id: 'profiles:123',
+        _creationTime: 1
+      }).success
+    ).toBe(true)
 
-    expect(profileSchemas.insert.safeParse({
-      displayName: 'Alice',
-      birthday: 1700000000000
-    }).success).toBe(true)
+    expect(
+      profileSchemas.insert.safeParse({
+        displayName: 'Alice',
+        birthday: 1700000000000
+      }).success
+    ).toBe(true)
   })
 
   // ===========================================================================

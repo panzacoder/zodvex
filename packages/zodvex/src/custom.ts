@@ -13,7 +13,6 @@ import {
 import { type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
-import { type ZodValidator, zodToConvexFields } from './mapping'
 import {
   applyCustomizationResult,
   attachFunctionMeta,
@@ -24,6 +23,7 @@ import {
   parseObjectArgsOrThrow,
   runCustomizationInput
 } from './functionContracts'
+import { type ZodValidator, zodToConvexFields } from './mapping'
 import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
 import { assertNoNativeZodDate, pick } from './utils'
 import { $ZodObject, $ZodType } from './zod-core'
@@ -221,7 +221,13 @@ export function customFnBuilder<
         args: convexArgs,
         ...convexReturns,
         handler: async (ctx: Ctx, allArgs: any) => {
-          const added = await runCustomizationInput(customInput as any, ctx, allArgs, inputArgs, extra)
+          const added = await runCustomizationInput(
+            customInput as any,
+            ctx,
+            allArgs,
+            inputArgs,
+            extra
+          )
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
           const baseArgs = parseObjectArgsOrThrow(argsSchema, rawArgs)
@@ -239,7 +245,13 @@ export function customFnBuilder<
       ...convexReturns,
       handler: async (ctx: Ctx, allArgs: any) => {
         const baseArgs = allArgs as Record<string, unknown>
-        const added = await runCustomizationInput(customInput as any, ctx, allArgs, inputArgs, extra)
+        const added = await runCustomizationInput(
+          customInput as any,
+          ctx,
+          allArgs,
+          inputArgs,
+          extra
+        )
         const { finalCtx, finalArgs } = applyCustomizationResult(ctx as any, baseArgs, added)
 
         const ret = await handler(finalCtx, finalArgs)

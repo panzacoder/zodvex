@@ -7,10 +7,10 @@ import type {
 import {
   assertFunctionSchemas,
   createConvexReturnsValidator,
+  type DirectFunctionInput,
   finalizeFunctionReturn,
   normalizeDirectFunctionInput,
-  parseFunctionArgsOrThrow,
-  type DirectFunctionInput
+  parseFunctionArgsOrThrow
 } from './functionContracts'
 // Typing helpers to keep handler args/returns precise without deep remapping
 import type {
@@ -29,7 +29,10 @@ function registerZodFunction<
 >(
   builder: Builder,
   input: A,
-  handler: (ctx: ExtractCtx<Builder>, args: ZodToConvexArgs<A>) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
+  handler: (
+    ctx: ExtractCtx<Builder>,
+    args: ZodToConvexArgs<A>
+  ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
 ): any {
   const { zodSchema, convexArgs } = normalizeDirectFunctionInput(input)
