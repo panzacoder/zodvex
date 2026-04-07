@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
 import { createObjectSchemaBundle, createSchemaBundle } from './modelSchemaBundle'
 import { addSystemFields, type MapSystemFields, type SystemFields } from './schemaHelpers'
-import { $ZodObject, type $ZodShape, $ZodType, clone } from './zod-core'
+import { $ZodObject, type $ZodShape, $ZodType } from './zod-core'
 import { type ZxId, zx } from './zx'
 
 /**
@@ -56,11 +56,7 @@ export function zodDoc<TableName extends string, Shape extends $ZodShape>(
   tableName: TableName,
   schema: z.ZodObject<Shape>
 ): z.ZodObject<Shape & DocSystemFields<TableName>> {
-  const newShape = { ...schema._zod.def.shape, _id: zx.id(tableName), _creationTime: z.number() }
-  // Clone preserves the original's class + reinitializes with merged def
-  return clone(schema, { ...schema._zod.def, shape: newShape }) as z.ZodObject<
-    Shape & DocSystemFields<TableName>
-  >
+  return addSystemFields(tableName, schema) as z.ZodObject<Shape & DocSystemFields<TableName>>
 }
 
 /**
