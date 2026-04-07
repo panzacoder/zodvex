@@ -8,9 +8,12 @@ export type ZodvexFunctionMeta = {
   zodReturns?: $ZodType
 }
 
+export type ZodvexModelDefinitionSource = 'shape' | 'schema'
+
 export type ZodvexModelMeta = {
   type: 'model'
   tableName: string
+  definitionSource?: ZodvexModelDefinitionSource
   schemas: {
     doc: $ZodType
     insert: $ZodType

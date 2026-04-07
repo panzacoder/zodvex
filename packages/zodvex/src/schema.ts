@@ -15,7 +15,8 @@ import {
   zodToConvex,
   zodToConvexFields
 } from './mapping'
-import type { SearchIndexConfig, VectorIndexConfig } from './model'
+import { readMeta, type ZodvexModelMeta } from './meta'
+import type { AnyZodModel, SearchIndexConfig, VectorIndexConfig } from './model'
 import type {
   $ZodDiscriminatedUnion,
   $ZodShape,
@@ -52,26 +53,20 @@ type ZodTableEntry = {
 }
 
 // Accept defineZodModel() results
-export type ZodModelEntry = {
-  name: string
-  fields: $ZodShape
-  schema: {
-    doc: $ZodType
-    base: $ZodType
-    insert: $ZodType
-    update: $ZodType
-    docArray: $ZodType
-    paginatedDoc: $ZodType
-  }
-  indexes: Record<string, readonly string[]>
-  searchIndexes: Record<string, SearchIndexConfig>
-  vectorIndexes: Record<string, VectorIndexConfig>
-}
+export type ZodModelEntry = AnyZodModel
 
 type ZodSchemaEntry = ZodTableEntry | ZodModelEntry
 
 function isZodModelEntry(entry: ZodSchemaEntry): entry is ZodModelEntry {
-  return 'fields' in entry && 'indexes' in entry && !('table' in entry)
+  return readMeta(entry)?.type === 'model'
+}
+
+function getZodModelMeta(model: ZodModelEntry): ZodvexModelMeta {
+  const meta = readMeta(model)
+  if (!meta || meta.type !== 'model') {
+    throw new Error(`Model '${model.name}' is missing zodvex model metadata.`)
+  }
+  return meta
 }
 
 // ============================================================================
@@ -157,9 +152,12 @@ export type DecodedDocFor<T extends Record<string, { schema: { doc: $ZodType } }
  * Creates a Convex table definition from a ZodModel's fields and index metadata.
  */
 function tableFromModel(model: ZodModelEntry) {
-  // Union models have empty fields — use zodToConvex on the base schema instead
-  const isUnionModel = Object.keys(model.fields).length === 0
-  let table = isUnionModel
+  const meta = getZodModelMeta(model)
+  const usesBaseSchema =
+    meta.definitionSource === 'schema' ||
+    (meta.definitionSource == null && Object.keys(model.fields).length === 0)
+
+  let table = usesBaseSchema
     ? defineTable(zodToConvex(model.schema.base) as any)
     : defineTable(zodToConvexFields(model.fields))
 

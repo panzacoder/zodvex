@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod'
-import { attachMeta } from './meta'
+import { attachMeta, type ZodvexModelDefinitionSource } from './meta'
 import {
   type AddSystemFieldsToUnion,
   addSystemFields,
@@ -127,6 +127,7 @@ function createModel<Name extends string>(
   name: Name,
   fields: $ZodShape,
   schema: RuntimeModelSchemaBundle,
+  definitionSource: ZodvexModelDefinitionSource,
   indexes: Record<string, readonly string[]> = {},
   searchIndexes: Record<string, SearchIndexConfig> = {},
   vectorIndexes: Record<string, VectorIndexConfig> = {}
@@ -143,6 +144,7 @@ function createModel<Name extends string>(
         name,
         fields,
         schema,
+        definitionSource,
         { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
         searchIndexes,
         vectorIndexes
@@ -153,6 +155,7 @@ function createModel<Name extends string>(
         name,
         fields,
         schema,
+        definitionSource,
         indexes,
         { ...searchIndexes, [indexName]: config },
         vectorIndexes
@@ -163,6 +166,7 @@ function createModel<Name extends string>(
         name,
         fields,
         schema,
+        definitionSource,
         indexes,
         searchIndexes,
         { ...vectorIndexes, [indexName]: config }
@@ -170,7 +174,7 @@ function createModel<Name extends string>(
     }
   }
 
-  attachMeta(model, { type: 'model', tableName: name, schemas: schema })
+  attachMeta(model, { type: 'model', tableName: name, definitionSource, schemas: schema })
   return model
 }
 
@@ -366,6 +370,8 @@ export type ZodModel<
   >
 }
 
+export type AnyZodModel = ZodModel<string, $ZodShape, $ZodType, ModelSchemas>
+
 // ============================================================================
 // defineZodModel
 // ============================================================================
@@ -421,9 +427,9 @@ export function defineZodModel<Name extends string>(
 ): any {
   // Detect if input is a pre-built Zod schema (union, object, etc.) vs raw shape
   if (fieldsOrSchema instanceof $ZodType) {
-    return createModel(name, {}, createSchemaModelSchemaBundle(name, fieldsOrSchema as $ZodType))
+    return createModel(name, {}, createSchemaModelSchemaBundle(name, fieldsOrSchema as $ZodType), 'schema')
   }
 
   const fields = fieldsOrSchema as $ZodShape
-  return createModel(name, fields, createObjectModelSchemaBundle(name, fields))
+  return createModel(name, fields, createObjectModelSchemaBundle(name, fields), 'shape')
 }

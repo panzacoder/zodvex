@@ -615,6 +615,7 @@ describe('defineZodModel __zodvexMeta', () => {
 
     const mmeta = meta as ZodvexModelMeta
     expect(mmeta.tableName).toBe('users')
+    expect(mmeta.definitionSource).toBe('shape')
     expect(mmeta.schemas.doc).toBe(model.schema.doc)
     expect(mmeta.schemas.insert).toBe(model.schema.insert)
     expect(mmeta.schemas.update).toBe(model.schema.update)

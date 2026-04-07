@@ -29,6 +29,7 @@ describe('attachMeta / readMeta', () => {
     const meta: ZodvexModelMeta = {
       type: 'model',
       tableName: 'users',
+      definitionSource: 'shape',
       schemas: {
         doc: z.object({ _id: z.string(), name: z.string() }),
         insert: z.object({ name: z.string() }),
@@ -42,6 +43,7 @@ describe('attachMeta / readMeta', () => {
     expect(read).toBeDefined()
     expect(read?.type).toBe('model')
     expect((read as ZodvexModelMeta).tableName).toBe('users')
+    expect((read as ZodvexModelMeta).definitionSource).toBe('shape')
     expect((read as ZodvexModelMeta).schemas.doc).toBeInstanceOf(z.ZodObject)
     expect((read as ZodvexModelMeta).schemas.insert).toBeInstanceOf(z.ZodObject)
     expect((read as ZodvexModelMeta).schemas.update).toBeInstanceOf(z.ZodObject)

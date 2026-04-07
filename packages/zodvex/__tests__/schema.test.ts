@@ -28,6 +28,14 @@ const VisitModel = defineZodModel(
   ])
 )
 
+const ProfileModel = defineZodModel(
+  'profiles',
+  z.object({
+    displayName: z.string(),
+    birthday: zx.date()
+  })
+)
+
 describe('defineZodSchema', () => {
   it('returns an object with __zodTableMap', () => {
     const schema = defineZodSchema({ users: Users, posts: Posts })
@@ -157,6 +165,23 @@ describe('defineZodSchema', () => {
       _creationTime: 1
     })
     expect(result.success).toBe(true)
+  })
+
+  it('works with object-schema defineZodModel entries', () => {
+    const schema = defineZodSchema({ profiles: ProfileModel })
+    const profileSchemas = schema.__zodTableMap.profiles
+
+    expect(profileSchemas.doc.safeParse({
+      displayName: 'Alice',
+      birthday: 1700000000000,
+      _id: 'profiles:123',
+      _creationTime: 1
+    }).success).toBe(true)
+
+    expect(profileSchemas.insert.safeParse({
+      displayName: 'Alice',
+      birthday: 1700000000000
+    }).success).toBe(true)
   })
 
   // ===========================================================================
