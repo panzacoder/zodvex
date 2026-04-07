@@ -55,6 +55,22 @@ export type ZodvexActionCtx<DM extends GenericDataModel> = GenericActionCtx<DM>
 // biome-ignore lint/complexity/noBannedTypes: {} is semantically correct here — see comment above
 type NoCodecCtx = {}
 
+type InternalCustomization = {
+  args: Record<string, never>
+  input: (ctx: any, args: any, extra?: any) => any
+}
+
+type InternalCustomFn = (builder: any, customization: any) => any
+
+type InitServerBuilders = {
+  query: QueryBuilder<any, 'public'>
+  mutation: MutationBuilder<any, 'public'>
+  action: ActionBuilder<any, 'public'>
+  internalQuery: QueryBuilder<any, 'internal'>
+  internalMutation: MutationBuilder<any, 'internal'>
+  internalAction: ActionBuilder<any, 'internal'>
+}
+
 /**
  * A zodvex builder: callable CustomBuilder + .withContext() for composing
  * user customizations on top of the codec layer.
@@ -160,47 +176,87 @@ export function initZodvex<
 // Implementation
 export function initZodvex(
   schema: { __zodTableMap: ZodTableMap },
-  server: {
-    query: QueryBuilder<any, 'public'>
-    mutation: MutationBuilder<any, 'public'>
-    action: ActionBuilder<any, 'public'>
-    internalQuery: QueryBuilder<any, 'internal'>
-    internalMutation: MutationBuilder<any, 'internal'>
-    internalAction: ActionBuilder<any, 'internal'>
-  },
+  server: InitServerBuilders,
   options?: { wrapDb?: boolean; registry?: () => AnyRegistry }
 ) {
   const codec = createZodvexCustomization(schema.__zodTableMap)
-  const noOp = { args: {} as Record<string, never>, input: NoOp.input }
+  const noOp = createNoOpCustomization()
   const wrap = options?.wrapDb !== false
 
-  // Create action customization when registry is provided
-  const registryThunk = options?.registry
-  const actionCust = registryThunk
-    ? {
-        args: {} as Record<string, never>,
-        input: async (ctx: any) => {
-          const wrapped = createZodvexActionCtx(registryThunk(), ctx)
-          return {
-            ctx: { runQuery: wrapped.runQuery, runMutation: wrapped.runMutation },
-            args: {}
-          }
-        }
-      }
-    : noOp
+  const actionCust = createActionCustomization(options?.registry, noOp)
+  const customizations = {
+    query: wrap ? codec.query : noOp,
+    mutation: wrap ? codec.mutation : noOp,
+    action: actionCust
+  }
+
+  return createInitBuilderBundle(server, customizations)
+}
+
+function createNoOpCustomization(): InternalCustomization {
+  return { args: {} as Record<string, never>, input: NoOp.input }
+}
+
+function createActionCustomization(
+  registryThunk: (() => AnyRegistry) | undefined,
+  noOp: InternalCustomization
+): InternalCustomization {
+  if (!registryThunk) {
+    return noOp
+  }
 
   return {
-    zq: createZodvexBuilder(server.query, wrap ? codec.query : noOp, zCustomQuery),
-    zm: createZodvexBuilder(server.mutation, wrap ? codec.mutation : noOp, zCustomMutation),
-    za: createZodvexBuilder(server.action, actionCust, zCustomAction),
-    ziq: createZodvexBuilder(server.internalQuery, wrap ? codec.query : noOp, zCustomQuery),
-    zim: createZodvexBuilder(
-      server.internalMutation,
-      wrap ? codec.mutation : noOp,
-      zCustomMutation
-    ),
-    zia: createZodvexBuilder(server.internalAction, actionCust, zCustomAction)
+    args: {} as Record<string, never>,
+    input: async (ctx: any) => {
+      const wrapped = createZodvexActionCtx(registryThunk(), ctx)
+      return {
+        ctx: { runQuery: wrapped.runQuery, runMutation: wrapped.runMutation },
+        args: {}
+      }
+    }
   }
+}
+
+function getInitBuilderSpecs(
+  server: InitServerBuilders,
+  customizations: {
+    query: InternalCustomization
+    mutation: InternalCustomization
+    action: InternalCustomization
+  }
+) {
+  return [
+    ['zq', server.query, customizations.query, zCustomQuery],
+    ['zm', server.mutation, customizations.mutation, zCustomMutation],
+    ['za', server.action, customizations.action, zCustomAction],
+    ['ziq', server.internalQuery, customizations.query, zCustomQuery],
+    ['zim', server.internalMutation, customizations.mutation, zCustomMutation],
+    ['zia', server.internalAction, customizations.action, zCustomAction]
+  ] as const
+}
+
+function createInitBuilderBundle(
+  server: InitServerBuilders,
+  customizations: {
+    query: InternalCustomization
+    mutation: InternalCustomization
+    action: InternalCustomization
+  }
+) {
+  const builders: Record<string, any> = {}
+
+  for (const [key, rawBuilder, customization, customFn] of getInitBuilderSpecs(
+    server,
+    customizations
+  )) {
+    builders[key] = createZodvexBuilder(
+      rawBuilder,
+      customization,
+      customFn as InternalCustomFn
+    )
+  }
+
+  return builders
 }
 
 /**
@@ -214,7 +270,7 @@ export function initZodvex(
  * @internal Exported for testing only -- not part of the public API.
  */
 export function composeCustomizations(
-  codecCust: { args: Record<string, never>; input: (ctx: any, args: any, extra?: any) => any },
+  codecCust: InternalCustomization,
   userCust: { args?: any; input?: (ctx: any, args: any, extra?: any) => any }
 ) {
   return {
@@ -252,7 +308,7 @@ export function composeCustomizations(
  */
 export function createZodvexBuilder(
   rawBuilder: any,
-  codecCust: { args: Record<string, never>; input: (ctx: any, args: any, extra?: any) => any },
+  codecCust: InternalCustomization,
   customFn: (builder: any, customization: any) => any
 ) {
   const base: any = customFn(rawBuilder as any, codecCust as any)
