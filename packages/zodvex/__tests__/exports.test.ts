@@ -197,10 +197,23 @@ describe('zodvex root exports', () => {
 })
 
 describe('zodvex/core compatibility alias', () => {
-  it('matches the root client-safe export surface', async () => {
-    const root = await import('../src')
+  it('matches the canonical public client-safe surface', async () => {
+    const publicSurface = await import('../src/public')
     const core = await import('../src/core')
-    expect(Object.keys(core).sort()).toEqual(Object.keys(root).sort())
+    expect(Object.keys(core).sort()).toEqual(Object.keys(publicSurface).sort())
+  })
+
+  it('does NOT export deprecated legacy root stubs', async () => {
+    const core = await import('../src/core')
+    expect((core as any).zodTable).toBeUndefined()
+    expect((core as any).zodDoc).toBeUndefined()
+    expect((core as any).zodDocOrNull).toBeUndefined()
+    expect((core as any).zQueryBuilder).toBeUndefined()
+    expect((core as any).zMutationBuilder).toBeUndefined()
+    expect((core as any).zActionBuilder).toBeUndefined()
+    expect((core as any).zCustomQueryBuilder).toBeUndefined()
+    expect((core as any).zCustomMutationBuilder).toBeUndefined()
+    expect((core as any).zCustomActionBuilder).toBeUndefined()
   })
 })
 

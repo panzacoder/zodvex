@@ -25,8 +25,11 @@ const rules: Rule[] = [
   },
   {
     appliesTo: file => file.includes('/packages/zodvex/src/core/'),
-    allowTarget: target => target.endsWith('/packages/zodvex/src/index.ts'),
-    message: 'core wrappers must only point at the canonical root public surface'
+    allowTarget: target =>
+      target.includes('/packages/zodvex/src/public/') ||
+      target.endsWith('/packages/zodvex/src/public') ||
+      target.endsWith('/packages/zodvex/src/public/index.ts'),
+    message: 'core wrappers must only point at the canonical public client-safe surface'
   },
   {
     appliesTo: file => file.includes('/packages/zodvex/src/public/'),
