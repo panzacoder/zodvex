@@ -30,10 +30,25 @@
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
     },
+    "./legacy": {
+      "types": "./dist/legacy/index.d.ts",
+      "import": "./dist/legacy/index.js",
+      "default": "./dist/legacy/index.js"
+    },
     "./mini": {
       "types": "./dist/mini/index.d.ts",
       "import": "./dist/mini/index.js",
       "default": "./dist/mini/index.js"
+    },
+    "./mini/client": {
+      "types": "./dist/mini/client/index.d.ts",
+      "import": "./dist/mini/client/index.js",
+      "default": "./dist/mini/client/index.js"
+    },
+    "./mini/react": {
+      "types": "./dist/mini/react/index.d.ts",
+      "import": "./dist/mini/react/index.js",
+      "default": "./dist/mini/react/index.js"
     },
     "./mini/server": {
       "types": "./dist/mini/server/index.d.ts",

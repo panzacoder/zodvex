@@ -36,6 +36,7 @@ export default defineConfig([
     entry: [
       'src/index.ts',
       'src/core/index.ts',
+      'src/legacy/index.ts',
       'src/server/index.ts',
       'src/cli/index.ts',
       'src/codegen/index.ts',
@@ -55,6 +56,8 @@ export default defineConfig([
     ...shared,
     entry: {
       'mini/index': 'src/mini/index.ts',
+      'mini/client/index': 'src/mini/client/index.ts',
+      'mini/react/index': 'src/mini/react/index.ts',
       'mini/server/index': 'src/mini/server/index.ts',
     },
     external: [...external.filter(e => e !== 'zod'), 'zod/mini'],

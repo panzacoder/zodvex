@@ -85,6 +85,13 @@ async function assertNoServerRuntimeImports(
   }
 }
 
+function expectLegacyStub(fn: unknown, name: string) {
+  expect(typeof fn).toBe('function')
+  expect(() => (fn as () => never)()).toThrowError(
+    new RegExp(`\\[zodvex\\].*${name}.*zodvex/legacy`, 's')
+  )
+}
+
 describe('client-safe full entrypoints have no server runtime imports', () => {
   it('zodvex root is client-safe', async () => {
     await assertNoServerRuntimeImports('../src/index.ts', 'zodvex')
@@ -140,19 +147,22 @@ describe('zodvex root exports', () => {
     expect(toJSONSchema).toBeDefined()
   })
 
-  it('does NOT export zodTable', async () => {
+  it('exports deprecated legacy root stubs', async () => {
     const root = await import('../src')
-    expect((root as any).zodTable).toBeUndefined()
+    expectLegacyStub((root as any).zodTable, 'zodTable')
+    expectLegacyStub((root as any).zodDoc, 'zodDoc')
+    expectLegacyStub((root as any).zodDocOrNull, 'zodDocOrNull')
+    expectLegacyStub((root as any).zQueryBuilder, 'zQueryBuilder')
+    expectLegacyStub((root as any).zMutationBuilder, 'zMutationBuilder')
+    expectLegacyStub((root as any).zActionBuilder, 'zActionBuilder')
+    expectLegacyStub((root as any).zCustomQueryBuilder, 'zCustomQueryBuilder')
+    expectLegacyStub((root as any).zCustomMutationBuilder, 'zCustomMutationBuilder')
+    expectLegacyStub((root as any).zCustomActionBuilder, 'zCustomActionBuilder')
   })
 
   it('does NOT export customCtx', async () => {
     const root = await import('../src')
     expect((root as any).customCtx).toBeUndefined()
-  })
-
-  it('does NOT export zQueryBuilder', async () => {
-    const root = await import('../src')
-    expect((root as any).zQueryBuilder).toBeUndefined()
   })
 
   it('does NOT export zCustomQuery', async () => {
@@ -283,10 +293,12 @@ describe('zodvex (root) exports', () => {
     expect(zodvex.encodeDoc).toBeDefined()
     expect(zodvex.encodePartialDoc).toBeDefined()
 
+    // Deprecated root stubs stay client-safe and point callers at zodvex/legacy
+    expectLegacyStub((zodvex as any).zodTable, 'zodTable')
+    expectLegacyStub((zodvex as any).zQueryBuilder, 'zQueryBuilder')
+
     // Server-only exports must not leak from root
-    expect(zodvex.zodTable).toBeUndefined()
     expect(zodvex.customCtx).toBeUndefined()
-    expect(zodvex.zQueryBuilder).toBeUndefined()
     expect(zodvex.zCustomQuery).toBeUndefined()
     expect(zodvex.defineZodSchema).toBeUndefined()
     expect(zodvex.createZodDbReader).toBeUndefined()
@@ -313,5 +325,39 @@ describe('zodvex (root) exports', () => {
     expect((zodvex as any).createUnionFromOptions).toBeUndefined()
     expect((zodvex as any).composeCustomizations).toBeUndefined()
     expect((zodvex as any).createZodvexBuilder).toBeUndefined()
+  })
+})
+
+describe('zodvex/legacy exports', () => {
+  it('exports deprecated table helpers', async () => {
+    const legacy = await import('../src/legacy')
+    expect(legacy.zodTable).toBeDefined()
+    expect(legacy.zodDoc).toBeDefined()
+    expect(legacy.zodDocOrNull).toBeDefined()
+  })
+
+  it('exports deprecated builder helpers', async () => {
+    const legacy = await import('../src/legacy')
+    expect(legacy.zQueryBuilder).toBeDefined()
+    expect(legacy.zMutationBuilder).toBeDefined()
+    expect(legacy.zActionBuilder).toBeDefined()
+    expect(legacy.zCustomQueryBuilder).toBeDefined()
+    expect(legacy.zCustomMutationBuilder).toBeDefined()
+    expect(legacy.zCustomActionBuilder).toBeDefined()
+  })
+})
+
+describe('mini mirrored entrypoints', () => {
+  it('exports the client helpers from zodvex/mini/client', async () => {
+    const miniClient = await import('../src/mini/client')
+    expect(miniClient.createZodvexClient).toBeDefined()
+    expect(miniClient.ZodvexClient).toBeDefined()
+  })
+
+  it('exports the react helpers from zodvex/mini/react', async () => {
+    const miniReact = await import('../src/mini/react')
+    expect(miniReact.createZodvexHooks).toBeDefined()
+    expect(miniReact.createZodvexReactClient).toBeDefined()
+    expect(miniReact.ZodvexReactClient).toBeDefined()
   })
 })
