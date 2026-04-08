@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zodToConvexFields } from '../src/mapping'
-import { pickShape, safePick } from '../src/utils'
+import { zodToConvexFields } from '../src/internal/mapping'
+import { pickShape, safePick } from '../src/internal/utils'
 
 describe('pick helpers', () => {
   const User = z.object({

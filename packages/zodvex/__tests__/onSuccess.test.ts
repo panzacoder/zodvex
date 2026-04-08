@@ -1,8 +1,8 @@
 /// <reference types="bun-types" />
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { zx } from '../src/internal/zx'
 import { zCustomQuery, zCustomQueryBuilder } from '../src/server'
-import { zx } from '../src/zx'
 
 // Mock Convex query builder
 const mockQueryBuilder = (fn: any) => fn

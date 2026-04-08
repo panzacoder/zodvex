@@ -5,9 +5,9 @@ import {
   decodeDoc,
   encodeDoc,
   encodePartialDoc
-} from '../codec'
-import type { $ZodType, output as zoutput } from '../zod-core'
-import type { FullZodvexCodec } from '../zx'
+} from '../internal/codec'
+import type { $ZodType, output as zoutput } from '../internal/zod-core'
+import type { FullZodvexCodec } from '../internal/zx'
 
 export { type ConvexCodec, convexCodec, decodeDoc, encodeDoc, encodePartialDoc }
 

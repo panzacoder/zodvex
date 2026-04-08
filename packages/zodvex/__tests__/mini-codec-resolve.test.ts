@@ -5,9 +5,9 @@
 
 import type { VFloat64 } from 'convex/values'
 import { describe, expectTypeOf, it } from 'vitest'
-import type { ConvexValidatorFromZod } from '../src/mapping/types'
+import type { ConvexValidatorFromZod } from '../src/internal/mapping/types'
+import type { ZxDate } from '../src/internal/zx'
 import type { ZxMiniDate } from '../src/mini'
-import type { ZxDate } from '../src/zx'
 
 describe('codec type resolution', () => {
   it('ZxDate (full) resolves to VFloat64', () => {

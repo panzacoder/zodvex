@@ -12,8 +12,8 @@ import { z as zm } from 'zod/mini'
 import type { output as zoutput } from 'zod/v4/core'
 import { $ZodArray, $ZodObject } from 'zod/v4/core'
 import { defineZodModel, type FullZodModelSchemas, type ZodModel, zx } from '../src'
+import type { $ZodShape, $ZodType } from '../src/internal/zod-core'
 import { defineZodModel as defineZodModelMini, type MiniModelSchemas } from '../src/mini'
-import type { $ZodShape, $ZodType } from '../src/zod-core'
 
 // ============================================================================
 // Test models — same fields, different entrypoints

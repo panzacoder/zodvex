@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { attachMeta } from '../../../src/meta'
+import { attachMeta } from '../../../src/internal/meta'
 import { components } from './_generated/api'
 
 // Module-scope component instantiation — this is the pattern that fails

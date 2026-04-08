@@ -5,7 +5,7 @@
  */
 import { describe, expectTypeOf, it } from 'vitest'
 import type { $ZodNumber, $ZodObject, $ZodString } from 'zod/v4/core'
-import type { AddSystemFieldsToUnion, SystemFields } from '../src/schemaHelpers'
+import type { AddSystemFieldsToUnion, SystemFields } from '../src/internal/schemaHelpers'
 
 describe('AddSystemFieldsToUnion', () => {
   it('preserves $ZodObject and adds system fields', () => {

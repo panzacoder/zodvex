@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { stripUndefined } from '../src/utils'
-import { zx } from '../src/zx'
+import { stripUndefined } from '../src/internal/utils'
+import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
 // Mock convex/react — we simulate useQuery and useMutation behaviour

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zActionBuilder, zMutationBuilder, zQueryBuilder } from '../src/builders'
-import { zCustomQuery } from '../src/custom'
-import { readMeta, type ZodvexFunctionMeta } from '../src/meta'
+import { zActionBuilder, zMutationBuilder, zQueryBuilder } from '../src/internal/builders'
+import { zCustomQuery } from '../src/internal/custom'
+import { readMeta, type ZodvexFunctionMeta } from '../src/internal/meta'
 
 // Mock builder that just returns whatever function config it receives
 const mockBuilder = (fn: any) => fn

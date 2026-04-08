@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zodTable } from '../src/tables'
+import { zodTable } from '../src/legacy/tables'
 
 describe('zodTable schema namespace', () => {
   describe('object shapes', () => {

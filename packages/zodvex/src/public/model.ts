@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { defineZodModel as _defineZodModel } from '../model'
-import type { AddSystemFieldsToUnion } from '../schemaHelpers'
-import { $ZodArray, type $ZodShape, $ZodType, type input as zinput } from '../zod-core'
+import { defineZodModel as _defineZodModel } from '../internal/model'
+import type { AddSystemFieldsToUnion } from '../internal/schemaHelpers'
+import { $ZodArray, type $ZodShape, $ZodType, type input as zinput } from '../internal/zod-core'
 import type { ZxId } from './zx'
 
 export type FieldPaths<T> = T extends any[]

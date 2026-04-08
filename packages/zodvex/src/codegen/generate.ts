@@ -1,4 +1,4 @@
-import { $ZodCodec, $ZodNullable, $ZodObject, $ZodOptional, $ZodType } from '../zod-core'
+import { $ZodCodec, $ZodNullable, $ZodObject, $ZodOptional, $ZodType } from '../internal/zod-core'
 import type {
   DiscoveredFunction,
   DiscoveredModel,

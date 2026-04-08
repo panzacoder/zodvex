@@ -14,7 +14,7 @@ import {
   generateSchemaFile,
   generateServerFile
 } from '../src/codegen/generate'
-import { zx } from '../src/zx'
+import { zx } from '../src/internal/zx'
 
 const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.string() })
 

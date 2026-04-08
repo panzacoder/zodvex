@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { zodvexCodec } from '../src/codec'
-import type { ZodvexCodec } from '../src/types'
-import { type FullZodvexCodec, zx } from '../src/zx'
+import { zodvexCodec } from '../src/internal/codec'
+import type { ZodvexCodec } from '../src/internal/types'
+import { type FullZodvexCodec, zx } from '../src/internal/zx'
 import type { Equal, Expect } from './test-helpers'
 
 // --- Test 1: Standard codec (zx.date pattern) infers correctly ---

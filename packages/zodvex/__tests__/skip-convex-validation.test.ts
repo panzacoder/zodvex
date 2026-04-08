@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { customFnBuilder } from '../src/custom'
+import { customFnBuilder } from '../src/internal/custom'
 
 // Mock builder that captures what was passed to it
 function createMockBuilder() {

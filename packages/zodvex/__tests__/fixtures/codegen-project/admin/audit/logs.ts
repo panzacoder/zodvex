@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { attachMeta } from '../../../../../src/meta'
+import { attachMeta } from '../../../../../src/internal/meta'
 
 const list = { _isRegistered: true }
 attachMeta(list, {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { zx } from '../src/zx'
+import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
 // Mock convex/browser — we simulate ConvexClient behaviour without a real

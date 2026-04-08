@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { type ZodToSourceContext, zodToSource } from '../src/codegen/zodToSource'
-import { zx } from '../src/zx'
+import { zx } from '../src/internal/zx'
 
 describe('zodToSource', () => {
   describe('primitives', () => {

@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zodvexCodec } from '../src/codec'
+import { zodvexCodec } from '../src/internal/codec'
 import {
   createZodDbReader,
   createZodDbWriter,
   ZodvexDatabaseReader,
   ZodvexDatabaseWriter,
   ZodvexQueryChain
-} from '../src/db'
-import type { ZodTableSchemas } from '../src/schema'
-import { zx } from '../src/zx'
+} from '../src/internal/db'
+import type { ZodTableSchemas } from '../src/internal/schema'
+import { zx } from '../src/internal/zx'
 
 const userDocSchema = z.object({
   _id: z.string(),

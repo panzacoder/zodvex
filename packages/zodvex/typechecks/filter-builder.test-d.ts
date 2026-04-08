@@ -4,7 +4,7 @@ import type {
   ZodvexExpressionOrValue,
   ZodvexFilterBuilder,
   ZodvexQueryChain,
-} from '../src/db'
+} from '../src/internal/db'
 import type { Equal, Expect } from './test-helpers'
 
 // --- Mock table types for testing ---

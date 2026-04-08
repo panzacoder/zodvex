@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { createZodvexActionCtx } from '../src/actionCtx'
-import { zx } from '../src/zx'
+import { createZodvexActionCtx } from '../src/internal/actionCtx'
+import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
 // Helpers

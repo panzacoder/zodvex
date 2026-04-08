@@ -1,8 +1,8 @@
 import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { registryHelpers, zid } from '../src/ids'
-import { zodToConvex } from '../src/mapping'
+import { registryHelpers, zid } from '../src/internal/ids'
+import { zodToConvex } from '../src/internal/mapping'
 
 describe('zid', () => {
   it('creates a string validator with proper type', () => {

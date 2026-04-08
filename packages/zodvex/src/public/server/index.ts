@@ -13,7 +13,7 @@
 // Re-export customCtx for convenience
 export { customCtx } from 'convex-helpers/server/customFunctions'
 // Action context wrapping (auto-codec for runQuery/runMutation in actions)
-export { createZodvexActionCtx } from '../../actionCtx'
+export { createZodvexActionCtx } from '../../internal/actionCtx'
 // Function builders (named — all deprecated)
 export {
   zActionBuilder,
@@ -22,11 +22,16 @@ export {
   zCustomQueryBuilder,
   zMutationBuilder,
   zQueryBuilder
-} from '../../builders'
+} from '../../internal/builders'
 // Custom function utilities (named — hide customFnBuilder, Overwrite re-export)
-export { type CustomBuilder, zCustomAction, zCustomMutation, zCustomQuery } from '../../custom'
+export {
+  type CustomBuilder,
+  zCustomAction,
+  zCustomMutation,
+  zCustomQuery
+} from '../../internal/custom'
 // Codec customization (manual composition escape hatch)
-export { createZodvexCustomization } from '../../customization'
+export { createZodvexCustomization } from '../../internal/customization'
 // Database wrappers (ZodvexDatabaseReader, ZodvexDatabaseWriter, etc.)
 export {
   createZodDbReader,
@@ -41,7 +46,7 @@ export {
   type ZodvexLowerBoundBuilder,
   ZodvexQueryChain,
   type ZodvexUpperBoundBuilder
-} from '../../db'
+} from '../../internal/db'
 // One-time setup + types
 export {
   initZodvex,
@@ -49,7 +54,7 @@ export {
   type ZodvexBuilder,
   type ZodvexMutationCtx,
   type ZodvexQueryCtx
-} from '../../init'
+} from '../../internal/init'
 // Rule and audit types for .withRules() and .audit()
 //
 // Rule and audit types (re-exported from ruleTypes.ts via rules.ts)
@@ -65,10 +70,10 @@ export type {
   WriterAuditConfig,
   ZodvexRules,
   ZodvexRulesConfig
-} from '../../rules'
+} from '../../internal/rules'
 // Schema definition (defineZodSchema)
-export * from '../../schema'
+export * from '../../internal/schema'
 // Schema helpers (pure Zod, no server deps)
-export { addSystemFields } from '../../schemaHelpers'
+export { addSystemFields } from '../../internal/schemaHelpers'
 // Table creation and helpers (named — hide union internals)
-export { zodDoc, zodDocOrNull, zodTable } from '../../tables'
+export { zodDoc, zodDocOrNull, zodTable } from '../../legacy/tables'

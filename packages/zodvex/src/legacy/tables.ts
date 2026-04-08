@@ -2,11 +2,15 @@ import { defineTable } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import { Table } from 'convex-helpers/server'
 import { z } from 'zod'
-import { type ConvexValidatorFromZodFieldsAuto, zodToConvex, zodToConvexFields } from './mapping'
-import { createObjectSchemaBundle, createSchemaBundle } from './modelSchemaBundle'
-import { addSystemFields, type MapSystemFields, type SystemFields } from './schemaHelpers'
-import { $ZodObject, type $ZodShape, $ZodType } from './zod-core'
-import { type ZxId, zx } from './zx'
+import {
+  type ConvexValidatorFromZodFieldsAuto,
+  zodToConvex,
+  zodToConvexFields
+} from '../internal/mapping'
+import { createObjectSchemaBundle, createSchemaBundle } from '../internal/modelSchemaBundle'
+import { addSystemFields, type MapSystemFields, type SystemFields } from '../internal/schemaHelpers'
+import { $ZodObject, type $ZodShape, $ZodType } from '../internal/zod-core'
+import { type ZxId, zx } from '../internal/zx'
 
 /**
  * System fields added to Convex documents.

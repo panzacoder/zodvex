@@ -9,8 +9,8 @@ import {
 } from '../src/codegen/discover'
 import { registerDiscoveryHooks } from '../src/codegen/discovery-hooks'
 import { extractCodec, findCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
-import { attachMeta } from '../src/meta'
-import { zx } from '../src/zx'
+import { attachMeta } from '../src/internal/meta'
+import { zx } from '../src/internal/zx'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
 const componentFixtureDir = path.resolve(__dirname, 'fixtures/codegen-components')

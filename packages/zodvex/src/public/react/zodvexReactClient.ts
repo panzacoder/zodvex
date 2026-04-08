@@ -2,9 +2,9 @@ import type { AuthTokenFetcher, ConnectionState } from 'convex/browser'
 import type { Watch, WatchQueryOptions } from 'convex/react'
 import { ConvexReactClient } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
-import type { BoundaryHelpersOptions } from '../../boundaryHelpers'
-import { createBoundaryHelpers } from '../../boundaryHelpers'
-import type { AnyRegistry } from '../../types'
+import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
+import { createBoundaryHelpers } from '../../internal/boundaryHelpers'
+import type { AnyRegistry } from '../../internal/types'
 
 export type ZodvexReactClientOptions = ({ url: string } | { client: ConvexReactClient }) &
   BoundaryHelpersOptions

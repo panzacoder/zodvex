@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { decodeDoc, encodeDoc, encodePartialDoc } from '../src/codec'
-import { zx } from '../src/zx'
+import { decodeDoc, encodeDoc, encodePartialDoc } from '../src/internal/codec'
+import { zx } from '../src/internal/zx'
 
 describe('decodeDoc', () => {
   it('decodes a wire document to runtime types', () => {

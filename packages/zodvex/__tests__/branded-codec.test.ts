@@ -1,8 +1,8 @@
 import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { type ZodvexCodec, zodvexCodec } from '../src/codec'
-import { zodToConvex } from '../src/mapping'
+import { type ZodvexCodec, zodvexCodec } from '../src/internal/codec'
+import { zodToConvex } from '../src/internal/mapping'
 
 /**
  * Tests for ZodvexCodec branded type and zodvexCodec helper function.

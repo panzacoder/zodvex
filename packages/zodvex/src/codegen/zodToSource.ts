@@ -17,7 +17,7 @@ import {
   $ZodType,
   $ZodUndefined,
   $ZodUnion
-} from '../zod-core'
+} from '../internal/zod-core'
 
 export type CodecRef = {
   exportName: string

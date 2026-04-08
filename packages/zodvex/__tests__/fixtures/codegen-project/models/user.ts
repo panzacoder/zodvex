@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { attachMeta } from '../../../../src/meta'
+import { attachMeta } from '../../../../src/internal/meta'
 import { tagged } from '../tagged'
 
 const taggedEmail = tagged(z.string())

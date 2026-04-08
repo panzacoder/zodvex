@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zodTable } from '../src/tables'
+import { zodTable } from '../src/legacy/tables'
 
 /**
  * Tests to verify that ZodObject options are preserved when passed to zodTable.

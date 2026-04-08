@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import type { DiscoveredFunction, DiscoveredModel } from '../src/codegen/discover'
 import { generateApiFile } from '../src/codegen/generate'
-import { zx } from '../src/zx'
+import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
 // Fixtures

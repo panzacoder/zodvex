@@ -7,10 +7,16 @@
  */
 import { describe, expect, it } from 'vitest'
 import { z as zm } from 'zod/mini'
-import { convexCodec, decodeDoc, encodeDoc, encodePartialDoc, zodvexCodec } from '../src/codec'
-import { defineZodModel } from '../src/model'
-import { toJSONSchema } from '../src/registry'
-import { zx } from '../src/zx'
+import {
+  convexCodec,
+  decodeDoc,
+  encodeDoc,
+  encodePartialDoc,
+  zodvexCodec
+} from '../src/internal/codec'
+import { defineZodModel } from '../src/internal/model'
+import { toJSONSchema } from '../src/internal/registry'
+import { zx } from '../src/internal/zx'
 
 describe('zod-mini runtime compatibility', () => {
   // -----------------------------------------------------------------------

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { attachMeta, readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../src/meta'
+import {
+  attachMeta,
+  readMeta,
+  type ZodvexFunctionMeta,
+  type ZodvexModelMeta
+} from '../src/internal/meta'
 
 describe('attachMeta / readMeta', () => {
   it('attaches function metadata as non-enumerable property', () => {

@@ -10,6 +10,25 @@
  * Use `zodvex` when your project uses full `zod`.
  */
 
+// Re-export registry
+export * from '../../internal/registry'
+// Re-export results
+export * from '../../internal/results'
+// Re-export schema types
+export type { ZodTableMap, ZodTableSchemas } from '../../internal/schema'
+// Re-export shared types
+export {
+  type AnyRegistry,
+  type ExtractCtx,
+  type ExtractVisibility,
+  type InferArgs,
+  type InferHandlerReturns,
+  type InferReturns,
+  type Overwrite,
+  type PreserveReturnType,
+  type ZodToConvexArgs,
+  ZodvexWireSchema
+} from '../../internal/types'
 // Re-export everything from core EXCEPT zx
 export {
   // Codec helpers
@@ -48,26 +67,7 @@ export {
   zodToConvex,
   zodToConvexFields,
   zPaginated
-} from '../../core'
-// Re-export registry
-export * from '../../registry'
-// Re-export results
-export * from '../../results'
-// Re-export schema types
-export type { ZodTableMap, ZodTableSchemas } from '../../schema'
-// Re-export shared types
-export {
-  type AnyRegistry,
-  type ExtractCtx,
-  type ExtractVisibility,
-  type InferArgs,
-  type InferHandlerReturns,
-  type InferReturns,
-  type Overwrite,
-  type PreserveReturnType,
-  type ZodToConvexArgs,
-  ZodvexWireSchema
-} from '../../types'
+} from '../index'
 export { type FullZodModelSchemas, type UnionModelSchemas } from '../model'
 export { type ZodvexCodec, zodvexCodec } from './codec'
 // Re-export model types (ZodModel generic works for both full/mini via Schemas param)

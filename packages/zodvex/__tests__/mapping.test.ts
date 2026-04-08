@@ -1,7 +1,7 @@
 import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zodToConvex, zodToConvexFields } from '../src/mapping'
+import { zodToConvex, zodToConvexFields } from '../src/internal/mapping'
 
 describe('zodToConvex optional/nullable handling', () => {
   it('handles optional fields correctly', () => {

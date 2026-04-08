@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { registryHelpers, zid } from '../src/ids'
+import { registryHelpers, zid } from '../src/internal/ids'
 
 /**
  * Compatibility tests for motiion project's usage of zid

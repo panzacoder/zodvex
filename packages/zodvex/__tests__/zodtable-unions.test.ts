@@ -1,9 +1,9 @@
 import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
-import { zodToConvex } from '../src/mapping'
-import { zodTable } from '../src/tables'
+import { zid } from '../src/internal/ids'
+import { zodToConvex } from '../src/internal/mapping'
+import { zodTable } from '../src/legacy/tables'
 
 describe('zodTable - union support', () => {
   describe('Basic discriminated unions', () => {

@@ -3,8 +3,8 @@ import type { VArray, VId, VNumber, VOptional, VString } from 'convex/values'
 import { v } from 'convex/values'
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
-import { type ConvexValidatorFromZodFieldsAuto, zodToConvexFields } from '../src/mapping'
+import { zid } from '../src/internal/ids'
+import { type ConvexValidatorFromZodFieldsAuto, zodToConvexFields } from '../src/internal/mapping'
 
 describe('ConvexValidatorFromZodFieldsAuto type preservation', () => {
   it('preserves specific ID types in optional fields', () => {

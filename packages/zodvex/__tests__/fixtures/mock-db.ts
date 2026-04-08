@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { ZodTableSchemas } from '../../src/schema'
-import { zx } from '../../src/zx'
+import type { ZodTableSchemas } from '../../src/internal/schema'
+import { zx } from '../../src/internal/zx'
 
 export const userDocSchema = z.object({
   _id: z.string(),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { convexCodec, zodvexCodec } from '../src/codec'
-import { zx } from '../src/zx'
+import { convexCodec, zodvexCodec } from '../src/internal/codec'
+import { zx } from '../src/internal/zx'
 
 describe('convexCodec', () => {
   it('creates codec from Zod schema', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z as zm } from 'zod/mini'
-import { zodToConvex } from '../src/mapping/core'
+import { zodToConvex } from '../src/internal/mapping/core'
 
 describe('zod-mini compatibility', () => {
   it('maps a mini string schema to convex', () => {

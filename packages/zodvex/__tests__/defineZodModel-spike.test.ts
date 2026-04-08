@@ -13,9 +13,9 @@
 import type { GenericId } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zodvexCodec } from '../src/codec'
-import type { ZodvexCodec } from '../src/types'
-import { zx } from '../src/zx'
+import { zodvexCodec } from '../src/internal/codec'
+import type { ZodvexCodec } from '../src/internal/types'
+import { zx } from '../src/internal/zx'
 
 // ============================================================================
 // Type Utilities Under Test

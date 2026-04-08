@@ -8,17 +8,17 @@
  * - Any code that runs in the browser
  */
 
+// Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
+export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
 // Codec helpers (shared encode/decode for client wrappers)
 export {
   type BoundaryHelpers,
   type BoundaryHelpersOptions,
   createBoundaryHelpers,
   ZodvexDecodeError
-} from '../boundaryHelpers'
-// Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
-export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
+} from '../internal/boundaryHelpers'
 // ID utilities (named — hide registryHelpers)
-export { type Zid, zid } from '../ids'
+export { type Zid, zid } from '../internal/ids'
 // Zod → Convex validator mapping (named — hide makeUnion)
 export {
   type ConvexValidatorFromZod,
@@ -27,15 +27,15 @@ export {
   type ZodValidator,
   zodToConvex,
   zodToConvexFields
-} from '../mapping'
+} from '../internal/mapping'
 // Codec error path normalization (safeEncode, normalizeCodecPaths)
-export { normalizeCodecPaths, safeEncode } from '../normalizeCodecPaths'
+export { normalizeCodecPaths, safeEncode } from '../internal/normalizeCodecPaths'
 // JSON Schema overrides and registry
-export * from '../registry'
+export * from '../internal/registry'
 // Result types
-export * from '../results'
+export * from '../internal/results'
 // Schema types (type-only, no server runtime imports)
-export type { ZodTableMap, ZodTableSchemas } from '../schema'
+export type { ZodTableMap, ZodTableSchemas } from '../internal/schema'
 // Types (server imports are type-only and erased at compile time)
 export {
   type AnyRegistry,
@@ -48,7 +48,7 @@ export {
   type PreserveReturnType,
   type ZodToConvexArgs,
   ZodvexWireSchema
-} from '../types'
+} from '../internal/types'
 // Utilities (named — hide internal helpers)
 export {
   mapDateFieldToNumber,
@@ -58,7 +58,7 @@ export {
   safePick,
   stripUndefined,
   zPaginated
-} from '../utils'
+} from '../internal/utils'
 // Codec utilities (named — hide internal re-exports)
 export {
   type ConvexCodec,

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { createBoundaryHelpers, ZodvexDecodeError } from '../src/boundaryHelpers'
-import { $ZodError } from '../src/zod-core'
-import { zx } from '../src/zx'
+import { createBoundaryHelpers, ZodvexDecodeError } from '../src/internal/boundaryHelpers'
+import { $ZodError } from '../src/internal/zod-core'
+import { zx } from '../src/internal/zx'
 
 const functionNameSymbol = Symbol.for('functionName')
 

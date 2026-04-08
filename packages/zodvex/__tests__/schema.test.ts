@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { defineZodModel } from '../src/model'
-import { defineZodSchema } from '../src/schema'
-import { zodTable } from '../src/tables'
-import { zx } from '../src/zx'
+import { defineZodModel } from '../src/internal/model'
+import { defineZodSchema } from '../src/internal/schema'
+import { zx } from '../src/internal/zx'
+import { zodTable } from '../src/legacy/tables'
 
 const Users = zodTable('users', {
   name: z.string(),

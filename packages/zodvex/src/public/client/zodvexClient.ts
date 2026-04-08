@@ -1,9 +1,9 @@
 import type { AuthTokenFetcher } from 'convex/browser'
 import { ConvexClient } from 'convex/browser'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
-import type { BoundaryHelpersOptions } from '../../boundaryHelpers'
-import { createBoundaryHelpers } from '../../boundaryHelpers'
-import type { AnyRegistry } from '../../types'
+import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
+import { createBoundaryHelpers } from '../../internal/boundaryHelpers'
+import type { AnyRegistry } from '../../internal/types'
 
 export type ZodvexClientOptions = (
   | { url: string; token?: string | null }

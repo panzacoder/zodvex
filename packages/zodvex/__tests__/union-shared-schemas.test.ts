@@ -1,7 +1,7 @@
 import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zodToConvex } from '../src/mapping'
+import { zodToConvex } from '../src/internal/mapping'
 
 describe('Issue #16: nested optional fields inside .partial()', () => {
   it('should preserve nested optional fields when parent object is wrapped with .partial() in a union', () => {

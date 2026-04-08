@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { normalizeCodecPaths, safeEncode } from '../src/normalizeCodecPaths'
-import { $ZodError } from '../src/zod-core'
-import { zx } from '../src/zx'
+import { normalizeCodecPaths, safeEncode } from '../src/internal/normalizeCodecPaths'
+import { $ZodError } from '../src/internal/zod-core'
+import { zx } from '../src/internal/zx'
 
 // Helper: create a ZodError with specific issues
 function makeZodError(issues: Array<{ path: (string | number)[]; message: string }>): z.ZodError {
