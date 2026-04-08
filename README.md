@@ -148,6 +148,7 @@ Four entry points:
 - **`zodvex/server`** — Server-only. Use in Convex functions and schema definitions.
 - **`zodvex/mini`** — Client-safe zod/mini surface.
 - **`zodvex/mini/server`** — Server-only zod/mini surface.
+- **`zodvex/legacy`** — Deprecated runtime APIs kept only for migration.
 
 > `zodvex/core` remains as a deprecated compatibility alias for `zodvex`.
 
@@ -187,14 +188,14 @@ Guides: [Codegen](./docs/guide/codegen.md) | Example: [examples/task-manager/](.
 `zodTable` and `zQueryBuilder` still work without `initZodvex`:
 
 ```ts
-import { zodTable, zQueryBuilder } from 'zodvex/server'
+import { zodTable, zQueryBuilder } from 'zodvex/legacy'
 import { query } from './_generated/server'
 
 const Users = zodTable('users', { name: z.string() })
 const zq = zQueryBuilder(query)
 ```
 
-At this level, zodvex is roughly equivalent to convex-helpers. This is a valid stepping-stone — when you're ready for codecs, see the [Quick Start](#quick-start) above.
+At this level, zodvex is roughly equivalent to convex-helpers. This is a valid stepping-stone, but the API is deprecated. When you're ready for codecs, see the [Quick Start](#quick-start) above.
 
 ## Supported Types
 

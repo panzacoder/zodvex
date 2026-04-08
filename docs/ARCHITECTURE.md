@@ -20,9 +20,9 @@ keeping behavior, schema lowering, and codec semantics centralized.
 
 ### Shared Core Substrate
 
-`src/zod-core.ts` is the internal compatibility boundary for Zod v4. All
-shared modules constrain against `$ZodType`, `$ZodObject`, `$ZodUnion`, and the
-other core classes exported from `zod/v4/core`.
+`src/internal/zod-core.ts` is the internal compatibility boundary for Zod v4.
+All shared modules constrain against `$ZodType`, `$ZodObject`, `$ZodUnion`, and
+the other core classes exported from `zod/v4/core`.
 
 That gives zodvex one stable internal type system for:
 
@@ -44,12 +44,14 @@ Public flavor differences now live at explicit entrypoints:
 - `zodvex/server`: shared server runtime, compatible with both
 - `zodvex/core`: deprecated compatibility alias to `zodvex`
 
-Internally, the flavor-owned public helper modules are:
+Internally, the public helper modules now live under the explicit public tree:
 
-- `src/full/zx.ts`
-- `src/full/model.ts`
-- `src/mini/zx.ts`
-- `src/mini/model.ts`
+- `src/public/index.ts`
+- `src/public/model.ts`
+- `src/public/zx.ts`
+- `src/public/mini/index.ts`
+- `src/public/mini/model.ts`
+- `src/public/mini/zx.ts`
 
 This is intentionally different from the old design, where mini behavior was a
 mix of shared runtime exports, handwritten facade casts, and build aliasing.
@@ -64,6 +66,13 @@ The clearer mental model is:
 - Zod v4 core: shared internal substrate
 - full: classic full-Zod public surface
 - mini: zod/mini public surface
+
+In the source tree that now maps to:
+
+- `src/public/*`: canonical public surfaces
+- `src/internal/*`: shared implementation
+- `src/legacy/*`: deprecated runtime APIs
+- `src/core/*`: compatibility alias only
 
 ## Model Pipeline
 
@@ -87,7 +96,7 @@ Each model owns:
 
 ### Canonical Schema Bundle
 
-Schema bundle assembly is centralized in `src/modelSchemaBundle.ts`.
+Schema bundle assembly is centralized in `src/internal/modelSchemaBundle.ts`.
 
 That module is the shared source of truth for:
 
@@ -99,8 +108,8 @@ That module is the shared source of truth for:
 
 This is used by both:
 
-- `src/model.ts`
-- `src/tables.ts`
+- `src/internal/model.ts`
+- `src/legacy/tables.ts`
 
 That matters because the old design let `defineZodModel` and `zodTable` each
 reconstruct similar schemas in slightly different ways.
@@ -113,9 +122,9 @@ metadata and lowers models into Convex tables from that shared representation.
 
 The important modules are:
 
-- `src/model.ts`
-- `src/meta.ts`
-- `src/schema.ts`
+- `src/internal/model.ts`
+- `src/internal/meta.ts`
+- `src/internal/schema.ts`
 
 The key architectural rule is:
 
@@ -127,7 +136,7 @@ It does not rediscover model shape independently.**
 ### Shared Contract Compilation
 
 All function registration flows now share the same contract machinery in
-`src/functionContracts.ts`.
+`src/internal/functionContracts.ts`.
 
 That layer owns:
 
@@ -143,10 +152,10 @@ That layer owns:
 
 The public entrypoints are now mostly shells over that shared contract layer:
 
-- `src/wrappers.ts`
-- `src/builders.ts`
-- `src/custom.ts`
-- `src/init.ts`
+- `src/internal/wrappers.ts`
+- `src/internal/builders.ts`
+- `src/internal/custom.ts`
+- `src/internal/init.ts`
 
 That means `zQuery`, `zMutation`, `zAction`, the legacy builder helpers, custom
 builders, and `initZodvex()` all share the same behavioral core instead of
@@ -220,7 +229,7 @@ Quickstart should remain the canonical example of:
 
 ### `tables.ts`
 
-`src/tables.ts` is now treated as a compatibility layer.
+`src/legacy/tables.ts` is now treated as a compatibility layer.
 
 It is intentionally:
 
@@ -246,6 +255,24 @@ becomes:
 - `initZodvex(...)`
 
 See [v0.6 migration](./migration/v0.6.md).
+
+## Source Layout
+
+The current source tree is organized around intent:
+
+- `src/public/*`
+  - canonical public full and mini helper surfaces
+  - entrypoint implementations for `zodvex`, `zodvex/mini`, and related client/server helpers
+- `src/internal/*`
+  - shared runtime and type machinery
+  - model/schema/function pipelines
+  - mapping, codec, DB, and rule internals
+- `src/legacy/*`
+  - deprecated runtime APIs kept for migration
+- `src/core/*`
+  - compatibility-only alias surface for `zodvex/core`
+- top-level `src/index.ts`, `src/server/index.ts`, `src/client/index.ts`, `src/react/index.ts`, `src/mini/*`
+  - thin wrappers that preserve stable package paths while delegating into `public/*`
 
 ### Legacy Builder Helpers
 
