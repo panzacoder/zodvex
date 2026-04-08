@@ -10,12 +10,32 @@
  * Use `zodvex` when your project uses full `zod`.
  */
 
+export {
+  type BoundaryHelpers,
+  type BoundaryHelpersOptions,
+  createBoundaryHelpers,
+  ZodvexDecodeError
+} from '../../internal/boundaryHelpers'
+export { type Zid, zid } from '../../internal/ids'
+export {
+  type ConvexValidatorFromZod,
+  type ConvexValidatorFromZodFieldsAuto,
+  getObjectShape,
+  type ZodValidator,
+  zodToConvex,
+  zodToConvexFields
+} from '../../internal/mapping'
+export { normalizeCodecPaths, safeEncode } from '../../internal/normalizeCodecPaths'
 // Re-export registry
 export * from '../../internal/registry'
 // Re-export results
 export * from '../../internal/results'
 // Re-export schema types
 export type { ZodTableMap, ZodTableSchemas } from '../../internal/schema'
+export { mapDateFieldToNumber } from '../../internal/schema/dateGuards'
+export { pickShape, safeOmit, safePick } from '../../internal/schema/pick'
+export { returnsAs, zPaginated } from '../../internal/schema/runtimeHelpers'
+export { stripUndefined } from '../../internal/stripUndefined'
 // Re-export shared types
 export {
   type AnyRegistry,
@@ -29,47 +49,17 @@ export {
   type ZodToConvexArgs,
   ZodvexWireSchema
 } from '../../internal/types'
-// Re-export everything from core EXCEPT zx
+export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
+export { type FullZodModelSchemas, type UnionModelSchemas } from '../model'
 export {
-  // Codec helpers
-  type BoundaryHelpers,
-  type BoundaryHelpersOptions,
-  // Codec utilities
   type ConvexCodec,
-  // Mapping
-  type ConvexValidatorFromZod,
-  type ConvexValidatorFromZodFieldsAuto,
   convexCodec,
-  createBoundaryHelpers,
   decodeDoc,
   encodeDoc,
   encodePartialDoc,
-  // Codegen runtime utilities
-  extractCodec,
-  getObjectShape,
-  // Utilities
-  mapDateFieldToNumber,
-  // Codec error path normalization
-  normalizeCodecPaths,
-  pickShape,
-  readFnArgs,
-  readFnReturns,
-  returnsAs,
-  safeEncode,
-  safeOmit,
-  safePick,
-  stripUndefined,
-  // ID utilities
-  type Zid,
-  type ZodValidator,
-  ZodvexDecodeError,
-  zid,
-  zodToConvex,
-  zodToConvexFields,
-  zPaginated
-} from '../index'
-export { type FullZodModelSchemas, type UnionModelSchemas } from '../model'
-export { type ZodvexCodec, zodvexCodec } from './codec'
+  type ZodvexCodec,
+  zodvexCodec
+} from './codec'
 // Re-export model types (ZodModel generic works for both full/mini via Schemas param)
 export {
   defineZodModel,

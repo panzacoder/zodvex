@@ -34,7 +34,7 @@ describe('zodvex codemod --to-mini', () => {
   })
 
   it('transforms full-zod imports to zod/mini', async () => {
-    const { runToMiniCodemod } = await import('../src/cli/codemod')
+    const { runToMiniCodemod } = await import('../src/public/cli/codemod')
     await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: false })
 
     const task = readFileSync(join(tempDir, 'convex/models/task.ts'), 'utf-8')
@@ -43,7 +43,7 @@ describe('zodvex codemod --to-mini', () => {
   })
 
   it('transforms canonical client-safe zodvex imports to zodvex/mini', async () => {
-    const { runToMiniCodemod } = await import('../src/cli/codemod')
+    const { runToMiniCodemod } = await import('../src/public/cli/codemod')
     await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: false })
 
     const task = readFileSync(join(tempDir, 'convex/models/task.ts'), 'utf-8')
@@ -53,7 +53,7 @@ describe('zodvex codemod --to-mini', () => {
   })
 
   it('transforms .optional() to z.optional()', async () => {
-    const { runToMiniCodemod } = await import('../src/cli/codemod')
+    const { runToMiniCodemod } = await import('../src/public/cli/codemod')
     await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: false })
 
     const task = readFileSync(join(tempDir, 'convex/models/task.ts'), 'utf-8')
@@ -63,7 +63,7 @@ describe('zodvex codemod --to-mini', () => {
   })
 
   it('transforms .nullable() to z.nullable()', async () => {
-    const { runToMiniCodemod } = await import('../src/cli/codemod')
+    const { runToMiniCodemod } = await import('../src/public/cli/codemod')
     await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: false })
 
     const task = readFileSync(join(tempDir, 'convex/models/task.ts'), 'utf-8')
@@ -75,7 +75,7 @@ describe('zodvex codemod --to-mini', () => {
   it('dry-run does not modify files', async () => {
     const before = readFileSync(join(tempDir, 'convex/models/task.ts'), 'utf-8')
 
-    const { runToMiniCodemod } = await import('../src/cli/codemod')
+    const { runToMiniCodemod } = await import('../src/public/cli/codemod')
     await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: true })
 
     const after = readFileSync(join(tempDir, 'convex/models/task.ts'), 'utf-8')
@@ -85,7 +85,7 @@ describe('zodvex codemod --to-mini', () => {
   it('skips _generated and _zodvex directories', async () => {
     // Our beforeEach already excludes these, but verify the codemod's glob
     // pattern also excludes them by checking it doesn't crash on missing dirs
-    const { runToMiniCodemod } = await import('../src/cli/codemod')
+    const { runToMiniCodemod } = await import('../src/public/cli/codemod')
     await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: true })
     // If we get here without error, the glob correctly skips missing dirs
   })

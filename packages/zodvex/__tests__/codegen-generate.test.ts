@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { zx } from '../src/internal/zx'
 import type {
   DiscoveredFunction,
   DiscoveredModel,
   FunctionEmbeddedCodec,
   ModelEmbeddedCodec
-} from '../src/codegen/discover'
+} from '../src/public/codegen/discover'
 import {
   type CodecForGeneration,
   type GeneratedFile,
@@ -13,8 +14,7 @@ import {
   generateClientFile,
   generateSchemaFile,
   generateServerFile
-} from '../src/codegen/generate'
-import { zx } from '../src/internal/zx'
+} from '../src/public/codegen/generate'
 
 const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.string() })
 

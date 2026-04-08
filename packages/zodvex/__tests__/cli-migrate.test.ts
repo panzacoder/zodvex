@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { migrate } from '../src/cli/migrate'
+import { migrate } from '../src/public/cli/migrate'
 
 function createTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'zodvex-migrate-'))

@@ -2,8 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { discoverModules } from '../src/codegen/discover'
-import { generateApiFile, generateClientFile, generateSchemaFile } from '../src/codegen/generate'
+import { discoverModules } from '../src/public/codegen/discover'
+import {
+  generateApiFile,
+  generateClientFile,
+  generateSchemaFile
+} from '../src/public/codegen/generate'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
 const outputDir = path.join(fixtureDir, '_zodvex')

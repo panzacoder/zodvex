@@ -8,8 +8,6 @@
  * - Any code that runs in the browser
  */
 
-// Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
-export { extractCodec, readFnArgs, readFnReturns } from '../codegen/extractCodec'
 // Codec helpers (shared encode/decode for client wrappers)
 export {
   type BoundaryHelpers,
@@ -64,6 +62,8 @@ export {
   type ZodvexCodec,
   zodvexCodec
 } from './codec'
+// Codegen runtime utilities (extractCodec, readFnArgs, readFnReturns)
+export { extractCodec, readFnArgs, readFnReturns } from './codegen/extractCodec'
 // Full-zod model helper surface
 export * from './model'
 // Full-zod zx helper surface

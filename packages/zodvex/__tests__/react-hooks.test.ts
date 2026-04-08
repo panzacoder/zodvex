@@ -32,7 +32,7 @@ vi.mock('convex/react', () => ({
 }))
 
 // Import AFTER mocks are set up (vitest hoists vi.mock)
-const { createZodvexHooks } = await import('../src/react/hooks')
+const { createZodvexHooks } = await import('../src/public/react/hooks')
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -288,7 +288,7 @@ describe('createZodvexHooks', () => {
 
   describe('types', () => {
     it('exports ZodvexHooks type', async () => {
-      const mod = await import('../src/react/hooks')
+      const mod = await import('../src/public/react/hooks')
       // ZodvexHooks should be exported (it's a type, but the module should be importable)
       expect(typeof mod.createZodvexHooks).toBe('function')
     })

@@ -97,7 +97,7 @@ vi.mock('convex/react', () => ({
 
 // Import AFTER mocks are set up (vitest hoists vi.mock)
 const { ZodvexReactClient, createZodvexReactClient } = await import(
-  '../src/react/zodvexReactClient'
+  '../src/public/react/zodvexReactClient'
 )
 
 // ---------------------------------------------------------------------------

@@ -59,7 +59,7 @@ vi.mock('convex/browser', () => ({
 }))
 
 // Import AFTER mocks are set up (vitest hoists vi.mock)
-const { ZodvexClient, createZodvexClient } = await import('../src/client/zodvexClient')
+const { ZodvexClient, createZodvexClient } = await import('../src/public/client/zodvexClient')
 
 // ---------------------------------------------------------------------------
 // Helpers

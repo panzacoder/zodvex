@@ -4,7 +4,7 @@ import {
   gitignoreEntry,
   rewriteDeployScript,
   rewriteDevScript
-} from '../src/cli/init'
+} from '../src/public/cli/init'
 
 describe('rewriteDevScript', () => {
   it('wraps bunx convex dev', () => {

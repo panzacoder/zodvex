@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { generateStubs, gitignoreEntry } from '../src/cli/init'
+import { generateStubs, gitignoreEntry } from '../src/public/cli/init'
 
 describe('generateStubs', () => {
   let tmpDir: string
