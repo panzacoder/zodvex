@@ -15,7 +15,7 @@ import { extractCodec } from '../src/codegen/extractCodec'
 import { createBoundaryHelpers } from '../src/internal/boundaryHelpers'
 import { zodvexCodec } from '../src/internal/codec'
 import { safeEncode } from '../src/internal/normalizeCodecPaths'
-import { stripUndefined } from '../src/internal/utils'
+import { stripUndefined } from '../src/internal/stripUndefined'
 
 const functionNameSymbol = Symbol.for('functionName')
 

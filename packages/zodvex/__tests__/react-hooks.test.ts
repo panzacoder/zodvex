@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { stripUndefined } from '../src/internal/utils'
+import { stripUndefined } from '../src/internal/stripUndefined'
 import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------

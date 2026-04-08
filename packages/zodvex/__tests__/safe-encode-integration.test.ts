@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { safeEncode } from '../src/internal/normalizeCodecPaths'
-import { stripUndefined } from '../src/internal/utils'
+import { stripUndefined } from '../src/internal/stripUndefined'
 import { $ZodError } from '../src/internal/zod-core'
 import { zx } from '../src/internal/zx'
 

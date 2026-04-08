@@ -36,6 +36,11 @@ export * from '../internal/registry'
 export * from '../internal/results'
 // Schema types (type-only, no server runtime imports)
 export type { ZodTableMap, ZodTableSchemas } from '../internal/schema'
+export { mapDateFieldToNumber } from '../internal/schema/dateGuards'
+export { pickShape, safeOmit, safePick } from '../internal/schema/pick'
+// Utilities (named — hide internal helpers)
+export { returnsAs, zPaginated } from '../internal/schema/runtimeHelpers'
+export { stripUndefined } from '../internal/stripUndefined'
 // Types (server imports are type-only and erased at compile time)
 export {
   type AnyRegistry,
@@ -49,16 +54,6 @@ export {
   type ZodToConvexArgs,
   ZodvexWireSchema
 } from '../internal/types'
-// Utilities (named — hide internal helpers)
-export {
-  mapDateFieldToNumber,
-  pickShape,
-  returnsAs,
-  safeOmit,
-  safePick,
-  stripUndefined,
-  zPaginated
-} from '../internal/utils'
 // Codec utilities (named — hide internal re-exports)
 export {
   type ConvexCodec,
