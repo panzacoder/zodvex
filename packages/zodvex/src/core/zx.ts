@@ -1,1 +1,1 @@
-export { type FullZodvexCodec, type ZxDate, type ZxId, zx } from '../public/zx'
+export * from '../compat/core/zx'

@@ -1,9 +1,1 @@
-export {
-  type ConvexCodec,
-  convexCodec,
-  decodeDoc,
-  encodeDoc,
-  encodePartialDoc,
-  type ZodvexCodec,
-  zodvexCodec
-} from '../public/codec'
+export * from '../compat/core/codec'
