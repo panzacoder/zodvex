@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex'
 
 export const EventModel = defineZodModel('events', {
   title: z.string(),

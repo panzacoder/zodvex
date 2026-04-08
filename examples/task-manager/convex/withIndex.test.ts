@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { expect, test, describe } from "vitest";
 import { z } from "zod";
-import { zx } from "zodvex/core";
+import { zx } from "zodvex";
 import { api } from "./_generated/api";
 import schema from "./schema";
 import { tagged } from "./tagged";

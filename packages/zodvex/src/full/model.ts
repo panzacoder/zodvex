@@ -8,4 +8,4 @@ export {
   type UnionModelSchemas,
   type VectorIndexConfig,
   type ZodModel
-} from '../full/model'
+} from '../model'

@@ -42,13 +42,14 @@ describe('zodvex codemod --to-mini', () => {
     expect(task).not.toContain("from 'zod'")
   })
 
-  it('transforms zodvex/core imports to zodvex/mini', async () => {
+  it('transforms canonical client-safe zodvex imports to zodvex/mini', async () => {
     const { runToMiniCodemod } = await import('../src/cli/codemod')
     await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: false })
 
     const task = readFileSync(join(tempDir, 'convex/models/task.ts'), 'utf-8')
     expect(task).toContain("from 'zodvex/mini'")
     expect(task).not.toContain("from 'zodvex/core'")
+    expect(task).not.toContain("from 'zodvex'")
   })
 
   it('transforms .optional() to z.optional()', async () => {

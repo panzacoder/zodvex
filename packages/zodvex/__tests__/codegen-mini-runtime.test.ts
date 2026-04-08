@@ -132,7 +132,7 @@ describe('codegen mini: no method chains in output', () => {
     expect(js).not.toMatch(/\.nullable\(\)/)
   })
 
-  it('imports from zod/mini and zodvex/mini, not zod and zodvex/core', () => {
+  it('imports from zod/mini and zodvex/mini, not zod or full-zod client-safe paths', () => {
     const funcs: DiscoveredFunction[] = [
       {
         functionPath: 'users:get',
@@ -149,8 +149,9 @@ describe('codegen mini: no method chains in output', () => {
 
     expect(js).toContain("from 'zod/mini'")
     // zodvex/mini only appears when codecs are present (extractCodec import)
-    // The critical check: no bare 'zod' or 'zodvex/core' imports
+    // The critical check: no bare 'zod', 'zodvex', or 'zodvex/core' imports
     expect(js).not.toMatch(/from 'zod'[^/]/)
+    expect(js).not.toContain("from 'zodvex'")
     expect(js).not.toContain("from 'zodvex/core'")
   })
 

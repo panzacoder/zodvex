@@ -60,7 +60,7 @@ npm install zodvex zod convex convex-helpers
 ```ts
 // convex/models.ts
 import { z } from 'zod'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex'
 
 export const EventModel = defineZodModel('events', {
   title: z.string(),
@@ -108,7 +108,7 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
 ```ts
 // convex/events.ts
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { zq, zm } from './functions'
 import { EventModel } from './models'
 
@@ -142,13 +142,14 @@ See the full [quickstart example](./examples/quickstart/) for a runnable project
 
 ## Import Paths
 
-Three entry points:
+Four entry points:
 
-- **`zodvex/core`** — Client-safe. Use in React components and shared code.
+- **`zodvex`** — Client-safe full-Zod surface. Use in React components and shared code.
 - **`zodvex/server`** — Server-only. Use in Convex functions and schema definitions.
-- **`zodvex`** — Full library. Convenient but pulls in server code.
+- **`zodvex/mini`** — Client-safe zod/mini surface.
+- **`zodvex/mini/server`** — Server-only zod/mini surface.
 
-> Use `zodvex/core` for client bundles to keep them small.
+> `zodvex/core` remains as a deprecated compatibility alias for `zodvex`.
 
 ## Features
 

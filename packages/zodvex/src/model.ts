@@ -5,7 +5,7 @@
  * It produces Zod schemas for codec decode/encode and type-safe index
  * definitions via z.input<T> field path extraction.
  *
- * Exported from zodvex/core (no server imports).
+ * Exported from zodvex (no server imports).
  */
 
 import { z } from 'zod'
@@ -176,7 +176,7 @@ type FullPaginatedShape<Name extends string, Fields extends $ZodShape> = {
 } // zod-ok
 
 /**
- * Full-zod schema types — the default for zodvex/core consumers.
+ * Full-zod schema types — the default for `zodvex` consumers.
  * Each property uses z.ZodObject / z.ZodArray etc. from full zod, // zod-ok
  * providing method chaining (.parse(), .shape, .nullable(), etc.).
  */
@@ -196,7 +196,7 @@ export type FullZodModelSchemas<Name extends string, Fields extends $ZodShape> =
  * Each chain call returns a new immutable model with accumulated metadata.
  *
  * The `Schemas` parameter carries the concrete schema types — full-zod types
- * from zodvex/core, mini types from zodvex/mini. Chain methods preserve `Schemas`
+ * from `zodvex`, mini types from `zodvex/mini`. Chain methods preserve `Schemas`
  * unchanged since they only modify index metadata.
  *
  * Downstream consumers wrap this to add domain metadata (e.g., security rules).

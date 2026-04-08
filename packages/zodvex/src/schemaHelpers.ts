@@ -3,7 +3,7 @@
  *
  * This module contains helpers extracted from tables.ts that have NO server
  * dependencies (no convex/server, no convex-helpers/server). They are safe
- * to import from zodvex/core (client-side code).
+ * to import from zodvex (client-side code).
  *
  * Used by:
  * - model.ts (defineZodModel) — client-safe model definitions

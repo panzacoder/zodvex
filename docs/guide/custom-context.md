@@ -9,7 +9,7 @@ Add auth, permissions, or other context to all your Zod-validated functions usin
 When using `initZodvex`, the returned builders (`zq`, `zm`, `za`) expose a `.withContext()` method for composing custom context:
 
 ```ts
-import { customCtx } from 'zodvex'
+import { customCtx } from 'zodvex/server'
 import { type QueryCtx, type MutationCtx } from './_generated/server'
 
 // Add user to all queries
@@ -49,7 +49,7 @@ export const updateProfile = authedMutation({
 For projects not using `initZodvex`, the standalone builders remain available:
 
 ```ts
-import { zCustomQueryBuilder, zCustomMutationBuilder, customCtx } from 'zodvex'
+import { zCustomQueryBuilder, zCustomMutationBuilder, customCtx } from 'zodvex/server'
 import { type QueryCtx, type MutationCtx, query, mutation } from './_generated/server'
 
 // Add user to all queries
@@ -91,7 +91,7 @@ export const updateProfile = authMutation({
 The `onSuccess` callback follows convex-helpers' `Customization` convention and is the only hook point zodvex exposes. Return it from your customization's `input` function:
 
 ```ts
-import { zCustomMutationBuilder } from 'zodvex'
+import { zCustomMutationBuilder } from 'zodvex/server'
 import { type MutationCtx, mutation } from './_generated/server'
 
 export const secureMutation = zCustomMutationBuilder(mutation, {

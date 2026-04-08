@@ -1,8 +1,8 @@
 /**
- * Type inference tests for ZodModel schemas across zodvex/core and zodvex/mini.
+ * Type inference tests for ZodModel schemas across zodvex and zodvex/mini.
  *
  * Verifies that z.infer<model.schema.doc> produces identical results
- * regardless of whether the model is imported from zodvex/core or zodvex/mini.
+ * regardless of whether the model is imported from zodvex or zodvex/mini.
  * This is the type chain that breaks for index range builders when DecodedDoc
  * resolves differently between full-zod and mini types.
  */
@@ -11,10 +11,9 @@ import { z } from 'zod'
 import { z as zm } from 'zod/mini'
 import type { output as zoutput } from 'zod/v4/core'
 import { $ZodArray, $ZodObject } from 'zod/v4/core'
+import { defineZodModel, type FullZodModelSchemas, type ZodModel, zx } from '../src'
 import { defineZodModel as defineZodModelMini, type MiniModelSchemas } from '../src/mini'
-import { defineZodModel, type FullZodModelSchemas, type ZodModel } from '../src/model'
 import type { $ZodShape, $ZodType } from '../src/zod-core'
-import { zx } from '../src/zx'
 
 // ============================================================================
 // Test models — same fields, different entrypoints
@@ -33,9 +32,9 @@ const miniModel = defineZodModelMini('test_table', fields)
 // Type-level assertions
 // ============================================================================
 
-describe('ZodModel type inference: core vs mini', () => {
-  it('core model has FullZodModelSchemas', () => {
-    // Core model's schema types should be z.ZodObject etc.
+describe('ZodModel type inference: root vs mini', () => {
+  it('root model has FullZodModelSchemas', () => {
+    // Root model's schema types should be z.ZodObject etc.
     type CoreDoc = typeof coreModel.schema.doc
     type CoreDocInferred = z.infer<CoreDoc>
     expectTypeOf<CoreDocInferred>().toHaveProperty('name')

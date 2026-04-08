@@ -4,7 +4,7 @@
  * correctly in the built bundle — this was the tree-shaking bug in beta.51.
  */
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { zq, zm } from './functions'
 import { TaskModel } from './models/task'
 

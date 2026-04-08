@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex'
 
 /** Shared field shape — used by both defineZodModel and zodTable in schema.ts */
 export const commentFields = {

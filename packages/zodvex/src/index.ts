@@ -1,19 +1,14 @@
 /**
- * zodvex - Full library (backwards compatible)
+ * zodvex - Client-safe full-Zod surface.
  *
- * Re-exports everything from both core and server modules.
- * For optimal bundle size in client code, import from 'zodvex/core' instead.
+ * This is the canonical entrypoint for standard full-Zod consumers.
+ * Server-only APIs live under `zodvex/server`.
  *
  * @example
- * // Full import (pulls in server code)
- * import { zx, zodTable } from 'zodvex'
- *
- * // Optimized client import (no server code)
- * import { zx } from 'zodvex/core'
- *
- * // Server-only import
- * import { zodTable } from 'zodvex/server'
+ * ```ts
+ * import { zx, defineZodModel } from 'zodvex'
+ * import { defineZodSchema, initZodvex } from 'zodvex/server'
+ * ```
  */
 
-export * from './core'
-export * from './server'
+export * from './full'

@@ -80,7 +80,7 @@ async function measureSchemaCreation(config: MeasureConfig): Promise<MeasureResu
     await import('zod')
   }
   await import('zodvex/server')
-  await import('zodvex/core')
+  await import('zodvex')
 
   forceGC()
   forceGC() // Double GC for more stable baseline

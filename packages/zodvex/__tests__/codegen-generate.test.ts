@@ -125,7 +125,7 @@ describe('generateApiFile', () => {
     const { js: output } = generateApiFile(sampleFunctions, sampleModels)
 
     expect(output).toContain("import { z } from 'zod'")
-    expect(output).toContain("import { zx } from 'zodvex/core'")
+    expect(output).toContain("import { zx } from 'zodvex'")
     expect(output).toContain("import { UserModel } from '../models/user.js'")
     expect(output).not.toContain("from '../models/user'\"")
   })
@@ -261,7 +261,7 @@ describe('generateClientFile', () => {
     expect(js).toContain("import { createZodvexHooks } from 'zodvex/react'")
     expect(js).toContain("import { createZodvexReactClient } from 'zodvex/react'")
     expect(js).toContain("import { createZodvexClient } from 'zodvex/client'")
-    expect(js).toContain("import { createBoundaryHelpers } from 'zodvex/core'")
+    expect(js).toContain("import { createBoundaryHelpers } from 'zodvex'")
     expect(js).toContain("import { zodvexRegistry } from './api.js'")
     expect(js).toContain(
       'export const { useZodQuery, useZodMutation } = createZodvexHooks(zodvexRegistry)'

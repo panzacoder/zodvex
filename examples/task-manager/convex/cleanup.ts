@@ -6,7 +6,7 @@
  * - Field is a plain z.number().optional() (no codec)
  * - Value arguments are plain numbers
  *
- * With zodvex/core (baseline): value type is `number | "required"` → accepts numbers ✓
+ * With zodvex (baseline): value type is `number | "required"` → accepts numbers ✓
  * With zodvex/mini (post-codemod): value type may resolve to `undefined` → rejects numbers ✗
  *
  * To test: type-check this file, then change model imports to zodvex/mini

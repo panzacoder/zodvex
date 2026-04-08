@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { zq } from '../functions'
 import { TaskModel } from '../models/task'
 

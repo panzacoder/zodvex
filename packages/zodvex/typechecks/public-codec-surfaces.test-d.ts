@@ -1,5 +1,6 @@
-import type { ZodvexCodec as CoreZodvexCodec } from '../src/core'
-import { zx as coreZx } from '../src/core'
+import type { ZodvexCodec as RootZodvexCodec } from '../src'
+import { zx as rootZx } from '../src'
+import type { ZodvexCodec as CoreCompatZodvexCodec } from '../src/core'
 import type { ZodvexCodec as MiniZodvexCodec } from '../src/mini'
 import { zx as miniZx } from '../src/mini'
 import type { Equal, Expect } from './test-helpers'
@@ -23,13 +24,13 @@ type FullSensitiveRuntime<T extends z.ZodTypeAny> = z.ZodObject<{
   __sensitiveField: z.ZodOptional<z.ZodString>
 }>
 
-type SensitiveCodec<T extends z.ZodTypeAny> = CoreZodvexCodec<
+type SensitiveCodec<T extends z.ZodTypeAny> = RootZodvexCodec<
   FullSensitiveWire<T>,
   FullSensitiveRuntime<T>
 >
 
 function sensitive<T extends z.ZodTypeAny>(inner: T): SensitiveCodec<T> {
-  return coreZx.codec(
+  return rootZx.codec(
     z.object({
       value: inner.nullable(),
       status: z.enum(['full', 'hidden']),
@@ -60,6 +61,9 @@ const acceptFullZodType = <T extends z.ZodTypeAny>(schema: T) => schema
 acceptFullZodType(sensitiveString)
 
 type _CoreCodecExtendsZodType = Expect<SensitiveCodec<z.ZodString> extends z.ZodTypeAny ? true : false>
+type _CoreCompatAliasMatchesRoot = Expect<
+  Equal<CoreCompatZodvexCodec<z.ZodString, z.ZodString>, RootZodvexCodec<z.ZodString, z.ZodString>>
+>
 type _CoreOptionalStillFullZod = Expect<
   Equal<typeof sensitiveStringOptional, z.ZodOptional<SensitiveCodec<z.ZodString>>>
 >

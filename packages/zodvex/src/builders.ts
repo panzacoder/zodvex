@@ -105,7 +105,7 @@ function createCustomBuilderFactory() {
  * @example
  * ```ts
  * import { query } from './_generated/server'
- * import { zQueryBuilder } from 'zodvex'
+ * import { zQueryBuilder } from 'zodvex/server'
  *
  * // Create a reusable builder
  * export const zq = zQueryBuilder(query)
@@ -132,7 +132,7 @@ export function zQueryBuilder<Builder extends (fn: any) => any>(builder: Builder
  * @example
  * ```ts
  * import { mutation } from './_generated/server'
- * import { zMutationBuilder } from 'zodvex'
+ * import { zMutationBuilder } from 'zodvex/server'
  *
  * // Create a reusable builder
  * export const zm = zMutationBuilder(mutation)
@@ -159,7 +159,7 @@ export function zMutationBuilder<Builder extends (fn: any) => any>(builder: Buil
  * @example
  * ```ts
  * import { action } from './_generated/server'
- * import { zActionBuilder } from 'zodvex'
+ * import { zActionBuilder } from 'zodvex/server'
  *
  * // Create a reusable builder
  * export const za = zActionBuilder(action)
@@ -186,7 +186,7 @@ export function zActionBuilder<Builder extends (fn: any) => any>(builder: Builde
  * @example
  * ```ts
  * import { type QueryCtx, query } from './_generated/server'
- * import { zCustomQueryBuilder, customCtx } from 'zodvex'
+ * import { zCustomQueryBuilder, customCtx } from 'zodvex/server'
  *
  * // Create a builder with auth context
  * export const authQuery = zCustomQueryBuilder(
@@ -238,7 +238,7 @@ export function zCustomQueryBuilder<
  * @example
  * ```ts
  * import { type MutationCtx, mutation } from './_generated/server'
- * import { zCustomMutationBuilder, customCtx } from 'zodvex'
+ * import { zCustomMutationBuilder, customCtx } from 'zodvex/server'
  *
  * // Create a builder with auth context
  * export const authMutation = zCustomMutationBuilder(
@@ -290,7 +290,7 @@ export function zCustomMutationBuilder<
  * @example
  * ```ts
  * import { type ActionCtx, action } from './_generated/server'
- * import { zCustomActionBuilder, customCtx } from 'zodvex'
+ * import { zCustomActionBuilder, customCtx } from 'zodvex/server'
  *
  * // Create a builder with auth context
  * export const authAction = zCustomActionBuilder(

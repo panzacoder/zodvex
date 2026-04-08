@@ -1,13 +1,13 @@
 /**
  * zodvex/mini - Client-safe validators typed for zod-mini compatibility
  *
- * Re-exports everything from zodvex/core, but overrides `zx` helpers
+ * Re-exports the standard client-safe surface from `zodvex`, but overrides `zx` helpers
  * with types that use `$ZodType` from `zod/v4/core` instead of `z.ZodType`
  * from full zod. This means return types don't have `.optional()` /
  * `.nullable()` chaining — use `z.optional(zx.id(...))` instead.
  *
  * Use this entrypoint when your project uses `zod/mini`.
- * Use `zodvex/core` when your project uses full `zod`.
+ * Use `zodvex` when your project uses full `zod`.
  */
 
 // Re-export everything from core EXCEPT zx

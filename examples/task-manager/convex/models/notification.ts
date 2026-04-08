@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex'
 
 /**
  * Top-level discriminated union table — the document itself varies by kind.

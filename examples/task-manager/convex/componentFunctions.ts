@@ -7,7 +7,7 @@
  * `components.*` property access and constructor calls succeed silently.
  */
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { ActionRetrier } from '@convex-dev/action-retrier'
 import { components } from './_generated/api'
 import { zq, zm, za } from './functions'

@@ -39,14 +39,15 @@ full or mini flavor.
 
 Public flavor differences now live at explicit entrypoints:
 
-- `zodvex/core`: full-Zod helper surface
+- `zodvex`: full-Zod helper surface
 - `zodvex/mini`: mini helper surface
 - `zodvex/server`: shared server runtime, compatible with both
+- `zodvex/core`: deprecated compatibility alias to `zodvex`
 
 Internally, the flavor-owned public helper modules are:
 
-- `src/core/zx.ts`
-- `src/core/model.ts`
+- `src/full/zx.ts`
+- `src/full/model.ts`
 - `src/mini/zx.ts`
 - `src/mini/model.ts`
 

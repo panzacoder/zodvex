@@ -69,13 +69,13 @@ export async function runToMiniCodemod(
     })
     let output = result.code
 
-    // Transform imports: 'zod' → 'zod/mini', 'zodvex/core' → 'zodvex/mini'
+    // Transform imports: 'zod' → 'zod/mini', client-safe zodvex full paths → 'zodvex/mini'
     const project = new Project({ useInMemoryFileSystem: true })
     const sf = project.createSourceFile('tmp.ts', output)
     transformImports(sf)
     for (const imp of sf.getImportDeclarations()) {
       const spec = imp.getModuleSpecifierValue()
-      if (spec === 'zodvex/core') imp.setModuleSpecifier('zodvex/mini')
+      if (spec === 'zodvex' || spec === 'zodvex/core') imp.setModuleSpecifier('zodvex/mini')
     }
     output = sf.getFullText()
 

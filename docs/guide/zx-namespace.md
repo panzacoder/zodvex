@@ -4,7 +4,7 @@ The `zx` namespace provides zodvex-specific validators and codecs. The name sign
 
 ```ts
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 
 const schema = z.object({
   id: zx.id('users'),      // Typed ID validator
@@ -35,7 +35,7 @@ const schema = z.object({
 `zx.id('tableName')` is a **typed validator**, not a codec. It validates that a string is a valid Convex document ID and brands the TypeScript type as `GenericId<'tableName'>`. No data transformation happens at the wire level — the value is stored and retrieved as-is.
 
 ```ts
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 
 // Basic usage
 zx.id('users')             // Validates string, types as GenericId<'users'>
@@ -61,7 +61,7 @@ zx.id('tableName')  // → v.id('tableName')
 `zx.date()` is a **codec** that transforms between JavaScript `Date` objects (runtime) and Convex timestamps stored as `v.float64()` (wire format).
 
 ```ts
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 
 zx.date()            // → v.float64() (timestamp on wire)
 zx.date().optional() // → v.optional(v.float64())
@@ -89,7 +89,7 @@ const eventShape = {
 `zx.codec()` is a **codec** for custom wire format transformations. Use it when you need to transform data between storage format and runtime format beyond what `zx.date()` provides.
 
 ```ts
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 
 const myCodec = zx.codec(
   z.object({ encrypted: z.string() }),  // Wire schema (stored in Convex)

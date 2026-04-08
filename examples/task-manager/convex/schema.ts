@@ -1,4 +1,4 @@
-import { defineZodSchema } from 'zodvex'
+import { defineZodSchema } from 'zodvex/server'
 import { UserModel } from './models/user'
 import { TaskModel } from './models/task'
 import { CommentModel } from './models/comment'

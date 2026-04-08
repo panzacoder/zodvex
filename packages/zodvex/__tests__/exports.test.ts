@@ -1,114 +1,125 @@
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
-describe('zodvex/core has no server runtime imports', () => {
-  it('does not import from convex/server or convex-helpers/server at runtime', async () => {
-    const coreIndex = await readFile(new URL('../src/core/index.ts', import.meta.url), 'utf-8')
+async function assertNoServerRuntimeImports(
+  entryPath: '../src/index.ts' | '../src/core/index.ts',
+  label: string
+) {
+  const entrySource = await readFile(new URL(entryPath, import.meta.url), 'utf-8')
 
-    // Extract all re-export source paths, tracking which are type-only
-    const typeOnlyPaths = new Set<string>()
-    const runtimePaths = new Set<string>()
+  // Extract all re-export source paths, tracking which are type-only
+  const typeOnlyPaths = new Set<string>()
+  const runtimePaths = new Set<string>()
 
-    for (const line of coreIndex.split('\n')) {
-      const trimmed = line.trim()
-      const match = trimmed.match(/from ['"]([^'"]+)['"]/)
-      if (!match) continue
-      const importPath = match[1]
-      if (!importPath.startsWith('../') && !importPath.startsWith('./')) continue
+  for (const line of entrySource.split('\n')) {
+    const trimmed = line.trim()
+    const match = trimmed.match(/from ['"]([^'"]+)['"]/)
+    if (!match) continue
+    const importPath = match[1]
+    if (!importPath.startsWith('../') && !importPath.startsWith('./')) continue
 
-      if (trimmed.startsWith('export type ') || trimmed.startsWith('import type ')) {
-        typeOnlyPaths.add(importPath)
-      } else {
-        runtimePaths.add(importPath)
-      }
+    if (trimmed.startsWith('export type ') || trimmed.startsWith('import type ')) {
+      typeOnlyPaths.add(importPath)
+    } else {
+      runtimePaths.add(importPath)
     }
+  }
 
-    // Only check files with runtime (non-type-only) references
-    const pathsToCheck = [...runtimePaths]
+  // Only check files with runtime (non-type-only) references
+  const pathsToCheck = [...runtimePaths]
 
-    // Resolve to actual file paths relative to this test file
-    const baseDir = new URL('../src/', import.meta.url).pathname
-    const filesToCheck = pathsToCheck.map(p => {
-      const resolved = p.startsWith('../') ? `${baseDir}${p.slice(3)}` : `${baseDir}core/${p}`
-      return resolved.endsWith('.ts') ? resolved : resolved + '.ts'
-    })
+  // Resolve to actual file paths relative to this test file
+  const baseDir = new URL('../src/', import.meta.url).pathname
+  const entryDir = entryPath === '../src/index.ts' ? `${baseDir}` : `${baseDir}core/`
+  const filesToCheck = pathsToCheck.map(p => {
+    const resolved = p.startsWith('../') ? `${baseDir}${p.slice(3)}` : `${entryDir}${p}`
+    return resolved.endsWith('.ts') ? resolved : resolved + '.ts'
+  })
 
-    for (const filePath of filesToCheck) {
-      let content: string
+  for (const filePath of filesToCheck) {
+    let content: string
+    try {
+      content = await readFile(filePath, 'utf-8')
+    } catch {
       try {
-        content = await readFile(filePath, 'utf-8')
+        content = await readFile(filePath.replace('.ts', '/index.ts'), 'utf-8')
       } catch {
-        try {
-          content = await readFile(filePath.replace('.ts', '/index.ts'), 'utf-8')
-        } catch {
-          continue
-        }
-      }
-
-      const lines = content.split('\n')
-      let inTypeImport = false
-      for (const line of lines) {
-        const trimmed = line.trim()
-        // Track multi-line `import type { ... } from '...'` blocks
-        if (trimmed.startsWith('import type ')) {
-          if (!trimmed.includes('from ')) {
-            // Multi-line import type — skip until closing `from` line
-            inTypeImport = true
-          }
-          continue
-        }
-        if (inTypeImport) {
-          if (trimmed.includes('from ')) inTypeImport = false
-          continue
-        }
-        if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*'))
-          continue
-
-        if (trimmed.includes("from 'convex/server'") || trimmed.includes('from "convex/server"')) {
-          throw new Error(
-            `Runtime import from 'convex/server' found in ${filePath}:\n  ${trimmed}\n` +
-              `zodvex/core must be client-safe. Use 'import type' or move to zodvex/server.`
-          )
-        }
-        if (
-          trimmed.includes("from 'convex-helpers/server") ||
-          trimmed.includes('from "convex-helpers/server')
-        ) {
-          throw new Error(
-            `Runtime import from 'convex-helpers/server' found in ${filePath}:\n  ${trimmed}\n` +
-              `zodvex/core must be client-safe. Use 'import type' or move to zodvex/server.`
-          )
-        }
+        continue
       }
     }
+
+    const lines = content.split('\n')
+    let inTypeImport = false
+    for (const line of lines) {
+      const trimmed = line.trim()
+      // Track multi-line `import type { ... } from '...'` blocks
+      if (trimmed.startsWith('import type ')) {
+        if (!trimmed.includes('from ')) {
+          // Multi-line import type — skip until closing `from` line
+          inTypeImport = true
+        }
+        continue
+      }
+      if (inTypeImport) {
+        if (trimmed.includes('from ')) inTypeImport = false
+        continue
+      }
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue
+
+      if (trimmed.includes("from 'convex/server'") || trimmed.includes('from "convex/server"')) {
+        throw new Error(
+          `Runtime import from 'convex/server' found in ${filePath}:\n  ${trimmed}\n` +
+            `${label} must be client-safe. Use 'import type' or move to zodvex/server.`
+        )
+      }
+      if (
+        trimmed.includes("from 'convex-helpers/server") ||
+        trimmed.includes('from "convex-helpers/server')
+      ) {
+        throw new Error(
+          `Runtime import from 'convex-helpers/server' found in ${filePath}:\n  ${trimmed}\n` +
+            `${label} must be client-safe. Use 'import type' or move to zodvex/server.`
+        )
+      }
+    }
+  }
+}
+
+describe('client-safe full entrypoints have no server runtime imports', () => {
+  it('zodvex root is client-safe', async () => {
+    await assertNoServerRuntimeImports('../src/index.ts', 'zodvex')
+  })
+
+  it('zodvex/core compat alias is client-safe', async () => {
+    await assertNoServerRuntimeImports('../src/core/index.ts', 'zodvex/core')
   })
 })
 
-describe('zodvex/core exports', () => {
+describe('zodvex root exports', () => {
   it('exports zx namespace', async () => {
-    const { zx } = await import('../src/core')
+    const { zx } = await import('../src')
     expect(zx).toBeDefined()
     expect(zx.id).toBeDefined()
     expect(zx.date).toBeDefined()
   })
 
   it('exports zodToConvex', async () => {
-    const { zodToConvex } = await import('../src/core')
+    const { zodToConvex } = await import('../src')
     expect(zodToConvex).toBeDefined()
   })
 
   it('exports zodToConvexFields', async () => {
-    const { zodToConvexFields } = await import('../src/core')
+    const { zodToConvexFields } = await import('../src')
     expect(zodToConvexFields).toBeDefined()
   })
 
   it('exports createBoundaryHelpers', async () => {
-    const { createBoundaryHelpers } = await import('../src/core')
+    const { createBoundaryHelpers } = await import('../src')
     expect(createBoundaryHelpers).toBeDefined()
   })
 
   it('exports codec utilities', async () => {
-    const { convexCodec, decodeDoc, encodeDoc, encodePartialDoc } = await import('../src/core')
+    const { convexCodec, decodeDoc, encodeDoc, encodePartialDoc } = await import('../src')
     expect(convexCodec).toBeDefined()
     expect(decodeDoc).toBeDefined()
     expect(encodeDoc).toBeDefined()
@@ -116,7 +127,7 @@ describe('zodvex/core exports', () => {
   })
 
   it('exports utility functions', async () => {
-    const { safePick, safeOmit, zPaginated, stripUndefined } = await import('../src/core')
+    const { safePick, safeOmit, zPaginated, stripUndefined } = await import('../src')
     expect(safePick).toBeDefined()
     expect(safeOmit).toBeDefined()
     expect(zPaginated).toBeDefined()
@@ -124,54 +135,62 @@ describe('zodvex/core exports', () => {
   })
 
   it('exports JSON schema utilities', async () => {
-    const { zodvexJSONSchemaOverride, toJSONSchema } = await import('../src/core')
+    const { zodvexJSONSchemaOverride, toJSONSchema } = await import('../src')
     expect(zodvexJSONSchemaOverride).toBeDefined()
     expect(toJSONSchema).toBeDefined()
   })
 
   it('does NOT export zodTable', async () => {
-    const core = await import('../src/core')
-    expect((core as any).zodTable).toBeUndefined()
+    const root = await import('../src')
+    expect((root as any).zodTable).toBeUndefined()
   })
 
   it('does NOT export customCtx', async () => {
-    const core = await import('../src/core')
-    expect((core as any).customCtx).toBeUndefined()
+    const root = await import('../src')
+    expect((root as any).customCtx).toBeUndefined()
   })
 
   it('does NOT export zQueryBuilder', async () => {
-    const core = await import('../src/core')
-    expect((core as any).zQueryBuilder).toBeUndefined()
+    const root = await import('../src')
+    expect((root as any).zQueryBuilder).toBeUndefined()
   })
 
   it('does NOT export zCustomQuery', async () => {
-    const core = await import('../src/core')
-    expect((core as any).zCustomQuery).toBeUndefined()
+    const root = await import('../src')
+    expect((root as any).zCustomQuery).toBeUndefined()
   })
 
   it('does NOT export internal meta utilities', async () => {
-    const core = await import('../src/core')
-    expect((core as any).attachMeta).toBeUndefined()
-    expect((core as any).readMeta).toBeUndefined()
+    const root = await import('../src')
+    expect((root as any).attachMeta).toBeUndefined()
+    expect((root as any).readMeta).toBeUndefined()
   })
 
   it('does NOT export internal mapping helpers', async () => {
-    const core = await import('../src/core')
-    expect((core as any).makeUnion).toBeUndefined()
+    const root = await import('../src')
+    expect((root as any).makeUnion).toBeUndefined()
   })
 
   it('does NOT export internal utils', async () => {
-    const core = await import('../src/core')
-    expect((core as any).pick).toBeUndefined()
-    expect((core as any).formatZodIssues).toBeUndefined()
-    expect((core as any).handleZodValidationError).toBeUndefined()
-    expect((core as any).validateReturns).toBeUndefined()
-    expect((core as any).assertNoNativeZodDate).toBeUndefined()
+    const root = await import('../src')
+    expect((root as any).pick).toBeUndefined()
+    expect((root as any).formatZodIssues).toBeUndefined()
+    expect((root as any).handleZodValidationError).toBeUndefined()
+    expect((root as any).validateReturns).toBeUndefined()
+    expect((root as any).assertNoNativeZodDate).toBeUndefined()
   })
 
   it('does NOT export internal id helpers', async () => {
+    const root = await import('../src')
+    expect((root as any).registryHelpers).toBeUndefined()
+  })
+})
+
+describe('zodvex/core compatibility alias', () => {
+  it('matches the root client-safe export surface', async () => {
+    const root = await import('../src')
     const core = await import('../src/core')
-    expect((core as any).registryHelpers).toBeUndefined()
+    expect(Object.keys(core).sort()).toEqual(Object.keys(root).sort())
   })
 })
 
@@ -251,31 +270,29 @@ describe('zodvex/server exports', () => {
 })
 
 describe('zodvex (root) exports', () => {
-  it('exports everything for backwards compatibility', async () => {
+  it('exports the client-safe full-Zod surface only', async () => {
     const zodvex = await import('../src')
 
-    // Core exports
+    // Client-safe exports
     expect(zodvex.zx).toBeDefined()
     expect(zodvex.zodToConvex).toBeDefined()
     expect(zodvex.zodToConvexFields).toBeDefined()
     expect(zodvex.convexCodec).toBeDefined()
     expect(zodvex.safePick).toBeDefined()
-
-    // Server exports
-    expect(zodvex.zodTable).toBeDefined()
-    expect(zodvex.customCtx).toBeDefined()
-    expect(zodvex.zQueryBuilder).toBeDefined()
-    expect(zodvex.zCustomQuery).toBeDefined()
-
-    // New codec DB exports
     expect(zodvex.decodeDoc).toBeDefined()
     expect(zodvex.encodeDoc).toBeDefined()
     expect(zodvex.encodePartialDoc).toBeDefined()
-    expect(zodvex.defineZodSchema).toBeDefined()
-    expect(zodvex.createZodDbReader).toBeDefined()
-    expect(zodvex.createZodDbWriter).toBeDefined()
-    expect(zodvex.initZodvex).toBeDefined()
-    expect(zodvex.createZodvexCustomization).toBeDefined()
+
+    // Server-only exports must not leak from root
+    expect(zodvex.zodTable).toBeUndefined()
+    expect(zodvex.customCtx).toBeUndefined()
+    expect(zodvex.zQueryBuilder).toBeUndefined()
+    expect(zodvex.zCustomQuery).toBeUndefined()
+    expect(zodvex.defineZodSchema).toBeUndefined()
+    expect(zodvex.createZodDbReader).toBeUndefined()
+    expect(zodvex.createZodDbWriter).toBeUndefined()
+    expect(zodvex.initZodvex).toBeUndefined()
+    expect(zodvex.createZodvexCustomization).toBeUndefined()
   })
 
   it('does NOT export internal symbols', async () => {

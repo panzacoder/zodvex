@@ -1,4 +1,4 @@
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { zq, zm } from './functions'
 import { ActivityModel } from './models/activity'
 

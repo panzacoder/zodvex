@@ -328,8 +328,8 @@ export function generateApiFile(
   const zodImport = options?.mini ? 'zod/mini' : 'zod'
   if (needsZod) imports.push(`import { z } from '${zodImport}'`)
 
-  // Build single zodvex/core (or zodvex/mini) import (zx, extractCodec)
-  const zodvexImport = options?.mini ? 'zodvex/mini' : 'zodvex/core'
+  // Build single client-safe zodvex import (root full path or zodvex/mini)
+  const zodvexImport = options?.mini ? 'zodvex/mini' : 'zodvex'
   const coreImports: string[] = []
   if (needsZx) coreImports.push('zx')
   if (usedModelCodecVars.length > 0) coreImports.push('extractCodec')
@@ -410,13 +410,13 @@ export type ActionCtx = ZodvexActionCtx<DataModel>
  * Returns { js, dts } for .js + .d.ts output.
  */
 export function generateClientFile(options?: { mini?: boolean }): GeneratedFile {
-  const zodvexCoreImport = options?.mini ? 'zodvex/mini' : 'zodvex/core'
+  const zodvexClientImport = options?.mini ? 'zodvex/mini' : 'zodvex'
   // --- JS ---
   const jsImports = [
     "import { createZodvexHooks } from 'zodvex/react'",
     "import { createZodvexReactClient } from 'zodvex/react'",
     "import { createZodvexClient } from 'zodvex/client'",
-    `import { createBoundaryHelpers } from '${zodvexCoreImport}'`,
+    `import { createBoundaryHelpers } from '${zodvexClientImport}'`,
     "import { zodvexRegistry } from './api.js'"
   ]
 
@@ -439,7 +439,7 @@ export function generateClientFile(options?: { mini?: boolean }): GeneratedFile 
     "import type { ZodvexHooks } from 'zodvex/react'",
     "import type { ZodvexClientOptions, ZodvexClient } from 'zodvex/client'",
     "import type { ZodvexReactClientOptions, ZodvexReactClient } from 'zodvex/react'",
-    `import type { BoundaryHelpers } from '${zodvexCoreImport}'`
+    `import type { BoundaryHelpers } from '${zodvexClientImport}'`
   ]
 
   const dtsDeclarations = [

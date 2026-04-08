@@ -2,7 +2,7 @@
 // Run `zodvex generate` to regenerate
 
 import { z } from 'zod'
-import { zx, extractCodec } from 'zodvex/core'
+import { zx, extractCodec } from 'zodvex'
 import { CommentModel } from '../models/comment.js'
 import { NotificationModel } from '../models/notification.js'
 import { TaskModel } from '../models/task.js'
