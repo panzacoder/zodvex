@@ -1,10 +1,10 @@
 /**
  * zodvex/mini - Client-safe validators typed for zod-mini compatibility
  *
- * Re-exports the standard client-safe surface from `zodvex`, but overrides `zx` helpers
- * with types that use `$ZodType` from `zod/v4/core` instead of `z.ZodType`
- * from full zod. This means return types don't have `.optional()` /
- * `.nullable()` chaining — use `z.optional(zx.id(...))` instead.
+ * Re-exports the standard client-safe surface from `zodvex`, but overrides the
+ * public helper types with concrete `zod/mini` schema types instead of the
+ * full-zod surface. This means return types don't have instance chaining like
+ * `.optional()` / `.nullable()` — use `z.optional(zx.id(...))` instead.
  *
  * Use this entrypoint when your project uses `zod/mini`.
  * Use `zodvex` when your project uses full `zod`.
@@ -53,14 +53,14 @@ export {
 // Re-export model types (ZodModel generic works for both full/mini via Schemas param)
 export {
   type FieldPaths,
-  type FullZodModelSchemas,
   type ModelFieldPaths,
   type ModelSchemas,
+  type MiniUnionModelSchemas,
   type SearchIndexConfig,
-  type UnionModelSchemas,
   type VectorIndexConfig,
   type ZodModel
-} from '../model'
+} from './model'
+export { type FullZodModelSchemas, type UnionModelSchemas } from '../model'
 // Re-export registry
 export * from '../registry'
 // Re-export results

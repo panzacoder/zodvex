@@ -7,6 +7,7 @@ import type { Equal, Expect } from './test-helpers'
 import { z } from 'zod'
 import { z as zm } from 'zod/mini'
 import type { $ZodType, output as zoutput } from 'zod/v4/core'
+import type { ZodMiniType } from 'zod/mini'
 
 type SensitiveStatus = 'full' | 'hidden'
 
@@ -95,10 +96,13 @@ const miniSensitiveString: MiniSensitiveCodec = miniZx.codec(
 )
 const miniSensitiveStringOptional = zm.optional(miniSensitiveString)
 type MiniSensitiveOutput = zoutput<typeof miniSensitiveString>
+const acceptMiniZodType = <T extends ZodMiniType>(schema: T) => schema
+acceptMiniZodType(miniSensitiveString)
 
 type _MiniCodecExtendsCoreZod = Expect<
   MiniSensitiveCodec extends MiniZodvexCodec<$ZodType, $ZodType> ? true : false
 >
+type _MiniCodecExtendsMiniZod = Expect<MiniSensitiveCodec extends ZodMiniType ? true : false>
 type _MiniOptionalWraps = Expect<
   typeof miniSensitiveStringOptional extends $ZodType ? true : false
 >

@@ -8,13 +8,15 @@ import {
 } from '../codec'
 import type { ZodvexCodec as SharedZodvexCodec } from '../types'
 import type { $ZodType, output as zoutput } from '../zod-core'
+import type { ZodMiniCodec } from 'zod/mini'
 
 export { type ConvexCodec, convexCodec, decodeDoc, encodeDoc, encodePartialDoc }
 
-export type ZodvexCodec<Wire extends $ZodType, Runtime extends $ZodType> = SharedZodvexCodec<
+export type ZodvexCodec<Wire extends $ZodType, Runtime extends $ZodType> = ZodMiniCodec<
   Wire,
   Runtime
->
+> &
+  SharedZodvexCodec<Wire, Runtime>
 
 export function zodvexCodec<
   W extends $ZodType,
@@ -29,5 +31,5 @@ export function zodvexCodec<
     encode: (runtime: RI) => WO
   }
 ): ZodvexCodec<W, R> {
-  return _zodvexCodec(wire, runtime, transforms)
+  return _zodvexCodec(wire, runtime, transforms) as unknown as ZodvexCodec<W, R>
 }
