@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Release script: bumps version, builds, tests, commits, tags, and pushes.
+# Release script: fails fast on lint/type errors, then builds once before
+# running example verification that depends on the packaged exports.
 # Usage: bin/release <patch|minor|major|<explicit-version>>
 #
 # Examples:
@@ -44,16 +45,24 @@ echo "Next version:    $NEXT"
 echo ""
 
 # --- Pre-release checks ---
-echo "==> Running build..."
-bun run build
+echo "==> Running lint..."
+bun run lint
+echo ""
+
+echo "==> Running type-check..."
+bun run type-check
 echo ""
 
 echo "==> Running tests..."
 bun run test
 echo ""
 
-echo "==> Running lint..."
-bun run lint
+echo "==> Running build..."
+bun run build
+echo ""
+
+echo "==> Verifying example apps..."
+bun run verify:examples
 echo ""
 
 echo "==> Verifying example app codegen is up to date..."
