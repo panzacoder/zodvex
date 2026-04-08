@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createZodvexCustomization } from '../src/customization'
+import { createZodvexCustomization } from '../src/internal/customization'
 import {
   createMockDbReader,
   createMockDbWriter,

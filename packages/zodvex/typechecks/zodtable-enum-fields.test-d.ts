@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { VOptional, VUnion } from 'convex/values'
-import { zodTable } from '../src/tables'
+import { zodTable } from '../src/legacy/tables'
 import type { Equal, Expect } from './test-helpers'
 
 // Shape with optional enum

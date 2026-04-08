@@ -71,7 +71,7 @@ export default defineSchema({ users: Users.table })
 **After:**
 ```ts
 // convex/models.ts (NEW FILE — client-safe, can import in React)
-import { defineZodModel } from 'zodvex/core'
+import { defineZodModel } from 'zodvex'
 import { z } from 'zod'
 
 export const Users = defineZodModel('users', {
@@ -84,7 +84,7 @@ Key changes to apply:
 - Create a client-safe models file (e.g., `convex/models.ts`) if one does not already exist
 - Move model definitions from `schema.ts` into `models.ts`
 - Replace `zodTable(name, fields)` with `defineZodModel(name, fields)`
-- Import from `zodvex/core` instead of `zodvex/server`
+- Import from `zodvex` instead of `zodvex/server`
 - Update property accesses: `.shape` becomes `.fields`
 - Remove `.zDoc` usage — use `.schema.doc` instead
 - If indexes were defined via `defineTable(...).index(...)` chains after `zodTable`, convert them to chainable methods on the model: `defineZodModel(...).index('byEmail', ['email'])`
@@ -216,7 +216,7 @@ const decoded = codec.decode(doc)
 
 **After:**
 ```ts
-import { encodeDoc, decodeDoc } from 'zodvex/core'
+import { encodeDoc, decodeDoc } from 'zodvex'
 
 const encoded = encodeDoc(UserSchema, user)
 const decoded = decodeDoc(UserSchema, doc)
@@ -245,7 +245,7 @@ const schema = z.object({
 
 **After:**
 ```ts
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 
 const schema = z.object({
   createdAt: zx.date(),

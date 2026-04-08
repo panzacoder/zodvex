@@ -8,7 +8,7 @@ export const get = zq({
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id)
   },
-  returns: NotificationModel.schema.doc.nullable(),
+  returns: z.nullable(NotificationModel.schema.doc),
 })
 
 export const listByRecipient = zq({

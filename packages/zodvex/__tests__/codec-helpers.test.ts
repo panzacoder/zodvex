@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
-import { createBoundaryHelpers } from '../src/boundaryHelpers'
-import { zx } from '../src/zx'
+import { createBoundaryHelpers } from '../src/internal/boundaryHelpers'
+import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
 // Helpers

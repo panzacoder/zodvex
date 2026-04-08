@@ -8,7 +8,7 @@ Use Zod's `.pick()` on `UserModel.fields` to select specific fields:
 
 ```ts
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { zm } from './util'
 import { UserModel } from './models/user'
 
@@ -51,7 +51,7 @@ export const updateUserName = zm({
 With `defineZodModel`, access fields via `.fields` (not `.shape`):
 
 ```ts
-import { defineZodModel } from 'zodvex/core'
+import { defineZodModel } from 'zodvex'
 
 export const UserModel = defineZodModel('users', {
   name: z.string(),

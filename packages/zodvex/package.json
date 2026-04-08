@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.7.0",
+  "version": "0.7.1-beta.16",
   "description": "Codec-first Zod v4 integration for Convex -- type-safe validation, encoding, DB wrapping, and codegen.",
   "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
   "homepage": "https://github.com/panzacoder/zodvex#readme",
@@ -30,10 +30,30 @@
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
     },
+    "./legacy": {
+      "types": "./dist/legacy/index.d.ts",
+      "import": "./dist/legacy/index.js",
+      "default": "./dist/legacy/index.js"
+    },
     "./mini": {
       "types": "./dist/mini/index.d.ts",
       "import": "./dist/mini/index.js",
       "default": "./dist/mini/index.js"
+    },
+    "./mini/client": {
+      "types": "./dist/mini/client/index.d.ts",
+      "import": "./dist/mini/client/index.js",
+      "default": "./dist/mini/client/index.js"
+    },
+    "./mini/react": {
+      "types": "./dist/mini/react/index.d.ts",
+      "import": "./dist/mini/react/index.js",
+      "default": "./dist/mini/react/index.js"
+    },
+    "./mini/server": {
+      "types": "./dist/mini/server/index.d.ts",
+      "import": "./dist/mini/server/index.js",
+      "default": "./dist/mini/server/index.js"
     },
     "./server": {
       "types": "./dist/server/index.d.ts",
@@ -59,19 +79,25 @@
       "types": "./dist/form/mantine/index.d.ts",
       "import": "./dist/form/mantine/index.js",
       "default": "./dist/form/mantine/index.js"
+    },
+    "./labs": {
+      "types": "./dist/labs/index.d.ts",
+      "import": "./dist/labs/index.js",
+      "default": "./dist/labs/index.js"
     }
   },
   "files": ["dist", "src", "README.md", "LICENSE"],
   "scripts": {
-    "build": "tsup && tsc --emitDeclarationOnly",
+    "build": "node ./scripts/build.mjs",
     "dev": "bun run tsup --watch",
     "type-check": "bun run tsc -p tsconfig.typecheck.json",
     "test": "vitest run",
     "lint": "bun x biome check src __tests__",
     "lint:fix": "bun x biome check --write src __tests__",
     "format": "bun x biome format --write src __tests__",
-    "prepare": "tsup && tsc --emitDeclarationOnly",
-    "prepublishOnly": "bun run type-check"
+    "prepare": "node ./scripts/build.mjs",
+    "prepublishOnly": "bun run type-check",
+    "lint:core-types": "! grep -rn 'z\\.Zod[A-Z]' src/ --include='*.ts' --exclude-dir=mini --exclude-dir=core --exclude=tables.ts --exclude-dir=form | grep -v '// zod-ok' | grep -v 'import type'"
   },
   "peerDependencies": {
     "convex": "^1.28.0",
@@ -85,9 +111,11 @@
     }
   },
   "dependencies": {
-    "tinyglobby": "^0.2.15"
+    "tinyglobby": "^0.2.15",
+    "ts-morph": "^25.0.0"
   },
   "devDependencies": {
+    "zod-to-mini": "workspace:*",
     "@biomejs/biome": "^2.2.6",
     "@types/bun": "^1.3.0",
     "@types/node": "^24.8.0",

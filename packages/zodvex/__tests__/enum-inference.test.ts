@@ -1,7 +1,7 @@
 import type { VLiteral, VUnion } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zodToConvex } from '../src/mapping'
+import { zodToConvex } from '../src/internal/mapping'
 
 describe('Enum type inference', () => {
   it('should infer specific literal types for z.enum', () => {

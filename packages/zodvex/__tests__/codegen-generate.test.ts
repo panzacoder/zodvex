@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { zx } from '../src/internal/zx'
 import type {
   DiscoveredFunction,
   DiscoveredModel,
   FunctionEmbeddedCodec,
   ModelEmbeddedCodec
-} from '../src/codegen/discover'
+} from '../src/public/codegen/discover'
 import {
   type CodecForGeneration,
   type GeneratedFile,
@@ -13,8 +14,7 @@ import {
   generateClientFile,
   generateSchemaFile,
   generateServerFile
-} from '../src/codegen/generate'
-import { zx } from '../src/zx'
+} from '../src/public/codegen/generate'
 
 const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.string() })
 
@@ -125,7 +125,7 @@ describe('generateApiFile', () => {
     const { js: output } = generateApiFile(sampleFunctions, sampleModels)
 
     expect(output).toContain("import { z } from 'zod'")
-    expect(output).toContain("import { zx } from 'zodvex/core'")
+    expect(output).toContain("import { zx } from 'zodvex'")
     expect(output).toContain("import { UserModel } from '../models/user.js'")
     expect(output).not.toContain("from '../models/user'\"")
   })
@@ -136,6 +136,12 @@ describe('generateApiFile', () => {
     // users:list has no returns
     expect(output).toContain("'users:list'")
     expect(output).toContain('returns: undefined')
+  })
+
+  it('generates a valid empty registry when no functions are discovered', () => {
+    const { js: output } = generateApiFile([], sampleModels)
+    expect(output).toContain('export const zodvexRegistry = {\n}\n')
+    expect(output).not.toContain('{\n,\n}')
   })
 
   it('does not include as const in JS output', () => {
@@ -255,7 +261,7 @@ describe('generateClientFile', () => {
     expect(js).toContain("import { createZodvexHooks } from 'zodvex/react'")
     expect(js).toContain("import { createZodvexReactClient } from 'zodvex/react'")
     expect(js).toContain("import { createZodvexClient } from 'zodvex/client'")
-    expect(js).toContain("import { createBoundaryHelpers } from 'zodvex/core'")
+    expect(js).toContain("import { createBoundaryHelpers } from 'zodvex'")
     expect(js).toContain("import { zodvexRegistry } from './api.js'")
     expect(js).toContain(
       'export const { useZodQuery, useZodMutation } = createZodvexHooks(zodvexRegistry)'
@@ -542,6 +548,26 @@ describe('partial-aware identity matching', () => {
     // Should emit .partial() reference, not distribute .optional() on each field
     expect(output).toContain('UserModel.schema.doc.partial()')
     expect(output).not.toContain('.optional().optional()')
+  })
+
+  it('emits z.partial() in mini mode', () => {
+    const partialDoc = (sampleModels[0].schemas.doc as z.ZodObject<any>).partial()
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:update',
+        exportName: 'update',
+        sourceFile: 'users.ts',
+        zodArgs: partialDoc,
+        zodReturns: undefined
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, sampleModels, undefined, undefined, undefined, {
+      mini: true
+    })
+
+    // Mini mode: z.partial(ref) instead of ref.partial()
+    expect(output).toContain('z.partial(UserModel.schema.doc)')
+    expect(output).not.toContain('.partial()')
   })
 
   it('doc.partial().extend() double-wraps already-optional fields', () => {

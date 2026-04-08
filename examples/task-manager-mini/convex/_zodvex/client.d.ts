@@ -4,7 +4,7 @@
 import type { ZodvexHooks } from 'zodvex/react'
 import type { ZodvexClientOptions, ZodvexClient } from 'zodvex/client'
 import type { ZodvexReactClientOptions, ZodvexReactClient } from 'zodvex/react'
-import type { BoundaryHelpers } from 'zodvex/core'
+import type { BoundaryHelpers } from 'zodvex/mini'
 
 export declare const useZodQuery: ZodvexHooks['useZodQuery']
 export declare const useZodMutation: ZodvexHooks['useZodMutation']

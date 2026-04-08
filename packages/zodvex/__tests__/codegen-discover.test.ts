@@ -1,16 +1,21 @@
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import { attachMeta } from '../src/internal/meta'
+import { zx } from '../src/internal/zx'
 import {
   type DiscoveredFunction,
   discoverModules,
   walkFunctionCodecs,
   walkModelCodecs
-} from '../src/codegen/discover'
-import { registerDiscoveryHooks } from '../src/codegen/discovery-hooks'
-import { extractCodec, findCodec, readFnArgs, readFnReturns } from '../src/codegen/extractCodec'
-import { attachMeta } from '../src/meta'
-import { zx } from '../src/zx'
+} from '../src/public/codegen/discover'
+import { registerDiscoveryHooks } from '../src/public/codegen/discovery-hooks'
+import {
+  extractCodec,
+  findCodec,
+  readFnArgs,
+  readFnReturns
+} from '../src/public/codegen/extractCodec'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
 const componentFixtureDir = path.resolve(__dirname, 'fixtures/codegen-components')

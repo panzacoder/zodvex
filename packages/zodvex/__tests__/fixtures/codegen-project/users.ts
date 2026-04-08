@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { attachMeta } from '../../../src/meta'
+import { attachMeta } from '../../../src/internal/meta'
 import { UserModel } from './models/user'
 
 const get = { _isRegistered: true }

@@ -70,7 +70,7 @@ type ProfileForm = z.infer<typeof ProfileForm>
 `zx.date()` fields store `Date` objects at runtime. For form inputs, you'll typically work with strings and convert:
 
 ```tsx
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 
 // Form schema uses string for the input
 const EventForm = z.object({

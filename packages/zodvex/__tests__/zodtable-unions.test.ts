@@ -1,9 +1,9 @@
 import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
-import { zodToConvex } from '../src/mapping'
-import { zodTable } from '../src/tables'
+import { zid } from '../src/internal/ids'
+import { zodToConvex } from '../src/internal/mapping'
+import { zodTable } from '../src/legacy/tables'
 
 describe('zodTable - union support', () => {
   describe('Basic discriminated unions', () => {
@@ -177,7 +177,7 @@ describe('zodTable - union support', () => {
       expect(withFields).toBeInstanceOf(z.ZodUnion)
 
       // Each variant should have _id and _creationTime
-      const options = (withFields as z.ZodUnion<any>).options
+      const options = (withFields as z.ZodUnion<any>)._zod.def.options
 
       expect(options).toHaveLength(2)
 
@@ -213,7 +213,7 @@ describe('zodTable - union support', () => {
       const Users = zodTable('users', schema)
       const withFields = Users.withSystemFields()
 
-      const options = (withFields as z.ZodUnion<any>).options
+      const options = (withFields as z.ZodUnion<any>)._zod.def.options
 
       // Both variants should still have the discriminator
       const userVariant = options[0] as z.ZodObject<any>
@@ -243,7 +243,7 @@ describe('zodTable - union support', () => {
       const TestTable = zodTable('test', schema)
       const withFields = TestTable.withSystemFields()
 
-      const options = (withFields as z.ZodUnion<any>).options
+      const options = (withFields as z.ZodUnion<any>)._zod.def.options
 
       // Complex variant should preserve nested structure
       const complexVariant = options[0] as z.ZodObject<any>
@@ -279,11 +279,11 @@ describe('zodTable - union support', () => {
       expect(Shapes.docArray).toBeInstanceOf(z.ZodArray)
 
       // Element should be the union with system fields
-      const elementType = (Shapes.docArray as z.ZodArray<any>).element
+      const elementType = (Shapes.docArray as z.ZodArray<any>)._zod.def.element
       expect(elementType).toBeInstanceOf(z.ZodUnion)
 
       // Each variant should have system fields
-      const options = (elementType as z.ZodUnion<any>).options
+      const options = (elementType as z.ZodUnion<any>)._zod.def.options
       const circleVariant = options[0] as z.ZodObject<any>
       expect(circleVariant.shape._id).toBeDefined()
       expect(circleVariant.shape._creationTime).toBeDefined()

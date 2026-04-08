@@ -3,8 +3,8 @@ import type { VLiteral, VOptional, VUnion } from 'convex/values'
 import { v } from 'convex/values'
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
-import { zodTable } from '../src/tables'
+import { zid } from '../src/internal/ids'
+import { zodTable } from '../src/legacy/tables'
 
 describe('zodTable enum preservation', () => {
   it('preserves enum types in table definition', () => {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zCustomQuery } from '../src/custom'
-import { composeCustomizations, createZodvexBuilder, initZodvex } from '../src/init'
-import { zx } from '../src/zx'
+import { zCustomQuery } from '../src/internal/custom'
+import { composeCustomizations, createZodvexBuilder, initZodvex } from '../src/internal/init'
+import { zx } from '../src/internal/zx'
 import {
   createMockDbReader,
   createMockDbWriter,
@@ -556,7 +556,7 @@ describe('initZodvex with registry', () => {
 // See: https://github.com/panzacoder/zodvex/issues — za.withContext() bug
 // where Record<string, never> collapsed ActionCtx to { [k: string]: never }.
 // ---------------------------------------------------------------------------
-import type { Overwrite } from '../src/types'
+import type { Overwrite } from '../src/internal/types'
 
 type ActionCtxLike = { auth: { getUserIdentity: () => Promise<null> }; runQuery: () => void }
 

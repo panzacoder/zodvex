@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { stripUndefined } from '../src/utils'
+import { stripUndefined } from '../src/internal/stripUndefined'
 
 /**
  * Tests for undefined stripping behavior.

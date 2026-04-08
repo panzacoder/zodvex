@@ -1,0 +1,26 @@
+import { z } from 'zod'
+import { zx } from 'zodvex'
+import { zq, zm } from '../functions'
+import { {{NAME}}Model } from '../models/{{FILE_NAME}}'
+
+export const get{{NAME}} = zq({
+  args: { id: zx.id('{{TABLE_NAME}}') },
+  handler: async (ctx, { id }) => {
+    return await ctx.db.get(id)
+  },
+  returns: {{NAME}}Model.schema.doc.nullable(),
+})
+
+export const create{{NAME}} = zm({
+  args: {
+    title: z.string(),
+    {{EXTRA_ARGS}}
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert('{{TABLE_NAME}}', {
+      ...args,
+      createdAt: new Date(),
+    })
+  },
+  returns: zx.id('{{TABLE_NAME}}'),
+})

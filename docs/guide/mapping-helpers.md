@@ -45,6 +45,6 @@ Both helpers are available from all zodvex entry points:
 
 ```ts
 import { zodToConvex, zodToConvexFields } from 'zodvex'
-import { zodToConvex, zodToConvexFields } from 'zodvex/core'
+import { zodToConvex, zodToConvexFields } from 'zodvex/mini'
 import { zodToConvex, zodToConvexFields } from 'zodvex/server'
 ```

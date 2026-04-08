@@ -1,5 +1,5 @@
 import { z } from "zod/mini";
-import { zx } from "zodvex/core";
+import { zx } from "zodvex/mini";
 import { zq, zm } from "./functions";
 import { UserModel } from "./models/user";
 import { tagged } from "./tagged";
@@ -9,7 +9,7 @@ export const get = zq({
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id);
   },
-  returns: UserModel.schema.doc.nullable(),
+  returns: z.nullable(UserModel.schema.doc),
 });
 
 export const getByEmail = zq({
@@ -20,7 +20,7 @@ export const getByEmail = zq({
       .withIndex("by_email", (q) => q.eq("email.value", email.value))
       .unique();
   },
-  returns: UserModel.schema.doc.nullable(),
+  returns: z.nullable(UserModel.schema.doc),
 });
 
 export const create = zm({
@@ -29,9 +29,14 @@ export const create = zm({
     email: z.string(),
     avatarUrl: z.optional(z.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { email, ...args }) => {
     const id = await ctx.db.insert("users", {
       ...args,
+      email: {
+        value: email,
+        tag: 'primary',
+        displayValue: `[primary] ${email}`,
+      },
       createdAt: new Date(),
     });
     return id;

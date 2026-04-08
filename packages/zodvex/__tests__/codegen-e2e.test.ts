@@ -2,8 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { discoverModules } from '../src/codegen/discover'
-import { generateApiFile, generateClientFile, generateSchemaFile } from '../src/codegen/generate'
+import { discoverModules } from '../src/public/codegen/discover'
+import {
+  generateApiFile,
+  generateClientFile,
+  generateSchemaFile
+} from '../src/public/codegen/generate'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
 const outputDir = path.join(fixtureDir, '_zodvex')
@@ -64,7 +68,7 @@ describe('codegen e2e', () => {
     expect(client.js).toContain("import { createZodvexHooks } from 'zodvex/react'")
     expect(client.js).toContain("import { createZodvexReactClient } from 'zodvex/react'")
     expect(client.js).toContain("import { createZodvexClient } from 'zodvex/client'")
-    expect(client.js).toContain("import { createBoundaryHelpers } from 'zodvex/core'")
+    expect(client.js).toContain("import { createBoundaryHelpers } from 'zodvex'")
     expect(client.js).toContain("import { zodvexRegistry } from './api.js'")
     expect(client.js).toContain('useZodQuery')
     expect(client.js).toContain('useZodMutation')
@@ -101,11 +105,11 @@ describe('codegen e2e', () => {
     expect(apiJs).toContain("import { z } from 'zod'")
   })
 
-  it('client.js imports from zodvex/react, zodvex/client, zodvex/core, and ./api.js', () => {
+  it('client.js imports from zodvex/react, zodvex/client, zodvex, and ./api.js', () => {
     const { js: clientJs } = generateClientFile()
     expect(clientJs).toContain("from 'zodvex/react'")
     expect(clientJs).toContain("from 'zodvex/client'")
-    expect(clientJs).toContain("from 'zodvex/core'")
+    expect(clientJs).toContain("from 'zodvex'")
     expect(clientJs).toContain("from './api.js'")
   })
 
@@ -174,7 +178,7 @@ describe('codegen e2e', () => {
     expect(apiJs).not.toContain('transforms lost')
     // Should contain extractCodec references
     expect(apiJs).toContain('extractCodec')
-    expect(apiJs).toContain("from 'zodvex/core'")
+    expect(apiJs).toContain("from 'zodvex'")
     expect(apiJs).toContain('extractCodec')
   })
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zid, zodTable } from '../src'
+import { zid } from '../src'
+import { zodTable } from '../src/server'
 
 describe('zodTable with z.object()', () => {
   it('should preserve field types when using z.object() wrapper', () => {

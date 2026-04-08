@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex'
 
 /** Shared field shape — used by both defineZodModel and zodTable in schema.ts */
 export const commentFields = {
@@ -11,3 +11,4 @@ export const commentFields = {
 
 export const CommentModel = defineZodModel('comments', commentFields)
   .index('by_task', ['taskId'])
+  .index('by_created', ['createdAt'])

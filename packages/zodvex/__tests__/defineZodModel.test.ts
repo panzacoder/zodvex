@@ -7,11 +7,11 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { zodvexCodec } from '../src/codec'
-import { readMeta, type ZodvexModelMeta } from '../src/meta'
-import { defineZodModel, type FieldPaths, type ModelFieldPaths } from '../src/model'
-import type { ZodvexCodec } from '../src/types'
-import { zx } from '../src/zx'
+import { zodvexCodec } from '../src/internal/codec'
+import { readMeta, type ZodvexModelMeta } from '../src/internal/meta'
+import { defineZodModel, type FieldPaths, type ModelFieldPaths } from '../src/internal/model'
+import type { ZodvexCodec } from '../src/internal/types'
+import { zx } from '../src/internal/zx'
 
 // ============================================================================
 // Type-Level Assertions (compile-time tests)
@@ -615,6 +615,7 @@ describe('defineZodModel __zodvexMeta', () => {
 
     const mmeta = meta as ZodvexModelMeta
     expect(mmeta.tableName).toBe('users')
+    expect(mmeta.definitionSource).toBe('shape')
     expect(mmeta.schemas.doc).toBe(model.schema.doc)
     expect(mmeta.schemas.insert).toBe(model.schema.insert)
     expect(mmeta.schemas.update).toBe(model.schema.update)

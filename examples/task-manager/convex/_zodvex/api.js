@@ -2,7 +2,7 @@
 // Run `zodvex generate` to regenerate
 
 import { z } from 'zod'
-import { zx, extractCodec } from 'zodvex/core'
+import { zx, extractCodec } from 'zodvex'
 import { CommentModel } from '../models/comment.js'
 import { NotificationModel } from '../models/notification.js'
 import { TaskModel } from '../models/task.js'
@@ -68,6 +68,14 @@ export const zodvexRegistry = {
   'notifications:listByRecipientAndKind': {
     args: z.object({ recipientId: zx.id("users"), kind: z.enum(["email", "push", "in_app"]) }),
     returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.number().optional(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.string().optional(), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  },
+  'cleanup:deleteOldDocs': {
+    args: z.object({ table: z.string(), cutoffTimestamp: z.number() }),
+    returns: z.number(),
+  },
+  'cleanup:queryCompletedTasks': {
+    args: z.object({ after: z.number(), before: z.number() }),
+    returns: z.array(z.any()),
   },
   'actions:health': {
     args: undefined,

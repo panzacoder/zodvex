@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "typecheck": "bunx convex codegen && bunx tsc --noEmit -p convex/tsconfig.json",
+    "dev:once": "bunx convex dev --once",
     "dev": "bunx convex dev"
   },
   "dependencies": {
@@ -10,5 +12,8 @@
     "convex-helpers": "^0.1.104",
     "zod": "^4.3.6",
     "zodvex": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }

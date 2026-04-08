@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex'
 import { zDuration } from '../codecs'
 import { tagged } from '../tagged'
 
@@ -28,3 +28,4 @@ export const activityFields = {
 
 export const ActivityModel = defineZodModel('activities', activityFields)
   .index('by_actor', ['actorId'])
+  .index('by_created', ['createdAt'])

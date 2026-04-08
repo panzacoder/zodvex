@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { zx } from "zodvex/core";
+import { zx } from "zodvex";
 import { zq, zm } from "./functions";
 import { UserModel } from "./models/user";
 import { tagged } from "./tagged";
@@ -29,9 +29,14 @@ export const create = zm({
     email: z.string(),
     avatarUrl: z.string().optional(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, { email, ...args }) => {
     const id = await ctx.db.insert("users", {
       ...args,
+      email: {
+        value: email,
+        tag: 'primary',
+        displayValue: `[primary] ${email}`,
+      },
       createdAt: new Date(),
     });
     return id;

@@ -24,6 +24,9 @@ jobs:
       - name: Run type check
         run: bun run type-check
 
+      - name: Run example type checks
+        run: bun run type-check:examples
+
       - name: Run tests
         run: bun run test
 
@@ -39,6 +42,7 @@ jobs:
             echo "ERROR: Generated files are stale. Run 'cd examples/task-manager && bun x zodvex generate' and commit the result."
             exit 1
           }
+
 
   lint:
     runs-on: macos-latest

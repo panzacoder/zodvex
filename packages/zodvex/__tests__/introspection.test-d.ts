@@ -2,8 +2,8 @@ import type { TableDefinition, VObject } from 'convex/server'
 import type { VLiteral, VUnion } from 'convex/values'
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
-import { zodTable } from '../src/tables'
+import { zid } from '../src/internal/ids'
+import { zodTable } from '../src/legacy/tables'
 
 describe('Table introspection preserves enum types', () => {
   it('should preserve enum type in direct validator fields', () => {

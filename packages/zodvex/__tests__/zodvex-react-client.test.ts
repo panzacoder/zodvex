@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { zx } from '../src/zx'
+import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
 // Mock convex/react — we simulate ConvexReactClient behaviour without a real
@@ -10,6 +10,7 @@ import { zx } from '../src/zx'
 // Shared state + mock class — vi.hoisted runs before vi.mock
 const { mocks, MockConvexReactClient } = vi.hoisted(() => {
   const state = {
+    instancesCreated: 0,
     queryImpl: undefined as ((ref: any, args: any) => any) | undefined,
     mutationImpl: undefined as ((ref: any, args: any) => any) | undefined,
     actionImpl: undefined as ((ref: any, args: any) => any) | undefined,
@@ -26,6 +27,7 @@ const { mocks, MockConvexReactClient } = vi.hoisted(() => {
   class MockConvexReactClient {
     private _url: string
     constructor(address: string) {
+      state.instancesCreated++
       this._url = address
     }
 
@@ -97,7 +99,7 @@ vi.mock('convex/react', () => ({
 
 // Import AFTER mocks are set up (vitest hoists vi.mock)
 const { ZodvexReactClient, createZodvexReactClient } = await import(
-  '../src/react/zodvexReactClient'
+  '../src/public/react/zodvexReactClient'
 )
 
 // ---------------------------------------------------------------------------
@@ -156,6 +158,7 @@ describe('ZodvexReactClient', () => {
     mocks.closeCalled = false
     mocks.connectionStateCalls = 0
     mocks.subscribeToConnectionStateCb = null
+    mocks.instancesCreated = 0
     client = createZodvexReactClient(registry as any, { url: 'https://test.convex.cloud' })
   })
 
@@ -177,6 +180,12 @@ describe('ZodvexReactClient', () => {
     it('returns ZodvexReactClient instance from factory', () => {
       const c = createZodvexReactClient(registry as any, { url: 'https://test.convex.cloud' })
       expect(c).toBeInstanceOf(ZodvexReactClient)
+    })
+
+    it('does not create the inner client until first use', () => {
+      expect(mocks.instancesCreated).toBe(0)
+      void client.convex
+      expect(mocks.instancesCreated).toBe(1)
     })
   })
 
@@ -470,18 +479,30 @@ describe('ZodvexReactClient', () => {
   // ---- pass-through methods -----------------------------------------------
 
   describe('pass-through methods', () => {
-    it('delegates setAuth to inner ConvexReactClient', () => {
+    it('stores setAuth lazily until the inner client is created', () => {
       const fetchToken = async () => 'test-token'
       const onChange = () => {
         /* noop */
       }
       client.setAuth(fetchToken, onChange)
+      expect(mocks.instancesCreated).toBe(0)
+      expect(mocks.setAuthCalls).toHaveLength(0)
+
+      void client.convex
+
       expect(mocks.setAuthCalls).toHaveLength(1)
       expect(mocks.setAuthCalls[0].fetchToken).toBe(fetchToken)
       expect(mocks.setAuthCalls[0].onChange).toBe(onChange)
     })
 
-    it('delegates clearAuth to inner ConvexReactClient', () => {
+    it('does not create an inner client just to clear auth', () => {
+      client.clearAuth()
+      expect(mocks.instancesCreated).toBe(0)
+      expect(mocks.clearAuthCalled).toBe(false)
+    })
+
+    it('delegates clearAuth once the inner client exists', () => {
+      void client.convex
       client.clearAuth()
       expect(mocks.clearAuthCalled).toBe(true)
     })

@@ -8,7 +8,7 @@ Use `zx.codec()` to create custom codecs that automatically work with validator 
 
 ```ts
 import { z } from 'zod'
-import { zx, type ZodvexCodec } from 'zodvex/core'
+import { zx, type ZodvexCodec } from 'zodvex'
 
 type EncryptedCodec = ZodvexCodec<
   z.ZodObject<{ encrypted: z.ZodString }>,
@@ -109,7 +109,7 @@ Both work at runtime — the difference is TypeScript type inference precision. 
 For manual control over encoding/decoding outside of the automatic schema pipeline, use `decodeDoc` and `encodeDoc`:
 
 ```ts
-import { decodeDoc, encodeDoc } from 'zodvex/core'
+import { decodeDoc, encodeDoc } from 'zodvex'
 import { UserModel } from './models/user'
 
 // Decode a raw Convex document to runtime types

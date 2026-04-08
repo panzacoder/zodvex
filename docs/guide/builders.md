@@ -38,7 +38,7 @@ The returned builders:
 ```typescript
 // convex/users.ts
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { zq, zm } from './util'
 import { UserModel } from './models/user'
 

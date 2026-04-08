@@ -1,8 +1,8 @@
 import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { registryHelpers, zid } from '../src/ids'
-import { zodToConvex } from '../src/mapping'
+import { registryHelpers, zid } from '../src/internal/ids'
+import { zodToConvex } from '../src/internal/mapping'
 
 describe('zid', () => {
   it('creates a string validator with proper type', () => {
@@ -23,9 +23,15 @@ describe('zid', () => {
     expect((userId as any)._tableName).toBe('users')
   })
 
-  it('has description for introspection', () => {
+  it('has _tableName for introspection', () => {
     const userId = zid('users')
-    expect(userId.description).toBe('convexId:users')
+    // _tableName works in both full zod and zod/mini
+    expect((userId as any)._tableName).toBe('users')
+    // description is set via z.describe() check, accessible in full zod
+    // but not exposed as a property in zod/mini
+    if (userId.description !== undefined) {
+      expect(userId.description).toBe('convexId:users')
+    }
   })
 
   it('converts to v.id() via zodToConvex', () => {

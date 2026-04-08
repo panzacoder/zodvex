@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/db'
+import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
 import type {
   ReaderAuditConfig,
   TableRules,
@@ -8,10 +8,10 @@ import type {
   WriterAuditConfig,
   ZodvexRules,
   ZodvexRulesConfig
-} from '../src/rules'
-import { RulesQueryChain } from '../src/rules'
-import type { ZodTableSchemas } from '../src/schema'
-import { zx } from '../src/zx'
+} from '../src/internal/rules'
+import { RulesQueryChain } from '../src/internal/rules'
+import type { ZodTableSchemas } from '../src/internal/schema'
+import { zx } from '../src/internal/zx'
 
 describe('rules types', () => {
   it('exports all public types', () => {

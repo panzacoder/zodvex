@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx } from '../../../src/zx'
+import { zx } from '../../../src/internal/zx'
 
 export function tagged<T extends z.ZodTypeAny>(inner: T) {
   return zx.codec(

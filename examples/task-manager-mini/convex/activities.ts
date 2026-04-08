@@ -1,3 +1,4 @@
+import { z } from 'zod/mini'
 import { zx } from 'zodvex/mini'
 import { zq, zm } from './functions'
 import { ActivityModel } from './models/activity'
@@ -7,7 +8,7 @@ export const get = zq({
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id)
   },
-  returns: ActivityModel.schema.doc.nullable(),
+  returns: z.nullable(ActivityModel.schema.doc),
 })
 
 export const listByActor = zq({

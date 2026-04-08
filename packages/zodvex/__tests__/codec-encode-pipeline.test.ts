@@ -11,11 +11,11 @@
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { createBoundaryHelpers } from '../src/boundaryHelpers'
-import { zodvexCodec } from '../src/codec'
-import { extractCodec } from '../src/codegen/extractCodec'
-import { safeEncode } from '../src/normalizeCodecPaths'
-import { stripUndefined } from '../src/utils'
+import { createBoundaryHelpers } from '../src/internal/boundaryHelpers'
+import { zodvexCodec } from '../src/internal/codec'
+import { safeEncode } from '../src/internal/normalizeCodecPaths'
+import { stripUndefined } from '../src/internal/stripUndefined'
+import { extractCodec } from '../src/public/codegen/extractCodec'
 
 const functionNameSymbol = Symbol.for('functionName')
 

@@ -60,7 +60,7 @@ npm install zodvex zod convex convex-helpers
 ```ts
 // convex/models.ts
 import { z } from 'zod'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex'
 
 export const EventModel = defineZodModel('events', {
   title: z.string(),
@@ -108,7 +108,7 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
 ```ts
 // convex/events.ts
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { zq, zm } from './functions'
 import { EventModel } from './models'
 
@@ -142,13 +142,15 @@ See the full [quickstart example](./examples/quickstart/) for a runnable project
 
 ## Import Paths
 
-Three entry points:
+Four entry points:
 
-- **`zodvex/core`** — Client-safe. Use in React components and shared code.
+- **`zodvex`** — Client-safe full-Zod surface. Use in React components and shared code.
 - **`zodvex/server`** — Server-only. Use in Convex functions and schema definitions.
-- **`zodvex`** — Full library. Convenient but pulls in server code.
+- **`zodvex/mini`** — Client-safe zod/mini surface.
+- **`zodvex/mini/server`** — Server-only zod/mini surface.
+- **`zodvex/legacy`** — Deprecated runtime APIs kept only for migration.
 
-> Use `zodvex/core` for client bundles to keep them small.
+> `zodvex/core` remains as a deprecated compatibility alias for `zodvex`.
 
 ## Features
 
@@ -186,14 +188,14 @@ Guides: [Codegen](./docs/guide/codegen.md) | Example: [examples/task-manager/](.
 `zodTable` and `zQueryBuilder` still work without `initZodvex`:
 
 ```ts
-import { zodTable, zQueryBuilder } from 'zodvex/server'
+import { zodTable, zQueryBuilder } from 'zodvex/legacy'
 import { query } from './_generated/server'
 
 const Users = zodTable('users', { name: z.string() })
 const zq = zQueryBuilder(query)
 ```
 
-At this level, zodvex is roughly equivalent to convex-helpers. This is a valid stepping-stone — when you're ready for codecs, see the [Quick Start](#quick-start) above.
+At this level, zodvex is roughly equivalent to convex-helpers. This is a valid stepping-stone, but the API is deprecated. When you're ready for codecs, see the [Quick Start](#quick-start) above.
 
 ## Supported Types
 

@@ -3,8 +3,8 @@ import type { VArray, VId, VOptional } from 'convex/values'
 import { v } from 'convex/values'
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
-import { zodDoc, zodTable } from '../src/tables'
+import { zid } from '../src/internal/ids'
+import { zodDoc, zodTable } from '../src/legacy/tables'
 import { mutation, query } from './_generated/server'
 
 describe('zodTable type inference', () => {

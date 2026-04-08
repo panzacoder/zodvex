@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx } from '../../../src/zx'
+import { zx } from '../../../src/internal/zx'
 
 export const zDuration = zx.codec(
   z.number(),

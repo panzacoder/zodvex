@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx } from 'zodvex/core'
+import { zx } from 'zodvex'
 import { zq, zm, zim } from './functions'
 import { NotificationModel } from './models/notification'
 
@@ -8,7 +8,7 @@ export const get = zq({
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id)
   },
-  returns: NotificationModel.schema.doc.nullable(),
+  returns: z.nullable(NotificationModel.schema.doc),
 })
 
 export const listByRecipient = zq({
@@ -128,11 +128,14 @@ export const cleanupOld = zim({
       .query('notifications')
       .withIndex('by_created', (q) => q.lt('createdAt', thirtyDaysAgo))
       .collect()
-    
+
     let deleted = 0
     for (const notification of oldNotifications) {
-      if (notification.kind === 'in_app' && notification.read) {
-        await ctx.db.delete(notification._id)
+      // oldNotifications is typed as unknown[] from the union table query.
+      // Cast to access discriminated fields.
+      const n = notification as { kind: string; read?: boolean; _id: any }
+      if (n.kind === 'in_app' && n.read) {
+        await ctx.db.delete(n._id)
         deleted++
       }
     }

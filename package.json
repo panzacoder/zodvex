@@ -7,9 +7,15 @@
     "dev": "bun run --cwd packages/zodvex dev",
     "type-check": "bun run --cwd packages/zodvex type-check",
     "test": "bun run --cwd packages/zodvex test",
-    "lint": "bun run --cwd packages/zodvex lint",
+    "lint": "bun run --cwd packages/zodvex lint && bun run guard:source-boundaries",
     "lint:fix": "bun run --cwd packages/zodvex lint:fix",
-    "format": "bun run --cwd packages/zodvex format"
+    "format": "bun run --cwd packages/zodvex format",
+    "guard:source-boundaries": "bun scripts/check-source-boundaries.ts",
+    "verify:consumer-declarations": "bunx tsc -p test-fixtures/public-declaration-smoke/tsconfig.json",
+    "verify:examples": "bun run guard:mini-imports && bun run --cwd examples/stress-test typecheck && bun run --cwd examples/stress-test generate && bun run --cwd examples/stress-test measure -- --count=11 --mode=both --variant=baseline --results=/tmp/zodvex-stress-measure && bun run --cwd examples/stress-test report -- --scales=11 --results=/tmp/zodvex-stress-report && bun run --cwd examples/task-manager typecheck && bun run --cwd examples/task-manager test && bun run --cwd examples/task-manager generate && bun run --cwd examples/task-manager-mini typecheck && bun run --cwd examples/task-manager-mini test && bun run --cwd examples/task-manager-mini generate",
+    "verify:examples:network": "bun run --cwd examples/task-manager dev:once && bun run --cwd examples/task-manager test:smoke && bun run --cwd examples/task-manager-mini dev:once && bun run --cwd examples/task-manager-mini test:smoke && bun run --cwd examples/quickstart dev:once && bun run --cwd examples/quickstart typecheck",
+    "type-check:examples": "bunx tsc --noEmit -p examples/task-manager/convex/tsconfig.json && bunx tsc --noEmit -p examples/task-manager-mini/convex/tsconfig.json",
+    "guard:mini-imports": "! rg -n \"zodvex/core\" examples/task-manager-mini/convex examples/task-manager-mini/src"
   },
   "devDependencies": {}
 }

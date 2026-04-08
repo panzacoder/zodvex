@@ -2,8 +2,8 @@ import { jsonSchema as aiJsonSchema, generateObject } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
-import { toJSONSchema } from '../src/registry'
+import { zid } from '../src/internal/ids'
+import { toJSONSchema } from '../src/internal/registry'
 
 describe('AI SDK integration (JSON Schema)', () => {
   it('can consume zodvex JSON Schema (zid + date) via generateObject', async () => {

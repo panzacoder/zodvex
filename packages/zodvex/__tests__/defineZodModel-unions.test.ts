@@ -7,9 +7,9 @@
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { readMeta, type ZodvexModelMeta } from '../src/meta'
-import { defineZodModel, type FieldPaths, type ModelFieldPaths } from '../src/model'
-import { isZodUnion } from '../src/schemaHelpers'
+import { readMeta, type ZodvexModelMeta } from '../src/internal/meta'
+import { defineZodModel, type FieldPaths, type ModelFieldPaths } from '../src/internal/model'
+import { isZodUnion } from '../src/internal/schemaHelpers'
 
 // ============================================================================
 // Type-Level Assertions
@@ -167,6 +167,7 @@ describe('defineZodModel with union schema', () => {
 
     const mmeta = meta as ZodvexModelMeta
     expect(mmeta.tableName).toBe('visits')
+    expect(mmeta.definitionSource).toBe('schema')
     expect(mmeta.schemas.doc).toBeDefined()
     expect(mmeta.schemas.insert).toBeDefined()
   })

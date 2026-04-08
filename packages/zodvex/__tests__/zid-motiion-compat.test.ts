@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { registryHelpers, zid } from '../src/ids'
+import { registryHelpers, zid } from '../src/internal/ids'
 
 /**
  * Compatibility tests for motiion project's usage of zid
@@ -59,7 +59,7 @@ describe('zid - motiion compatibility', () => {
   describe('getSchemaDefaults compatibility', () => {
     // Simulate motiion's getSchemaDefaults behavior
     function getDefaults(schema: z.ZodTypeAny): any {
-      const def = (schema as any)._def
+      const def = (schema as any)._zod?.def
       if (!def) return undefined
 
       const type = def.type
@@ -146,7 +146,7 @@ describe('zid - motiion compatibility', () => {
 
   describe('type name detection (for convexSchemaToForm)', () => {
     function getTypeName(schema: z.ZodTypeAny): string | undefined {
-      return (schema as any)?._def?.type
+      return (schema as any)?._zod?.def?.type
     }
 
     it('has type name of "string" instead of "branded"', () => {
@@ -178,8 +178,8 @@ describe('zid - motiion compatibility', () => {
     it('works in union types (profileId pattern)', () => {
       const profileIdUnion = z.union([zid('dancers'), zid('choreographers')])
 
-      const dancerVariant = profileIdUnion.options[0]
-      const choreoVariant = profileIdUnion.options[1]
+      const dancerVariant = (profileIdUnion as any)._zod.def.options[0]
+      const choreoVariant = (profileIdUnion as any)._zod.def.options[1]
 
       // Both variants should be detectable
       expect((dancerVariant as any)._tableName).toBe('dancers')
@@ -190,11 +190,11 @@ describe('zid - motiion compatibility', () => {
       const favoritesSchema = z.array(zid('choreographers'))
 
       // The element type should be detectable
-      const elementType = (favoritesSchema as any)._def.type
+      const elementType = (favoritesSchema as any)._zod.def.type
       expect(elementType).toBe('array')
 
       // The inner schema (via _def.element) should have _tableName
-      const innerSchema = (favoritesSchema as any)._def.element
+      const innerSchema = (favoritesSchema as any)._zod.def.element
       expect((innerSchema as any)._tableName).toBe('choreographers')
     })
 
@@ -202,7 +202,7 @@ describe('zid - motiion compatibility', () => {
       const agencyIdOptional = zid('agencies').optional()
 
       // Optional wrapper should preserve access to inner schema
-      const innerSchema = (agencyIdOptional as any)._def.innerType
+      const innerSchema = (agencyIdOptional as any)._zod.def.innerType
       expect((innerSchema as any)._tableName).toBe('agencies')
 
       // Registry check should work on the optional too
@@ -214,7 +214,7 @@ describe('zid - motiion compatibility', () => {
     it('works in storage union pattern (media field)', () => {
       const mediaSchema = z.union([zid('_storage'), z.string()])
 
-      const storageVariant = mediaSchema.options[0]
+      const storageVariant = (mediaSchema as any)._zod.def.options[0]
       expect((storageVariant as any)._tableName).toBe('_storage')
     })
   })

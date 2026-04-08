@@ -11,3 +11,4 @@ export const commentFields = {
 
 export const CommentModel = defineZodModel('comments', commentFields)
   .index('by_task', ['taskId'])
+  .index('by_created', ['createdAt'])

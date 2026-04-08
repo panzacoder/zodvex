@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { zx, defineZodModel } from 'zodvex/core'
+import { zx, defineZodModel } from 'zodvex'
 import { zDuration } from '../codecs'
 
 /** Shared field shape — used by both defineZodModel and zodTable in schema.ts */
@@ -21,3 +21,4 @@ export const TaskModel = defineZodModel('tasks', taskFields)
   .index('by_status', ['status'])
   .index('by_assignee', ['assigneeId'])
   .index('by_created', ['createdAt'])
+  .index('by_completed', ['completedAt'])

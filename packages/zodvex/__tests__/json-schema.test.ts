@@ -8,14 +8,14 @@
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zid } from '../src/ids'
+import { zid } from '../src/internal/ids'
 import {
   composeOverrides,
   getZidTableName,
   isZidSchema,
   toJSONSchema,
   zodvexJSONSchemaOverride
-} from '../src/registry'
+} from '../src/internal/registry'
 
 describe('isZidSchema', () => {
   it('should return true for zid schemas', () => {

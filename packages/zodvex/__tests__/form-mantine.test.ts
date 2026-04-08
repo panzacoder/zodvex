@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { mantineResolver } from '../src/form/mantine'
-import { zx } from '../src/zx'
+import { zx } from '../src/internal/zx'
 
 const functionNameSymbol = Symbol.for('functionName')
 

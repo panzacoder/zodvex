@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { safeEncode } from '../src/normalizeCodecPaths'
-import { stripUndefined } from '../src/utils'
-import { zx } from '../src/zx'
+import { safeEncode } from '../src/internal/normalizeCodecPaths'
+import { stripUndefined } from '../src/internal/stripUndefined'
+import { $ZodError } from '../src/internal/zod-core'
+import { zx } from '../src/internal/zx'
 
 /**
  * Integration tests for safeEncode with realistic codec patterns.
@@ -61,7 +62,7 @@ describe('safeEncode integration — tagged() codec (nested wire)', () => {
       })
       expect.unreachable('should have thrown')
     } catch (e) {
-      expect(e).toBeInstanceOf(z.ZodError)
+      expect(e).toBeInstanceOf($ZodError)
       const err = e as z.ZodError
       const paths = err.issues.map(i => i.path)
       // All email-related errors should stop at ["email"], not ["email", "value"] or ["email", "tag"]
@@ -81,7 +82,7 @@ describe('safeEncode integration — tagged() codec (nested wire)', () => {
       })
       expect.unreachable('should have thrown')
     } catch (e) {
-      expect(e).toBeInstanceOf(z.ZodError)
+      expect(e).toBeInstanceOf($ZodError)
       const err = e as z.ZodError
       const namePaths = err.issues.filter(i => i.path[0] === 'name').map(i => i.path)
       expect(namePaths[0]).toEqual(['name'])
@@ -115,7 +116,7 @@ describe('safeEncode integration — zDuration codec (scalar wire)', () => {
       })
       expect.unreachable('should have thrown')
     } catch (e) {
-      expect(e).toBeInstanceOf(z.ZodError)
+      expect(e).toBeInstanceOf($ZodError)
       const err = e as z.ZodError
       const estimatePaths = err.issues.filter(i => i.path[0] === 'estimate').map(i => i.path)
       // Scalar codec — path should be ["estimate"] or ["estimate", "hours"] etc
@@ -139,7 +140,7 @@ describe('safeEncode integration — tagged() in array', () => {
       })
       expect.unreachable('should have thrown')
     } catch (e) {
-      expect(e).toBeInstanceOf(z.ZodError)
+      expect(e).toBeInstanceOf($ZodError)
       const err = e as z.ZodError
       const paths = err.issues.map(i => i.path)
       // Should be ["tags", 0] — not ["tags", 0, "value"] or ["tags", 0, "tag"]

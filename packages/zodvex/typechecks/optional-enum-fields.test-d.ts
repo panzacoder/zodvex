@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { VOptional, VUnion } from 'convex/values'
-import { zodToConvexFields } from '../src/mapping'
+import { zodToConvexFields } from '../src/internal/mapping'
 import type { Equal, Expect } from './test-helpers'
 
 // Shape with optional enums

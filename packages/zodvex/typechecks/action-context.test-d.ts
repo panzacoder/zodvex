@@ -1,5 +1,5 @@
 import type { GenericActionCtx, GenericDataModel } from 'convex/server'
-import type { Overwrite } from '../src/types'
+import type { Overwrite } from '../src/internal/types'
 import type { Equal, Expect } from './test-helpers'
 
 // --- Test 1: Overwrite<T, {}> preserves T ---

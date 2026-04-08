@@ -1,5 +1,7 @@
 import { convexTest } from "convex-test";
 import { expect, test, describe } from "vitest";
+import { z } from "zod";
+import { zx } from "zodvex/mini";
 import { api } from "./_generated/api";
 import schema from "./schema";
 
@@ -192,13 +194,15 @@ describe("top-level discriminated union table", () => {
       message: "Recent",
     });
 
-    // Query by_created using wire format (number timestamp).
-    // Inside the handler, zodvex decodes this to a Date, then the handler passes
-    // the Date to .withIndex('by_created', q => q.gte('createdAt', after)).
-    // The withIndex wrapper must encode the Date back to a number.
-    const results = await t.query(api.notifications.listByCreated, {
-      after: new Date(0),
-    });
+    // Encode args the same way a real client would: build the runtime value,
+    // then z.encode() to wire format before sending.
+    const argsSchema = z.object({ after: zx.date() });
+    const wireArgs = z.encode(argsSchema, { after: new Date(0) });
+
+    // Inside the handler, zodvex decodes the timestamp back to a Date, then
+    // the handler passes that Date to .withIndex('by_created', q => q.gte(...)).
+    // The withIndex wrapper must re-encode Date → number for Convex's index.
+    const results = await t.query(api.notifications.listByCreated, wireArgs);
 
     expect(results.length).toBeGreaterThanOrEqual(2);
     // createdAt should be wire format (number)

@@ -9,7 +9,7 @@ export const get = zq({
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id)
   },
-  returns: TaskModel.schema.doc.nullable(),
+  returns: z.nullable(TaskModel.schema.doc),
 })
 
 export const list = zq({

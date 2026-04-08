@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { attachMeta } from '../../../../src/meta'
+import { attachMeta } from '../../../../src/internal/meta'
 
 const phoneVariant = z.object({ type: z.literal('phone'), duration: z.number() })
 const inPersonVariant = z.object({ type: z.literal('in-person'), roomId: z.string() })

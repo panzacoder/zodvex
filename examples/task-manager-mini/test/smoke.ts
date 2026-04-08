@@ -40,28 +40,27 @@ async function main() {
   const zodvexDir = path.join(convexDir, '_zodvex')
 
   // Run codegen
-  const cliPath = path.resolve(import.meta.dir, '../../../dist/cli/index.js')
-  const result = spawnSync('bun', [cliPath, 'generate'], {
+  const result = spawnSync('bun', ['run', 'generate'], {
     cwd: path.resolve(import.meta.dir, '..'),
     stdio: 'pipe',
   })
   assert(result.status === 0, 'zodvex generate ran successfully')
 
   // Verify files exist
-  assert(fs.existsSync(path.join(zodvexDir, 'schema.ts')), 'schema.ts generated')
-  assert(fs.existsSync(path.join(zodvexDir, 'api.ts')), 'api.ts generated')
+  assert(fs.existsSync(path.join(zodvexDir, 'schema.js')), 'schema.js generated')
+  assert(fs.existsSync(path.join(zodvexDir, 'api.js')), 'api.js generated')
 
   // Verify schema.ts content
-  const schemaContent = fs.readFileSync(path.join(zodvexDir, 'schema.ts'), 'utf-8')
-  assert(schemaContent.includes('AUTO-GENERATED'), 'schema.ts has auto-generated header')
-  assert(schemaContent.includes('UserModel'), 'schema.ts exports UserModel')
-  assert(schemaContent.includes('TaskModel'), 'schema.ts exports TaskModel')
-  assert(schemaContent.includes('CommentModel'), 'schema.ts exports CommentModel')
+  const schemaContent = fs.readFileSync(path.join(zodvexDir, 'schema.js'), 'utf-8')
+  assert(schemaContent.includes('AUTO-GENERATED'), 'schema.js has auto-generated header')
+  assert(schemaContent.includes('UserModel'), 'schema.js exports UserModel')
+  assert(schemaContent.includes('TaskModel'), 'schema.js exports TaskModel')
+  assert(schemaContent.includes('CommentModel'), 'schema.js exports CommentModel')
 
   // Verify api.ts content
-  const apiContent = fs.readFileSync(path.join(zodvexDir, 'api.ts'), 'utf-8')
-  assert(apiContent.includes('AUTO-GENERATED'), 'api.ts has auto-generated header')
-  assert(apiContent.includes('zodvexRegistry'), 'api.ts exports registry')
+  const apiContent = fs.readFileSync(path.join(zodvexDir, 'api.js'), 'utf-8')
+  assert(apiContent.includes('AUTO-GENERATED'), 'api.js has auto-generated header')
+  assert(apiContent.includes('zodvexRegistry'), 'api.js exports registry')
   assert(apiContent.includes("'users:get'"), 'registry has users:get')
   assert(apiContent.includes("'tasks:list'"), 'registry has tasks:list')
   assert(apiContent.includes("'comments:create'"), 'registry has comments:create')
@@ -82,12 +81,13 @@ async function main() {
   assert(user!.name === 'Smoke Test User', 'user name matches')
   assert(typeof user!.createdAt === 'number', `createdAt is wire format (number): ${user!.createdAt}`)
 
-  // Create a task with duration estimate (90 minutes)
+  // Create a task with duration estimate.
+  // ConvexHttpClient talks to the raw Convex API, so codec args use wire format.
   const taskId = await client.mutation(api.tasks.create, {
     title: 'Smoke Test Task',
     ownerId: userId,
     priority: 'high',
-    estimate: { hours: 1, minutes: 30 },
+    estimate: 90,
   })
   assert(typeof taskId === 'string', `task created: ${taskId}`)
 
