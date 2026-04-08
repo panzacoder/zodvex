@@ -10,16 +10,41 @@ export type ZodvexReactClientOptions = ({ url: string } | { client: ConvexReactC
   BoundaryHelpersOptions
 
 export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
-  readonly convex: ConvexReactClient
   private codec: ReturnType<typeof createBoundaryHelpers>
+  private innerClient?: ConvexReactClient
+  private options: ZodvexReactClientOptions
+  private pendingAuth?: {
+    fetchToken: AuthTokenFetcher
+    onChange?: (isAuthenticated: boolean) => void
+  }
 
   constructor(registry: R, options: ZodvexReactClientOptions) {
     this.codec = createBoundaryHelpers(registry, { onDecodeError: options.onDecodeError })
+    this.options = options
     if ('client' in options) {
-      this.convex = options.client
-    } else {
-      this.convex = new ConvexReactClient(options.url)
+      this.innerClient = options.client
     }
+  }
+
+  private getUrl(): string {
+    if ('url' in this.options) return this.options.url
+    if (this.innerClient) return this.innerClient.url
+    throw new Error('[zodvex] ZodvexReactClient is missing a Convex URL.')
+  }
+
+  private getConvex(): ConvexReactClient {
+    if (this.innerClient) return this.innerClient
+
+    const client = new ConvexReactClient(this.getUrl())
+    if (this.pendingAuth) {
+      client.setAuth(this.pendingAuth.fetchToken, this.pendingAuth.onChange)
+    }
+    this.innerClient = client
+    return client
+  }
+
+  get convex(): ConvexReactClient {
+    return this.getConvex()
   }
 
   // ---------------------------------------------------------------------------
@@ -30,7 +55,7 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
     ref: Q,
     args: Q['_args']
   ): Promise<Q['_returnType']> {
-    const wireResult = await this.convex.query(
+    const wireResult = await this.getConvex().query(
       ref,
       this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
     )
@@ -41,7 +66,7 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
     ref: M,
     args: M['_args']
   ): Promise<M['_returnType']> {
-    const wireResult = await this.convex.mutation(
+    const wireResult = await this.getConvex().mutation(
       ref,
       this.codec.encodeArgs(ref, args) as FunctionArgs<M>
     )
@@ -52,7 +77,7 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
     ref: A,
     args: A['_args']
   ): Promise<A['_returnType']> {
-    const wireResult = await this.convex.action(
+    const wireResult = await this.getConvex().action(
       ref,
       this.codec.encodeArgs(ref, args) as FunctionArgs<A>
     )
@@ -65,7 +90,7 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
     options?: WatchQueryOptions
   ): Watch<Q['_returnType']> {
     const wireArgs = this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
-    const innerWatch = this.convex.watchQuery(ref, wireArgs, options as any)
+    const innerWatch = this.getConvex().watchQuery(ref, wireArgs, options as any)
 
     // Memoize by wire reference identity to avoid redundant Zod parse.
     // Convex creates a new object per server transition via jsonToConvex()
@@ -95,27 +120,31 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
   // ---------------------------------------------------------------------------
 
   setAuth(fetchToken: AuthTokenFetcher, onChange?: (isAuthenticated: boolean) => void): void {
-    this.convex.setAuth(fetchToken, onChange)
+    this.pendingAuth = { fetchToken, onChange }
+    if (this.innerClient) {
+      this.innerClient.setAuth(fetchToken, onChange)
+    }
   }
 
   clearAuth(): void {
-    this.convex.clearAuth()
+    this.pendingAuth = undefined
+    this.innerClient?.clearAuth()
   }
 
   async close(): Promise<void> {
-    await this.convex.close()
+    await this.getConvex().close()
   }
 
   get url(): string {
-    return this.convex.url
+    return this.getUrl()
   }
 
   connectionState() {
-    return this.convex.connectionState()
+    return this.getConvex().connectionState()
   }
 
   subscribeToConnectionState(cb: (state: ConnectionState) => void): () => void {
-    return this.convex.subscribeToConnectionState(cb)
+    return this.getConvex().subscribeToConnectionState(cb)
   }
 }
 

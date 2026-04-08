@@ -10,6 +10,7 @@ import { zx } from '../src/internal/zx'
 // Shared state + mock class — vi.hoisted runs before vi.mock
 const { mocks, MockConvexClient } = vi.hoisted(() => {
   const state = {
+    instancesCreated: 0,
     queryImpl: undefined as ((ref: any, args: any) => any) | undefined,
     mutationImpl: undefined as ((ref: any, args: any) => any) | undefined,
     onUpdateImpl: undefined as ((ref: any, args: any, cb: any) => () => void) | undefined,
@@ -22,6 +23,7 @@ const { mocks, MockConvexClient } = vi.hoisted(() => {
   class MockConvexClient {
     url: string
     constructor(url: string) {
+      state.instancesCreated++
       this.url = url
     }
 
@@ -120,6 +122,7 @@ describe('ZodvexClient', () => {
     mocks.onUpdateImpl = undefined
     mocks.setAuthFetchers = []
     mocks.closeCalled = false
+    mocks.instancesCreated = 0
     client = createZodvexClient(registry as any, { url: 'https://test.convex.cloud' })
   })
 
@@ -336,18 +339,26 @@ describe('ZodvexClient', () => {
   // ---- setAuth & close ----------------------------------------------------
 
   describe('setAuth and close', () => {
-    it('delegates setAuth to inner ConvexClient with a token fetcher', async () => {
+    it('stores setAuth lazily until the inner client is created', async () => {
       client.setAuth('test-token-123')
-      // setAuth wraps the token in an AuthTokenFetcher
+      expect(mocks.instancesCreated).toBe(0)
+      expect(mocks.setAuthFetchers).toHaveLength(0)
+
+      void client.convex
+
       expect(mocks.setAuthFetchers).toHaveLength(1)
       expect(typeof mocks.setAuthFetchers[0]).toBe('function')
-      // Resolving the fetcher should yield the token
       const token = await lastTokenValue()
       expect(token).toBe('test-token-123')
     })
 
-    it('delegates setAuth(null) as a fetcher returning null', async () => {
+    it('stores setAuth(null) lazily as a fetcher returning null', async () => {
       client.setAuth(null)
+      expect(mocks.instancesCreated).toBe(0)
+      expect(mocks.setAuthFetchers).toHaveLength(0)
+
+      void client.convex
+
       expect(mocks.setAuthFetchers).toHaveLength(1)
       expect(typeof mocks.setAuthFetchers[0]).toBe('function')
       const token = await lastTokenValue()
@@ -365,10 +376,12 @@ describe('ZodvexClient', () => {
   describe('constructor', () => {
     it('sets auth token when provided in options', async () => {
       mocks.setAuthFetchers = []
-      createZodvexClient(registry as any, {
+      const withToken = createZodvexClient(registry as any, {
         url: 'https://test.convex.cloud',
         token: 'initial-token'
       })
+      expect(mocks.setAuthFetchers).toHaveLength(0)
+      void withToken.convex
       expect(mocks.setAuthFetchers).toHaveLength(1)
       const token = await lastTokenValue()
       expect(token).toBe('initial-token')
@@ -388,6 +401,12 @@ describe('ZodvexClient', () => {
       mocks.setAuthFetchers = []
       createZodvexClient(registry as any, { url: 'https://test.convex.cloud' })
       expect(mocks.setAuthFetchers).toHaveLength(0)
+    })
+
+    it('does not create the inner client until first use', () => {
+      expect(mocks.instancesCreated).toBe(0)
+      void client.convex
+      expect(mocks.instancesCreated).toBe(1)
     })
   })
 
