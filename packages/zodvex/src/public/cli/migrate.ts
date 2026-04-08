@@ -74,6 +74,64 @@ const DEPRECATED_SYMBOLS = [
   'mapDateFieldToNumber'
 ]
 
+const LEGACY_IMPORTS = new Set([
+  'zActionBuilder',
+  'zCustomActionBuilder',
+  'zCustomMutationBuilder',
+  'zCustomQueryBuilder',
+  'zMutationBuilder',
+  'zQueryBuilder',
+  'zodDoc',
+  'zodDocOrNull',
+  'zodTable'
+])
+
+const SERVER_IMPORTS = new Set([
+  'addSystemFields',
+  'createZodDbReader',
+  'createZodDbWriter',
+  'createZodvexActionCtx',
+  'createZodvexCustomization',
+  'customCtx',
+  'defineZodSchema',
+  'DeleteRule',
+  'initZodvex',
+  'InsertRule',
+  'PatchRule',
+  'ReadRule',
+  'ReaderAuditConfig',
+  'ReplaceRule',
+  'TableRules',
+  'WriteEvent',
+  'WriterAuditConfig',
+  'ZodvexActionCtx',
+  'ZodvexBuilder',
+  'ZodvexDatabaseReader',
+  'ZodvexDatabaseWriter',
+  'ZodvexExpression',
+  'ZodvexExpressionOrValue',
+  'ZodvexFilterBuilder',
+  'ZodvexIndexFieldValue',
+  'ZodvexIndexRangeBuilder',
+  'ZodvexLowerBoundBuilder',
+  'ZodvexMutationCtx',
+  'ZodvexQueryChain',
+  'ZodvexQueryCtx',
+  'ZodvexRules',
+  'ZodvexRulesConfig',
+  'ZodvexUpperBoundBuilder',
+  'zCustomAction',
+  'zCustomMutation',
+  'zCustomQuery'
+])
+
+type ImportGroup = 'root' | 'server' | 'legacy'
+
+type ParsedSpecifier = {
+  imported: string
+  raw: string
+}
+
 // --- Core logic ---
 
 /**
@@ -117,8 +175,29 @@ function applyZidTransform(content: string): string {
   return content.replace(ZID_CALL_RE, 'zx.id(')
 }
 
+function parseSpecifier(specifier: string): ParsedSpecifier {
+  const raw = specifier.trim()
+  const withoutType = raw.startsWith('type ') ? raw.slice(5).trim() : raw
+  const imported = withoutType.split(/\s+as\s+/)[0].trim()
+  return { imported, raw }
+}
+
+function buildImport(modulePath: string, specifiers: string[]): string {
+  return `import { ${specifiers.join(', ')} } from '${modulePath}'`
+}
+
+function classifyImport(imported: string): ImportGroup {
+  if (LEGACY_IMPORTS.has(imported)) return 'legacy'
+  if (SERVER_IMPORTS.has(imported)) return 'server'
+  return 'root'
+}
+
 /**
- * Update import specifiers: remove `zid` from zodvex imports, add `zx` if not present.
+ * Update import specifiers:
+ * - remove `zid` from zodvex root/core imports and add `zx` if needed
+ * - rewrite `zodvex/core` to `zodvex`
+ * - move legacy-only symbols to `zodvex/legacy`
+ * - move server-only symbols to `zodvex/server`
  *
  * Matches import statements like:
  *   import { zid } from 'zodvex'
@@ -127,36 +206,60 @@ function applyZidTransform(content: string): string {
  *   import { type Zid, zid } from 'zodvex'
  */
 function applyImportUpdates(content: string): string {
-  // Match import { ... } from 'zodvex' or 'zodvex/...'
   const importRe = /import\s*\{([^}]+)\}\s*from\s*(['"]zodvex(?:\/[^'"]*)?['"])/g
 
   return content.replace(importRe, (match, specifiers: string, moduleStr: string) => {
-    // Parse the specifier list
-    const specs = specifiers
+    const modulePath = moduleStr.slice(1, -1)
+    if (modulePath !== 'zodvex' && modulePath !== 'zodvex/core') {
+      return match
+    }
+
+    const parsed = specifiers
       .split(',')
-      .map((s: string) => s.trim())
-      .filter((s: string) => s.length > 0)
+      .map(parseSpecifier)
+      .filter((s: ParsedSpecifier) => s.raw.length > 0)
 
-    // Check if zid is among the specifiers (as value, not as part of "type Zid")
-    const hasZid = specs.some((s: string) => s === 'zid' || s === ' zid')
-
-    if (!hasZid) return match
-
-    // Remove zid from specifiers
-    const filtered = specs.filter((s: string) => s !== 'zid' && s !== ' zid')
-
-    // Add zx if not already present
-    const hasZx = filtered.some((s: string) => s === 'zx' || s === 'type zx' || s.endsWith(' zx'))
-    if (!hasZx) {
-      filtered.push('zx')
+    const groups: Record<ImportGroup, string[]> = {
+      root: [],
+      server: [],
+      legacy: []
     }
 
-    if (filtered.length === 0) {
-      // All specifiers removed — replace with just zx
-      return `import { zx } from ${moduleStr}`
+    let removedZid = false
+
+    for (const spec of parsed) {
+      if (spec.imported === 'zid') {
+        removedZid = true
+        continue
+      }
+
+      groups[classifyImport(spec.imported)].push(spec.raw)
     }
 
-    return `import { ${filtered.join(', ')} } from ${moduleStr}`
+    if (removedZid) {
+      const hasZx = groups.root.some(spec => parseSpecifier(spec).imported === 'zx')
+      if (!hasZx) groups.root.push('zx')
+    }
+
+    const rewritten: string[] = []
+
+    if (groups.root.length > 0) {
+      rewritten.push(buildImport('zodvex', groups.root))
+    } else if (modulePath === 'zodvex/core' && removedZid) {
+      rewritten.push(buildImport('zodvex', ['zx']))
+    }
+
+    if (groups.server.length > 0) {
+      rewritten.push(buildImport('zodvex/server', groups.server))
+    }
+
+    if (groups.legacy.length > 0) {
+      rewritten.push(buildImport('zodvex/legacy', groups.legacy))
+    }
+
+    if (rewritten.length === 0) return ''
+
+    return rewritten.join('\n')
   })
 }
 

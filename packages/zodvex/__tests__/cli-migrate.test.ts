@@ -290,7 +290,68 @@ const userId = zid('users')
       migrate(tmpDir, { dryRun: false })
       const content = readFile(path.join(tmpDir, 'src/client.ts'))
       expect(content).not.toMatch(/import\s*\{[^}]*\bzid\b[^}]*\}\s*from\s*['"]zodvex\/core['"]/)
-      expect(content).toMatch(/\bzx\b/)
+      expect(content).toContain("import { zx } from 'zodvex'")
+    })
+
+    it('rewrites zodvex/core client-safe imports to zodvex', () => {
+      writeFile(
+        tmpDir,
+        'src/client.ts',
+        `import { defineZodModel, zx } from 'zodvex/core'
+const Users = defineZodModel('users', { teamId: zx.id('teams') })
+`
+      )
+      migrate(tmpDir, { dryRun: false })
+      const content = readFile(path.join(tmpDir, 'src/client.ts'))
+      expect(content).toContain("import { defineZodModel, zx } from 'zodvex'")
+      expect(content).not.toContain("from 'zodvex/core'")
+    })
+
+    it('moves deprecated root legacy imports to zodvex/legacy', () => {
+      writeFile(
+        tmpDir,
+        'convex/schema.ts',
+        `import { zodTable, zQueryBuilder } from 'zodvex'
+const table = zodTable('users', { name: z.string() })
+const zq = zQueryBuilder(query)
+`
+      )
+      migrate(tmpDir, { dryRun: false })
+      const content = readFile(path.join(tmpDir, 'convex/schema.ts'))
+      expect(content).toContain("import { zodTable, zQueryBuilder } from 'zodvex/legacy'")
+      expect(content).not.toContain("from 'zodvex'")
+    })
+
+    it('moves old root server imports to zodvex/server', () => {
+      writeFile(
+        tmpDir,
+        'convex/zodvex.ts',
+        `import { defineZodSchema, initZodvex, customCtx } from 'zodvex'
+export { defineZodSchema, initZodvex, customCtx }
+`
+      )
+      migrate(tmpDir, { dryRun: false })
+      const content = readFile(path.join(tmpDir, 'convex/zodvex.ts'))
+      expect(content).toContain(
+        "import { defineZodSchema, initZodvex, customCtx } from 'zodvex/server'"
+      )
+      expect(content).not.toContain("from 'zodvex'\n")
+    })
+
+    it('splits mixed root imports across zodvex, zodvex/server, and zodvex/legacy', () => {
+      writeFile(
+        tmpDir,
+        'convex/mixed.ts',
+        `import { defineZodModel, initZodvex, zodTable, type ZodvexQueryCtx } from 'zodvex'
+export { defineZodModel, initZodvex, zodTable }
+type Ctx = ZodvexQueryCtx
+`
+      )
+      migrate(tmpDir, { dryRun: false })
+      const content = readFile(path.join(tmpDir, 'convex/mixed.ts'))
+      expect(content).toContain("import { defineZodModel } from 'zodvex'")
+      expect(content).toContain("import { initZodvex, type ZodvexQueryCtx } from 'zodvex/server'")
+      expect(content).toContain("import { zodTable } from 'zodvex/legacy'")
     })
   })
 
