@@ -49,17 +49,6 @@ export {
   zodToConvexFields,
   zPaginated
 } from '../core'
-
-// Re-export model types (ZodModel generic works for both full/mini via Schemas param)
-export {
-  type FieldPaths,
-  type ModelFieldPaths,
-  type ModelSchemas,
-  type MiniUnionModelSchemas,
-  type SearchIndexConfig,
-  type VectorIndexConfig,
-  type ZodModel
-} from './model'
 export { type FullZodModelSchemas, type UnionModelSchemas } from '../model'
 // Re-export registry
 export * from '../registry'
@@ -81,5 +70,16 @@ export {
   ZodvexWireSchema
 } from '../types'
 export { type ZodvexCodec, zodvexCodec } from './codec'
-export { defineZodModel, type MiniModelSchemas } from './model'
+// Re-export model types (ZodModel generic works for both full/mini via Schemas param)
+export {
+  defineZodModel,
+  type FieldPaths,
+  type MiniModelSchemas,
+  type MiniUnionModelSchemas,
+  type ModelFieldPaths,
+  type ModelSchemas,
+  type SearchIndexConfig,
+  type VectorIndexConfig,
+  type ZodModel
+} from './model'
 export { type ZxMiniDate, type ZxMiniId, zx } from './zx'

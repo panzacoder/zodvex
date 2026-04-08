@@ -6,9 +6,9 @@ import {
   type ModelFieldPaths,
   type ModelSchemas,
   type SearchIndexConfig,
+  type ZodModel as SharedZodModel,
   type UnionModelSchemas,
-  type VectorIndexConfig,
-  type ZodModel as SharedZodModel
+  type VectorIndexConfig
 } from '../model'
 import type { $ZodShape, $ZodType } from '../zod-core'
 
@@ -16,9 +16,10 @@ type DefaultFullModelSchemas<
   Name extends string,
   Fields extends $ZodShape,
   InsertSchema extends $ZodType
-> = InsertSchema extends z.ZodObject<Fields>
-  ? FullZodModelSchemas<Name, Fields>
-  : UnionModelSchemas<Name, InsertSchema>
+> =
+  InsertSchema extends z.ZodObject<Fields>
+    ? FullZodModelSchemas<Name, Fields>
+    : UnionModelSchemas<Name, InsertSchema>
 
 export type ZodModel<
   Name extends string = string,
@@ -28,15 +29,7 @@ export type ZodModel<
   Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
   SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
   VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
-> = SharedZodModel<
-  Name,
-  Fields,
-  InsertSchema,
-  Schemas,
-  Indexes,
-  SearchIndexes,
-  VectorIndexes
->
+> = SharedZodModel<Name, Fields, InsertSchema, Schemas, Indexes, SearchIndexes, VectorIndexes>
 
 export {
   defineZodModel,

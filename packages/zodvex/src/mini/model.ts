@@ -16,10 +16,10 @@ import {
   type ModelFieldPaths,
   type ModelSchemas,
   type SearchIndexConfig,
-  type VectorIndexConfig,
-  type ZodModel as SharedZodModel
+  type ZodModel as SharedZodModel,
+  type VectorIndexConfig
 } from '../model'
-import { $ZodType, type $strip, type $ZodShape } from '../zod-core'
+import { type $strip, type $ZodShape, $ZodType } from '../zod-core'
 import type { ZxMiniId } from './zx'
 
 type MiniSystemFields<Name extends string> = {
@@ -27,10 +27,7 @@ type MiniSystemFields<Name extends string> = {
   _creationTime: ZodMiniNumber
 }
 
-type MapSystemFieldsMini<
-  Name extends string,
-  Options extends readonly $ZodType[]
-> = {
+type MapSystemFieldsMini<Name extends string, Options extends readonly $ZodType[]> = {
   [K in keyof Options]: Options[K] extends ZodMiniObject<
     infer Shape extends $ZodShape,
     infer Config extends $strip
@@ -93,9 +90,10 @@ type DefaultMiniModelSchemas<
   Name extends string,
   Fields extends $ZodShape,
   InsertSchema extends $ZodType
-> = InsertSchema extends ZodMiniObject<Fields, $strip>
-  ? MiniModelSchemas<Name, Fields>
-  : MiniUnionModelSchemas<Name, InsertSchema>
+> =
+  InsertSchema extends ZodMiniObject<Fields, $strip>
+    ? MiniModelSchemas<Name, Fields>
+    : MiniUnionModelSchemas<Name, InsertSchema>
 
 export type ZodModel<
   Name extends string = string,
@@ -105,15 +103,7 @@ export type ZodModel<
   Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
   SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
   VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
-> = SharedZodModel<
-  Name,
-  Fields,
-  InsertSchema,
-  Schemas,
-  Indexes,
-  SearchIndexes,
-  VectorIndexes
->
+> = SharedZodModel<Name, Fields, InsertSchema, Schemas, Indexes, SearchIndexes, VectorIndexes>
 
 /** Mini-typed defineZodModel surface backed by the shared model runtime. */
 export function defineZodModel<Name extends string, Fields extends $ZodShape>(

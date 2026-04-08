@@ -1,3 +1,4 @@
+import type { ZodMiniCodec } from 'zod/mini'
 import {
   zodvexCodec as _zodvexCodec,
   type ConvexCodec,
@@ -8,7 +9,6 @@ import {
 } from '../codec'
 import type { ZodvexCodec as SharedZodvexCodec } from '../types'
 import type { $ZodType, output as zoutput } from '../zod-core'
-import type { ZodMiniCodec } from 'zod/mini'
 
 export { type ConvexCodec, convexCodec, decodeDoc, encodeDoc, encodePartialDoc }
 
