@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { getObjectShape, type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
 import { attachMeta } from './meta'
+import { assertNoNativeZodDate } from './schema/dateGuards'
 import { handleZodValidationError, validateReturns } from './serverUtils'
-import { assertNoNativeZodDate, pick, stripUndefined } from './utils'
+import { pick } from './shared/object'
+import { stripUndefined } from './stripUndefined'
 import {
   $ZodCustom,
   $ZodDefault,

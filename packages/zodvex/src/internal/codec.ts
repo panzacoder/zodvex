@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { zodToConvex } from './mapping'
+import { assertNoNativeZodDate } from './schema/dateGuards'
+import { stripUndefined } from './stripUndefined'
 import { type ZodvexCodec } from './types'
-import { assertNoNativeZodDate, stripUndefined } from './utils'
 import {
   $ZodObject,
   $ZodOptional,

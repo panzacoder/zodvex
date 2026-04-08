@@ -29,7 +29,7 @@ import type {
   ConvexValidatorFromZodFieldsAuto,
   ZodValidator
 } from './types'
-import { getObjectShape, isZid } from './utils'
+import { isZid } from './utils'
 
 // Internal conversion function using ZodType with def.type detection
 function zodToConvexInternal<Z extends $ZodType>(

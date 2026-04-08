@@ -24,8 +24,9 @@ import {
   runCustomizationInput
 } from './functionContracts'
 import { type ZodValidator, zodToConvexFields } from './mapping'
+import { assertNoNativeZodDate } from './schema/dateGuards'
+import { pick } from './shared/object'
 import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
-import { assertNoNativeZodDate, pick } from './utils'
 import { $ZodObject, $ZodType } from './zod-core'
 
 // Type helpers for args transformation (from zodV3 example)

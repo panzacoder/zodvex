@@ -1,7 +1,8 @@
+export { getObjectShape } from '../schema/objectShape'
 export { zodToConvex, zodToConvexFields } from './core'
 export type {
   ConvexValidatorFromZod,
   ConvexValidatorFromZodFieldsAuto,
   ZodValidator
 } from './types'
-export { getObjectShape, makeUnion } from './utils'
+export { makeUnion } from './utils'
