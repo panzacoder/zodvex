@@ -11,7 +11,7 @@
  * ```
  */
 
-export * from './full'
+export * from './public'
 
 const legacyMigrationGuide = 'docs/migration/v0.6.md'
 

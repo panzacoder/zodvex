@@ -6,4 +6,4 @@ export {
   encodePartialDoc,
   type ZodvexCodec,
   zodvexCodec
-} from '../full/codec'
+} from '../public/codec'

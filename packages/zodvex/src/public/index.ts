@@ -1,5 +1,5 @@
 /**
- * Full-Zod client-safe surface.
+ * Canonical client-safe full-Zod surface.
  *
  * This module contains no server imports and is safe to use in:
  * - React components
