@@ -10,8 +10,8 @@ import type {
   ZodMiniType,
   ZodMiniUnion
 } from 'zod/mini'
-import { defineZodModel as _defineZodModel } from '../model'
-import { type $strip, type $ZodShape, $ZodType, type input as zinput } from '../zod-core'
+import { defineZodModel as _defineZodModel } from '../../model'
+import { type $strip, type $ZodShape, $ZodType, type input as zinput } from '../../zod-core'
 import type { ZxMiniId } from './zx'
 
 export type FieldPaths<T> = T extends any[]

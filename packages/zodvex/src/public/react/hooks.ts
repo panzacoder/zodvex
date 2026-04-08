@@ -2,9 +2,9 @@ import type { OptionalRestArgsOrSkip } from 'convex/react'
 import { useMutation, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import { getFunctionName } from 'convex/server'
-import type { BoundaryHelpersOptions } from '../boundaryHelpers'
-import { createBoundaryHelpers } from '../boundaryHelpers'
-import type { AnyRegistry } from '../types'
+import type { BoundaryHelpersOptions } from '../../boundaryHelpers'
+import { createBoundaryHelpers } from '../../boundaryHelpers'
+import type { AnyRegistry } from '../../types'
 
 /**
  * Creates zodvex-aware React hooks that automatically decode query results

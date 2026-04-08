@@ -1,1 +1,1 @@
-export * from '../../react'
+export * from '../../public/mini/react'
