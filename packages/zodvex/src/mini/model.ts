@@ -10,17 +10,49 @@ import type {
   ZodMiniType,
   ZodMiniUnion
 } from 'zod/mini'
-import {
-  defineZodModel as _defineZodModel,
-  type FieldPaths,
-  type ModelFieldPaths,
-  type ModelSchemas,
-  type SearchIndexConfig,
-  type ZodModel as SharedZodModel,
-  type VectorIndexConfig
-} from '../model'
-import { type $strip, type $ZodShape, $ZodType } from '../zod-core'
+import { defineZodModel as _defineZodModel } from '../model'
+import { type $strip, type $ZodShape, $ZodType, type input as zinput } from '../zod-core'
 import type { ZxMiniId } from './zx'
+
+export type FieldPaths<T> = T extends any[]
+  ? never
+  : T extends Record<string, any>
+    ? T extends T
+      ? {
+          [K in keyof T & string]:
+            | K
+            | (NonNullable<T[K]> extends any[]
+                ? never
+                : NonNullable<T[K]> extends Record<string, any>
+                  ? `${K}.${FieldPaths<NonNullable<T[K]>>}`
+                  : never)
+        }[keyof T & string]
+      : never
+    : never
+
+export type ModelFieldPaths<InsertSchema extends $ZodType> =
+  | FieldPaths<zinput<InsertSchema>>
+  | '_creationTime'
+
+export type SearchIndexConfig = {
+  searchField: string
+  filterFields?: string[]
+}
+
+export type VectorIndexConfig = {
+  vectorField: string
+  dimensions: number
+  filterFields?: string[]
+}
+
+export type ModelSchemas = {
+  readonly doc: $ZodType
+  readonly base: $ZodType
+  readonly insert: $ZodType
+  readonly update: $ZodType
+  readonly docArray: $ZodType
+  readonly paginatedDoc: $ZodType
+}
 
 type MiniSystemFields<Name extends string> = {
   _id: ZxMiniId<Name>
@@ -48,7 +80,6 @@ export type AddSystemFieldsToMiniUnion<Name extends string, Schema extends $ZodT
         ? ZodMiniDiscriminatedUnion<MapSystemFieldsMini<Name, Options>, Disc>
         : Schema
 
-/** Mini-typed schema bundle for ZodModel from zodvex/mini */
 export type MiniModelSchemas<Name extends string, Fields extends $ZodShape> = {
   readonly doc: ZodMiniObject<
     Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber },
@@ -103,9 +134,58 @@ export type ZodModel<
   Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
   SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
   VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
-> = SharedZodModel<Name, Fields, InsertSchema, Schemas, Indexes, SearchIndexes, VectorIndexes>
+> = {
+  readonly name: Name
+  readonly fields: Fields
+  readonly schema: Schemas
+  readonly indexes: Indexes
+  readonly searchIndexes: SearchIndexes
+  readonly vectorIndexes: VectorIndexes
 
-/** Mini-typed defineZodModel surface backed by the shared model runtime. */
+  index<
+    IndexName extends string,
+    First extends ModelFieldPaths<InsertSchema>,
+    Rest extends ModelFieldPaths<InsertSchema>[]
+  >(
+    name: IndexName,
+    fields: readonly [First, ...Rest]
+  ): ZodModel<
+    Name,
+    Fields,
+    InsertSchema,
+    Schemas,
+    Indexes & Record<IndexName, readonly [First, ...Rest, '_creationTime']>,
+    SearchIndexes,
+    VectorIndexes
+  >
+
+  searchIndex<IndexName extends string>(
+    name: IndexName,
+    config: SearchIndexConfig
+  ): ZodModel<
+    Name,
+    Fields,
+    InsertSchema,
+    Schemas,
+    Indexes,
+    SearchIndexes & Record<IndexName, SearchIndexConfig>,
+    VectorIndexes
+  >
+
+  vectorIndex<IndexName extends string>(
+    name: IndexName,
+    config: VectorIndexConfig
+  ): ZodModel<
+    Name,
+    Fields,
+    InsertSchema,
+    Schemas,
+    Indexes,
+    SearchIndexes,
+    VectorIndexes & Record<IndexName, VectorIndexConfig>
+  >
+}
+
 export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   name: Name,
   fields: Fields
@@ -126,12 +206,4 @@ export function defineZodModel<Name extends string>(
     return _defineZodModel(name, fieldsOrSchema)
   }
   return _defineZodModel(name, fieldsOrSchema)
-}
-
-export {
-  type FieldPaths,
-  type ModelFieldPaths,
-  type ModelSchemas,
-  type SearchIndexConfig,
-  type VectorIndexConfig
 }

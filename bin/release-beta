@@ -61,6 +61,10 @@ echo "==> Running build..."
 bun run build
 echo ""
 
+echo "==> Verifying consumer declaration emit..."
+bun run verify:consumer-declarations
+echo ""
+
 echo "==> Verifying example apps..."
 bun run verify:examples
 echo ""

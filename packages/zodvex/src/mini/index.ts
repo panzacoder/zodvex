@@ -49,7 +49,7 @@ export {
   zodToConvexFields,
   zPaginated
 } from '../core'
-export { type FullZodModelSchemas, type UnionModelSchemas } from '../model'
+export { type FullZodModelSchemas, type UnionModelSchemas } from '../full/model'
 // Re-export registry
 export * from '../registry'
 // Re-export results

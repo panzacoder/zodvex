@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "paths": {
+      "zod": ["../../packages/zodvex/node_modules/zod"],
+      "zod/*": ["../../packages/zodvex/node_modules/zod/*"],
+      "zodvex": ["../../packages/zodvex/dist/index.d.ts"],
+      "zodvex/server": ["../../packages/zodvex/dist/server/index.d.ts"],
+      "zodvex/mini": ["../../packages/zodvex/dist/mini/index.d.ts"],
+      "zodvex/mini/server": ["../../packages/zodvex/dist/mini/server/index.d.ts"]
+    }
+  },
+  "include": ["./index.ts"]
+}
