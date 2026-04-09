@@ -31,6 +31,11 @@ import type {
 } from './types'
 import { isZid } from './utils'
 
+// Module-scoped cache: same Zod schema instance → same Convex validator.
+// Avoids redundant allocations when the same schema is converted across
+// multiple function registrations or table definitions.
+const convexValidatorCache = new WeakMap<$ZodType, GenericValidator>()
+
 // Internal conversion function using ZodType with def.type detection
 function zodToConvexInternal<Z extends $ZodType>(
   zodValidator: Z,
@@ -39,6 +44,12 @@ function zodToConvexInternal<Z extends $ZodType>(
   // Guard against undefined/null validators (can happen with { field: undefined } in args)
   if (!zodValidator) {
     return v.any() as ConvexValidatorFromZod<Z, 'required'>
+  }
+
+  // Return cached result if this exact Zod instance was already converted
+  const cached = convexValidatorCache.get(zodValidator)
+  if (cached) {
+    return cached as ConvexValidatorFromZod<Z, 'required'>
   }
 
   // Detect circular references to prevent infinite recursion
@@ -338,6 +349,9 @@ function zodToConvexInternal<Z extends $ZodType>(
   if (hasDefault && typeof finalValidator === 'object' && finalValidator !== null) {
     ;(finalValidator as any)._zodDefault = defaultValue
   }
+
+  // Cache the result so the same Zod instance returns the same Convex validator
+  convexValidatorCache.set(zodValidator, finalValidator)
 
   return finalValidator as ConvexValidatorFromZod<Z, 'required'>
 }

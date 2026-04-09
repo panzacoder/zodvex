@@ -11,6 +11,7 @@ interface GenerateConfig {
   count: number
   mode: 'tables-only' | 'functions-only' | 'both'
   variant: 'baseline' | 'compiled' | 'zod-mini'
+  shared: boolean
   convex: boolean
   outputDir: string
 }
@@ -20,10 +21,11 @@ function parseArgs(): GenerateConfig {
   const count = parseInt(args.find(a => a.startsWith('--count='))?.split('=')[1] ?? '50')
   const mode = (args.find(a => a.startsWith('--mode='))?.split('=')[1] ?? 'both') as GenerateConfig['mode']
   const variant = (args.find(a => a.startsWith('--variant='))?.split('=')[1] ?? 'baseline') as GenerateConfig['variant']
+  const shared = args.includes('--shared')
   const convex = args.includes('--convex')
   const outputDir = args.find(a => a.startsWith('--output='))?.split('=')[1] ?? join(EXAMPLE_DIR, 'convex', 'generated')
 
-  return { count, mode, variant, convex, outputDir }
+  return { count, mode, variant, shared, convex, outputDir }
 }
 
 // --- Template Loading ---
@@ -76,7 +78,21 @@ function compileFile(filePath: string): void {
 }
 
 // --- Extra Args for Function Templates ---
-function extraArgsForTier(tier: Tier): string {
+function extraArgsForTier(tier: Tier, shared: boolean, name: string): string {
+  if (shared) {
+    // Reference model fields directly — exercises WeakMap cache hits
+    switch (tier) {
+      case 'small':
+        return `active: ${name}Fields.active,`
+      case 'medium':
+        return `status: ${name}Fields.status,
+    priority: ${name}Fields.priority,`
+      case 'large':
+        return `status: ${name}Fields.status,
+    priority: ${name}Fields.priority,
+    isPublic: ${name}Fields.isPublic,`
+    }
+  }
   switch (tier) {
     case 'small':
       return 'active: z.boolean(),'
@@ -93,9 +109,9 @@ function extraArgsForTier(tier: Tier): string {
 // --- Main ---
 function generate() {
   const config = parseArgs()
-  const { count, mode, variant, outputDir } = config
+  const { count, mode, variant, shared, outputDir } = config
 
-  console.log(`Generating ${count} modules (mode=${mode}, variant=${variant})`)
+  console.log(`Generating ${count} modules (mode=${mode}, variant=${variant}, shared=${shared})`)
   console.log(`Output: ${outputDir}`)
 
   // Clean output directory
@@ -112,11 +128,12 @@ function generate() {
   const templateDir = variant === 'zod-mini' ? 'mini' : 'zod'
 
   // Load templates
+  const functionsTemplate = config.shared ? 'functions-shared' : 'functions'
   const templates = {
     small: loadTemplate(templateDir, 'model-small'),
     medium: loadTemplate(templateDir, 'model-medium'),
     large: loadTemplate(templateDir, 'model-large'),
-    functions: loadTemplate(templateDir, 'functions'),
+    functions: loadTemplate(templateDir, functionsTemplate),
     schema: loadTemplate(templateDir, 'schema'),
   }
 
@@ -161,7 +178,7 @@ function generate() {
 
     // Generate function file
     if (mode !== 'tables-only') {
-      const extraArgs = extraArgsForTier(tier)
+      const extraArgs = extraArgsForTier(tier, config.shared, name)
       const fnSource = templates.functions
         .replaceAll('{{NAME}}', name)
         .replaceAll('{{TABLE_NAME}}', table)

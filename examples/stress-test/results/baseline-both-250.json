@@ -3,30 +3,30 @@
     "variant": "convex-only",
     "mode": "both",
     "count": 250,
-    "heapBefore": 2168607,
-    "heapAfter": 2767627,
-    "heapDelta": 599020,
+    "heapBefore": 2168675,
+    "heapAfter": 2769948,
+    "heapDelta": 601273,
     "heapDeltaMB": "0.57",
     "heapPeakMB": "2.64",
     "modulesLoaded": 250,
     "modulesFailed": 0,
-    "externalBefore": 689071,
-    "externalAfter": 800475,
-    "timestamp": "2026-04-08T09:41:18.149Z"
+    "externalBefore": 688003,
+    "externalAfter": 801468,
+    "timestamp": "2026-04-09T21:38:22.507Z"
   },
   "result": {
     "variant": "baseline",
     "mode": "both",
     "count": 250,
-    "heapBefore": 2935886,
-    "heapAfter": 83893591,
-    "heapDelta": 80957705,
+    "heapBefore": 2920164,
+    "heapAfter": 83876108,
+    "heapDelta": 80955944,
     "heapDeltaMB": "77.21",
-    "heapPeakMB": "80.01",
+    "heapPeakMB": "79.99",
     "modulesLoaded": 500,
     "modulesFailed": 0,
-    "externalBefore": 955518,
-    "externalAfter": 4305431,
-    "timestamp": "2026-04-08T09:41:18.328Z"
+    "externalBefore": 954852,
+    "externalAfter": 4303132,
+    "timestamp": "2026-04-09T21:38:22.670Z"
   }
 }
