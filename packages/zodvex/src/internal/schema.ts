@@ -18,10 +18,10 @@ import {
 import { readMeta, type ZodvexModelMeta } from './meta'
 import type { AnyZodModel, AnyZodModelBase, SearchIndexConfig, VectorIndexConfig } from './model'
 import {
-  $ZodType as $ZodTypeValue,
   type $ZodDiscriminatedUnion,
   type $ZodShape,
   type $ZodType,
+  $ZodType as $ZodTypeValue,
   type $ZodUnion,
   type output as zoutput
 } from './zod-core'

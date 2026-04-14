@@ -15,7 +15,7 @@ import {
   createSchemaBundle,
   type RuntimeModelSchemaBundle
 } from './modelSchemaBundle'
-import { addSystemFields, type AddSystemFieldsToUnion } from './schemaHelpers'
+import { type AddSystemFieldsToUnion, addSystemFields } from './schemaHelpers'
 import { $ZodArray, type $ZodShape, $ZodType, type input as zinput } from './zod-core'
 import { type ZxId, zx } from './zx'
 

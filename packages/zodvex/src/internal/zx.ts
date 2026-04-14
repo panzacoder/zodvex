@@ -24,14 +24,14 @@ import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 import { zodvexCodec } from './codec'
 import { registryHelpers } from './ids'
-import { addSystemFields } from './schemaHelpers'
 import { createSchemaUpdateSchema } from './modelSchemaBundle'
+import { addSystemFields } from './schemaHelpers'
 import type { ZodvexCodec } from './types'
 import {
-  $ZodType as $ZodTypeValue,
   type $ZodCustom,
   type $ZodNumber,
   type $ZodType,
+  $ZodType as $ZodTypeValue,
   type output as zoutput
 } from './zod-core'
 

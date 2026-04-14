@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { defineZodModel } from '../src/internal/model'
 import { readMeta, type ZodvexModelMeta } from '../src/internal/meta'
-import { walkModelCodecs } from '../src/public/codegen/discover'
+import { defineZodModel } from '../src/internal/model'
 import { zx } from '../src/internal/zx'
+import { walkModelCodecs } from '../src/public/codegen/discover'
 
 describe('codegen with slim models', () => {
   it('walkModelCodecs handles slim model (no meta.schemas)', () => {
