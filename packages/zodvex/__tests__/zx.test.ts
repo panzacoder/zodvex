@@ -2,6 +2,7 @@ import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodToConvex, zx } from '../src'
+import { defineZodModel } from '../src/internal/model'
 
 describe('zx namespace', () => {
   describe('zx.date()', () => {
@@ -312,6 +313,111 @@ describe('zx namespace', () => {
           maximumBytesRead: v.optional(v.float64())
         })
       )
+    })
+  })
+
+  describe('zx.doc()', () => {
+    it('adds _id and _creationTime to model fields', () => {
+      const model = defineZodModel('users', {
+        name: z.string(),
+        email: z.string()
+      })
+      const docSchema = zx.doc(model)
+      const result = docSchema.safeParse({
+        _id: 'user123',
+        _creationTime: 1718452800000,
+        name: 'Alice',
+        email: 'alice@example.com'
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects docs missing system fields', () => {
+      const model = defineZodModel('users', {
+        name: z.string()
+      })
+      const docSchema = zx.doc(model)
+      const result = docSchema.safeParse({ name: 'Alice' })
+      expect(result.success).toBe(false)
+    })
+
+    it('works with zodToConvex', () => {
+      const model = defineZodModel('items', {
+        title: z.string(),
+        count: z.number()
+      })
+      const docSchema = zx.doc(model)
+      const validator = zodToConvex(docSchema)
+      expect(validator).toEqual(
+        v.object({
+          _id: v.id('items'),
+          _creationTime: v.float64(),
+          title: v.string(),
+          count: v.float64()
+        })
+      )
+    })
+  })
+
+  describe('zx.update()', () => {
+    it('creates update schema with _id required and fields optional', () => {
+      const model = defineZodModel('tasks', {
+        title: z.string(),
+        done: z.boolean()
+      })
+      const updateSchema = zx.update(model)
+
+      // _id is required
+      const noId = updateSchema.safeParse({ title: 'New title' })
+      expect(noId.success).toBe(false)
+
+      // With _id, fields are optional
+      const withId = updateSchema.safeParse({ _id: 'task123' })
+      expect(withId.success).toBe(true)
+
+      // With partial fields
+      const partial = updateSchema.safeParse({ _id: 'task123', title: 'Updated' })
+      expect(partial.success).toBe(true)
+    })
+
+    it('works with zodToConvex', () => {
+      const model = defineZodModel('tasks', {
+        title: z.string(),
+        count: z.number()
+      })
+      const updateSchema = zx.update(model)
+      const validator = zodToConvex(updateSchema)
+      expect(validator).toEqual(
+        v.object({
+          _id: v.id('tasks'),
+          _creationTime: v.optional(v.float64()),
+          title: v.optional(v.string()),
+          count: v.optional(v.float64())
+        })
+      )
+    })
+  })
+
+  describe('zx.docArray()', () => {
+    it('creates array of doc schemas', () => {
+      const model = defineZodModel('items', {
+        name: z.string()
+      })
+      const arraySchema = zx.docArray(model)
+      const result = arraySchema.safeParse([
+        { _id: 'item1', _creationTime: 100, name: 'First' },
+        { _id: 'item2', _creationTime: 200, name: 'Second' }
+      ])
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects invalid items in the array', () => {
+      const model = defineZodModel('items', {
+        name: z.string()
+      })
+      const arraySchema = zx.docArray(model)
+      const result = arraySchema.safeParse([{ wrong: true }])
+      expect(result.success).toBe(false)
     })
   })
 

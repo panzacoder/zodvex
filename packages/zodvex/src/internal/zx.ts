@@ -145,6 +145,44 @@ function codec<W extends $ZodType, R extends $ZodType, WO = zoutput<W>, RI = zou
 }
 
 /**
+ * Minimal model shape accepted by zx helpers.
+ * Both full and slim models satisfy this at runtime.
+ */
+type ZxModelInput = {
+  readonly name: string
+  readonly fields: Record<string, $ZodType>
+  readonly schema: {
+    readonly doc: $ZodType
+    readonly update: $ZodType
+    readonly docArray: $ZodType
+  }
+}
+
+/**
+ * Constructs a doc schema: base fields + _id + _creationTime.
+ * Uses the pre-computed doc schema from the model bundle.
+ */
+function doc(model: ZxModelInput): $ZodType {
+  return model.schema.doc
+}
+
+/**
+ * Constructs an update schema: _id required + _creationTime optional + all user fields optional.
+ * Uses the pre-computed update schema from the model bundle.
+ */
+function update(model: ZxModelInput): $ZodType {
+  return model.schema.update
+}
+
+/**
+ * Constructs a doc array schema: z.array(doc(model)).
+ * Uses the pre-computed docArray schema from the model bundle.
+ */
+function docArray(model: ZxModelInput): $ZodType {
+  return model.schema.docArray
+}
+
+/**
  * Pagination options schema — matches Convex's PaginationOptions type.
  */
 function paginationOpts() {
@@ -205,5 +243,23 @@ export const zx = {
    * Paginated result schema wrapping any item schema in Convex's PaginationResult shape
    * @see {@link paginationResult}
    */
-  paginationResult
+  paginationResult,
+
+  /**
+   * Doc schema: model fields + _id + _creationTime
+   * @see {@link doc}
+   */
+  doc,
+
+  /**
+   * Update schema: _id required, all other fields optional
+   * @see {@link update}
+   */
+  update,
+
+  /**
+   * Doc array schema: z.array(doc(model))
+   * @see {@link docArray}
+   */
+  docArray
 } as const
