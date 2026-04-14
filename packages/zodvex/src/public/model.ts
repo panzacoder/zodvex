@@ -1,5 +1,12 @@
 import { z } from 'zod'
-import { defineZodModel as _defineZodModel } from '../internal/model'
+import {
+  defineZodModel as _defineZodModel,
+  type AnyZodModelBase,
+  type DefineZodModelOptions,
+  type SlimObjectModel,
+  type SlimUnionModel,
+  type ZodModelBase
+} from '../internal/model'
 import type { AddSystemFieldsToUnion } from '../internal/schemaHelpers'
 import { $ZodArray, type $ZodShape, $ZodType, type input as zinput } from '../internal/zod-core'
 import type { ZxId } from './zx'
@@ -149,6 +156,22 @@ export type ZodModel<
   >
 }
 
+// Overload: raw shape with schemaHelpers: false → SlimObjectModel
+export function defineZodModel<Name extends string, Fields extends $ZodShape>(
+  name: Name,
+  fields: Fields,
+  options: { schemaHelpers: false }
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional
+): SlimObjectModel<Name, Fields, z.ZodObject<Fields>, {}, {}, {}>
+
+// Overload: pre-built schema with schemaHelpers: false → SlimUnionModel
+export function defineZodModel<Name extends string, Schema extends $ZodType>(
+  name: Name,
+  schema: Schema,
+  options: { schemaHelpers: false }
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional
+): SlimUnionModel<Name, Schema, {}, {}, {}>
+
 export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   name: Name,
   fields: Fields
@@ -163,10 +186,19 @@ export function defineZodModel<Name extends string, Schema extends $ZodType>(
 
 export function defineZodModel<Name extends string>(
   name: Name,
-  fieldsOrSchema: $ZodShape | $ZodType
+  fieldsOrSchema: $ZodShape | $ZodType,
+  options?: DefineZodModelOptions
 ): any {
   if (fieldsOrSchema instanceof $ZodType) {
-    return _defineZodModel(name, fieldsOrSchema)
+    return (_defineZodModel as any)(name, fieldsOrSchema, options)
   }
-  return _defineZodModel(name, fieldsOrSchema)
+  return (_defineZodModel as any)(name, fieldsOrSchema, options)
+}
+
+export type {
+  AnyZodModelBase,
+  DefineZodModelOptions,
+  SlimObjectModel,
+  SlimUnionModel,
+  ZodModelBase
 }
