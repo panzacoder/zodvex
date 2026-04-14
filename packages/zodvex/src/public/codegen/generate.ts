@@ -193,6 +193,7 @@ export function generateApiFile(
   const neededModelImports = new Set<string>()
 
   for (const model of models) {
+    if (!model.schemas) continue
     const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
     for (const key of ['doc', 'insert', 'update', 'docArray', 'paginatedDoc'] as const) {
       identityMap.set(model.schemas[key] as $ZodType, {

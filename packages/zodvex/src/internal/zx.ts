@@ -27,7 +27,13 @@ import { registryHelpers } from './ids'
 import { addSystemFields } from './schemaHelpers'
 import { createSchemaUpdateSchema } from './modelSchemaBundle'
 import type { ZodvexCodec } from './types'
-import { type $ZodCustom, type $ZodNumber, type $ZodType, type output as zoutput } from './zod-core'
+import {
+  $ZodType as $ZodTypeValue,
+  type $ZodCustom,
+  type $ZodNumber,
+  type $ZodType,
+  type output as zoutput
+} from './zod-core'
 
 /**
  * Date codec type for explicit type annotations
@@ -167,8 +173,8 @@ function getBaseSchemaFromModel(model: ZxModelInput): $ZodType {
   }
   // Union model — need the base schema from model.schema
   const s = model.schema as any
-  if (s instanceof $ZodType) return s // slim model: .schema IS the base
-  if (s?.base instanceof $ZodType) return s.base // full model: .schema.base
+  if (s instanceof $ZodTypeValue) return s // slim model: .schema IS the base
+  if (s?.base instanceof $ZodTypeValue) return s.base // full model: .schema.base
   throw new Error('[zodvex] Union model passed to zx helper without a base schema')
 }
 

@@ -173,6 +173,7 @@ export function walkModelCodecs(
   schemas: ZodvexModelMeta['schemas']
 ): ModelEmbeddedCodec[] {
   const found: ModelEmbeddedCodec[] = []
+  if (!schemas) return found
   const visited = new Set<$ZodType>()
   const seenCodecs = new Set<$ZodType>()
 

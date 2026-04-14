@@ -264,6 +264,75 @@ export type ZodModel<
 export type AnyZodModel = ZodModel<string, $ZodShape, $ZodType, ModelSchemas>
 
 // ============================================================================
+// ZodModelBase — internal constraint type (no schema bundle)
+// ============================================================================
+
+/**
+ * Base model type — the contract that all zodvex internals constrain against.
+ *
+ * Deliberately excludes `schema` so that internal code (defineZodSchema,
+ * tableFromModel, DB wrapper) cannot depend on the schema bundle shape.
+ * This guarantees both full and slim models work with all internals.
+ */
+export type ZodModelBase<
+  Name extends string = string,
+  Fields extends $ZodShape = $ZodShape,
+  InsertSchema extends $ZodType = $ZodType,
+  Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
+  SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
+  VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
+> = {
+  readonly name: Name
+  readonly fields: Fields
+  readonly indexes: Indexes
+  readonly searchIndexes: SearchIndexes
+  readonly vectorIndexes: VectorIndexes
+
+  index<
+    IndexName extends string,
+    First extends ModelFieldPaths<InsertSchema>,
+    Rest extends ModelFieldPaths<InsertSchema>[]
+  >(
+    name: IndexName,
+    fields: readonly [First, ...Rest]
+  ): ZodModelBase<
+    Name,
+    Fields,
+    InsertSchema,
+    Indexes & Record<IndexName, readonly [First, ...Rest, '_creationTime']>,
+    SearchIndexes,
+    VectorIndexes
+  >
+
+  searchIndex<IndexName extends string>(
+    name: IndexName,
+    config: SearchIndexConfig
+  ): ZodModelBase<
+    Name,
+    Fields,
+    InsertSchema,
+    Indexes,
+    SearchIndexes & Record<IndexName, SearchIndexConfig>,
+    VectorIndexes
+  >
+
+  vectorIndex<IndexName extends string>(
+    name: IndexName,
+    config: VectorIndexConfig
+  ): ZodModelBase<
+    Name,
+    Fields,
+    InsertSchema,
+    Indexes,
+    SearchIndexes,
+    VectorIndexes & Record<IndexName, VectorIndexConfig>
+  >
+}
+
+/** Widened base type for internal constraints. */
+export type AnyZodModelBase = ZodModelBase<string, $ZodShape, $ZodType>
+
+// ============================================================================
 // defineZodModel
 // ============================================================================
 
