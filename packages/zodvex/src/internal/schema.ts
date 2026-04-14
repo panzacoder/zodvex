@@ -95,7 +95,7 @@ type ConvexTableFor<E> =
   // zodTable entry — extract .table with full VObject type
   E extends { table: infer T extends TableDefinition }
     ? T
-    : // model entry — compute from fields/schema + indexes
+    : // Full model entry — schema is nested bundle with .base
       E extends {
           fields: infer F extends Record<string, $ZodType>
           schema: { base: infer Base extends $ZodType }
@@ -104,27 +104,46 @@ type ConvexTableFor<E> =
           vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
         }
       ? Base extends $ZodUnion<any> | $ZodDiscriminatedUnion<any, any>
-        ? // Union model — compute validator from schema.base (the union type)
-          TableDefinition<
+        ? TableDefinition<
             ConvexValidatorFromZod<Base, 'required'>,
             { [K in keyof I]: [...I[K]] },
             { [K in keyof SI]: { searchField: string; filterFields: string } },
             { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
           >
-        : // Regular model — compute from fields
-          TableDefinition<
+        : TableDefinition<
             VObject<
               ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
               ConvexValidatorFromZodFieldsAuto<F>
             >,
-            // Convert readonly index tuples to mutable (Convex's format)
             { [K in keyof I]: [...I[K]] },
-            // Preserve search index names (field paths widen to string)
             { [K in keyof SI]: { searchField: string; filterFields: string } },
-            // Preserve vector index names (field paths widen to string)
             { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
           >
-      : TableDefinition
+      : // Slim model entry — schema is bare $ZodType (the base), compute from fields
+        E extends {
+            fields: infer F extends Record<string, $ZodType>
+            schema: infer Base extends $ZodType
+            indexes: infer I extends Record<string, readonly string[]>
+            searchIndexes: infer SI extends Record<string, SearchIndexConfig>
+            vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
+          }
+        ? Base extends $ZodUnion<any> | $ZodDiscriminatedUnion<any, any>
+          ? TableDefinition<
+              ConvexValidatorFromZod<Base, 'required'>,
+              { [K in keyof I]: [...I[K]] },
+              { [K in keyof SI]: { searchField: string; filterFields: string } },
+              { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+            >
+          : TableDefinition<
+              VObject<
+                ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
+                ConvexValidatorFromZodFieldsAuto<F>
+              >,
+              { [K in keyof I]: [...I[K]] },
+              { [K in keyof SI]: { searchField: string; filterFields: string } },
+              { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+            >
+        : TableDefinition
 
 /**
  * Map all entries to their Convex TableDefinition types.
@@ -146,7 +165,9 @@ type ConvexTablesFrom<T extends Record<string, ZodSchemaEntry>> = {
 export type DecodedDocFor<T extends Record<string, ZodSchemaEntry>> = {
   [K in keyof T & string]: T[K] extends { schema: { doc: infer D extends $ZodType } }
     ? zoutput<D>
-    : any
+    : T[K] extends { doc: infer D extends $ZodType }
+      ? zoutput<D>
+      : any
 }
 
 // ============================================================================
