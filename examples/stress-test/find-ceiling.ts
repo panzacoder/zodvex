@@ -42,8 +42,9 @@ function measure(variant: string, count: number, slim: boolean): number | null {
       `bun --expose-gc run measure.ts --count=${count} --mode=both --variant=${variant} --results=${RESULTS_DIR}`,
       { cwd: EXAMPLE_DIR, encoding: 'utf-8', timeout: 120_000, env: { ...process.env, NODE_OPTIONS: '--expose-gc' } }
     )
-    // Parse heap delta from output line like "baseline (both, 100): +53.99 MB (peak: 56.78 MB)"
-    const match = output.match(/\+(\d+\.\d+) MB/)
+    // Parse heap delta from the Schema Creation line, not the Convex baseline
+    // Look for "variant (mode, count): +XX.XX MB (peak: YY.YY MB)"
+    const match = output.match(/--- Schema Creation ---\n.+\+(\d+\.\d+) MB/)
     return match ? parseFloat(match[1]) : null
   } catch {
     return null // OOM or import failure

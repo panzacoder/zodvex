@@ -36,5 +36,10 @@ function codec<W extends $ZodType, R extends $ZodType>(
 export const zx = {
   date,
   id,
-  codec
+  codec,
+  paginationOpts: _zx.paginationOpts,
+  paginationResult: _zx.paginationResult,
+  doc: _zx.doc,
+  update: _zx.update,
+  docArray: _zx.docArray
 } as const
