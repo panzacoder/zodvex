@@ -55,15 +55,42 @@ type FullZodModel<...> = ZodModelBase<...> & {
 }
 
 // Slim model — schemaHelpers: false (opt-in)
-type SlimZodModel<...> = ZodModelBase<...> & {
-  readonly schema: $ZodType   // the base schema (what you passed in)
-  readonly doc: $ZodType      // base + _id + _creationTime
+// doc carries a CONCRETE type (z.ZodObject<...>), not $ZodType,
+// so .nullable()/.optional()/etc. work directly.
+type SlimZodModel<Name, Fields, InsertSchema, ...> = ZodModelBase<...> & {
+  readonly schema: InsertSchema
+  readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
 }
 ```
 
 Excluding `schema` from `ZodModelBase` guarantees no internal code can depend on the bundle shape. The compiler enforces this — any internal that reaches for `.schema.doc` will fail to type-check against `ZodModelBase`.
 
 `AnyZodModel`, `defineZodSchema`, `tableFromModel`, and downstream wrapper types all constrain against `ZodModelBase`.
+
+### Type-Level Schema Inference
+
+`ConvexTableFor` (in `schema.ts`) currently matches model entries via `schema: { base: infer Base }`. For slim models, `schema` is a bare `$ZodType`, not an object with `.base`. Similarly, `DecodedDocFor` matches `schema: { doc: $ZodType }`, which slim models don't have.
+
+Both mapped types need additional structural branches:
+
+```typescript
+// ConvexTableFor — add branch for slim models (schema is $ZodType, doc is top-level)
+E extends {
+  fields: infer F extends Record<string, $ZodType>
+  schema: infer Base extends $ZodType  // slim: base schema directly
+  indexes: infer I extends Record<string, readonly string[]>
+  ...
+}
+
+// DecodedDocFor — handle both shapes
+T[K] extends { schema: { doc: infer D extends $ZodType } }
+  ? zoutput<D>
+  : T[K] extends { doc: infer D extends $ZodType }
+    ? zoutput<D>
+    : never
+```
+
+This ensures `ctx.db` type safety, `withIndex` constraints, and decoded-doc inference all work for slim models.
 
 ### `zx.*` Helper Functions
 
@@ -123,7 +150,7 @@ zx.paginationResult(Users.doc)  // on-demand
 
 Two internal `createModel` variants selected by the flag. The slim variant constructs only `schema` (base) and `doc` — 2 Zod instances (~29 KB) instead of 6 (~106 KB).
 
-When `schemaHelpers: false`, accessing the old nested properties (e.g., `model.schema.update`) throws with a migration message via throwing getters. Throwing getters use `Object.defineProperty` with no closure — negligible memory cost (verified: no V8 closure overhead unlike lazy getters).
+When `schemaHelpers: false`, `model.schema` is the base `$ZodType` (not a nested object), so there are no nested properties to access. If a consumer somehow accesses `model.schema` as if it were the old bundle (e.g., `model.schema.doc`), it will naturally fail because `$ZodType` doesn't have those properties — TypeScript catches this at compile time, and at runtime it returns `undefined`. No throwing getters needed.
 
 ### Internal Migration
 
@@ -132,6 +159,21 @@ When `schemaHelpers: false`, accessing the old nested properties (e.g., `model.s
 1. `tableFromModel()` uses `model.fields` + `model.name` to build the Convex table definition (via `zodToConvexFields(model.fields)` or `zodToConvex(model.schema)` for union models). This is already the case — no change needed.
 2. `defineZodSchema` constructs `zodTableMap` entries using the `zx.*` helpers: `{ doc: zx.doc(model), insert: model.schema, ... }` — derived from `ZodModelBase` properties only.
 3. The DB wrapper (`ZodvexDatabaseReader`/`Writer`) continues reading `zodTableMap.doc` and `zodTableMap.insert` unchanged.
+
+### Codegen Compatibility
+
+Codegen discovery stores `meta.schemas` for each model and walks those schemas for codecs. Generation builds an identity map from schema objects to `Model.schema.<key>` source strings.
+
+For slim models:
+1. **Discovery**: When `meta.schemas` is absent, reconstruct schemas from the model object — `doc` from the top-level `model.doc`, `insert` from `model.schema` (the base). Walk these for codecs as normal. The memory cost is irrelevant since codegen runs at build time, not module analysis time.
+2. **Identity map**: Map slim model schemas to their actual access paths — `Model.doc` instead of `Model.schema.doc`, `Model.schema` instead of `Model.schema.insert`. Skip `update`/`docArray`/`paginatedDoc` since they don't exist on the slim model.
+3. **Generated references**: For codecs found in slim model schemas, emit the correct access path (e.g., `Model.doc.shape.email` instead of `Model.schema.doc.shape.email`).
+
+### Pagination Shape Unification
+
+The existing `zPaginated()` helper (`runtimeHelpers.ts`) and `createPaginatedDocSchema()` (`modelSchemaBundle.ts`) use `{ continueCursor: optional(nullable(string)) }`. The new `zx.paginationResult()` uses Convex's actual `PaginationResult` shape: `{ continueCursor: string, splitCursor: optional(nullable(string)) }`.
+
+These must be unified. Update `zPaginated` and `createPaginatedDocSchema` to match the new `zx.paginationResult` shape. This is a breaking change for anyone relying on `continueCursor` being nullable, but it aligns with Convex's actual type.
 
 ### Stress Test
 
@@ -173,8 +215,11 @@ export const list = zq({
 - `ZodModelBase` type extraction
 - `schemaHelpers` flag on `defineZodModel`
 - Slim `createModel` factory
-- Internal migration to use `ZodModelBase` constraints
-- Throwing getters for removed properties
+- Internal migration to use `ZodModelBase` constraints (both runtime and type-level)
+- Type-level `ConvexTableFor` and `DecodedDocFor` branches for slim models
+- Codegen discovery/generation compatibility with slim models
+- Pagination shape unification (`zPaginated`, `createPaginatedDocSchema` → match `zx.paginationResult`)
+- Concrete `doc` typing on `SlimZodModel` (preserves `.nullable()` etc.)
 - Stress test `--slim` flag
 - Documentation for experimental mode
 
@@ -183,7 +228,6 @@ export const list = zq({
 - Removing the full bundle entirely (future major)
 - Changes to `zodTable()` (legacy, already deprecated)
 - zod/mini-specific optimizations (orthogonal)
-- Codegen changes (codegen reads model properties at build time, not module analysis time)
 
 ## Open Questions
 

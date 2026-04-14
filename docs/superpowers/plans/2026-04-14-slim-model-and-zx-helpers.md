@@ -12,20 +12,34 @@
 
 ---
 
+## Revision Notes
+
+**v2 (2026-04-14)** — Addresses code review findings:
+1. **(High) Type-level schema.ts**: Added Task 3b for `ConvexTableFor` and `DecodedDocFor` slim model branches.
+2. **(High) Codegen compatibility**: Added Task 6 for discovery/generation with slim models.
+3. **(Medium) Concrete doc typing**: `SlimZodModel.doc` now carries `z.ZodObject<...>` not `$ZodType`. Updated Task 4.
+4. **(Medium) Getters vs undefined**: Aligned on no throwing getters — `model.schema` is a bare `$ZodType`, so `.doc`/`.update` access returns `undefined` naturally. TS catches this at compile time. Updated Task 4 tests.
+5. **(Open) Pagination shape**: Added Task 1b to unify existing `zPaginated`/`createPaginatedDocSchema` with the new `zx.paginationResult` shape.
+
 ## File Map
 
 | File | Action | Responsibility |
 |------|--------|---------------|
 | `packages/zodvex/src/internal/zx.ts` | Modify | Add `doc()`, `update()`, `docArray()`, `paginationResult()`, `paginationOpts()` helpers |
-| `packages/zodvex/src/internal/model.ts` | Modify | Extract `ZodModelBase`, add `SlimZodModel` type, add `schemaHelpers` option, slim factory |
+| `packages/zodvex/src/internal/model.ts` | Modify | Extract `ZodModelBase`, add `SlimZodModel` (concrete doc type), add `schemaHelpers` option, slim factory |
 | `packages/zodvex/src/internal/meta.ts` | Modify | Make `schemas` field on `ZodvexModelMeta` optional (slim models don't carry full bundle) |
-| `packages/zodvex/src/internal/schema.ts` | Modify | Constrain against `ZodModelBase`, use `zx.*` helpers to build `zodTableMap` entries |
-| `packages/zodvex/src/internal/modelSchemaBundle.ts` | No change | Stays as-is for full bundle path |
+| `packages/zodvex/src/internal/schema.ts` | Modify | Constrain against `ZodModelBase`, use `zx.*` helpers to build `zodTableMap` entries, add `ConvexTableFor`/`DecodedDocFor` branches for slim models |
+| `packages/zodvex/src/internal/schema/runtimeHelpers.ts` | Modify | Unify `zPaginated` with `zx.paginationResult` shape |
+| `packages/zodvex/src/internal/modelSchemaBundle.ts` | Modify | Unify `createPaginatedDocSchema` with `zx.paginationResult` shape |
 | `packages/zodvex/src/public/index.ts` | No change | Already re-exports `zx` — new helpers auto-visible |
+| `packages/zodvex/src/public/model.ts` | Modify | Export new types, update `SlimZodModel` overloads |
 | `packages/zodvex/src/public/mini/model.ts` | Modify | Add slim model overloads matching new `schemaHelpers` option |
+| `packages/zodvex/src/public/codegen/discover.ts` | Modify | Handle slim models (missing `meta.schemas`) by reconstructing from model object |
+| `packages/zodvex/src/public/codegen/generate.ts` | Modify | Handle slim model access paths in identity map (`Model.doc` vs `Model.schema.doc`) |
 | `packages/zodvex/__tests__/zx.test.ts` | Modify | Add tests for new `zx.*` helpers |
 | `packages/zodvex/__tests__/defineZodModel.test.ts` | Modify | Add `schemaHelpers: false` tests |
 | `packages/zodvex/__tests__/slim-model-schema.test.ts` | Create | Integration tests: slim model → defineZodSchema → DB wrapper round-trip |
+| `packages/zodvex/__tests__/slim-model-codegen.test.ts` | Create | Codegen discovery/generation tests with slim models |
 | `examples/stress-test/templates/zod/model-small-slim.ts.tmpl` | Create | Slim model template |
 | `examples/stress-test/templates/zod/functions-shared-slim.ts.tmpl` | Create | Functions using `zx.*` helpers |
 | `examples/stress-test/generate.ts` | Modify | Add `--slim` flag |
@@ -231,6 +245,97 @@ Expected: ALL PASS
 ```bash
 git add packages/zodvex/src/internal/zx.ts packages/zodvex/__tests__/zx.test.ts
 git commit -m "feat: add zx.paginationResult() and zx.paginationOpts() helpers"
+```
+
+---
+
+### Task 1b: Unify existing pagination shapes with `zx.paginationResult`
+
+The existing `zPaginated` and `createPaginatedDocSchema` use `continueCursor: optional(nullable(string))`. The new `zx.paginationResult` uses `continueCursor: string` + `splitCursor: optional(nullable(string))`, matching Convex's actual `PaginationResult` type. Unify them.
+
+**Files:**
+- Modify: `packages/zodvex/src/internal/schema/runtimeHelpers.ts`
+- Modify: `packages/zodvex/src/internal/modelSchemaBundle.ts`
+- Modify: `packages/zodvex/src/public/model.ts` (the `FullPaginatedShape` type)
+- Modify: `packages/zodvex/src/public/mini/model.ts` (the `MiniModelSchemas` paginatedDoc type)
+
+- [ ] **Step 1: Update `zPaginated` in `runtimeHelpers.ts`**
+
+Change `packages/zodvex/src/internal/schema/runtimeHelpers.ts`:
+
+```typescript
+export function zPaginated<T extends $ZodType>(item: T) {
+  return z.object({
+    page: z.array(item),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+    splitCursor: z.string().nullable().optional(),
+  })
+}
+```
+
+- [ ] **Step 2: Update `createPaginatedDocSchema` in `modelSchemaBundle.ts`**
+
+Change `packages/zodvex/src/internal/modelSchemaBundle.ts`:
+
+```typescript
+export function createPaginatedDocSchema(docSchema: $ZodType): z.ZodObject<any> {
+  return z.object({
+    page: z.array(docSchema),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+    splitCursor: z.string().nullable().optional(),
+  })
+}
+```
+
+- [ ] **Step 3: Update `FullPaginatedShape` type in `public/model.ts`**
+
+Change the `FullPaginatedShape` type:
+
+```typescript
+type FullPaginatedShape<Name extends string, Fields extends $ZodShape> = {
+  page: z.ZodArray<z.ZodObject<FullDocShape<Name, Fields>>>
+  isDone: z.ZodBoolean
+  continueCursor: z.ZodString
+  splitCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+}
+```
+
+- [ ] **Step 4: Update mini paginatedDoc type in `public/mini/model.ts`**
+
+Update the `MiniModelSchemas` paginatedDoc shape to match:
+
+```typescript
+readonly paginatedDoc: ZodMiniObject<
+  {
+    page: ZodMiniArray<...>
+    isDone: ZodMiniBoolean
+    continueCursor: ZodMiniString
+    splitCursor: ZodMiniOptional<ZodMiniNullable<ZodMiniString>>
+  },
+  $strip
+>
+```
+
+- [ ] **Step 5: Run existing pagination tests to check for breakage**
+
+Run: `bun run test -- --grep "paginated\|pagination"`
+Fix any test expectations that assumed `continueCursor` was nullable/optional.
+
+- [ ] **Step 6: Run full test suite**
+
+Run: `bun run test`
+Expected: ALL PASS
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add packages/zodvex/src/internal/schema/runtimeHelpers.ts \
+  packages/zodvex/src/internal/modelSchemaBundle.ts \
+  packages/zodvex/src/public/model.ts \
+  packages/zodvex/src/public/mini/model.ts
+git commit -m "fix: unify pagination shapes to match Convex PaginationResult type"
 ```
 
 ---
@@ -697,6 +802,101 @@ git commit -m "refactor: extract ZodModelBase, decouple internals from schema bu
 
 ---
 
+### Task 3b: Add type-level `ConvexTableFor` and `DecodedDocFor` branches for slim models
+
+`ConvexTableFor` currently matches model entries via `schema: { base: infer Base }` and `DecodedDocFor` matches `{ schema: { doc: $ZodType } }`. Slim models have flat `schema: $ZodType` + `doc: $ZodType`, so neither structural match works. Without this fix, slim models lose `ctx.db` type safety and decoded-doc inference.
+
+**Files:**
+- Modify: `packages/zodvex/src/internal/schema.ts`
+
+- [ ] **Step 1: Update `ConvexTableFor` to handle slim models**
+
+In `packages/zodvex/src/internal/schema.ts`, the `ConvexTableFor` type needs an additional branch. After the existing model entry branch (which matches `schema: { base: infer Base }`), add a branch for slim models where `schema` is a bare `$ZodType`:
+
+```typescript
+type ConvexTableFor<E> =
+  // zodTable entry — extract .table with full VObject type
+  E extends { table: infer T extends TableDefinition }
+    ? T
+    : // Full model entry — schema is nested bundle with .base
+      E extends {
+          fields: infer F extends Record<string, $ZodType>
+          schema: { base: infer Base extends $ZodType }
+          indexes: infer I extends Record<string, readonly string[]>
+          searchIndexes: infer SI extends Record<string, SearchIndexConfig>
+          vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
+        }
+      ? Base extends $ZodUnion<any> | $ZodDiscriminatedUnion<any, any>
+        ? TableDefinition<
+            ConvexValidatorFromZod<Base, 'required'>,
+            { [K in keyof I]: [...I[K]] },
+            { [K in keyof SI]: { searchField: string; filterFields: string } },
+            { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+          >
+        : TableDefinition<
+            VObject<
+              ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
+              ConvexValidatorFromZodFieldsAuto<F>
+            >,
+            { [K in keyof I]: [...I[K]] },
+            { [K in keyof SI]: { searchField: string; filterFields: string } },
+            { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+          >
+      : // Slim model entry — schema is bare $ZodType (the base), compute from fields
+        E extends {
+            fields: infer F extends Record<string, $ZodType>
+            schema: infer Base extends $ZodType
+            indexes: infer I extends Record<string, readonly string[]>
+            searchIndexes: infer SI extends Record<string, SearchIndexConfig>
+            vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
+          }
+        ? Base extends $ZodUnion<any> | $ZodDiscriminatedUnion<any, any>
+          ? TableDefinition<
+              ConvexValidatorFromZod<Base, 'required'>,
+              { [K in keyof I]: [...I[K]] },
+              { [K in keyof SI]: { searchField: string; filterFields: string } },
+              { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+            >
+          : TableDefinition<
+              VObject<
+                ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
+                ConvexValidatorFromZodFieldsAuto<F>
+              >,
+              { [K in keyof I]: [...I[K]] },
+              { [K in keyof SI]: { searchField: string; filterFields: string } },
+              { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+            >
+        : TableDefinition
+```
+
+Note: The full model branch matches first (more specific structural match `schema: { base: ... }` before `schema: $ZodType`). TypeScript will prefer the more specific branch. Verify with a type test in Task 5.
+
+- [ ] **Step 2: Update `DecodedDocFor` to handle slim models**
+
+```typescript
+export type DecodedDocFor<T extends Record<string, { schema: { doc: $ZodType } } | { doc: $ZodType }>> = {
+  [K in keyof T & string]: T[K] extends { schema: { doc: infer D extends $ZodType } }
+    ? zoutput<D>
+    : T[K] extends { doc: infer D extends $ZodType }
+      ? zoutput<D>
+      : never
+}
+```
+
+- [ ] **Step 3: Run type check**
+
+Run: `bun run type-check`
+Expected: PASS
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/zodvex/src/internal/schema.ts
+git commit -m "fix: add ConvexTableFor and DecodedDocFor type branches for slim models"
+```
+
+---
+
 ### Task 4: Add `schemaHelpers` flag and slim model factory
 
 The consumer-facing feature. `defineZodModel('name', fields, { schemaHelpers: false })` produces a slim model.
@@ -769,6 +969,32 @@ describe('defineZodModel with schemaHelpers: false', () => {
     expect(meta.tableName).toBe('tasks')
     expect(meta.definitionSource).toBe('shape')
   })
+
+  it('doc has concrete type — .nullable() works', () => {
+    const model = defineZodModel('users', {
+      name: z.string(),
+    }, { schemaHelpers: false })
+
+    // .nullable() works because doc is z.ZodObject, not $ZodType
+    const nullableDoc = model.doc.nullable()
+    expect(nullableDoc.safeParse(null).success).toBe(true)
+    expect(nullableDoc.safeParse({
+      _id: 'u1', _creationTime: 100, name: 'Alice'
+    }).success).toBe(true)
+  })
+
+  it('doc works with zx.paginationResult()', () => {
+    const model = defineZodModel('items', {
+      title: z.string(),
+    }, { schemaHelpers: false })
+
+    const paginated = zx.paginationResult(model.doc)
+    expect(paginated.safeParse({
+      page: [{ _id: 'i1', _creationTime: 100, title: 'Hello' }],
+      isDone: false,
+      continueCursor: 'abc',
+    }).success).toBe(true)
+  })
 })
 ```
 
@@ -800,6 +1026,7 @@ export type DefineZodModelOptions = {
 /**
  * Slim model — produced when `schemaHelpers: false`.
  * Carries only the base schema and doc, no derived schemas.
+ * `doc` uses concrete z.ZodObject type so .nullable()/.optional()/etc. work.
  */
 export type SlimZodModel<
   Name extends string = string,
@@ -810,7 +1037,7 @@ export type SlimZodModel<
   VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
 > = ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes> & {
   readonly schema: InsertSchema
-  readonly doc: $ZodType
+  readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
 }
 ```
 
@@ -1189,6 +1416,215 @@ Expected: PASS
 ```bash
 git add packages/zodvex/src/public/model.ts
 git commit -m "feat: export ZodModelBase, SlimZodModel, DefineZodModelOptions from public API"
+```
+
+---
+
+### Task 7b: Codegen compatibility with slim models
+
+Codegen discovery stores `meta.schemas` and walks them for codecs. Generation builds an identity map from schema objects to `Model.schema.<key>` source strings. Slim models have no `meta.schemas` and no `Model.schema.doc`. This task makes codegen work with both model types.
+
+**Files:**
+- Modify: `packages/zodvex/src/public/codegen/discover.ts`
+- Modify: `packages/zodvex/src/public/codegen/generate.ts`
+- Create: `packages/zodvex/__tests__/slim-model-codegen.test.ts`
+
+- [ ] **Step 1: Write failing tests for codegen with slim models**
+
+Create `packages/zodvex/__tests__/slim-model-codegen.test.ts`:
+
+```typescript
+import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { defineZodModel } from '../src/internal/model'
+import { readMeta, type ZodvexModelMeta } from '../src/internal/meta'
+import { walkModelCodecs } from '../src/public/codegen/discover'
+import { zx } from '../src/internal/zx'
+import { zodvexCodec } from '../src/internal/codec'
+
+describe('codegen with slim models', () => {
+  it('walkModelCodecs handles slim model (no meta.schemas)', () => {
+    const model = defineZodModel('users', {
+      name: z.string(),
+      createdAt: zx.date(),
+    }, { schemaHelpers: false })
+
+    const meta = readMeta(model) as ZodvexModelMeta
+    // Slim models don't have meta.schemas
+    expect(meta.schemas).toBeUndefined()
+
+    // walkModelCodecs should still find codecs by reconstructing schemas
+    // from the model's name + fields
+    const codecs = walkModelCodecs('UserModel', 'models/user.ts', meta.schemas, model)
+    expect(codecs.length).toBeGreaterThan(0)
+    // Should find the zx.date() codec in the model fields
+  })
+
+  it('walkModelCodecs finds codecs in full model normally', () => {
+    const model = defineZodModel('tasks', {
+      title: z.string(),
+      createdAt: zx.date(),
+    })
+
+    const meta = readMeta(model) as ZodvexModelMeta
+    expect(meta.schemas).toBeDefined()
+
+    const codecs = walkModelCodecs('TaskModel', 'models/task.ts', meta.schemas!, model)
+    expect(codecs.length).toBeGreaterThan(0)
+  })
+})
+```
+
+- [ ] **Step 2: Update `walkModelCodecs` to accept model fallback**
+
+In `packages/zodvex/src/public/codegen/discover.ts`, update `walkModelCodecs` to accept an optional model object for reconstructing schemas when `meta.schemas` is absent:
+
+```typescript
+export function walkModelCodecs(
+  modelExportName: string,
+  sourceFile: string,
+  schemas: ZodvexModelMeta['schemas'] | undefined,
+  model?: { name: string; fields: Record<string, $ZodType>; schema?: $ZodType; doc?: $ZodType }
+): ModelEmbeddedCodec[] {
+  // Reconstruct schemas from model if meta.schemas is absent (slim model)
+  const effectiveSchemas = schemas ?? reconstructSchemas(model)
+  if (!effectiveSchemas) return []
+
+  // ... rest of existing logic using effectiveSchemas ...
+}
+```
+
+Add a `reconstructSchemas` helper:
+
+```typescript
+import { addSystemFields } from '../../internal/schemaHelpers'
+import { createUpdateObjectSchema } from '../../internal/modelSchemaBundle'
+
+function reconstructSchemas(
+  model?: { name: string; fields: Record<string, $ZodType>; schema?: $ZodType; doc?: $ZodType }
+): ZodvexModelMeta['schemas'] | null {
+  if (!model) return null
+  const { z } = await import('zod') // already available at codegen time
+  const baseSchema = model.schema instanceof $ZodType ? model.schema : z.object(model.fields)
+  const docSchema = model.doc instanceof $ZodType ? model.doc : addSystemFields(model.name, baseSchema)
+  return {
+    doc: docSchema,
+    insert: baseSchema,
+    update: createUpdateObjectSchema(model.name, model.fields),
+    docArray: z.array(docSchema),
+    paginatedDoc: z.object({ page: z.array(docSchema), isDone: z.boolean(), continueCursor: z.string() }),
+  }
+}
+```
+
+Note: `reconstructSchemas` uses synchronous imports since `zod` is already loaded. The memory cost is irrelevant at codegen (build) time.
+
+- [ ] **Step 3: Update `discoverModules` to pass model object to `walkModelCodecs`**
+
+In the `discoverModules` function, when building `DiscoveredModel`, also store a reference to the model object for slim model fallback:
+
+```typescript
+if (meta.type === 'model') {
+  // ... existing dedup logic ...
+  models.push({
+    exportName,
+    tableName: meta.tableName,
+    sourceFile: file,
+    schemas: meta.schemas,
+    // For slim models: store model ref for schema reconstruction at codegen time
+    _modelRef: meta.schemas ? undefined : value,
+  })
+}
+```
+
+Update `DiscoveredModel` type to include the optional ref:
+
+```typescript
+export type DiscoveredModel = {
+  exportName: string
+  tableName: string
+  sourceFile: string
+  schemas: ZodvexModelMeta['schemas']
+  /** @internal For slim models — used to reconstruct schemas at codegen time. */
+  _modelRef?: unknown
+}
+```
+
+Then in the codec walking loop:
+
+```typescript
+for (const model of models) {
+  const found = walkModelCodecs(
+    model.exportName,
+    model.sourceFile,
+    model.schemas,
+    model._modelRef as any
+  )
+  modelCodecs.push(...found)
+}
+```
+
+- [ ] **Step 4: Update identity map in `generateApiFile` for slim models**
+
+In `packages/zodvex/src/public/codegen/generate.ts`, the identity map currently builds paths like `Model.schema.doc`. For slim models, the paths differ:
+
+```typescript
+for (const model of models) {
+  const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
+  const isSlim = !model.schemas // slim models have no schemas in meta
+  
+  if (isSlim && model._modelRef) {
+    // Slim model: map .doc and .schema directly
+    const ref = model._modelRef as any
+    if (ref.doc instanceof $ZodType) {
+      identityMap.set(ref.doc, {
+        importPath,
+        exportName: model.exportName,
+        schemaKey: 'doc' // emits Model.doc
+      })
+    }
+    if (ref.schema instanceof $ZodType) {
+      identityMap.set(ref.schema, {
+        importPath,
+        exportName: model.exportName,
+        schemaKey: 'schema' // emits Model.schema (the base)
+      })
+    }
+  } else if (model.schemas) {
+    // Full model: existing behavior
+    for (const key of ['doc', 'insert', 'update', 'docArray', 'paginatedDoc'] as const) {
+      identityMap.set(model.schemas[key] as $ZodType, {
+        importPath,
+        exportName: model.exportName,
+        schemaKey: `schema.${key}` // emits Model.schema.doc etc.
+      })
+    }
+  }
+}
+```
+
+And update the `resolveSchema` function to use the schemaKey directly:
+
+```typescript
+// Currently: `${ref.exportName}.schema.${ref.schemaKey}`
+// Change to: `${ref.exportName}.${ref.schemaKey}`
+// This works for both: full model → "Model.schema.doc", slim → "Model.doc"
+```
+
+- [ ] **Step 5: Run codegen tests**
+
+Run: `bun run test -- packages/zodvex/__tests__/slim-model-codegen.test.ts`
+Run: `bun run test -- packages/zodvex/__tests__/codegen-generate.test.ts`
+Run: `bun run test -- packages/zodvex/__tests__/codegen-discover.test.ts`
+Expected: ALL PASS
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/zodvex/src/public/codegen/discover.ts \
+  packages/zodvex/src/public/codegen/generate.ts \
+  packages/zodvex/__tests__/slim-model-codegen.test.ts
+git commit -m "feat: codegen discovery and generation compatibility with slim models"
 ```
 
 ---
