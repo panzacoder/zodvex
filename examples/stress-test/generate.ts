@@ -12,6 +12,7 @@ interface GenerateConfig {
   mode: 'tables-only' | 'functions-only' | 'both'
   variant: 'baseline' | 'compiled' | 'zod-mini'
   shared: boolean
+  slim: boolean
   convex: boolean
   outputDir: string
 }
@@ -22,10 +23,11 @@ function parseArgs(): GenerateConfig {
   const mode = (args.find(a => a.startsWith('--mode='))?.split('=')[1] ?? 'both') as GenerateConfig['mode']
   const variant = (args.find(a => a.startsWith('--variant='))?.split('=')[1] ?? 'baseline') as GenerateConfig['variant']
   const shared = args.includes('--shared')
+  const slim = args.includes('--slim')
   const convex = args.includes('--convex')
   const outputDir = args.find(a => a.startsWith('--output='))?.split('=')[1] ?? join(EXAMPLE_DIR, 'convex', 'generated')
 
-  return { count, mode, variant, shared, convex, outputDir }
+  return { count, mode, variant, shared, slim, convex, outputDir }
 }
 
 // --- Template Loading ---
@@ -128,11 +130,13 @@ function generate() {
   const templateDir = variant === 'zod-mini' ? 'mini' : 'zod'
 
   // Load templates
-  const functionsTemplate = config.shared ? 'functions-shared' : 'functions'
+  const functionsTemplate = config.shared
+    ? (config.slim ? 'functions-shared-slim' : 'functions-shared')
+    : 'functions'
   const templates = {
-    small: loadTemplate(templateDir, 'model-small'),
-    medium: loadTemplate(templateDir, 'model-medium'),
-    large: loadTemplate(templateDir, 'model-large'),
+    small: loadTemplate(templateDir, config.slim ? 'model-small-slim' : 'model-small'),
+    medium: loadTemplate(templateDir, config.slim ? 'model-medium-slim' : 'model-medium'),
+    large: loadTemplate(templateDir, config.slim ? 'model-large-slim' : 'model-large'),
     functions: loadTemplate(templateDir, functionsTemplate),
     schema: loadTemplate(templateDir, 'schema'),
   }

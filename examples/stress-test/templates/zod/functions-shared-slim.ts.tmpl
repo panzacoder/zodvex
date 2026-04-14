@@ -1,0 +1,55 @@
+import { z } from 'zod'
+import { zx } from 'zodvex'
+import { zq, zm } from '../functions'
+import { {{NAME}}Model, {{NAME}}Fields } from '../models/{{FILE_NAME}}'
+
+// Shared arg objects — same Zod instances reused across functions
+const byIdArgs = { id: zx.id('{{TABLE_NAME}}') }
+
+export const get{{NAME}} = zq({
+  args: byIdArgs,
+  handler: async (ctx, { id }) => {
+    return await ctx.db.get(id)
+  },
+  returns: {{NAME}}Model.doc.nullable(),
+})
+
+export const delete{{NAME}} = zm({
+  args: byIdArgs,
+  handler: async (ctx, { id }) => {
+    await ctx.db.delete(id)
+  },
+})
+
+export const list{{NAME}} = zq({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query('{{TABLE_NAME}}').collect()
+  },
+  returns: zx.docArray({{NAME}}Model),
+})
+
+export const update{{NAME}} = zm({
+  args: {
+    id: zx.id('{{TABLE_NAME}}'),
+    title: {{NAME}}Fields.title,
+    {{EXTRA_ARGS}}
+  },
+  handler: async (ctx, { id, ...fields }) => {
+    await ctx.db.patch(id, fields)
+  },
+})
+
+export const create{{NAME}} = zm({
+  args: {
+    title: {{NAME}}Fields.title,
+    {{EXTRA_ARGS}}
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert('{{TABLE_NAME}}', {
+      ...args,
+      createdAt: new Date(),
+    })
+  },
+  returns: zx.id('{{TABLE_NAME}}'),
+})
