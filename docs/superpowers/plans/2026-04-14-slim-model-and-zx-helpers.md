@@ -14,6 +14,12 @@
 
 ## Revision Notes
 
+**v4 (2026-04-14)** — Fixes stale references, self-import, mini exports, and union test gaps:
+1. **(Medium) Task 7 stale names**: Updated exports to use `SlimObjectModel`/`SlimUnionModel` (not `SlimZodModel`). Added `mini/index.ts` re-exports.
+2. **(Medium) Task 6 self-import**: Removed invalid `import { AddSystemFieldsToMiniUnion } from './model'` — type is already in the file.
+3. **(Medium) Mini public exports**: Task 7 now updates `mini/index.ts` to re-export `SlimMiniObjectModel`, `SlimMiniUnionModel`, `DefineZodModelOptions`.
+4. **(Medium) Slim union test coverage**: Added discriminated union tests to Task 4 (slim model + `zx.update()`) and Task 5 (slim union through `defineZodSchema`).
+
 **v3 (2026-04-14)** — Addresses union model, codegen, and mini findings:
 1. **(High) Union models in zx helpers**: `ZxModelInput` now includes `schema` property. Helpers extract base schema from model for union models (`fields: {}`). `zx.update()` delegates to union-aware `createSchemaUpdateSchema`.
 2. **(High) Task 7b compilation**: Removed async `import('zod')`, use `z` directly. `reconstructSchemas` uses `zx.*` helpers and `createSchemaUpdateSchema` for union-safe reconstruction. Pagination shape uses `zx.paginationResult()`.
@@ -1020,6 +1026,50 @@ describe('defineZodModel with schemaHelpers: false', () => {
       continueCursor: 'abc',
     }).success).toBe(true)
   })
+
+  it('slim discriminated union model — doc adds system fields to each variant', () => {
+    const visitSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('phone'), duration: z.number() }),
+      z.object({ type: z.literal('in-person'), roomId: z.string() }),
+    ])
+
+    const Visits = defineZodModel('visits', visitSchema, { schemaHelpers: false })
+
+    expect(Visits.name).toBe('visits')
+    expect(Visits.schema).toBe(visitSchema)
+    expect(Object.keys(Visits.fields)).toEqual([]) // union models have empty fields
+
+    // doc should be a union with system fields on each variant
+    expect(isZodUnion(Visits.doc)).toBe(true)
+
+    const phoneResult = Visits.doc.safeParse({
+      type: 'phone', duration: 30, _id: 'v1', _creationTime: 1,
+    })
+    expect(phoneResult.success).toBe(true)
+
+    const inPersonResult = Visits.doc.safeParse({
+      type: 'in-person', roomId: 'room1', _id: 'v2', _creationTime: 2,
+    })
+    expect(inPersonResult.success).toBe(true)
+
+    // Missing system fields should fail
+    const bad = Visits.doc.safeParse({ type: 'phone', duration: 30 })
+    expect(bad.success).toBe(false)
+  })
+
+  it('slim union model — zx.update() maps partial over variants', () => {
+    const visitSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('phone'), duration: z.number() }),
+      z.object({ type: z.literal('in-person'), roomId: z.string() }),
+    ])
+
+    const Visits = defineZodModel('visits', visitSchema, { schemaHelpers: false })
+    const updateSchema = zx.update(Visits)
+
+    // _id required, variant fields optional
+    expect(updateSchema.safeParse({ _id: 'v1', type: 'phone' }).success).toBe(true)
+    expect(updateSchema.safeParse({ type: 'phone' }).success).toBe(false) // missing _id
+  })
 })
 ```
 
@@ -1326,6 +1376,35 @@ describe('slim model → defineZodSchema integration', () => {
       continueCursor: 'cursor',
     }).success).toBe(true)
   })
+
+  it('slim discriminated union model registers and populates zodTableMap', () => {
+    const visitSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('phone'), duration: z.number() }),
+      z.object({ type: z.literal('in-person'), roomId: z.string() }),
+    ])
+
+    const VisitModel = defineZodModel('visits', visitSchema, { schemaHelpers: false })
+    const schema = defineZodSchema({ visits: VisitModel })
+    const tableSchemas = schema.__zodTableMap.visits
+
+    expect(tableSchemas.doc).toBeDefined()
+    expect(tableSchemas.insert).toBeDefined()
+    expect(tableSchemas.update).toBeDefined()
+
+    // doc should validate union variants with system fields
+    expect(tableSchemas.doc.safeParse({
+      type: 'phone', duration: 30, _id: 'v1', _creationTime: 1,
+    }).success).toBe(true)
+
+    expect(tableSchemas.doc.safeParse({
+      type: 'in-person', roomId: 'room1', _id: 'v2', _creationTime: 2,
+    }).success).toBe(true)
+
+    // update should be union-aware (partial variants with _id)
+    expect(tableSchemas.update.safeParse({
+      _id: 'v1', type: 'phone',
+    }).success).toBe(true)
+  })
 })
 ```
 
@@ -1356,14 +1435,17 @@ Mini consumers use functional wrappers (`z.nullable(schema)`) not method chains 
 
 In `packages/zodvex/src/public/mini/model.ts`, add slim types that mirror `SlimObjectModel`/`SlimUnionModel` but use mini types:
 
+Update the existing import from `../../internal/model` to include `DefineZodModelOptions` and `ZodModelBase`:
+
 ```typescript
 import {
   defineZodModel as _defineZodModel,
   type DefineZodModelOptions,
   type ZodModelBase
 } from '../../internal/model'
-import type { AddSystemFieldsToMiniUnion } from './model' // already in this file
 ```
+
+Note: `AddSystemFieldsToMiniUnion` is already defined in this file (line 76) — do NOT import it.
 
 ```typescript
 /** Slim object model for zod/mini consumers. */
@@ -1452,43 +1534,62 @@ git commit -m "feat: add schemaHelpers option to zodvex/mini defineZodModel"
 
 ### Task 7: Export new types from public API
 
-Ensure `ZodModelBase`, `AnyZodModelBase`, `SlimZodModel`, and `DefineZodModelOptions` are exported.
+Ensure new types are exported from both `zodvex` (full) and `zodvex/mini` entrypoints.
 
 **Files:**
 - Modify: `packages/zodvex/src/public/model.ts`
+- Modify: `packages/zodvex/src/public/mini/index.ts`
 
 - [ ] **Step 1: Check current exports**
 
-Read `packages/zodvex/src/public/model.ts` to see what's currently exported from the main entrypoint's model surface.
+Read `packages/zodvex/src/public/model.ts` and `packages/zodvex/src/public/mini/index.ts` to see what's currently exported.
 
-- [ ] **Step 2: Add exports for new types**
+- [ ] **Step 2: Add exports to full-zod entrypoint**
 
-Add the new types to the re-export list:
+In `packages/zodvex/src/public/model.ts`, add:
 
 ```typescript
 export type {
   AnyZodModelBase,
   DefineZodModelOptions,
-  SlimZodModel,
+  SlimObjectModel,
+  SlimUnionModel,
   ZodModelBase
 } from '../internal/model'
 ```
 
-- [ ] **Step 3: Run existing export tests**
+- [ ] **Step 3: Add exports to mini entrypoint**
+
+In `packages/zodvex/src/public/mini/index.ts`, add the new mini slim types and options to the re-export from `./model`:
+
+```typescript
+export {
+  defineZodModel,
+  type DefineZodModelOptions,
+  type FieldPaths,
+  type MiniModelSchemas,
+  type MiniUnionModelSchemas,
+  type ModelFieldPaths,
+  type ModelSchemas,
+  type SearchIndexConfig,
+  type SlimMiniObjectModel,
+  type SlimMiniUnionModel,
+  type VectorIndexConfig,
+  type ZodModel
+} from './model'
+```
+
+- [ ] **Step 4: Run existing export tests and type check**
 
 Run: `bun run test -- packages/zodvex/__tests__/exports.test.ts`
-Expected: PASS (new exports don't break existing ones)
-
-- [ ] **Step 4: Run type check**
-
 Run: `bun run type-check`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/zodvex/src/public/model.ts
-git commit -m "feat: export ZodModelBase, SlimZodModel, DefineZodModelOptions from public API"
+git add packages/zodvex/src/public/model.ts packages/zodvex/src/public/mini/index.ts
+git commit -m "feat: export slim model types and DefineZodModelOptions from public API"
 ```
 
 ---
