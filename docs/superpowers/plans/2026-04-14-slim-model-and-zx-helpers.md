@@ -938,7 +938,14 @@ The consumer-facing feature. `defineZodModel('name', fields, { schemaHelpers: fa
 
 - [ ] **Step 1: Write failing tests for `schemaHelpers: false`**
 
-Append to `packages/zodvex/__tests__/defineZodModel.test.ts`:
+First, add `isZodUnion` and `zx` to the imports at the top of `packages/zodvex/__tests__/defineZodModel.test.ts`:
+
+```typescript
+import { isZodUnion } from '../src/internal/schemaHelpers'
+import { zx } from '../src/internal/zx'
+```
+
+Then append the following test suite:
 
 ```typescript
 describe('defineZodModel with schemaHelpers: false', () => {
