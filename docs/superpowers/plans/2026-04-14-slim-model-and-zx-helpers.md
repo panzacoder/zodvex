@@ -14,9 +14,15 @@
 
 ## Revision Notes
 
+**v3 (2026-04-14)** — Addresses union model, codegen, and mini findings:
+1. **(High) Union models in zx helpers**: `ZxModelInput` now includes `schema` property. Helpers extract base schema from model for union models (`fields: {}`). `zx.update()` delegates to union-aware `createSchemaUpdateSchema`.
+2. **(High) Task 7b compilation**: Removed async `import('zod')`, use `z` directly. `reconstructSchemas` uses `zx.*` helpers and `createSchemaUpdateSchema` for union-safe reconstruction. Pagination shape uses `zx.paginationResult()`.
+3. **(Medium) Slim types for unions**: Split `SlimZodModel` into `SlimObjectModel` (concrete `z.ZodObject` doc) and `SlimUnionModel` (`AddSystemFieldsToUnion` doc). Overloads updated to return the correct type per input shape.
+4. **(Medium) Mini slim types**: Mini entrypoint defines its own `SlimMiniObjectModel`/`SlimMiniUnionModel` using `ZodMiniObject` — does NOT import internal `SlimObjectModel`. Mini consumers use functional wrappers (`z.nullable(schema)`), not method chains.
+
 **v2 (2026-04-14)** — Addresses code review findings:
 1. **(High) Type-level schema.ts**: Added Task 3b for `ConvexTableFor` and `DecodedDocFor` slim model branches.
-2. **(High) Codegen compatibility**: Added Task 6 for discovery/generation with slim models.
+2. **(High) Codegen compatibility**: Added Task 7b for discovery/generation with slim models.
 3. **(Medium) Concrete doc typing**: `SlimZodModel.doc` now carries `z.ZodObject<...>` not `$ZodType`. Updated Task 4.
 4. **(Medium) Getters vs undefined**: Aligned on no throwing getters — `model.schema` is a bare `$ZodType`, so `.doc`/`.update` access returns `undefined` naturally. TS catches this at compile time. Updated Task 4 tests.
 5. **(Open) Pagination shape**: Added Task 1b to unify existing `zPaginated`/`createPaginatedDocSchema` with the new `zx.paginationResult` shape.
@@ -497,48 +503,67 @@ Add the following type and functions before the `export const zx` block:
 ```typescript
 /**
  * Minimal model shape accepted by zx helpers.
- * Matches ZodModelBase — any model (full or slim) satisfies this.
+ * Both full and slim models satisfy this at runtime — both have
+ * name, fields, and some schema property.
+ *
+ * For object models: fields has entries, schema is reconstructible from fields.
+ * For union models: fields is {}, schema carries the union type.
+ * The helpers check fields.length to determine which path to take.
  */
 type ZxModelInput = {
   readonly name: string
   readonly fields: Record<string, $ZodType>
+  // Both model types have schema at runtime:
+  // - Full: { doc, base, insert, ... } bundle object
+  // - Slim: bare $ZodType (the base schema)
+  // Typed as unknown here — helpers extract the base schema at runtime.
+  readonly schema?: unknown
 }
 
 /**
- * Constructs a doc schema: model fields + _id + _creationTime.
- * Handles object shapes and union/discriminated union schemas.
+ * Extracts the base schema from a model input.
+ * Object models: reconstructs from fields. Union models: extracts from schema property.
+ */
+function getBaseSchemaFromModel(model: ZxModelInput): $ZodType {
+  const hasFields = Object.keys(model.fields).length > 0
+  if (hasFields) {
+    return z.object(model.fields) as any
+  }
+  // Union model — need the base schema from model.schema
+  const s = model.schema as any
+  if (s instanceof $ZodType) return s        // slim model: .schema IS the base
+  if (s?.base instanceof $ZodType) return s.base  // full model: .schema.base
+  throw new Error('[zodvex] Union model passed to zx helper without a base schema')
+}
+
+/**
+ * Constructs a doc schema: base fields + _id + _creationTime.
+ * For object models: extends fields with system fields.
+ * For union models: adds system fields to each variant via addSystemFields.
  *
  * @param model - Any ZodModel (full or slim)
- *
- * @example
- * ```typescript
- * const Users = defineZodModel('users', { name: z.string() }, { schemaHelpers: false })
- * export const get = zq({
- *   returns: zx.doc(Users).nullable(),
- *   handler: async (ctx, args) => ctx.db.get(args.id),
- * })
- * ```
  */
 function doc(model: ZxModelInput) {
-  const baseSchema = Object.keys(model.fields).length > 0
-    ? z.object(model.fields)
-    : undefined
+  const baseSchema = getBaseSchemaFromModel(model)
   // addSystemFields handles object, union, and discriminated union
-  return addSystemFields(model.name, baseSchema ?? z.object({}))
+  return addSystemFields(model.name, baseSchema)
 }
 
 /**
  * Constructs an update schema: _id required + _creationTime optional + all user fields optional.
- * For union models (empty fields), delegates to createSchemaUpdateSchema.
+ * For union models: maps partial over each variant via createSchemaUpdateSchema.
+ * For object models: creates partial object with _id via createUpdateObjectSchema.
  *
  * @param model - Any ZodModel (full or slim)
  */
 function update(model: ZxModelInput) {
-  return createUpdateObjectSchema(model.name, model.fields)
+  const baseSchema = getBaseSchemaFromModel(model)
+  // createSchemaUpdateSchema is union-aware: handles both unions and objects
+  return createSchemaUpdateSchema(model.name, baseSchema)
 }
 
 /**
- * Constructs a doc array schema: z.array(zx.doc(model)).
+ * Constructs a doc array schema: z.array(doc(model)).
  *
  * @param model - Any ZodModel (full or slim)
  */
@@ -1024,11 +1049,10 @@ export type DefineZodModelOptions = {
 }
 
 /**
- * Slim model — produced when `schemaHelpers: false`.
- * Carries only the base schema and doc, no derived schemas.
+ * Slim model for object shapes — produced when `schemaHelpers: false` with a raw shape.
  * `doc` uses concrete z.ZodObject type so .nullable()/.optional()/etc. work.
  */
-export type SlimZodModel<
+export type SlimObjectModel<
   Name extends string = string,
   Fields extends $ZodShape = $ZodShape,
   InsertSchema extends $ZodType = $ZodType,
@@ -1038,6 +1062,22 @@ export type SlimZodModel<
 > = ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes> & {
   readonly schema: InsertSchema
   readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
+}
+
+/**
+ * Slim model for union/discriminated union schemas — produced when `schemaHelpers: false`
+ * with a pre-built schema. `doc` uses AddSystemFieldsToUnion to preserve the union structure
+ * with system fields on each variant.
+ */
+export type SlimUnionModel<
+  Name extends string = string,
+  Schema extends $ZodType = $ZodType,
+  Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
+  SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
+  VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
+> = ZodModelBase<Name, $ZodShape, Schema, Indexes, SearchIndexes, VectorIndexes> & {
+  readonly schema: Schema
+  readonly doc: AddSystemFieldsToUnion<Name, Schema>
 }
 ```
 
@@ -1110,21 +1150,21 @@ import { addSystemFields } from './schemaHelpers'
 Add two new overloads before the implementation (after the existing overloads):
 
 ```typescript
-// Overload 3: raw shape with schemaHelpers: false
+// Overload 3: raw shape with schemaHelpers: false → SlimObjectModel
 export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   name: Name,
   fields: Fields,
   options: { schemaHelpers: false }
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional
-): SlimZodModel<Name, Fields, z.ZodObject<Fields>, {}, {}, {}>
+): SlimObjectModel<Name, Fields, z.ZodObject<Fields>, {}, {}, {}>
 
-// Overload 4: pre-built schema with schemaHelpers: false
+// Overload 4: pre-built schema with schemaHelpers: false → SlimUnionModel
 export function defineZodModel<Name extends string, Schema extends $ZodType>(
   name: Name,
   schema: Schema,
   options: { schemaHelpers: false }
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional
-): SlimZodModel<Name, $ZodShape, Schema, {}, {}, {}>
+): SlimUnionModel<Name, Schema, {}, {}, {}>
 ```
 
 Update the implementation signature and body:
@@ -1305,30 +1345,63 @@ git commit -m "test: add slim model integration tests through defineZodSchema"
 
 ### Task 6: Update mini entrypoint for `schemaHelpers` support
 
-The `zodvex/mini` entrypoint re-declares `defineZodModel` with mini-typed overloads. It needs the same `schemaHelpers: false` overloads.
+The `zodvex/mini` entrypoint re-declares `defineZodModel` with mini-typed overloads. It needs its own mini-specific slim types (using `ZodMiniObject` etc. instead of `z.ZodObject`) and matching `schemaHelpers: false` overloads.
+
+Mini consumers use functional wrappers (`z.nullable(schema)`) not method chains (`schema.nullable()`), so the slim doc type must use `ZodMiniObject` — not `z.ZodObject` from full zod.
 
 **Files:**
 - Modify: `packages/zodvex/src/public/mini/model.ts`
 
-- [ ] **Step 1: Add slim model overloads to mini model**
+- [ ] **Step 1: Add mini-specific slim model types**
 
-In `packages/zodvex/src/public/mini/model.ts`, add the import for `DefineZodModelOptions` and `SlimZodModel`:
+In `packages/zodvex/src/public/mini/model.ts`, add slim types that mirror `SlimObjectModel`/`SlimUnionModel` but use mini types:
 
 ```typescript
 import {
   defineZodModel as _defineZodModel,
   type DefineZodModelOptions,
-  type SlimZodModel
+  type ZodModelBase
 } from '../../internal/model'
+import type { AddSystemFieldsToMiniUnion } from './model' // already in this file
 ```
-
-Export `DefineZodModelOptions` and `SlimZodModel`:
 
 ```typescript
-export type { DefineZodModelOptions, SlimZodModel }
+/** Slim object model for zod/mini consumers. */
+export type SlimMiniObjectModel<
+  Name extends string = string,
+  Fields extends $ZodShape = $ZodShape,
+  InsertSchema extends $ZodType = ZodMiniObject<Fields, $strip>,
+  Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
+  SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
+  VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
+> = ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes> & {
+  readonly schema: InsertSchema
+  readonly doc: ZodMiniObject<
+    Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber },
+    $strip
+  >
+}
+
+/** Slim union model for zod/mini consumers. */
+export type SlimMiniUnionModel<
+  Name extends string = string,
+  Schema extends $ZodType = $ZodType,
+  Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
+  SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
+  VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
+> = ZodModelBase<Name, $ZodShape, Schema, Indexes, SearchIndexes, VectorIndexes> & {
+  readonly schema: Schema
+  readonly doc: AddSystemFieldsToMiniUnion<Name, Schema>
+}
 ```
 
-Add overloads before the implementation for `schemaHelpers: false`:
+Export `DefineZodModelOptions`:
+
+```typescript
+export type { DefineZodModelOptions }
+```
+
+- [ ] **Step 2: Add overloads for `schemaHelpers: false`**
 
 ```typescript
 // Overload 3: raw shape with schemaHelpers: false
@@ -1337,7 +1410,7 @@ export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   fields: Fields,
   options: { schemaHelpers: false }
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional
-): SlimZodModel<Name, Fields, ZodMiniObject<Fields, $strip>, {}, {}, {}>
+): SlimMiniObjectModel<Name, Fields, ZodMiniObject<Fields, $strip>, {}, {}, {}>
 
 // Overload 4: pre-built schema with schemaHelpers: false
 export function defineZodModel<Name extends string, Schema extends $ZodType>(
@@ -1345,7 +1418,7 @@ export function defineZodModel<Name extends string, Schema extends $ZodType>(
   schema: Schema,
   options: { schemaHelpers: false }
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional
-): SlimZodModel<Name, $ZodShape, Schema, {}, {}, {}>
+): SlimMiniUnionModel<Name, Schema, {}, {}, {}>
 ```
 
 Update the implementation to pass through options:
@@ -1494,30 +1567,36 @@ export function walkModelCodecs(
 }
 ```
 
-Add a `reconstructSchemas` helper:
+Add a `reconstructSchemas` helper. Uses `zx.*` helpers (which internally use `z` from `zod`, already imported in the module) so union models are handled correctly and the pagination shape matches `zx.paginationResult()`:
 
 ```typescript
-import { addSystemFields } from '../../internal/schemaHelpers'
-import { createUpdateObjectSchema } from '../../internal/modelSchemaBundle'
+import { zx } from '../../internal/zx'
+import { createSchemaUpdateSchema } from '../../internal/modelSchemaBundle'
+import { z } from 'zod'
 
 function reconstructSchemas(
-  model?: { name: string; fields: Record<string, $ZodType>; schema?: $ZodType; doc?: $ZodType }
+  model?: { name: string; fields: Record<string, $ZodType>; schema?: unknown; doc?: unknown }
 ): ZodvexModelMeta['schemas'] | null {
   if (!model) return null
-  const { z } = await import('zod') // already available at codegen time
-  const baseSchema = model.schema instanceof $ZodType ? model.schema : z.object(model.fields)
-  const docSchema = model.doc instanceof $ZodType ? model.doc : addSystemFields(model.name, baseSchema)
+  // Use zx helpers — they handle both object and union models via getBaseSchemaFromModel
+  const modelInput = model as any
+  const docSchema = modelInput.doc instanceof $ZodType
+    ? modelInput.doc
+    : zx.doc(modelInput)
+  const baseSchema = modelInput.schema instanceof $ZodType
+    ? modelInput.schema
+    : z.object(model.fields)
   return {
     doc: docSchema,
     insert: baseSchema,
-    update: createUpdateObjectSchema(model.name, model.fields),
+    update: createSchemaUpdateSchema(model.name, baseSchema),
     docArray: z.array(docSchema),
-    paginatedDoc: z.object({ page: z.array(docSchema), isDone: z.boolean(), continueCursor: z.string() }),
+    paginatedDoc: zx.paginationResult(docSchema),
   }
 }
 ```
 
-Note: `reconstructSchemas` uses synchronous imports since `zod` is already loaded. The memory cost is irrelevant at codegen (build) time.
+Note: The memory cost of reconstructed schemas is irrelevant at codegen (build) time.
 
 - [ ] **Step 3: Update `discoverModules` to pass model object to `walkModelCodecs`**
 

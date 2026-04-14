@@ -54,13 +54,22 @@ type FullZodModel<...> = ZodModelBase<...> & {
   // schema.doc, schema.base, schema.insert, schema.update, schema.docArray, schema.paginatedDoc
 }
 
-// Slim model — schemaHelpers: false (opt-in)
+// Slim object model — schemaHelpers: false with raw shape
 // doc carries a CONCRETE type (z.ZodObject<...>), not $ZodType,
 // so .nullable()/.optional()/etc. work directly.
-type SlimZodModel<Name, Fields, InsertSchema, ...> = ZodModelBase<...> & {
+type SlimObjectModel<Name, Fields, InsertSchema, ...> = ZodModelBase<...> & {
   readonly schema: InsertSchema
   readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }>
 }
+
+// Slim union model — schemaHelpers: false with pre-built schema
+// doc preserves the union structure with system fields on each variant.
+type SlimUnionModel<Name, Schema, ...> = ZodModelBase<...> & {
+  readonly schema: Schema
+  readonly doc: AddSystemFieldsToUnion<Name, Schema>
+}
+
+// Mini slim types mirror these but use ZodMiniObject/ZodMiniArray etc.
 ```
 
 Excluding `schema` from `ZodModelBase` guarantees no internal code can depend on the bundle shape. The compiler enforces this — any internal that reaches for `.schema.doc` will fail to type-check against `ZodModelBase`.
@@ -94,16 +103,18 @@ This ensures `ctx.db` type safety, `withIndex` constraints, and decoded-doc infe
 
 ### `zx.*` Helper Functions
 
-All helpers derive schemas from `model.name` + `model.fields`. No memoization — constructed on demand, GC'd if not retained. Consumers who need a stable reference assign to a module-level const.
+All helpers accept a model-like object with `name`, `fields`, and `schema`. For object models, schemas are derived from `fields`. For union models (where `fields` is `{}`), the helper extracts the base schema from the `schema` property — which works for both full models (`model.schema.base`) and slim models (`model.schema` directly).
+
+No memoization — constructed on demand, GC'd if not retained. Consumers who need a stable reference assign to a module-level const.
 
 ```typescript
 // Construct doc schema: base fields + _id + _creationTime
-// Handles object, union, and discriminated union inputs.
-zx.doc(model: ZodModelBase): $ZodType
+// Object models: derived from fields. Union models: adds system fields to each variant.
+zx.doc(model): $ZodType
 
 // Construct update schema: _id (required) + _creationTime (optional) + partial(fields)
-// For unions: maps partial over each variant.
-zx.update(model: ZodModelBase): $ZodType
+// Union models: maps partial over each variant via createSchemaUpdateSchema.
+zx.update(model): $ZodType
 
 // Construct doc array: z.array(zx.doc(model))
 zx.docArray(model: ZodModelBase): $ZodType
