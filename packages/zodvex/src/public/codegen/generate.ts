@@ -193,14 +193,34 @@ export function generateApiFile(
   const neededModelImports = new Set<string>()
 
   for (const model of models) {
-    if (!model.schemas) continue
     const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
-    for (const key of ['doc', 'insert', 'update', 'docArray', 'paginatedDoc'] as const) {
-      identityMap.set(model.schemas[key] as $ZodType, {
-        importPath,
-        exportName: model.exportName,
-        schemaKey: key
-      })
+
+    if (model.schemas) {
+      // Full model: existing behavior — schema.doc, schema.insert, etc.
+      for (const key of ['doc', 'insert', 'update', 'docArray', 'paginatedDoc'] as const) {
+        identityMap.set(model.schemas[key] as $ZodType, {
+          importPath,
+          exportName: model.exportName,
+          schemaKey: `schema.${key}`
+        })
+      }
+    } else if (model._modelRef) {
+      // Slim model: map .doc and .schema directly
+      const ref = model._modelRef as any
+      if (ref.doc instanceof $ZodType) {
+        identityMap.set(ref.doc, {
+          importPath,
+          exportName: model.exportName,
+          schemaKey: 'doc'
+        })
+      }
+      if (ref.schema instanceof $ZodType) {
+        identityMap.set(ref.schema, {
+          importPath,
+          exportName: model.exportName,
+          schemaKey: 'schema'
+        })
+      }
     }
   }
 
@@ -219,13 +239,21 @@ export function generateApiFile(
   // Add model-embedded codecs to the codecMap (exported codecs take precedence)
   const modelCodecVars: { varName: string; expression: string; modelExportName: string }[] = []
   const MODEL_CODEC_SENTINEL = '__model_codec__'
+  // Build slim model lookup for codec expression generation
+  const slimModelNames = new Set(
+    models.filter(m => !m.schemas && m._modelRef).map(m => m.exportName)
+  )
   if (modelCodecs) {
     for (const mc of modelCodecs) {
       // Skip if this codec is already in codecMap (exported codec takes precedence)
       if (codecMap.has(mc.codec)) continue
 
       const varName = deriveCodecVarName(mc.modelExportName, mc.accessPath)
-      const expression = `extractCodec(${mc.modelExportName}.schema.${mc.schemaKey}${mc.accessPath})`
+      // Slim models: .doc and .schema are direct properties, not nested under .schema
+      // Full models: schema bundle is at .schema.doc, .schema.insert, etc.
+      const isSlim = slimModelNames.has(mc.modelExportName)
+      const schemaPrefix = isSlim ? mc.schemaKey : `schema.${mc.schemaKey}`
+      const expression = `extractCodec(${mc.modelExportName}.${schemaPrefix}${mc.accessPath})`
       modelCodecVars.push({ varName, expression, modelExportName: mc.modelExportName })
       codecMap.set(mc.codec, {
         exportName: varName,
@@ -282,14 +310,14 @@ export function generateApiFile(
     const ref = identityMap.get(s)
     if (ref) {
       neededModelImports.add(ref.exportName)
-      return `${ref.exportName}.schema.${ref.schemaKey}`
+      return `${ref.exportName}.${ref.schemaKey}`
     }
 
     // 2. Wrapper-aware identity match (peel .nullable()/.optional())
     const unwrapped = tryUnwrapToIdentity(s, identityMap, options?.mini)
     if (unwrapped) {
       neededModelImports.add(unwrapped.ref.exportName)
-      const inner = `${unwrapped.ref.exportName}.schema.${unwrapped.ref.schemaKey}`
+      const inner = `${unwrapped.ref.exportName}.${unwrapped.ref.schemaKey}`
       return unwrapped.wrapSource(inner)
     }
 
@@ -297,7 +325,7 @@ export function generateApiFile(
     const partialMatch = tryMatchPartial(s, identityMap, options?.mini)
     if (partialMatch) {
       neededModelImports.add(partialMatch.ref.exportName)
-      const inner = `${partialMatch.ref.exportName}.schema.${partialMatch.ref.schemaKey}`
+      const inner = `${partialMatch.ref.exportName}.${partialMatch.ref.schemaKey}`
       return partialMatch.wrapSource(inner)
     }
 

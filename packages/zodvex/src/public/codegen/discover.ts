@@ -1,6 +1,8 @@
 import path from 'node:path'
 import { globSync } from 'tinyglobby'
+import { z } from 'zod'
 import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../../internal/meta'
+import { createSchemaUpdateSchema } from '../../internal/modelSchemaBundle'
 import {
   $ZodArray,
   $ZodCodec,
@@ -14,6 +16,7 @@ import {
   $ZodType,
   $ZodUnion
 } from '../../internal/zod-core'
+import { zx } from '../../internal/zx'
 import { registerDiscoveryHooks, writeGeneratedStubs } from './discovery-hooks'
 import { findCodec } from './extractCodec'
 
@@ -22,6 +25,8 @@ export type DiscoveredModel = {
   tableName: string
   sourceFile: string
   schemas: ZodvexModelMeta['schemas']
+  /** @internal For slim models — used to reconstruct schemas at codegen time. */
+  _modelRef?: unknown
 }
 
 export type DiscoveredFunction = {
@@ -162,6 +167,30 @@ function walkSchemaRecursive(
 }
 
 /**
+ * Reconstructs the schemas bundle for a slim model by deriving doc, insert,
+ * update, docArray, and paginatedDoc from the model's fields and schema.
+ */
+function reconstructSchemas(model?: {
+  name: string
+  fields: Record<string, $ZodType>
+  schema?: unknown
+  doc?: unknown
+}): ZodvexModelMeta['schemas'] | null {
+  if (!model) return null
+  const modelInput = model as any
+  const docSchema = modelInput.doc instanceof $ZodType ? modelInput.doc : zx.doc(modelInput)
+  const baseSchema =
+    modelInput.schema instanceof $ZodType ? modelInput.schema : z.object(model.fields)
+  return {
+    doc: docSchema,
+    insert: baseSchema,
+    update: createSchemaUpdateSchema(model.name, baseSchema),
+    docArray: z.array(docSchema),
+    paginatedDoc: zx.paginationResult(docSchema)
+  }
+}
+
+/**
  * Walks a model's schema shapes to find embedded ZodCodec instances.
  * Recursively descends into objects, unions, arrays, records, and tuples.
  * Deduplicates by codec object identity across schema keys.
@@ -170,15 +199,18 @@ function walkSchemaRecursive(
 export function walkModelCodecs(
   modelExportName: string,
   sourceFile: string,
-  schemas: ZodvexModelMeta['schemas']
+  schemas: ZodvexModelMeta['schemas'],
+  model?: { name: string; fields: Record<string, $ZodType>; schema?: unknown; doc?: unknown }
 ): ModelEmbeddedCodec[] {
+  // Reconstruct schemas from model if meta.schemas is absent (slim model)
+  const effectiveSchemas = schemas ?? reconstructSchemas(model)
   const found: ModelEmbeddedCodec[] = []
-  if (!schemas) return found
+  if (!effectiveSchemas) return found
   const visited = new Set<$ZodType>()
   const seenCodecs = new Set<$ZodType>()
 
   for (const schemaKey of ['doc', 'insert', 'update'] as const) {
-    const schema = schemas[schemaKey]
+    const schema = effectiveSchemas[schemaKey]
     if (!schema) continue
 
     const results: { codec: $ZodType; accessPath: string }[] = []
@@ -299,7 +331,8 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
                   exportName,
                   tableName: meta.tableName,
                   sourceFile: file,
-                  schemas: meta.schemas
+                  schemas: meta.schemas,
+                  _modelRef: meta.schemas ? undefined : value
                 }
               }
               // If existing is direct and new is barrel, skip
@@ -308,7 +341,8 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
                 exportName,
                 tableName: meta.tableName,
                 sourceFile: file,
-                schemas: meta.schemas
+                schemas: meta.schemas,
+                _modelRef: meta.schemas ? undefined : value
               })
             }
           } else if (meta.type === 'function') {
@@ -343,7 +377,12 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
 
     const modelCodecs: ModelEmbeddedCodec[] = []
     for (const model of models) {
-      const found = walkModelCodecs(model.exportName, model.sourceFile, model.schemas)
+      const found = walkModelCodecs(
+        model.exportName,
+        model.sourceFile,
+        model.schemas,
+        model._modelRef as any
+      )
       modelCodecs.push(...found)
     }
 
