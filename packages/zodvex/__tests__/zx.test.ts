@@ -272,4 +272,96 @@ describe('zx namespace', () => {
       expect(decoded.data.nested.getTime()).toBe(original.data.nested.getTime())
     })
   })
+
+  describe('zx.paginationOpts()', () => {
+    it('creates a ZodObject with numItems and cursor fields', () => {
+      const opts = zx.paginationOpts()
+      const result = opts.safeParse({ numItems: 10, cursor: null })
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts full pagination options', () => {
+      const opts = zx.paginationOpts()
+      const result = opts.safeParse({
+        numItems: 25,
+        cursor: 'abc123',
+        endCursor: null,
+        id: 42,
+        maximumRowsRead: 1000,
+        maximumBytesRead: 8_000_000
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects missing required fields', () => {
+      const opts = zx.paginationOpts()
+      const result = opts.safeParse({})
+      expect(result.success).toBe(false)
+    })
+
+    it('works with zodToConvex', () => {
+      const opts = zx.paginationOpts()
+      const validator = zodToConvex(opts)
+      expect(validator).toEqual(
+        v.object({
+          numItems: v.float64(),
+          cursor: v.union(v.string(), v.null()),
+          endCursor: v.optional(v.union(v.string(), v.null())),
+          id: v.optional(v.float64()),
+          maximumRowsRead: v.optional(v.float64()),
+          maximumBytesRead: v.optional(v.float64())
+        })
+      )
+    })
+  })
+
+  describe('zx.paginationResult()', () => {
+    it('wraps an item schema in a paginated response', () => {
+      const itemSchema = z.object({ name: z.string() })
+      const paginated = zx.paginationResult(itemSchema)
+      const result = paginated.safeParse({
+        page: [{ name: 'Alice' }],
+        isDone: false,
+        continueCursor: 'cursor_abc'
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts optional splitCursor', () => {
+      const itemSchema = z.object({ id: z.number() })
+      const paginated = zx.paginationResult(itemSchema)
+      const result = paginated.safeParse({
+        page: [{ id: 1 }],
+        isDone: true,
+        continueCursor: 'done',
+        splitCursor: null
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects invalid page items', () => {
+      const itemSchema = z.object({ name: z.string() })
+      const paginated = zx.paginationResult(itemSchema)
+      const result = paginated.safeParse({
+        page: [{ wrong: 123 }],
+        isDone: false,
+        continueCursor: ''
+      })
+      expect(result.success).toBe(false)
+    })
+
+    it('works with zodToConvex', () => {
+      const itemSchema = z.object({ title: z.string(), count: z.number() })
+      const paginated = zx.paginationResult(itemSchema)
+      const validator = zodToConvex(paginated)
+      expect(validator).toEqual(
+        v.object({
+          page: v.array(v.object({ title: v.string(), count: v.float64() })),
+          isDone: v.boolean(),
+          continueCursor: v.string(),
+          splitCursor: v.optional(v.union(v.string(), v.null()))
+        })
+      )
+    })
+  })
 })

@@ -145,6 +145,32 @@ function codec<W extends $ZodType, R extends $ZodType, WO = zoutput<W>, RI = zou
 }
 
 /**
+ * Pagination options schema — matches Convex's PaginationOptions type.
+ */
+function paginationOpts() {
+  return z.object({
+    numItems: z.number(),
+    cursor: z.string().nullable(),
+    endCursor: z.string().nullable().optional(),
+    id: z.number().optional(),
+    maximumRowsRead: z.number().optional(),
+    maximumBytesRead: z.number().optional()
+  })
+}
+
+/**
+ * Paginated result schema — wraps any item schema in Convex's PaginationResult shape.
+ */
+function paginationResult<T extends $ZodType>(itemSchema: T) {
+  return z.object({
+    page: z.array(itemSchema),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+    splitCursor: z.string().nullable().optional()
+  })
+}
+
+/**
  * zx namespace - zodvex extended validators
  *
  * Provides explicit, discoverable helpers for Convex-specific transformations.
@@ -166,5 +192,17 @@ export const zx = {
    * Custom codec builder
    * @see {@link codec}
    */
-  codec
+  codec,
+
+  /**
+   * Pagination options schema matching Convex's PaginationOptions type
+   * @see {@link paginationOpts}
+   */
+  paginationOpts,
+
+  /**
+   * Paginated result schema wrapping any item schema in Convex's PaginationResult shape
+   * @see {@link paginationResult}
+   */
+  paginationResult
 } as const
