@@ -2,6 +2,7 @@ import type {
   ZodMiniArray,
   ZodMiniBoolean,
   ZodMiniDiscriminatedUnion,
+  ZodMiniEnum,
   ZodMiniNullable,
   ZodMiniNumber,
   ZodMiniObject,
@@ -107,7 +108,9 @@ export type MiniModelSchemas<Name extends string, Fields extends $ZodShape> = {
         ZodMiniObject<Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber }, $strip>
       >
       isDone: ZodMiniBoolean
-      continueCursor: ZodMiniOptional<ZodMiniNullable<ZodMiniString>>
+      continueCursor: ZodMiniString
+      splitCursor: ZodMiniOptional<ZodMiniNullable<ZodMiniString>>
+      pageStatus: ZodMiniOptional<ZodMiniNullable<ZodMiniEnum>>
     },
     $strip
   >

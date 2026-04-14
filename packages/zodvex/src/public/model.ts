@@ -66,7 +66,9 @@ type FullDocShape<Name extends string, Fields extends $ZodShape> = Fields & {
 type FullPaginatedShape<Name extends string, Fields extends $ZodShape> = {
   page: z.ZodArray<z.ZodObject<FullDocShape<Name, Fields>>>
   isDone: z.ZodBoolean
-  continueCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+  continueCursor: z.ZodString
+  splitCursor: z.ZodOptional<z.ZodNullable<z.ZodString>>
+  pageStatus: z.ZodOptional<z.ZodNullable<z.ZodEnum>>
 }
 
 export type FullZodModelSchemas<Name extends string, Fields extends $ZodShape> = {

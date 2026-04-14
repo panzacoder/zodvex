@@ -329,7 +329,7 @@ describe('defineZodModel', () => {
     const result = model.schema.paginatedDoc.safeParse({
       page: [],
       isDone: true,
-      continueCursor: null
+      continueCursor: 'cursor_value'
     })
     expect(result.success).toBe(true)
   })

@@ -166,7 +166,8 @@ function paginationResult<T extends $ZodType>(itemSchema: T) {
     page: z.array(itemSchema),
     isDone: z.boolean(),
     continueCursor: z.string(),
-    splitCursor: z.string().nullable().optional()
+    splitCursor: z.string().nullable().optional(),
+    pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
   })
 }
 

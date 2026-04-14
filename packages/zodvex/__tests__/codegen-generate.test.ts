@@ -21,7 +21,9 @@ const userDocSchema = z.object({ _id: z.string(), name: z.string(), email: z.str
 const userPaginatedDocSchema = z.object({
   page: z.array(userDocSchema),
   isDone: z.boolean(),
-  continueCursor: z.string().nullable().optional()
+  continueCursor: z.string(),
+  splitCursor: z.string().nullable().optional(),
+  pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
 })
 
 const sampleModels: DiscoveredModel[] = [
@@ -340,7 +342,9 @@ describe('model-embedded codec resolution', () => {
       paginatedDoc: z.object({
         page: z.array(z.object({ _id: z.string(), name: z.string(), email: testCodec.optional() })),
         isDone: z.boolean(),
-        continueCursor: z.string().nullable().optional()
+        continueCursor: z.string(),
+        splitCursor: z.string().nullable().optional(),
+        pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
       })
     }
   }
@@ -455,7 +459,9 @@ describe('model-embedded codec resolution', () => {
         paginatedDoc: z.object({
           page: z.array(z.object({})),
           isDone: z.boolean(),
-          continueCursor: z.string().nullable().optional()
+          continueCursor: z.string(),
+          splitCursor: z.string().nullable().optional(),
+          pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
         })
       }
     }
@@ -501,7 +507,9 @@ describe('model-embedded codec resolution', () => {
         paginatedDoc: z.object({
           page: z.array(z.object({})),
           isDone: z.boolean(),
-          continueCursor: z.string().nullable().optional()
+          continueCursor: z.string(),
+          splitCursor: z.string().nullable().optional(),
+          pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
         })
       }
     }

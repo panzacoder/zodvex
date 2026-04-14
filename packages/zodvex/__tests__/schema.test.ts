@@ -101,7 +101,7 @@ describe('defineZodSchema', () => {
     const result = userSchemas.paginatedDoc.safeParse({
       page: [{ _id: 'users:abc', _creationTime: 1, name: 'Alice', createdAt: 1700000000000 }],
       isDone: false,
-      continueCursor: null
+      continueCursor: 'cursor_value'
     })
     expect(result.success).toBe(true)
   })
@@ -131,7 +131,7 @@ describe('defineZodSchema', () => {
     const result = taskSchemas.paginatedDoc.safeParse({
       page: [{ _id: 'tasks:abc', _creationTime: 1, title: 'Test', done: false }],
       isDone: true,
-      continueCursor: null
+      continueCursor: 'cursor_value'
     })
     expect(result.success).toBe(true)
   })

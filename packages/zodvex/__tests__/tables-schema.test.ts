@@ -264,7 +264,7 @@ describe('zodTable schema namespace', () => {
       const result = Users.schema.paginatedDoc.safeParse({
         page: [{ name: 'Alice', email: 'a@b.c', _id: 'u1', _creationTime: 1 }],
         isDone: true,
-        continueCursor: null
+        continueCursor: 'cursor_value'
       })
       expect(result.success).toBe(true)
     })

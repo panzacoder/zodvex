@@ -32,7 +32,9 @@ const userSchemas: ZodTableSchemas = {
   paginatedDoc: z.object({
     page: z.array(userDocSchema),
     isDone: z.boolean(),
-    continueCursor: z.union([z.string(), z.null()])
+    continueCursor: z.string(),
+    splitCursor: z.string().nullable().optional(),
+    pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
   })
 }
 

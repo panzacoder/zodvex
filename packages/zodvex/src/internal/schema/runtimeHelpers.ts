@@ -9,6 +9,8 @@ export function zPaginated<T extends $ZodType>(item: T) {
   return z.object({
     page: z.array(item),
     isDone: z.boolean(),
-    continueCursor: z.optional(z.nullable(z.string()))
+    continueCursor: z.string(),
+    splitCursor: z.string().nullable().optional(),
+    pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
   })
 }

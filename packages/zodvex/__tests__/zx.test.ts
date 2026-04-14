@@ -359,7 +359,10 @@ describe('zx namespace', () => {
           page: v.array(v.object({ title: v.string(), count: v.float64() })),
           isDone: v.boolean(),
           continueCursor: v.string(),
-          splitCursor: v.optional(v.union(v.string(), v.null()))
+          splitCursor: v.optional(v.union(v.string(), v.null())),
+          pageStatus: v.optional(
+            v.union(v.union(v.literal('SplitRecommended'), v.literal('SplitRequired')), v.null())
+          )
         })
       )
     })
