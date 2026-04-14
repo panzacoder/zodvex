@@ -24,6 +24,8 @@ import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 import { zodvexCodec } from './codec'
 import { registryHelpers } from './ids'
+import { addSystemFields } from './schemaHelpers'
+import { createSchemaUpdateSchema } from './modelSchemaBundle'
 import type { ZodvexCodec } from './types'
 import { type $ZodCustom, type $ZodNumber, type $ZodType, type output as zoutput } from './zod-core'
 
@@ -151,35 +153,49 @@ function codec<W extends $ZodType, R extends $ZodType, WO = zoutput<W>, RI = zou
 type ZxModelInput = {
   readonly name: string
   readonly fields: Record<string, $ZodType>
-  readonly schema: {
-    readonly doc: $ZodType
-    readonly update: $ZodType
-    readonly docArray: $ZodType
+  readonly schema?: unknown
+}
+
+/**
+ * Extracts the base schema from a model input.
+ * Object models: reconstructs from fields. Union models: extracts from schema property.
+ */
+function getBaseSchemaFromModel(model: ZxModelInput): $ZodType {
+  const hasFields = Object.keys(model.fields).length > 0
+  if (hasFields) {
+    return z.object(model.fields) as any
   }
+  // Union model — need the base schema from model.schema
+  const s = model.schema as any
+  if (s instanceof $ZodType) return s // slim model: .schema IS the base
+  if (s?.base instanceof $ZodType) return s.base // full model: .schema.base
+  throw new Error('[zodvex] Union model passed to zx helper without a base schema')
 }
 
 /**
  * Constructs a doc schema: base fields + _id + _creationTime.
- * Uses the pre-computed doc schema from the model bundle.
+ * For object models: extends fields with system fields.
+ * For union models: adds system fields to each variant via addSystemFields.
  */
-function doc(model: ZxModelInput): $ZodType {
-  return model.schema.doc
+function doc(model: ZxModelInput) {
+  const baseSchema = getBaseSchemaFromModel(model)
+  return addSystemFields(model.name, baseSchema)
 }
 
 /**
  * Constructs an update schema: _id required + _creationTime optional + all user fields optional.
- * Uses the pre-computed update schema from the model bundle.
+ * For union models: maps partial over each variant via createSchemaUpdateSchema.
  */
-function update(model: ZxModelInput): $ZodType {
-  return model.schema.update
+function update(model: ZxModelInput) {
+  const baseSchema = getBaseSchemaFromModel(model)
+  return createSchemaUpdateSchema(model.name, baseSchema)
 }
 
 /**
  * Constructs a doc array schema: z.array(doc(model)).
- * Uses the pre-computed docArray schema from the model bundle.
  */
-function docArray(model: ZxModelInput): $ZodType {
-  return model.schema.docArray
+function docArray(model: ZxModelInput) {
+  return z.array(doc(model))
 }
 
 /**
