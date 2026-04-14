@@ -321,7 +321,7 @@ describe('defineZodModel', () => {
     expect(result.success).toBe(false)
   })
 
-  it('schema.paginatedDoc accepts null continueCursor', () => {
+  it('schema.paginatedDoc accepts valid paginated response', () => {
     const model = defineZodModel('tasks', {
       title: z.string()
     })
