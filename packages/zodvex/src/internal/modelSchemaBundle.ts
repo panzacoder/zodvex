@@ -5,7 +5,7 @@ import {
   getUnionOptions,
   isZodUnion
 } from './schemaHelpers'
-import { $ZodObject, $ZodOptional, type $ZodShape, $ZodType } from './zod-core'
+import { $ZodNullable, $ZodObject, $ZodOptional, type $ZodShape, $ZodType } from './zod-core'
 import { zx } from './zx'
 
 // Return type alias so helper signatures don't expose full zod internals everywhere.
@@ -24,6 +24,14 @@ export type RuntimeModelSchemaBundle = {
 function ensureOptional(schema: $ZodType): AnyOptional {
   if (schema instanceof $ZodOptional) return schema as z.ZodOptional<any> // zod-ok
   return new $ZodOptional({ type: 'optional', innerType: schema }) as z.ZodOptional<any> // zod-ok
+}
+
+/** Wrap in .nullable().optional() using core constructors for zod-mini compat. */
+function nullableOptional(schema: $ZodType): $ZodType {
+  return new $ZodOptional({
+    type: 'optional',
+    innerType: new $ZodNullable({ type: 'nullable', innerType: schema })
+  }) as any
 }
 
 export function createPartialShape(shape: Record<string, $ZodType>): Record<string, $ZodType> {
@@ -50,8 +58,8 @@ export function createPaginatedDocSchema(docSchema: $ZodType): z.ZodObject<any> 
     page: z.array(docSchema),
     isDone: z.boolean(),
     continueCursor: z.string(),
-    splitCursor: z.string().nullable().optional(),
-    pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
+    splitCursor: nullableOptional(z.string()),
+    pageStatus: nullableOptional(z.enum(['SplitRecommended', 'SplitRequired']))
   })
 }
 

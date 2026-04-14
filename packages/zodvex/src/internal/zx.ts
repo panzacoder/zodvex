@@ -29,7 +29,9 @@ import { addSystemFields } from './schemaHelpers'
 import type { ZodvexCodec } from './types'
 import {
   type $ZodCustom,
+  $ZodNullable,
   type $ZodNumber,
+  $ZodOptional,
   type $ZodType,
   $ZodType as $ZodTypeValue,
   type output as zoutput
@@ -204,17 +206,32 @@ function docArray(model: ZxModelInput) {
   return z.array(doc(model))
 }
 
+/** Wrap in .nullable() using core constructor for zod-mini compat. */
+function nullable(schema: $ZodType): $ZodType {
+  return new $ZodNullable({ type: 'nullable', innerType: schema }) as any
+}
+
+/** Wrap in .optional() using core constructor for zod-mini compat. */
+function optional(schema: $ZodType): $ZodType {
+  return new $ZodOptional({ type: 'optional', innerType: schema }) as any
+}
+
+/** Wrap in .nullable().optional() using core constructors for zod-mini compat. */
+function nullableOptional(schema: $ZodType): $ZodType {
+  return optional(nullable(schema))
+}
+
 /**
  * Pagination options schema — matches Convex's PaginationOptions type.
  */
 function paginationOpts() {
   return z.object({
     numItems: z.number(),
-    cursor: z.string().nullable(),
-    endCursor: z.string().nullable().optional(),
-    id: z.number().optional(),
-    maximumRowsRead: z.number().optional(),
-    maximumBytesRead: z.number().optional()
+    cursor: nullable(z.string()),
+    endCursor: nullableOptional(z.string()),
+    id: optional(z.number()),
+    maximumRowsRead: optional(z.number()),
+    maximumBytesRead: optional(z.number())
   })
 }
 
@@ -226,8 +243,8 @@ function paginationResult<T extends $ZodType>(itemSchema: T) {
     page: z.array(itemSchema),
     isDone: z.boolean(),
     continueCursor: z.string(),
-    splitCursor: z.string().nullable().optional(),
-    pageStatus: z.enum(['SplitRecommended', 'SplitRequired']).nullable().optional()
+    splitCursor: nullableOptional(z.string()),
+    pageStatus: nullableOptional(z.enum(['SplitRecommended', 'SplitRequired']))
   })
 }
 
