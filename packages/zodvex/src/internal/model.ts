@@ -15,7 +15,7 @@ import {
   createSchemaBundle,
   type RuntimeModelSchemaBundle
 } from './modelSchemaBundle'
-import { type AddSystemFieldsToUnion } from './schemaHelpers'
+import { addSystemFields, type AddSystemFieldsToUnion } from './schemaHelpers'
 import { $ZodArray, type $ZodShape, $ZodType, type input as zinput } from './zod-core'
 import { type ZxId, zx } from './zx'
 
@@ -66,6 +66,58 @@ function createModel<Name extends string>(
   }
 
   attachMeta(model, { type: 'model', tableName: name, definitionSource, schemas: schema })
+  return model
+}
+
+function createSlimModel<Name extends string>(
+  name: Name,
+  fields: $ZodShape,
+  baseSchema: $ZodType,
+  definitionSource: ZodvexModelDefinitionSource,
+  indexes: Record<string, readonly string[]> = {},
+  searchIndexes: Record<string, SearchIndexConfig> = {},
+  vectorIndexes: Record<string, VectorIndexConfig> = {}
+): any {
+  const docSchema = addSystemFields(name, baseSchema)
+  const model = {
+    name,
+    fields,
+    schema: baseSchema,
+    doc: docSchema,
+    indexes,
+    searchIndexes,
+    vectorIndexes,
+    index(indexName: string, indexFields: readonly string[]) {
+      return createSlimModel(
+        name,
+        fields,
+        baseSchema,
+        definitionSource,
+        { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
+        searchIndexes,
+        vectorIndexes
+      )
+    },
+    searchIndex(indexName: string, config: SearchIndexConfig) {
+      return createSlimModel(
+        name,
+        fields,
+        baseSchema,
+        definitionSource,
+        indexes,
+        { ...searchIndexes, [indexName]: config },
+        vectorIndexes
+      )
+    },
+    vectorIndex(indexName: string, config: VectorIndexConfig) {
+      return createSlimModel(name, fields, baseSchema, definitionSource, indexes, searchIndexes, {
+        ...vectorIndexes,
+        [indexName]: config
+      })
+    }
+  }
+
+  attachMeta(model, { type: 'model', tableName: name, definitionSource })
   return model
 }
 
@@ -332,6 +384,52 @@ export type ZodModelBase<
 /** Widened base type for internal constraints. */
 export type AnyZodModelBase = ZodModelBase<string, $ZodShape, $ZodType>
 
+/** Options for defineZodModel. */
+export type DefineZodModelOptions = {
+  /**
+   * When `true` (default), the model carries a full schema bundle with
+   * `doc`, `base`, `insert`, `update`, `docArray`, `paginatedDoc`.
+   *
+   * When `false`, the model carries only `schema` (the base) and `doc`.
+   * Use `zx.update(model)`, `zx.docArray(model)`, `zx.paginationResult(model.doc)`
+   * to derive schemas on demand.
+   *
+   * @default true
+   */
+  schemaHelpers?: boolean
+}
+
+/**
+ * Slim model for object shapes — produced when `schemaHelpers: false` with a raw shape.
+ * `doc` uses concrete z.ZodObject type so .nullable()/.optional()/etc. work.
+ */
+export type SlimObjectModel<
+  Name extends string = string,
+  Fields extends $ZodShape = $ZodShape,
+  InsertSchema extends $ZodType = $ZodType,
+  Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
+  SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
+  VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
+> = ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes> & {
+  readonly schema: InsertSchema
+  readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }> // zod-ok
+}
+
+/**
+ * Slim model for union/discriminated union schemas — produced when `schemaHelpers: false`
+ * with a pre-built schema.
+ */
+export type SlimUnionModel<
+  Name extends string = string,
+  Schema extends $ZodType = $ZodType,
+  Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
+  SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
+  VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
+> = ZodModelBase<Name, $ZodShape, Schema, Indexes, SearchIndexes, VectorIndexes> & {
+  readonly schema: Schema
+  readonly doc: AddSystemFieldsToUnion<Name, Schema>
+}
+
 // ============================================================================
 // defineZodModel
 // ============================================================================
@@ -366,14 +464,30 @@ export type AnyZodModelBase = ZodModelBase<string, $ZodShape, $ZodType>
  *   .index('byType', ['type'])
  * ```
  */
-// Overload 1: raw shape (existing behavior)
+// Overload: raw shape with schemaHelpers: false → SlimObjectModel
+export function defineZodModel<Name extends string, Fields extends $ZodShape>(
+  name: Name,
+  fields: Fields,
+  options: { schemaHelpers: false }
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional
+): SlimObjectModel<Name, Fields, z.ZodObject<Fields>, {}, {}, {}> // zod-ok
+
+// Overload: pre-built schema with schemaHelpers: false → SlimUnionModel
+export function defineZodModel<Name extends string, Schema extends $ZodType>(
+  name: Name,
+  schema: Schema,
+  options: { schemaHelpers: false }
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional
+): SlimUnionModel<Name, Schema, {}, {}, {}>
+
+// Overload: raw shape (existing behavior)
 export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   name: Name,
   fields: Fields
   // biome-ignore lint/complexity/noBannedTypes: {} is intentional — represents zero indexes/searchIndexes/vectorIndexes
 ): ZodModel<Name, Fields, z.ZodObject<Fields>, FullZodModelSchemas<Name, Fields>, {}, {}, {}> // zod-ok
 
-// Overload 2: pre-built schema (union or object)
+// Overload: pre-built schema (union or object)
 export function defineZodModel<Name extends string, Schema extends $ZodType>(
   name: Name,
   schema: Schema
@@ -383,13 +497,22 @@ export function defineZodModel<Name extends string, Schema extends $ZodType>(
 // Implementation
 export function defineZodModel<Name extends string>(
   name: Name,
-  fieldsOrSchema: $ZodShape | $ZodType
+  fieldsOrSchema: $ZodShape | $ZodType,
+  options?: DefineZodModelOptions
 ): any {
+  const slim = options?.schemaHelpers === false
+
   // Detect if input is a pre-built Zod schema (union, object, etc.) vs raw shape
   if (fieldsOrSchema instanceof $ZodType) {
+    if (slim) {
+      return createSlimModel(name, {}, fieldsOrSchema as $ZodType, 'schema')
+    }
     return createModel(name, {}, createSchemaBundle(name, fieldsOrSchema as $ZodType), 'schema')
   }
 
   const fields = fieldsOrSchema as $ZodShape
+  if (slim) {
+    return createSlimModel(name, fields, z.object(fields) as any, 'shape')
+  }
   return createModel(name, fields, createObjectSchemaBundle(name, fields), 'shape')
 }
