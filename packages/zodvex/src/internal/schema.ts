@@ -274,16 +274,29 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
         )
       }
       convexTables[name] = tableFromModel(entry)
-      // Build zodTableMap from model base properties using zx helpers.
-      // Works for both full and slim models — no dependency on schema bundle.
-      const baseSchema = getBaseSchema(entry)
-      zodTableMap[name] = {
-        doc: zx.doc(entry),
-        docArray: zx.docArray(entry),
-        paginatedDoc: zx.paginationResult(zx.doc(entry)),
-        base: baseSchema,
-        insert: baseSchema,
-        update: zx.update(entry)
+
+      // Full models already carry a pre-built schema bundle — reuse it.
+      // Slim models don't, so derive on demand via zx.* helpers.
+      const meta = getZodModelMeta(entry)
+      if (meta.schemas) {
+        zodTableMap[name] = {
+          doc: meta.schemas.doc,
+          docArray: meta.schemas.docArray,
+          paginatedDoc: meta.schemas.paginatedDoc,
+          base: meta.schemas.insert,
+          insert: meta.schemas.insert,
+          update: meta.schemas.update
+        }
+      } else {
+        const baseSchema = getBaseSchema(entry)
+        zodTableMap[name] = {
+          doc: zx.doc(entry),
+          docArray: zx.docArray(entry),
+          paginatedDoc: zx.paginationResult(zx.doc(entry)),
+          base: baseSchema,
+          insert: baseSchema,
+          update: zx.update(entry)
+        }
       }
     } else {
       convexTables[name] = entry.table
