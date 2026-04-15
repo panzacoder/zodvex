@@ -34,6 +34,7 @@
 | `examples/stress-test/measure.ts` | Rewrite | Black-box measurer — imports a directory, reports heap |
 | `examples/stress-test/stress-test.ts` | Create | Runner — parses flags, orchestrates compose → compile → measure |
 | `examples/stress-test/package.json` | Modify | Update scripts |
+| `package.json` (repo root) | Modify | Update `verify:examples` to use new harness commands |
 
 ---
 
@@ -880,16 +881,17 @@ export async function measure(config: MeasureConfig): Promise<MeasureResult> {
     throw new Error(`Directory not found: ${dir}`)
   }
 
-  // Pre-import runtime libraries to baseline them out
+  // Pre-import runtime libraries to baseline them out.
+  // Must match the imports the composed code uses so we measure only schema creation.
   if (runtime === 'mini') {
     await import('zod/mini')
     await import('zodvex/mini')
+    await import('zodvex/mini/server')
   } else {
     await import('zod')
     await import('zodvex')
+    await import('zodvex/server')
   }
-  // Server module is always needed for initZodvex/defineZodSchema
-  await import('zodvex/server')
 
   forceGC()
   forceGC()
@@ -1119,6 +1121,9 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
   }
   if (variant.slim) env.ZODVEX_SLIM = '1'
 
+  // Use a temp JSON file for structured output — no stdout scraping
+  const resultsFile = join(ROOT, '.measure-result.json')
+
   try {
     // Compose
     execSync(`bun run compose.ts --count=${count} --output=${COMPOSED_DIR}`, {
@@ -1132,24 +1137,23 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
       measureDir = COMPILED_DIR
     }
 
-    // Measure in subprocess
+    // Measure in subprocess — output goes to JSON file, not parsed from stdout
     const runtime = variant.mini ? 'mini' : 'zod'
-    const output = execSync(
-      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime}`,
+    execSync(
+      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime} --results=${resultsFile}`,
       { cwd: ROOT, encoding: 'utf-8', timeout: 120_000, env }
     )
 
-    // Parse: "zod (20 modules): +15.95 MB (peak: 18.69 MB)"
-    const heapMatch = output.match(/\+(\d+\.\d+) MB \(peak: (\d+\.\d+) MB\)/)
-    const modulesMatch = output.match(/\((\d+) modules\)/)
-    if (!heapMatch) return null
+    // Read structured result
+    if (!existsSync(resultsFile)) return null
+    const result = JSON.parse(readFileSync(resultsFile, 'utf-8'))
 
     return {
       variant: variant.name,
       count,
-      heapDeltaMB: parseFloat(heapMatch[1]),
-      heapPeakMB: parseFloat(heapMatch[2]),
-      modulesLoaded: modulesMatch ? parseInt(modulesMatch[1]) : 0,
+      heapDeltaMB: parseFloat(result.heapDeltaMB),
+      heapPeakMB: parseFloat(result.heapPeakMB),
+      modulesLoaded: result.modulesLoaded,
     }
   } catch (e) {
     console.error(`  ${count}: FAILED — ${(e as Error).message?.split('\n')[0]}`)
@@ -1260,6 +1264,13 @@ async function main() {
   const flags = parseFlags()
   const variants = getVariants(flags)
 
+  if (flags.deploy) {
+    throw new Error(
+      '--deploy mode is not yet implemented. ' +
+      'It will use `npx convex deploy` to find the real Convex isolate ceiling.'
+    )
+  }
+
   console.log(`Stress Test Harness`)
   console.log(`Budget: ${flags.budget} MB`)
   console.log(`Variants: ${variants.map(v => v.name).join(', ')}`)
@@ -1344,7 +1355,7 @@ git commit -m "feat: add stress test runner with ceiling search and reporting"
 
 ### Task 6: Clean up old infrastructure
 
-Move legacy files out and update gitignore.
+Move legacy files out, update gitignore, and fix the root `verify:examples` script.
 
 **Files:**
 - Remove/move: `examples/stress-test/generate.ts`
@@ -1352,6 +1363,7 @@ Move legacy files out and update gitignore.
 - Remove/move: `examples/stress-test/find-ceiling.ts`
 - Remove/move: `examples/stress-test/templates/` directory
 - Modify: `examples/stress-test/.gitignore`
+- Modify: `package.json` (repo root) — update `verify:examples`
 
 - [ ] **Step 1: Move old files to legacy/**
 
@@ -1374,14 +1386,35 @@ convex/compiled/
 convex/generated/
 node_modules/
 .env.local
+.measure-result.json
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Update root verify:examples script**
+
+In `package.json` at the repo root, the `verify:examples` script currently calls the old stress-test commands:
+
+```
+bun run --cwd examples/stress-test typecheck && bun run --cwd examples/stress-test generate && bun run --cwd examples/stress-test measure -- --count=11 ...  && bun run --cwd examples/stress-test report -- --scales=11 ...
+```
+
+Replace the stress-test portion with the new harness:
+
+```
+bun run --cwd examples/stress-test typecheck && bun run --cwd examples/stress-test stress-test -- --count=11
+```
+
+This composes 11 models from seeds, measures all 4 variants at that count, and verifies the harness works. The full `verify:examples` line becomes:
+
+```json
+"verify:examples": "bun run guard:mini-imports && bun run --cwd examples/stress-test typecheck && bun run --cwd examples/stress-test stress-test -- --count=11 && bun run --cwd examples/task-manager typecheck && bun run --cwd examples/task-manager test && bun run --cwd examples/task-manager generate && bun run --cwd examples/task-manager-mini typecheck && bun run --cwd examples/task-manager-mini test && bun run --cwd examples/task-manager-mini generate"
+```
+
+- [ ] **Step 4: Commit**
 
 ```bash
-git add examples/stress-test/.gitignore examples/stress-test/legacy/
+git add examples/stress-test/.gitignore examples/stress-test/legacy/ package.json
 git add -u examples/stress-test/  # capture removals from original locations
-git commit -m "chore: move legacy stress test infrastructure to legacy/"
+git commit -m "chore: move legacy stress test infrastructure to legacy/, update verify:examples"
 ```
 
 ---
