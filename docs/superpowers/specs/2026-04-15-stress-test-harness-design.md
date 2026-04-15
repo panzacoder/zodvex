@@ -27,31 +27,33 @@ Replace the template-based synthetic generator with:
 All configuration is via flags to the runner. The runner translates flags into the appropriate internal mechanism (env vars, compiler passes, file composition).
 
 ```bash
-# Single measurement
-bun run stress-test --count=200 --slim --mini
+# Find OOM ceiling for all 4 variants (primary workflow)
+# Produces ceiling table + report with every measurement point
+bun run stress-test
 
-# Full matrix report
-bun run stress-test --report --scales=50,100,150,200,250
+# Find ceiling for a specific variant only
+bun run stress-test --slim --mini
 
-# Convex deploy test (real OOM ceiling)
-bun run stress-test --count=200 --deploy
+# Single ad-hoc measurement (for debugging)
+bun run stress-test --count=200 --slim
 
-# Find OOM ceiling via binary search
-bun run stress-test --find-ceiling --slim --mini
+# Find ceiling using real Convex deploy instead of local heap
+bun run stress-test --deploy
 ```
 
 ### Flags
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--count=N` | number | 50 | Number of models/endpoints |
+| `--count=N` | number | — | Ad-hoc: measure at exactly N endpoints (skips ceiling search) |
 | `--slim` | boolean | false | Pass `{ schemaHelpers: false }` to `defineZodModel` |
 | `--mini` | boolean | false | Compile zod → zod/mini before measuring |
 | `--deploy` | boolean | false | Deploy to Convex and measure real isolate |
-| `--report` | boolean | false | Run full matrix across all flag combinations |
-| `--scales=N,N,...` | number[] | 50,100,150,200,250 | Scale points for report/ceiling modes |
-| `--find-ceiling` | boolean | false | Binary search for max endpoints under 64MB |
 | `--budget=N` | number | 64 | MB budget for ceiling search |
+
+When `--count` is omitted, the harness runs ceiling search for all applicable variants. If `--slim` or `--mini` is specified, only that variant is searched. If neither is specified, all 4 variants (zod, zod+slim, mini, mini+slim) are searched.
+
+Every measurement taken during the search is recorded and included in the report — the coarse passes (50, 100, 150...) provide comparable data points across variants, and the fine-grained passes near each ceiling show the exact threshold.
 
 ### Internal Architecture
 
@@ -113,20 +115,20 @@ Parses flags, runs the pipeline:
 4. Invokes measurer in isolated subprocess (for heap isolation)
 5. Collects and reports results
 
-For `--report` mode, iterates the full matrix:
+For ceiling search (the default mode), runs binary search per variant:
 ```
-for scale in scales:
-  compose(scale)
-  measure(composed, runtime=zod)                         → "zod"
-  measure(composed, runtime=zod, env=ZODVEX_SLIM=1)      → "zod + slim"
-  compile(composed → composed-mini)
-  measure(composed-mini, runtime=mini)                    → "mini"
-  measure(composed-mini, runtime=mini, env=ZODVEX_SLIM=1) → "mini + slim"
+for variant in [zod, zod+slim, mini, mini+slim]:
+  lo=50, hi=500
+  coarse pass: step by 50, find where heap > budget
+  fine pass: binary search between last-good and first-over
+  every measurement recorded in results[]
 ```
 
-For `--deploy` mode, uses `npx convex deploy` instead of local heap measurement.
+Each measurement at a given count composes the project, optionally compiles, and measures in an isolated subprocess.
 
-For `--find-ceiling` mode, binary searches for the max count under the budget.
+For `--deploy` mode, uses `npx convex deploy` (or `npx convex dev --once`) instead of local heap measurement. Deploy success = under ceiling, OOM error = over ceiling.
+
+For `--count=N` mode (ad-hoc), skips the search and runs a single measurement at N.
 
 ### Seed Files
 
@@ -208,30 +210,39 @@ This gives the real Convex isolate ceiling, including runtime overhead.
 
 ### Report Output
 
+The ceiling search produces a single report with two sections:
+
 ```markdown
 # Stress Test Report
 
 **Date:** 2026-04-15
-**Scales:** 50, 100, 150, 200, 250
+**Budget:** 64 MB
 
-## Local Heap Measurements
+## OOM Ceilings
 
-| Variant | Count | Heap Delta (MB) | Peak (MB) | Modules |
-|---------|-------|-----------------|-----------|---------|
-| zod | 50 | 15.95 | 18.69 | 100 |
-| zod + slim | 50 | 14.20 | 16.94 | 100 |
-| mini | 50 | 8.05 | 10.80 | 100 |
-| mini + slim | 50 | 7.10 | 9.85 | 100 |
-| ... | ... | ... | ... | ... |
+| Variant | Max Endpoints | Heap at Ceiling (MB) |
+|---------|--------------|---------------------|
+| zod | 185 | 63.85 |
+| zod + slim | 205 | 63.90 |
+| mini | 360 | 63.40 |
+| mini + slim | 400 | 63.87 |
 
-## OOM Ceilings (local, 64MB budget)
+## All Measurements
 
-| Variant | Max Endpoints | Heap at Ceiling |
-|---------|--------------|-----------------|
-| zod | ~185 | 63.8 MB |
-| zod + slim | ~205 | 63.9 MB |
-| mini | ~360 | 63.4 MB |
-| mini + slim | ~400 | 63.8 MB |
+Every data point collected during the binary search, sorted by variant then count.
+Coarse-pass points (50, 100, 150...) overlap across variants for comparison.
+
+| Variant | Count | Heap Delta (MB) | Peak (MB) |
+|---------|-------|-----------------|-----------|
+| zod | 50 | 15.95 | 18.69 |
+| zod | 100 | 31.47 | 34.24 |
+| zod | 150 | 46.65 | 49.41 |
+| zod | 175 | 55.20 | 57.97 |
+| zod | 188 | 65.06 | 67.83 |
+| zod | 182 | 62.10 | 64.87 |
+| zod | 185 | 63.85 | 66.62 |
+| zod + slim | 50 | 14.20 | 16.94 |
+| ... | ... | ... | ... |
 ```
 
 ## Scope
