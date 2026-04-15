@@ -435,7 +435,7 @@ export const listComments = zq({
 })
 
 export const createComment = zm({
-  args: { taskId: commentFields.taskId, authorId: commentFields.authorId, body: commentFields.body },
+  args: { parentId: commentFields.parentId, authorId: commentFields.authorId, body: commentFields.body },
   handler: async (ctx, args) =>
     ctx.db.insert('comments', { ...args, createdAt: new Date() }),
   returns: zx.id('comments'),
@@ -560,6 +560,11 @@ export const createNotification = zm({
   handler: async (ctx, args) =>
     ctx.db.insert('notifications', { ...args, createdAt: new Date() }),
   returns: zx.id('notifications'),
+})
+
+export const updateNotification = zm({
+  args: { id: zx.id('notifications'), message: z.string() },
+  handler: async (ctx, { id, ...fields }) => ctx.db.patch(id, fields),
 })
 
 export const deleteNotification = zm({
@@ -1415,7 +1420,7 @@ This composes 11 models from seeds, measures all 4 variants at that count, and v
 
 Replace the contents of `examples/stress-test/README.md` with usage for the new harness:
 
-```markdown
+````markdown
 # Stress Test Harness
 
 Measures zodvex memory footprint at scale to find the OOM ceiling on Convex's 64 MB V8 isolate.
@@ -1458,7 +1463,7 @@ bun run stress-test --count=200 --slim
 Seeds are real zodvex code — not templates. When the library API changes, the seeds may need updating, but the measurement harness (compose/measure/runner) stays stable.
 
 The `ZODVEX_SLIM` env var controls whether seeds pass `{ schemaHelpers: false }` to `defineZodModel`. The compiler handles the zod → mini transform. All configuration is via flags to the runner.
-```
+````
 
 - [ ] **Step 5: Commit**
 
