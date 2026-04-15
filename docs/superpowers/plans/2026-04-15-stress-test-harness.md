@@ -81,7 +81,7 @@ import { defineZodModel, zx } from 'zodvex'
 export const projectFields = {
   name: z.string(),
   description: z.string().optional(),
-  ownerId: zx.id('users'),
+  ownerId: zx.id('projects'),
   active: z.boolean(),
   createdAt: zx.date(),
 }
@@ -95,14 +95,16 @@ export const ProjectModel = defineZodModel('projects', projectFields, opts)
 
 - [ ] **Step 3: Create small seed — comment.ts**
 
+Note: All `zx.id()` calls reference the seed's **own** table name, not foreign tables. The composer replaces all occurrences of the table name string, so self-references become `zx.id('comments_0002')` etc. Cross-table foreign keys are not needed — the stress test measures memory, not relational integrity.
+
 ```typescript
 // examples/stress-test/seeds/models/comment.ts
 import { z } from 'zod'
 import { defineZodModel, zx } from 'zodvex'
 
 export const commentFields = {
-  taskId: zx.id('tasks'),
-  authorId: zx.id('users'),
+  parentId: zx.id('comments'),
+  authorId: zx.id('comments'),
   body: z.string(),
   createdAt: zx.date(),
 }
@@ -110,7 +112,7 @@ export const commentFields = {
 const opts = process.env.ZODVEX_SLIM === '1' ? { schemaHelpers: false } : undefined
 
 export const CommentModel = defineZodModel('comments', commentFields, opts)
-  .index('by_task', ['taskId'])
+  .index('by_parent', ['parentId'])
   .index('by_created', ['createdAt'])
 ```
 
@@ -154,7 +156,7 @@ export const documentFields = {
   title: z.string(),
   content: z.string(),
   status: z.enum(['draft', 'review', 'published', 'archived']),
-  authorId: zx.id('users'),
+  authorId: zx.id('documents'),
   tags: z.array(z.string()),
   metadata: z.object({
     wordCount: z.number(),
@@ -184,7 +186,7 @@ import { defineZodModel, zx } from 'zodvex'
 
 const EmailNotification = z.object({
   kind: z.literal('email'),
-  recipientId: zx.id('users'),
+  recipientId: zx.id('notifications'),
   subject: z.string(),
   body: z.string(),
   sentAt: zx.date(),
@@ -193,7 +195,7 @@ const EmailNotification = z.object({
 
 const PushNotification = z.object({
   kind: z.literal('push'),
-  recipientId: zx.id('users'),
+  recipientId: zx.id('notifications'),
   title: z.string(),
   badge: z.number().optional(),
   sentAt: zx.date(),
@@ -202,7 +204,7 @@ const PushNotification = z.object({
 
 const InAppNotification = z.object({
   kind: z.literal('in_app'),
-  recipientId: zx.id('users'),
+  recipientId: zx.id('notifications'),
   message: z.string(),
   linkTo: z.string().optional(),
   read: z.boolean(),
@@ -261,8 +263,8 @@ export const activityFields = {
   description: z.string().optional(),
   status: z.enum(['draft', 'review', 'active', 'suspended', 'archived']),
   priority: z.number(),
-  ownerId: zx.id('users'),
-  assigneeId: zx.id('users').optional(),
+  ownerId: zx.id('activities'),
+  assigneeId: zx.id('activities').optional(),
   contact: z.discriminatedUnion('kind', [contactVariantA, contactVariantB, contactVariantC]),
   tags: z.array(z.string()),
   labels: z.array(z.object({ name: z.string(), color: z.string() })),
@@ -551,7 +553,7 @@ export const listNotifications = zq({
 export const createNotification = zm({
   args: {
     kind: z.literal('in_app'),
-    recipientId: zx.id('users'),
+    recipientId: zx.id('notifications'),
     message: z.string(),
     read: z.boolean(),
   },
@@ -1409,12 +1411,61 @@ This composes 11 models from seeds, measures all 4 variants at that count, and v
 "verify:examples": "bun run guard:mini-imports && bun run --cwd examples/stress-test typecheck && bun run --cwd examples/stress-test stress-test -- --count=11 && bun run --cwd examples/task-manager typecheck && bun run --cwd examples/task-manager test && bun run --cwd examples/task-manager generate && bun run --cwd examples/task-manager-mini typecheck && bun run --cwd examples/task-manager-mini test && bun run --cwd examples/task-manager-mini generate"
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Update README.md**
+
+Replace the contents of `examples/stress-test/README.md` with usage for the new harness:
+
+```markdown
+# Stress Test Harness
+
+Measures zodvex memory footprint at scale to find the OOM ceiling on Convex's 64 MB V8 isolate.
+
+## Quick Start
 
 ```bash
-git add examples/stress-test/.gitignore examples/stress-test/legacy/ package.json
+# Build zodvex first (harness imports from built dist)
+cd ../.. && bun run build && cd examples/stress-test
+
+# Find OOM ceiling for all 4 variants (zod, zod+slim, mini, mini+slim)
+bun run stress-test
+
+# Find ceiling for a specific variant
+bun run stress-test --slim --mini
+
+# Single measurement at a specific count (for debugging)
+bun run stress-test --count=200 --slim
+```
+
+## How It Works
+
+1. **Seeds** (`seeds/`) — hand-written zodvex models and endpoints covering small/medium/large complexity
+2. **Composer** (`compose.ts`) — scales seeds to N models via file copy + table name replacement
+3. **Compiler** — runs zod-to-mini on composed output for the mini variant
+4. **Measurer** (`measure.ts`) — black-box: imports a directory, reports V8 heap delta
+5. **Runner** (`stress-test.ts`) — orchestrates ceiling search across all variants
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--count=N` | Single measurement at N endpoints (skips ceiling search) |
+| `--slim` | Enable `{ schemaHelpers: false }` via ZODVEX_SLIM env var |
+| `--mini` | Compile zod → zod/mini before measuring |
+| `--budget=N` | MB budget for ceiling search (default: 64) |
+
+## Architecture
+
+Seeds are real zodvex code — not templates. When the library API changes, the seeds may need updating, but the measurement harness (compose/measure/runner) stays stable.
+
+The `ZODVEX_SLIM` env var controls whether seeds pass `{ schemaHelpers: false }` to `defineZodModel`. The compiler handles the zod → mini transform. All configuration is via flags to the runner.
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add examples/stress-test/.gitignore examples/stress-test/legacy/ examples/stress-test/README.md package.json
 git add -u examples/stress-test/  # capture removals from original locations
-git commit -m "chore: move legacy stress test infrastructure to legacy/, update verify:examples"
+git commit -m "chore: move legacy stress test infrastructure to legacy/, update verify:examples and README"
 ```
 
 ---
