@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { defineZodModel } from '../src/internal/model'
 import { zx } from '../src/internal/zx'
 import type {
   DiscoveredFunction,
@@ -748,5 +749,173 @@ describe('function-embedded codec resolution', () => {
     // Exported codec wins
     expect(output).toContain('myCodec')
     expect(output).not.toContain('readFnArgs')
+  })
+})
+
+describe('slim model identity matching', () => {
+  // Slim object models carry no .doc or .schema on the model object — all
+  // derived schemas live in the per-model zx WeakMap cache. Codegen must
+  // populate its identityMap via the same cached zx.* calls so that
+  // `returns: zx.doc(SlimModel)` in user code resolves by identity and
+  // emits `zx.doc(SlimModel)` (not inlined schema source).
+  //
+  // Guards against a silent regression where codegen falls through to
+  // inlined serialization, bloating generated api.js files.
+
+  const SlimUserModel = defineZodModel(
+    'users',
+    {
+      name: z.string(),
+      email: z.string()
+    },
+    { schemaHelpers: false }
+  )
+
+  const slimDiscovered: DiscoveredModel = {
+    exportName: 'SlimUserModel',
+    tableName: 'users',
+    sourceFile: 'models/slim-user.ts',
+    // Slim models have no pre-built schemas bundle; codegen derives via
+    // _modelRef + cached zx.* lookups.
+    schemas: undefined,
+    _modelRef: SlimUserModel
+  }
+
+  it('zx.doc(slimModel) in returns emits zx.doc(Model) reference', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:get',
+        exportName: 'get',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({ id: zx.id('users') }),
+        // Same cached instance the identityMap will be keyed on.
+        zodReturns: zx.doc(SlimUserModel)
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, [slimDiscovered])
+
+    expect(output).toContain('zx.doc(SlimUserModel)')
+    // Must NOT fall through to inlined source.
+    expect(output).not.toContain('z.object({\n    _id')
+    expect(output).not.toContain('z.object({ _id')
+    // Generated file must import both the model and zx.
+    expect(output).toContain("import { SlimUserModel } from '../models/slim-user.js'")
+    expect(output).toContain("import { zx } from 'zodvex'")
+  })
+
+  it('zx.base(slimModel) in args emits zx.base(Model) reference', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:create',
+        exportName: 'create',
+        sourceFile: 'users.ts',
+        zodArgs: zx.base(SlimUserModel),
+        zodReturns: zx.id('users')
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, [slimDiscovered])
+
+    expect(output).toContain('zx.base(SlimUserModel)')
+  })
+
+  it('zx.update(slimModel) in args emits zx.update(Model) reference', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:update',
+        exportName: 'update',
+        sourceFile: 'users.ts',
+        zodArgs: zx.update(SlimUserModel),
+        zodReturns: undefined
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, [slimDiscovered])
+
+    expect(output).toContain('zx.update(SlimUserModel)')
+  })
+
+  it('zx.docArray(slimModel) in returns emits zx.docArray(Model) reference', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:list',
+        exportName: 'list',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({}),
+        zodReturns: zx.docArray(SlimUserModel)
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, [slimDiscovered])
+
+    expect(output).toContain('zx.docArray(SlimUserModel)')
+  })
+
+  it('zx.doc(slimModel).nullable() emits wrapped reference', () => {
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:get',
+        exportName: 'get',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({ id: zx.id('users') }),
+        zodReturns: zx.doc(SlimUserModel).nullable()
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, [slimDiscovered])
+
+    expect(output).toContain('zx.doc(SlimUserModel).nullable()')
+  })
+
+  it('zx.paginationResult(zx.doc(slimModel)) generates valid output', () => {
+    // zx.paginationResult produces a fresh z.object() on each call, so it
+    // won't identity-match anything at the top level and falls through to
+    // zodToSource inlining. Current zodToSource doesn't consult identityMap
+    // for nested schemas, so the inner doc is also inlined. This test
+    // documents the current behavior — if nested-identity matching is added,
+    // update the expectations.
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'users:paginate',
+        exportName: 'paginate',
+        sourceFile: 'users.ts',
+        zodArgs: z.object({ numItems: z.number(), cursor: z.string().nullable() }),
+        zodReturns: zx.paginationResult(zx.doc(SlimUserModel))
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, [slimDiscovered])
+
+    // The pagination shape is emitted (inlined).
+    expect(output).toContain('page:')
+    expect(output).toContain('isDone:')
+    expect(output).toContain('continueCursor:')
+  })
+
+  it('union-slim retains .schema and emits Model.schema reference', () => {
+    const visitSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('phone'), duration: z.number() }),
+      z.object({ type: z.literal('in-person'), roomId: z.string() })
+    ])
+    const VisitModel = defineZodModel('visits', visitSchema, { schemaHelpers: false })
+
+    const funcs: DiscoveredFunction[] = [
+      {
+        functionPath: 'visits:create',
+        exportName: 'create',
+        sourceFile: 'visits.ts',
+        zodArgs: visitSchema,
+        zodReturns: zx.id('visits')
+      }
+    ]
+    const { js: output } = generateApiFile(funcs, [
+      {
+        exportName: 'VisitModel',
+        tableName: 'visits',
+        sourceFile: 'models/visit.ts',
+        schemas: undefined,
+        _modelRef: VisitModel
+      }
+    ])
+
+    // Union slim keeps .schema on the model object; prefer direct reference.
+    expect(output).toContain('VisitModel.schema')
+    // Should not re-inline the union variants.
+    expect(output).not.toContain("z.literal('phone')")
   })
 })
