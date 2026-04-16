@@ -1,273 +1,308 @@
 {
-  "date": "2026-04-16T03:27:08.315Z",
+  "date": "2026-04-16T20:49:46.763Z",
   "budget": 64,
   "results": [
     {
       "variant": "zod",
-      "ceiling": 135,
+      "ceiling": 150,
       "points": [
         {
           "variant": "zod",
           "count": 50,
-          "heapDeltaMB": 23.92,
-          "heapPeakMB": 26.38,
+          "heapDeltaMB": 22.08,
+          "heapPeakMB": 24.54,
           "modulesLoaded": 100
         },
         {
           "variant": "zod",
           "count": 100,
-          "heapDeltaMB": 46.51,
-          "heapPeakMB": 48.97,
+          "heapDeltaMB": 42.84,
+          "heapPeakMB": 45.31,
           "modulesLoaded": 200
         },
         {
           "variant": "zod",
           "count": 150,
-          "heapDeltaMB": 69.23,
-          "heapPeakMB": 71.69,
+          "heapDeltaMB": 63.59,
+          "heapPeakMB": 66.06,
           "modulesLoaded": 300
         },
         {
           "variant": "zod",
-          "count": 125,
-          "heapDeltaMB": 57.89,
-          "heapPeakMB": 60.35,
-          "modulesLoaded": 250
+          "count": 200,
+          "heapDeltaMB": 84.69,
+          "heapPeakMB": 87.15,
+          "modulesLoaded": 400
         },
         {
           "variant": "zod",
-          "count": 138,
-          "heapDeltaMB": 64.04,
-          "heapPeakMB": 66.5,
-          "modulesLoaded": 276
+          "count": 175,
+          "heapDeltaMB": 74.03,
+          "heapPeakMB": 76.49,
+          "modulesLoaded": 350
         },
         {
           "variant": "zod",
-          "count": 132,
-          "heapDeltaMB": 61.07,
-          "heapPeakMB": 63.52,
-          "modulesLoaded": 264
+          "count": 163,
+          "heapDeltaMB": 69.15,
+          "heapPeakMB": 71.61,
+          "modulesLoaded": 326
         },
         {
           "variant": "zod",
-          "count": 135,
-          "heapDeltaMB": 62.51,
-          "heapPeakMB": 64.97,
-          "modulesLoaded": 270
+          "count": 157,
+          "heapDeltaMB": 66.61,
+          "heapPeakMB": 69.08,
+          "modulesLoaded": 314
+        },
+        {
+          "variant": "zod",
+          "count": 154,
+          "heapDeltaMB": 65.22,
+          "heapPeakMB": 67.68,
+          "modulesLoaded": 308
         }
       ]
     },
     {
       "variant": "zod + slim",
-      "ceiling": 110,
+      "ceiling": 191,
       "points": [
         {
           "variant": "zod + slim",
           "count": 50,
-          "heapDeltaMB": 29.46,
-          "heapPeakMB": 31.91,
+          "heapDeltaMB": 17.57,
+          "heapPeakMB": 20.03,
           "modulesLoaded": 100
         },
         {
           "variant": "zod + slim",
           "count": 100,
-          "heapDeltaMB": 57.54,
-          "heapPeakMB": 60,
+          "heapDeltaMB": 33.95,
+          "heapPeakMB": 36.41,
           "modulesLoaded": 200
         },
         {
           "variant": "zod + slim",
           "count": 150,
-          "heapDeltaMB": 85.69,
-          "heapPeakMB": 88.15,
+          "heapDeltaMB": 50.21,
+          "heapPeakMB": 52.67,
           "modulesLoaded": 300
         },
         {
           "variant": "zod + slim",
-          "count": 125,
-          "heapDeltaMB": 71.7,
-          "heapPeakMB": 74.16,
-          "modulesLoaded": 250
+          "count": 200,
+          "heapDeltaMB": 66.8,
+          "heapPeakMB": 69.27,
+          "modulesLoaded": 400
         },
         {
           "variant": "zod + slim",
-          "count": 113,
-          "heapDeltaMB": 64.99,
-          "heapPeakMB": 67.45,
-          "modulesLoaded": 226
+          "count": 175,
+          "heapDeltaMB": 58.39,
+          "heapPeakMB": 60.85,
+          "modulesLoaded": 350
         },
         {
           "variant": "zod + slim",
-          "count": 107,
-          "heapDeltaMB": 61.48,
-          "heapPeakMB": 63.93,
-          "modulesLoaded": 214
+          "count": 188,
+          "heapDeltaMB": 62.7,
+          "heapPeakMB": 65.16,
+          "modulesLoaded": 376
         },
         {
           "variant": "zod + slim",
-          "count": 110,
-          "heapDeltaMB": 63.44,
-          "heapPeakMB": 65.91,
-          "modulesLoaded": 220
+          "count": 194,
+          "heapDeltaMB": 64.76,
+          "heapPeakMB": 67.22,
+          "modulesLoaded": 388
+        },
+        {
+          "variant": "zod + slim",
+          "count": 191,
+          "heapDeltaMB": 63.7,
+          "heapPeakMB": 66.16,
+          "modulesLoaded": 382
         }
       ]
     },
     {
       "variant": "mini",
-      "ceiling": 316,
+      "ceiling": 341,
       "points": [
         {
           "variant": "mini",
           "count": 50,
-          "heapDeltaMB": 10.92,
-          "heapPeakMB": 13.2,
+          "heapDeltaMB": 10.23,
+          "heapPeakMB": 12.52,
           "modulesLoaded": 100
         },
         {
           "variant": "mini",
           "count": 100,
-          "heapDeltaMB": 20.85,
-          "heapPeakMB": 23.13,
+          "heapDeltaMB": 19.47,
+          "heapPeakMB": 21.76,
           "modulesLoaded": 200
         },
         {
           "variant": "mini",
           "count": 150,
-          "heapDeltaMB": 30.82,
-          "heapPeakMB": 33.1,
+          "heapDeltaMB": 28.64,
+          "heapPeakMB": 30.93,
           "modulesLoaded": 300
         },
         {
           "variant": "mini",
           "count": 200,
-          "heapDeltaMB": 40.74,
-          "heapPeakMB": 43.02,
+          "heapDeltaMB": 37.98,
+          "heapPeakMB": 40.27,
           "modulesLoaded": 400
         },
         {
           "variant": "mini",
           "count": 250,
-          "heapDeltaMB": 50.58,
-          "heapPeakMB": 52.86,
+          "heapDeltaMB": 47.11,
+          "heapPeakMB": 49.4,
           "modulesLoaded": 500
         },
         {
           "variant": "mini",
           "count": 300,
-          "heapDeltaMB": 60.56,
-          "heapPeakMB": 62.84,
+          "heapDeltaMB": 56.21,
+          "heapPeakMB": 58.5,
           "modulesLoaded": 600
         },
         {
           "variant": "mini",
           "count": 350,
-          "heapDeltaMB": 70.28,
-          "heapPeakMB": 72.56,
+          "heapDeltaMB": 65.49,
+          "heapPeakMB": 67.78,
           "modulesLoaded": 700
         },
         {
           "variant": "mini",
           "count": 325,
-          "heapDeltaMB": 65.4,
-          "heapPeakMB": 67.69,
+          "heapDeltaMB": 60.96,
+          "heapPeakMB": 63.26,
           "modulesLoaded": 650
         },
         {
           "variant": "mini",
-          "count": 313,
-          "heapDeltaMB": 63.16,
-          "heapPeakMB": 65.44,
-          "modulesLoaded": 626
+          "count": 338,
+          "heapDeltaMB": 63.36,
+          "heapPeakMB": 65.65,
+          "modulesLoaded": 676
         },
         {
           "variant": "mini",
-          "count": 319,
-          "heapDeltaMB": 64.38,
-          "heapPeakMB": 66.66,
-          "modulesLoaded": 638
+          "count": 344,
+          "heapDeltaMB": 64.47,
+          "heapPeakMB": 66.76,
+          "modulesLoaded": 688
         },
         {
           "variant": "mini",
-          "count": 316,
-          "heapDeltaMB": 63.72,
-          "heapPeakMB": 66,
-          "modulesLoaded": 632
+          "count": 341,
+          "heapDeltaMB": 63.95,
+          "heapPeakMB": 66.23,
+          "modulesLoaded": 682
         }
       ]
     },
     {
       "variant": "mini + slim",
-      "ceiling": 263,
+      "ceiling": 447,
       "points": [
         {
           "variant": "mini + slim",
           "count": 50,
-          "heapDeltaMB": 13.01,
-          "heapPeakMB": 15.29,
+          "heapDeltaMB": 8,
+          "heapPeakMB": 10.28,
           "modulesLoaded": 100
         },
         {
           "variant": "mini + slim",
           "count": 100,
-          "heapDeltaMB": 24.98,
-          "heapPeakMB": 27.27,
+          "heapDeltaMB": 15.08,
+          "heapPeakMB": 17.38,
           "modulesLoaded": 200
         },
         {
           "variant": "mini + slim",
           "count": 150,
-          "heapDeltaMB": 37,
-          "heapPeakMB": 39.28,
+          "heapDeltaMB": 22.04,
+          "heapPeakMB": 24.32,
           "modulesLoaded": 300
         },
         {
           "variant": "mini + slim",
           "count": 200,
-          "heapDeltaMB": 49.02,
-          "heapPeakMB": 51.3,
+          "heapDeltaMB": 29.18,
+          "heapPeakMB": 31.47,
           "modulesLoaded": 400
         },
         {
           "variant": "mini + slim",
           "count": 250,
-          "heapDeltaMB": 60.8,
-          "heapPeakMB": 63.09,
+          "heapDeltaMB": 36.01,
+          "heapPeakMB": 38.3,
           "modulesLoaded": 500
         },
         {
           "variant": "mini + slim",
           "count": 300,
-          "heapDeltaMB": 72.82,
-          "heapPeakMB": 75.11,
+          "heapDeltaMB": 42.98,
+          "heapPeakMB": 45.26,
           "modulesLoaded": 600
         },
         {
           "variant": "mini + slim",
-          "count": 275,
-          "heapDeltaMB": 66.89,
-          "heapPeakMB": 69.17,
-          "modulesLoaded": 550
+          "count": 350,
+          "heapDeltaMB": 50.08,
+          "heapPeakMB": 52.37,
+          "modulesLoaded": 700
         },
         {
           "variant": "mini + slim",
-          "count": 263,
-          "heapDeltaMB": 63.99,
-          "heapPeakMB": 66.27,
-          "modulesLoaded": 526
+          "count": 400,
+          "heapDeltaMB": 57.1,
+          "heapPeakMB": 59.39,
+          "modulesLoaded": 800
         },
         {
           "variant": "mini + slim",
-          "count": 269,
-          "heapDeltaMB": 65.45,
-          "heapPeakMB": 67.73,
-          "modulesLoaded": 538
+          "count": 450,
+          "heapDeltaMB": 64.14,
+          "heapPeakMB": 66.42,
+          "modulesLoaded": 900
         },
         {
           "variant": "mini + slim",
-          "count": 266,
-          "heapDeltaMB": 64.52,
-          "heapPeakMB": 66.8,
-          "modulesLoaded": 532
+          "count": 425,
+          "heapDeltaMB": 60.53,
+          "heapPeakMB": 62.82,
+          "modulesLoaded": 850
+        },
+        {
+          "variant": "mini + slim",
+          "count": 438,
+          "heapDeltaMB": 62.36,
+          "heapPeakMB": 64.64,
+          "modulesLoaded": 876
+        },
+        {
+          "variant": "mini + slim",
+          "count": 444,
+          "heapDeltaMB": 63.12,
+          "heapPeakMB": 65.4,
+          "modulesLoaded": 888
+        },
+        {
+          "variant": "mini + slim",
+          "count": 447,
+          "heapDeltaMB": 63.53,
+          "heapPeakMB": 65.81,
+          "modulesLoaded": 894
         }
       ]
     }

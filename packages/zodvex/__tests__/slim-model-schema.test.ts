@@ -39,11 +39,9 @@ describe('slim model → defineZodSchema integration', () => {
 
     expect(tableSchemas.doc).toBeDefined()
     expect(tableSchemas.insert).toBeDefined()
-    expect(tableSchemas.base).toBeDefined()
-    expect(tableSchemas.update).toBeDefined()
 
     // Verify doc has system fields
-    const docResult = tableSchemas.doc.safeParse({
+    const docResult = (tableSchemas.doc as any).safeParse({
       _id: 'item123',
       _creationTime: 100,
       name: 'Test',
@@ -52,7 +50,7 @@ describe('slim model → defineZodSchema integration', () => {
     expect(docResult.success).toBe(true)
 
     // Verify insert validates user fields only
-    const insertResult = tableSchemas.insert.safeParse({
+    const insertResult = (tableSchemas.insert as any).safeParse({
       name: 'Test',
       count: 42
     })
@@ -82,7 +80,7 @@ describe('slim model → defineZodSchema integration', () => {
     expect(schema.__zodTableMap).toHaveProperty('full_table')
   })
 
-  it('zx helpers work with slim models', () => {
+  it('zx helpers work with slim models and are cached per-model', () => {
     const Model = defineZodModel(
       'docs',
       {
@@ -91,25 +89,25 @@ describe('slim model → defineZodSchema integration', () => {
       { schemaHelpers: false }
     )
 
-    // zx.doc() should produce same result as Model.doc
-    const helperDoc = zx.doc(Model)
-    const modelDoc = Model.doc
+    // Slim object models hold no schemas — callers go through zx.*
+    expect((Model as any).doc).toBeUndefined()
+    expect((Model as any).schema).toBeUndefined()
+
+    const doc = zx.doc(Model)
+    // Repeat calls return the same cached instance
+    expect(zx.doc(Model)).toBe(doc)
 
     const testData = {
       _id: 'doc123',
       _creationTime: 100,
       content: 'Hello'
     }
+    expect((doc as any).safeParse(testData).success).toBe(true)
 
-    expect(helperDoc.safeParse(testData).success).toBe(true)
-    expect(modelDoc.safeParse(testData).success).toBe(true)
-
-    // zx.update() should work
-    const updateSchema = zx.update(Model)
+    const updateSchema = zx.update(Model) as any
     expect(updateSchema.safeParse({ _id: 'doc123' }).success).toBe(true)
 
-    // zx.paginationResult() should work with Model.doc
-    const paginated = zx.paginationResult(Model.doc)
+    const paginated = zx.paginationResult(doc) as any
     expect(
       paginated.safeParse({
         page: [testData],
@@ -131,11 +129,10 @@ describe('slim model → defineZodSchema integration', () => {
 
     expect(tableSchemas.doc).toBeDefined()
     expect(tableSchemas.insert).toBeDefined()
-    expect(tableSchemas.update).toBeDefined()
 
     // doc should validate union variants with system fields
     expect(
-      tableSchemas.doc.safeParse({
+      (tableSchemas.doc as any).safeParse({
         type: 'phone',
         duration: 30,
         _id: 'v1',
@@ -144,7 +141,7 @@ describe('slim model → defineZodSchema integration', () => {
     ).toBe(true)
 
     expect(
-      tableSchemas.doc.safeParse({
+      (tableSchemas.doc as any).safeParse({
         type: 'in-person',
         roomId: 'room1',
         _id: 'v2',
@@ -152,9 +149,10 @@ describe('slim model → defineZodSchema integration', () => {
       }).success
     ).toBe(true)
 
-    // update should be union-aware (partial variants with _id)
+    // Derived update (union-aware partial) available via zx.update(model)
+    const updateSchema = zx.update(VisitModel) as any
     expect(
-      tableSchemas.update.safeParse({
+      updateSchema.safeParse({
         _id: 'v1',
         type: 'phone'
       }).success

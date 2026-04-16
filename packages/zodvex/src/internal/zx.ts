@@ -165,45 +165,75 @@ type ZxModelInput = {
 }
 
 /**
- * Extracts the base schema from a model input.
- * Object models: reconstructs from fields. Union models: extracts from schema property.
+ * Per-model caches so repeated `zx.doc(model)` / `zx.base(model)` / etc. calls
+ * across call sites share a single Zod schema instance. Without this, each
+ * endpoint file that does `zx.doc(Model).nullable()` allocates a fresh doc —
+ * the 135 → 316 ceiling gap on mini is partly due to this duplication.
+ *
+ * Keyed on the model object identity (WeakMap) so entries are GC-eligible
+ * when the model itself is unreachable. In practice models are module-level
+ * singletons, so cache entries stick around for the worker's lifetime.
  */
-function getBaseSchemaFromModel(model: ZxModelInput): $ZodType {
-  const hasFields = Object.keys(model.fields).length > 0
-  if (hasFields) {
-    return z.object(model.fields) as any
-  }
-  // Union model — need the base schema from model.schema
+const baseCache = new WeakMap<object, $ZodType>()
+const docCache = new WeakMap<object, $ZodType>()
+const updateCache = new WeakMap<object, $ZodType>()
+const docArrayCache = new WeakMap<object, $ZodType>()
+
+function buildBase(model: ZxModelInput): $ZodType {
   const s = model.schema as any
-  if (s instanceof $ZodTypeValue) return s // slim model: .schema IS the base
-  if (s?.base instanceof $ZodTypeValue) return s.base // full model: .schema.base
-  throw new Error('[zodvex] Union model passed to zx helper without a base schema')
+  // Full model: schema is a bundle with .base
+  if (s?.base instanceof $ZodTypeValue) return s.base
+  // Union slim: schema IS the base $ZodType
+  if (s instanceof $ZodTypeValue) return s
+  // Object slim / fallback: reconstruct from fields
+  if (Object.keys(model.fields).length > 0) return z.object(model.fields) as any
+  throw new Error(`[zodvex] Cannot derive base schema for model '${model.name}'`)
 }
 
 /**
- * Constructs a doc schema: base fields + _id + _creationTime.
- * For object models: extends fields with system fields.
- * For union models: adds system fields to each variant via addSystemFields.
+ * Returns the base schema for a model — the user fields as a Zod object (or the
+ * user-supplied union for discriminated-union models). Cached per-model.
+ */
+function base(model: ZxModelInput): $ZodType {
+  const cached = baseCache.get(model as object)
+  if (cached) return cached
+  const built = buildBase(model)
+  baseCache.set(model as object, built)
+  return built
+}
+
+/**
+ * Constructs a doc schema: base fields + _id + _creationTime. Cached per-model.
  */
 function doc(model: ZxModelInput) {
-  const baseSchema = getBaseSchemaFromModel(model)
-  return addSystemFields(model.name, baseSchema)
+  const cached = docCache.get(model as object)
+  if (cached) return cached
+  const built = addSystemFields(model.name, base(model)) as any
+  docCache.set(model as object, built)
+  return built
 }
 
 /**
  * Constructs an update schema: _id required + _creationTime optional + all user fields optional.
- * For union models: maps partial over each variant via createSchemaUpdateSchema.
+ * Cached per-model.
  */
 function update(model: ZxModelInput) {
-  const baseSchema = getBaseSchemaFromModel(model)
-  return createSchemaUpdateSchema(model.name, baseSchema)
+  const cached = updateCache.get(model as object)
+  if (cached) return cached
+  const built = createSchemaUpdateSchema(model.name, base(model)) as any
+  updateCache.set(model as object, built)
+  return built
 }
 
 /**
- * Constructs a doc array schema: z.array(doc(model)).
+ * Constructs a doc array schema: z.array(doc(model)). Cached per-model.
  */
 function docArray(model: ZxModelInput) {
-  return z.array(doc(model))
+  const cached = docArrayCache.get(model as object)
+  if (cached) return cached
+  const built = z.array(doc(model)) as any
+  docArrayCache.set(model as object, built)
+  return built
 }
 
 /** Wrap in .nullable() using core constructor for zod-mini compat. */
@@ -283,6 +313,14 @@ export const zx = {
    * @see {@link paginationResult}
    */
   paginationResult,
+
+  /**
+   * Base schema for a model (user fields only; no system fields).
+   * For object models reconstructs from fields; for union models returns the
+   * user-supplied union. Cached per-model.
+   * @see {@link base}
+   */
+  base,
 
   /**
    * Doc schema: model fields + _id + _creationTime

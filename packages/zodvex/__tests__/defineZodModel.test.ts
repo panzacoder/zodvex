@@ -656,7 +656,7 @@ describe('defineZodModel __zodvexMeta', () => {
 })
 
 describe('defineZodModel with schemaHelpers: false', () => {
-  it('creates a slim model with flat schema and doc', () => {
+  it('creates a slim object model that retains no Zod schemas', () => {
     const model = defineZodModel(
       'users',
       {
@@ -670,12 +670,16 @@ describe('defineZodModel with schemaHelpers: false', () => {
     expect(model.fields).toHaveProperty('name')
     expect(model.fields).toHaveProperty('email')
 
-    // schema is the base ZodObject (not a nested bundle)
-    const baseResult = model.schema.safeParse({ name: 'Alice', email: 'a@b.com' })
+    // Slim object models carry NO pre-built schemas — consumers derive via zx.*
+    expect((model as any).schema).toBeUndefined()
+    expect((model as any).doc).toBeUndefined()
+
+    // zx.base(model) derives the base object
+    const baseResult = zx.base(model).safeParse({ name: 'Alice', email: 'a@b.com' })
     expect(baseResult.success).toBe(true)
 
-    // doc has system fields
-    const docResult = model.doc.safeParse({
+    // zx.doc(model) derives doc with system fields
+    const docResult = zx.doc(model).safeParse({
       _id: 'user123',
       _creationTime: 100,
       name: 'Alice',
@@ -684,7 +688,7 @@ describe('defineZodModel with schemaHelpers: false', () => {
     expect(docResult.success).toBe(true)
   })
 
-  it('does not have nested schema bundle properties', () => {
+  it('slim model has no nested schema bundle properties', () => {
     const model = defineZodModel(
       'items',
       {
@@ -693,13 +697,12 @@ describe('defineZodModel with schemaHelpers: false', () => {
       { schemaHelpers: false }
     )
 
-    // schema is a ZodType, not an object with .doc/.base/.update
-    expect((model.schema as any).doc).toBeUndefined()
-    expect((model.schema as any).base).toBeUndefined()
-    expect((model.schema as any).update).toBeUndefined()
+    // Slim object model is { name, fields, indexes, searchIndexes, vectorIndexes } plus methods.
+    expect((model as any).schema).toBeUndefined()
+    expect((model as any).doc).toBeUndefined()
   })
 
-  it('supports .index() chaining', () => {
+  it('supports .index() chaining without materializing schemas', () => {
     const model = defineZodModel(
       'tasks',
       {
@@ -710,8 +713,8 @@ describe('defineZodModel with schemaHelpers: false', () => {
     ).index('by_priority', ['priority'])
 
     expect(model.indexes).toHaveProperty('by_priority')
-    expect(model.schema).toBeDefined()
-    expect(model.doc).toBeDefined()
+    expect((model as any).schema).toBeUndefined()
+    expect((model as any).doc).toBeUndefined()
   })
 
   it('slim model has correct metadata', () => {
@@ -729,7 +732,7 @@ describe('defineZodModel with schemaHelpers: false', () => {
     expect(meta.definitionSource).toBe('shape')
   })
 
-  it('doc has concrete type — .nullable() works', () => {
+  it('zx.doc(slim model) supports .nullable() via core constructors', () => {
     const model = defineZodModel(
       'users',
       {
@@ -738,7 +741,7 @@ describe('defineZodModel with schemaHelpers: false', () => {
       { schemaHelpers: false }
     )
 
-    const nullableDoc = model.doc.nullable()
+    const nullableDoc = (zx.doc(model) as any).nullable()
     expect(nullableDoc.safeParse(null).success).toBe(true)
     expect(
       nullableDoc.safeParse({
@@ -749,7 +752,7 @@ describe('defineZodModel with schemaHelpers: false', () => {
     ).toBe(true)
   })
 
-  it('doc works with zx.paginationResult()', () => {
+  it('zx.doc(slim model) composes with zx.paginationResult()', () => {
     const model = defineZodModel(
       'items',
       {
@@ -758,7 +761,7 @@ describe('defineZodModel with schemaHelpers: false', () => {
       { schemaHelpers: false }
     )
 
-    const paginated = zx.paginationResult(model.doc)
+    const paginated = zx.paginationResult(zx.doc(model))
     expect(
       paginated.safeParse({
         page: [{ _id: 'i1', _creationTime: 100, title: 'Hello' }],
@@ -768,7 +771,7 @@ describe('defineZodModel with schemaHelpers: false', () => {
     ).toBe(true)
   })
 
-  it('slim discriminated union model — doc adds system fields to each variant', () => {
+  it('slim discriminated union model retains schema; zx.doc adds system fields', () => {
     const visitSchema = z.discriminatedUnion('type', [
       z.object({ type: z.literal('phone'), duration: z.number() }),
       z.object({ type: z.literal('in-person'), roomId: z.string() })
@@ -777,12 +780,14 @@ describe('defineZodModel with schemaHelpers: false', () => {
     const Visits = defineZodModel('visits', visitSchema, { schemaHelpers: false })
 
     expect(Visits.name).toBe('visits')
-    expect(Visits.schema).toBe(visitSchema)
+    // Union slim retains the user-supplied schema (can't be reconstructed from fields)
+    expect((Visits as any).schema).toBe(visitSchema)
     expect(Object.keys(Visits.fields)).toEqual([])
 
-    expect(isZodUnion(Visits.doc)).toBe(true)
+    const doc = zx.doc(Visits)
+    expect(isZodUnion(doc)).toBe(true)
 
-    const phoneResult = Visits.doc.safeParse({
+    const phoneResult = doc.safeParse({
       type: 'phone',
       duration: 30,
       _id: 'v1',
@@ -790,7 +795,7 @@ describe('defineZodModel with schemaHelpers: false', () => {
     })
     expect(phoneResult.success).toBe(true)
 
-    const inPersonResult = Visits.doc.safeParse({
+    const inPersonResult = doc.safeParse({
       type: 'in-person',
       roomId: 'room1',
       _id: 'v2',
@@ -798,8 +803,23 @@ describe('defineZodModel with schemaHelpers: false', () => {
     })
     expect(inPersonResult.success).toBe(true)
 
-    const bad = Visits.doc.safeParse({ type: 'phone', duration: 30 })
+    const bad = doc.safeParse({ type: 'phone', duration: 30 })
     expect(bad.success).toBe(false)
+  })
+
+  it('zx caches schemas per model (same instance returned on repeat calls)', () => {
+    const model = defineZodModel(
+      'widgets',
+      {
+        label: z.string()
+      },
+      { schemaHelpers: false }
+    )
+
+    expect(zx.doc(model)).toBe(zx.doc(model))
+    expect(zx.base(model)).toBe(zx.base(model))
+    expect(zx.update(model)).toBe(zx.update(model))
+    expect(zx.docArray(model)).toBe(zx.docArray(model))
   })
 
   it('slim union model — zx.update() maps partial over variants', () => {

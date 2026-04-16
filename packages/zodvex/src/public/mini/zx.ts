@@ -39,6 +39,7 @@ export const zx = {
   codec,
   paginationOpts: _zx.paginationOpts,
   paginationResult: _zx.paginationResult,
+  base: _zx.base,
   doc: _zx.doc,
   update: _zx.update,
   docArray: _zx.docArray

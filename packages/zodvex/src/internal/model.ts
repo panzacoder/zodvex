@@ -15,9 +15,9 @@ import {
   createSchemaBundle,
   type RuntimeModelSchemaBundle
 } from './modelSchemaBundle'
-import { type AddSystemFieldsToUnion, addSystemFields } from './schemaHelpers'
+import type { AddSystemFieldsToUnion } from './schemaHelpers'
 import { $ZodArray, type $ZodShape, $ZodType, type input as zinput } from './zod-core'
-import { type ZxId, zx } from './zx'
+import type { ZxId } from './zx'
 
 function createModel<Name extends string>(
   name: Name,
@@ -69,21 +69,29 @@ function createModel<Name extends string>(
   return model
 }
 
+/**
+ * Factory for slim models (schemaHelpers: false).
+ *
+ * Object slim (definitionSource: 'shape'): `userSchema` is null. The model
+ * carries only `{ name, fields, indexes, ... }` with no pre-built Zod schemas.
+ * Consumers derive schemas on demand via cached zx helpers.
+ *
+ * Union slim (definitionSource: 'schema'): `userSchema` is the user-supplied
+ * union/discriminated union. It can't be recreated from `fields`, so it must
+ * be retained on the model. `fields` is `{}` in this case.
+ */
 function createSlimModel<Name extends string>(
   name: Name,
   fields: $ZodShape,
-  baseSchema: $ZodType,
+  userSchema: $ZodType | null,
   definitionSource: ZodvexModelDefinitionSource,
   indexes: Record<string, readonly string[]> = {},
   searchIndexes: Record<string, SearchIndexConfig> = {},
   vectorIndexes: Record<string, VectorIndexConfig> = {}
 ): any {
-  const docSchema = addSystemFields(name, baseSchema)
-  const model = {
+  const model: any = {
     name,
     fields,
-    schema: baseSchema,
-    doc: docSchema,
     indexes,
     searchIndexes,
     vectorIndexes,
@@ -91,7 +99,7 @@ function createSlimModel<Name extends string>(
       return createSlimModel(
         name,
         fields,
-        baseSchema,
+        userSchema,
         definitionSource,
         { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
         searchIndexes,
@@ -102,7 +110,7 @@ function createSlimModel<Name extends string>(
       return createSlimModel(
         name,
         fields,
-        baseSchema,
+        userSchema,
         definitionSource,
         indexes,
         { ...searchIndexes, [indexName]: config },
@@ -110,12 +118,14 @@ function createSlimModel<Name extends string>(
       )
     },
     vectorIndex(indexName: string, config: VectorIndexConfig) {
-      return createSlimModel(name, fields, baseSchema, definitionSource, indexes, searchIndexes, {
+      return createSlimModel(name, fields, userSchema, definitionSource, indexes, searchIndexes, {
         ...vectorIndexes,
         [indexName]: config
       })
     }
   }
+
+  if (userSchema !== null) model.schema = userSchema
 
   attachMeta(model, { type: 'model', tableName: name, definitionSource })
   return model
@@ -401,7 +411,14 @@ export type DefineZodModelOptions = {
 
 /**
  * Slim model for object shapes — produced when `schemaHelpers: false` with a raw shape.
- * `doc` uses concrete z.ZodObject type so .nullable()/.optional()/etc. work.
+ *
+ * Carries only table name, fields, and index metadata — no pre-built Zod schemas.
+ * Derive schemas on demand via cached `zx.*` helpers:
+ *   - `zx.doc(model)` — doc with system fields
+ *   - `zx.base(model)` — base object (user fields only)
+ *   - `zx.update(model)` — partial update schema
+ *   - `zx.docArray(model)` — array of docs
+ *   - `zx.paginationResult(zx.doc(model))` — paginated doc
  */
 export type SlimObjectModel<
   Name extends string = string,
@@ -410,14 +427,14 @@ export type SlimObjectModel<
   Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
   SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
   VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
-> = ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes> & {
-  readonly schema: InsertSchema
-  readonly doc: z.ZodObject<Fields & { _id: ZxId<Name>; _creationTime: z.ZodNumber }> // zod-ok
-}
+> = ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes>
 
 /**
  * Slim model for union/discriminated union schemas — produced when `schemaHelpers: false`
  * with a pre-built schema.
+ *
+ * Retains the user-supplied `schema` since it can't be reconstructed from fields.
+ * All other schemas derived on demand via `zx.*`.
  */
 export type SlimUnionModel<
   Name extends string = string,
@@ -427,7 +444,6 @@ export type SlimUnionModel<
   VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
 > = ZodModelBase<Name, $ZodShape, Schema, Indexes, SearchIndexes, VectorIndexes> & {
   readonly schema: Schema
-  readonly doc: AddSystemFieldsToUnion<Name, Schema>
 }
 
 // ============================================================================
@@ -512,7 +528,8 @@ export function defineZodModel<Name extends string>(
 
   const fields = fieldsOrSchema as $ZodShape
   if (slim) {
-    return createSlimModel(name, fields, z.object(fields) as any, 'shape')
+    // Object slim — no base schema retained; reconstructed from fields on demand.
+    return createSlimModel(name, fields, null, 'shape')
   }
   return createModel(name, fields, createObjectSchemaBundle(name, fields), 'shape')
 }
