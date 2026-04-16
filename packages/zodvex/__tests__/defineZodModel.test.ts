@@ -781,7 +781,8 @@ describe('defineZodModel with schemaHelpers: false', () => {
 
     expect(Visits.name).toBe('visits')
     // Union slim retains the user-supplied schema (can't be reconstructed from fields)
-    expect((Visits as any).schema).toBe(visitSchema)
+    // — .schema is a typed property on SlimUnionModel, so no cast needed.
+    expect(Visits.schema).toBe(visitSchema)
     expect(Object.keys(Visits.fields)).toEqual([])
 
     const doc = zx.doc(Visits)
@@ -820,6 +821,78 @@ describe('defineZodModel with schemaHelpers: false', () => {
     expect(zx.base(model)).toBe(zx.base(model))
     expect(zx.update(model)).toBe(zx.update(model))
     expect(zx.docArray(model)).toBe(zx.docArray(model))
+  })
+
+  it('zx cache survives .index()/.searchIndex()/.vectorIndex() chain steps', () => {
+    // Chain methods return NEW model objects. If the cache keyed on model
+    // object identity, every chain step would re-allocate. Keying on fields
+    // (object slim) / schema (union slim) keeps schemas shared across chains.
+    const M0 = defineZodModel(
+      'widgets',
+      {
+        label: z.string(),
+        priority: z.number()
+      },
+      { schemaHelpers: false }
+    )
+    const M1 = M0.index('by_label', ['label'])
+    const M2 = M1.index('by_priority', ['priority'])
+
+    expect(M0).not.toBe(M1) // different model objects...
+    expect(M1).not.toBe(M2)
+    // ...but the derived schemas share a single allocation.
+    expect(zx.doc(M0)).toBe(zx.doc(M1))
+    expect(zx.doc(M1)).toBe(zx.doc(M2))
+    expect(zx.base(M0)).toBe(zx.base(M1))
+    expect(zx.base(M1)).toBe(zx.base(M2))
+    expect(zx.update(M0)).toBe(zx.update(M1))
+    expect(zx.docArray(M0)).toBe(zx.docArray(M1))
+  })
+
+  it('zx cache shared across .index() chains for union slim models', () => {
+    const unionSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('a'), n: z.number() }),
+      z.object({ type: z.literal('b'), s: z.string() })
+    ])
+    const U0 = defineZodModel('tagged', unionSchema, { schemaHelpers: false })
+    const U1 = U0.index('by_type', ['type'])
+
+    expect(U0).not.toBe(U1)
+    expect(zx.doc(U0)).toBe(zx.doc(U1))
+    expect(zx.update(U0)).toBe(zx.update(U1))
+    expect(zx.docArray(U0)).toBe(zx.docArray(U1))
+    // Union slim's base IS the user-supplied schema — reused, not rebuilt.
+    expect(zx.base(U0)).toBe(unionSchema)
+    expect(zx.base(U1)).toBe(unionSchema)
+  })
+
+  it('zx.base(unionSlim) returns the user-supplied schema by identity', () => {
+    // Guard: if buildBase ever wraps/clones the union, the memory claim for
+    // union-slim regresses silently. Assertion pins the contract.
+    const unionSchema = z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('x'), n: z.number() }),
+      z.object({ kind: z.literal('y'), s: z.string() })
+    ])
+    const Model = defineZodModel('things', unionSchema, { schemaHelpers: false })
+
+    expect(zx.base(Model)).toBe(unionSchema)
+    expect(Model.schema).toBe(unionSchema)
+  })
+
+  it('zx.{doc,base,update,docArray}(fullModel) reuses the pre-built schema bundle', () => {
+    // Full models carry schemas in model.schema.{...}. zx.* should return
+    // those instances directly (not re-allocate), so codegen identity
+    // matching works uniformly for code that mixes `Model.schema.doc` and
+    // `zx.doc(Model)` usages.
+    const fullModel = defineZodModel('tasks', {
+      title: z.string(),
+      done: z.boolean()
+    })
+
+    expect(zx.doc(fullModel)).toBe(fullModel.schema.doc)
+    expect(zx.base(fullModel)).toBe(fullModel.schema.base)
+    expect(zx.update(fullModel)).toBe(fullModel.schema.update)
+    expect(zx.docArray(fullModel)).toBe(fullModel.schema.docArray)
   })
 
   it('slim union model — zx.update() maps partial over variants', () => {

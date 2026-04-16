@@ -166,73 +166,97 @@ type ZxModelInput = {
 
 /**
  * Per-model caches so repeated `zx.doc(model)` / `zx.base(model)` / etc. calls
- * across call sites share a single Zod schema instance. Without this, each
- * endpoint file that does `zx.doc(Model).nullable()` allocates a fresh doc —
- * the 135 → 316 ceiling gap on mini is partly due to this duplication.
+ * across call sites share a single Zod schema instance.
  *
- * Keyed on the model object identity (WeakMap) so entries are GC-eligible
- * when the model itself is unreachable. In practice models are module-level
- * singletons, so cache entries stick around for the worker's lifetime.
+ * Caches are keyed on a stable identity that survives chain methods
+ * (`.index()`, `.searchIndex()`, `.vectorIndex()`), which return new model
+ * objects but preserve `fields` (object slim) and `schema` (union slim) by
+ * reference. Keying on the model object would force every chain step to
+ * re-allocate.
+ *
+ * Full models bypass these caches entirely — they carry a pre-built schema
+ * bundle, and `zx.*(fullModel)` returns the bundle's schema directly so
+ * identity matches `fullModel.schema.{doc,base,...}`.
  */
 const baseCache = new WeakMap<object, $ZodType>()
 const docCache = new WeakMap<object, $ZodType>()
 const updateCache = new WeakMap<object, $ZodType>()
 const docArrayCache = new WeakMap<object, $ZodType>()
 
-function buildBase(model: ZxModelInput): $ZodType {
+/**
+ * Stable cache key for slim models:
+ *   - union slim → the user-supplied schema (preserved across chains)
+ *   - object slim → the fields record (preserved across chains)
+ */
+function slimCacheKey(model: ZxModelInput): object {
   const s = model.schema as any
-  // Full model: schema is a bundle with .base
-  if (s?.base instanceof $ZodTypeValue) return s.base
-  // Union slim: schema IS the base $ZodType
-  if (s instanceof $ZodTypeValue) return s
-  // Object slim / fallback: reconstruct from fields
-  if (Object.keys(model.fields).length > 0) return z.object(model.fields) as any
-  throw new Error(`[zodvex] Cannot derive base schema for model '${model.name}'`)
+  return s instanceof $ZodTypeValue ? s : model.fields
 }
 
 /**
  * Returns the base schema for a model — the user fields as a Zod object (or the
- * user-supplied union for discriminated-union models). Cached per-model.
+ * user-supplied union for discriminated-union models).
+ *
+ * Full models: returns the bundle's pre-built `.base` (no allocation).
+ * Union slim: returns the user's schema (no allocation — it IS the base).
+ * Object slim: builds `z.object(fields)` once, cached on `fields`.
  */
 function base(model: ZxModelInput): $ZodType {
-  const cached = baseCache.get(model as object)
+  const s = model.schema as any
+  if (s?.base instanceof $ZodTypeValue) return s.base
+  if (s instanceof $ZodTypeValue) return s
+  const cached = baseCache.get(model.fields)
   if (cached) return cached
-  const built = buildBase(model)
-  baseCache.set(model as object, built)
+  if (Object.keys(model.fields).length === 0) {
+    throw new Error(`[zodvex] Cannot derive base schema for model '${model.name}'`)
+  }
+  const built = z.object(model.fields) as any
+  baseCache.set(model.fields, built)
   return built
 }
 
 /**
- * Constructs a doc schema: base fields + _id + _creationTime. Cached per-model.
+ * Constructs a doc schema: base fields + _id + _creationTime.
+ * Full models reuse `model.schema.doc`; slim models cache on slimCacheKey(model).
  */
 function doc(model: ZxModelInput) {
-  const cached = docCache.get(model as object)
+  const s = model.schema as any
+  if (s?.doc instanceof $ZodTypeValue) return s.doc
+  const key = slimCacheKey(model)
+  const cached = docCache.get(key)
   if (cached) return cached
   const built = addSystemFields(model.name, base(model)) as any
-  docCache.set(model as object, built)
+  docCache.set(key, built)
   return built
 }
 
 /**
  * Constructs an update schema: _id required + _creationTime optional + all user fields optional.
- * Cached per-model.
+ * Full models reuse `model.schema.update`; slim models cache on slimCacheKey(model).
  */
 function update(model: ZxModelInput) {
-  const cached = updateCache.get(model as object)
+  const s = model.schema as any
+  if (s?.update instanceof $ZodTypeValue) return s.update
+  const key = slimCacheKey(model)
+  const cached = updateCache.get(key)
   if (cached) return cached
   const built = createSchemaUpdateSchema(model.name, base(model)) as any
-  updateCache.set(model as object, built)
+  updateCache.set(key, built)
   return built
 }
 
 /**
- * Constructs a doc array schema: z.array(doc(model)). Cached per-model.
+ * Constructs a doc array schema: z.array(doc(model)).
+ * Full models reuse `model.schema.docArray`; slim models cache on slimCacheKey(model).
  */
 function docArray(model: ZxModelInput) {
-  const cached = docArrayCache.get(model as object)
+  const s = model.schema as any
+  if (s?.docArray instanceof $ZodTypeValue) return s.docArray
+  const key = slimCacheKey(model)
+  const cached = docArrayCache.get(key)
   if (cached) return cached
   const built = z.array(doc(model)) as any
-  docArrayCache.set(model as object, built)
+  docArrayCache.set(key, built)
   return built
 }
 
