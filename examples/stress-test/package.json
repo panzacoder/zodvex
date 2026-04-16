@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "typecheck": "bunx tsc --noEmit -p tsconfig.json",
-    "generate": "bun run generate.ts",
+    "stress-test": "bun run stress-test.ts",
+    "compose": "bun run compose.ts",
     "measure": "bun run measure.ts",
-    "report": "bun run report.ts"
+    "typecheck": "bunx tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "convex": "^1.28.0",
