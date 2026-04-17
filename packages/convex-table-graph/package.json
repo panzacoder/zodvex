@@ -1,0 +1,50 @@
+{
+  "name": "convex-table-graph",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Static analyzer for Convex projects — infers query↔mutation table dependencies from ctx.db call patterns.",
+  "keywords": ["convex", "static-analysis", "ts-morph", "optimistic-updates"],
+  "license": "MIT",
+  "author": "Jake Hebert",
+  "type": "module",
+  "bin": {
+    "convex-table-graph": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    }
+  },
+  "files": ["dist", "src", "README.md", "DESIGN.md", "LICENSE"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "bun x biome check src __tests__",
+    "lint:fix": "bun x biome check --write src __tests__",
+    "format": "bun x biome format --write src __tests__"
+  },
+  "dependencies": {
+    "ts-morph": "^25.0.0",
+    "tinyglobby": "^0.2.15"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.6",
+    "@types/node": "^24.8.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

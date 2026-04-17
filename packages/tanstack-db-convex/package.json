@@ -1,0 +1,12 @@
+{
+  "name": "tanstack-db-convex",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TanStack DB adapter for Convex. Deferred — see ./README.md",
+  "license": "MIT",
+  "author": "Jake Hebert",
+  "type": "module",
+  "scripts": {
+    "type-check": "echo 'deferred package — no source yet'"
+  }
+}
