@@ -60,9 +60,7 @@ export function mutation<H extends (ctx: MutationCtx, args: any) => any>(
   return config.handler
 }
 
-export function action<H extends (ctx: ActionCtx, args: any) => any>(
-  config: QueryConfig<H>
-): H {
+export function action<H extends (ctx: ActionCtx, args: any) => any>(config: QueryConfig<H>): H {
   return config.handler
 }
 

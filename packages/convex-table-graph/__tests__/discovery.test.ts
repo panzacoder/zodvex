@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os'
 import { discoverEntryFiles, moduleNameFromPath, functionPath } from '../src/discovery'
 
 function setupFixtureDir(): string {
-  const dir = path.join(tmpdir(), `convex-graph-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const dir = path.join(
+    tmpdir(),
+    `convex-graph-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )
   mkdirSync(dir, { recursive: true })
   mkdirSync(path.join(dir, '_generated'), { recursive: true })
   mkdirSync(path.join(dir, '_deps'), { recursive: true })

@@ -102,8 +102,7 @@ function main(): void {
   const convexDir = path.resolve(args.convexDir)
   const graph = analyze({ convexDir })
 
-  const output =
-    args.format === 'ts' ? formatAsTs(graph) : JSON.stringify(graph, null, 2)
+  const output = args.format === 'ts' ? formatAsTs(graph) : JSON.stringify(graph, null, 2)
 
   if (args.output) {
     const outPath = path.resolve(args.output)

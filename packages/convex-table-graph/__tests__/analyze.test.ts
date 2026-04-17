@@ -9,7 +9,8 @@ function fixture(name: string): string {
 
 function assertFullConfidence(graph: TableGraph, fnPath: string): void {
   const info = graph.functions[fnPath]
-  if (!info) throw new Error(`Expected ${fnPath} in graph, got: ${Object.keys(graph.functions).join(', ')}`)
+  if (!info)
+    throw new Error(`Expected ${fnPath} in graph, got: ${Object.keys(graph.functions).join(', ')}`)
   expect(info.confidence, `${fnPath} should have full confidence`).toBe('full')
 }
 

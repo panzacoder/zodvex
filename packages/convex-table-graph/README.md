@@ -37,6 +37,64 @@ Pure static analysis via ts-morph. No runtime, no Convex deployment required, no
 5. Resolve table names from string literals or `Id<"table">` type parameters
 6. Emit a dependency graph + diagnostics for anything unresolved
 
+## Usage
+
+### CLI
+
+```bash
+# Analyze ./convex and print JSON
+convex-table-graph
+
+# Analyze a specific directory and write to a file
+convex-table-graph ./examples/my-app/convex -o table-graph.json
+
+# Emit a typed TS module instead of JSON
+convex-table-graph -o convex-table-graph.generated.ts -f ts
+```
+
+### Programmatic API
+
+The CLI recognizes only vanilla Convex builders (`query`, `mutation`, `action`, etc.). For custom wrappers — e.g. zodvex's `zq`/`zm`/`za` or convex-helpers `customQuery` — use the programmatic API:
+
+```ts
+import { analyze } from 'convex-table-graph'
+
+const graph = analyze({
+  convexDir: './convex',
+  builders: {
+    query: ['zq'],
+    mutation: ['zm'],
+    action: ['za'],
+    internalQuery: ['ziq'],
+    internalMutation: ['zim'],
+    internalAction: ['zia']
+  },
+  maxDepth: 3 // default: 3
+})
+
+for (const [path, info] of Object.entries(graph.functions)) {
+  console.log(`${path} reads=${info.reads} writes=${info.writes}`)
+}
+```
+
+### Patterns recognized
+
+- `ctx.db.query("table")`, `.insert("table", doc)` — direct string-literal tables
+- `ctx.db.patch(id, ...)`, `.replace(id, ...)`, `.delete(id)`, `.get(id)` — table from `Id<"table">` type parameter
+- `const { db } = ctx` / `({ db }, args) => ...` — destructuring propagation
+- `const secureDb = ctx.db.withRules(...)` — db-wrapping method pattern (any non-data-method call on db produces a new tainted db-like)
+- Cross-file helpers: `await helper(ctx.db, ...)` — taint propagates through function-call boundaries up to `maxDepth`
+
+### Diagnostics
+
+When the analyzer can't resolve something, it emits a diagnostic with file+line and a code. Common unresolvable patterns:
+
+- `unresolved-db-arg` — a dynamic table name (`ctx.db.query(tableName)`) or an `any`-typed Id
+- `max-depth` — a helper chain too deep to follow
+- `unresolvable-callee` — a call where the target can't be statically determined
+
+Diagnostics are written to stderr. The function affected is marked with `confidence: "partial"` in the graph.
+
 ## Intended consumers
 
 - **Smart optimistic updates helper for Convex** — auto-invalidate queries on mutation (primary target)

@@ -6,15 +6,16 @@ import {
   type FunctionExpression
 } from 'ts-morph'
 import { DB_METHODS, DB_METHODS_IGNORED } from './db-methods'
-
-const isDbMethod = (methodName: string): boolean => {
-  return methodName in DB_METHODS || DB_METHODS_IGNORED.has(methodName)
-}
-import { type CallableDeclaration, extractTableFromIdType, getArgumentType, resolveCallee, resolveStringLiteral } from './resolve'
+import {
+  type CallableDeclaration,
+  extractTableFromIdType,
+  getArgumentType,
+  resolveCallee,
+  resolveStringLiteral
+} from './resolve'
 import {
   addTaintFromParameter,
   classifyArgument,
-  cloneTaintState,
   createTaintState,
   getCallExpressions,
   isDbReference,
@@ -23,6 +24,10 @@ import {
   type TaintState
 } from './taint'
 import type { Diagnostic } from './types'
+
+const isDbMethod = (methodName: string): boolean => {
+  return methodName in DB_METHODS || DB_METHODS_IGNORED.has(methodName)
+}
 
 export type AnalysisResult = {
   reads: Set<string>
@@ -59,7 +64,9 @@ export function analyzeHandler(
   const seeded = seedTaintFromHandler(handler, state)
   if (!seeded) {
     result.partial = true
-    result.diagnostics.push(makeDiagnostic(handler, ctx.functionPath, 'Could not seed taint from handler parameters'))
+    result.diagnostics.push(
+      makeDiagnostic(handler, ctx.functionPath, 'Could not seed taint from handler parameters')
+    )
     return result
   }
 
@@ -263,9 +270,7 @@ function getTaintPropagation(call: CallExpression, state: TaintState): Propagati
   return result
 }
 
-function getFunctionBody(
-  fn: CallableDeclaration
-): Node | null {
+function getFunctionBody(fn: CallableDeclaration): Node | null {
   if (Node.isFunctionDeclaration(fn)) {
     return fn.getBody() ?? null
   }
@@ -278,7 +283,12 @@ function getFunctionBody(
   return null
 }
 
-function makeDiagnostic(node: Node, functionPath: string, message: string, code?: string): Diagnostic {
+function makeDiagnostic(
+  node: Node,
+  functionPath: string,
+  message: string,
+  code?: string
+): Diagnostic {
   return makeDiagnosticAt(node, functionPath, message, code)
 }
 

@@ -11,13 +11,16 @@ zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping
 This is a bun workspaces monorepo:
 
 - `packages/zodvex/` — the publishable library (source, tests, build config)
+- `packages/convex-table-graph/` — experimental static analyzer that extracts function↔table dependency graphs from Convex projects via ts-morph. Intended to be extracted to a standalone repo. Has its own tests and CLI. See `packages/convex-table-graph/DESIGN.md` for motivation and architecture.
+- `packages/tanstack-db-convex/` — placeholder for a future TanStack DB adapter. Deferred pending validation from a simpler optimistic-updates helper.
+- `packages/zod-to-mini/` — private workspace pkg providing the codemod used by `zodvex/labs`.
 - `examples/task-manager/` — full example app using zodvex via `workspace:*`
 - `examples/task-manager-mini/` — same app using `zod/mini` to verify mini compatibility
 - `examples/quickstart/` — minimal getting-started example
 - `examples/stress-test/` — performance/edge-case testing
 - Root `package.json` — workspace root (private, not published)
 
-All commands can be run from the repo root — they delegate to `packages/zodvex/`.
+All zodvex commands can be run from the repo root — they delegate to `packages/zodvex/`. convex-table-graph has its own lifecycle: run commands from `packages/convex-table-graph/`.
 
 ## Key Commands
 

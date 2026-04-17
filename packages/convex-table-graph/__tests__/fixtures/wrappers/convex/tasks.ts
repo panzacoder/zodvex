@@ -4,9 +4,7 @@ import type { MutationCtx, QueryCtx } from '../../_convex-stubs'
 // Common pattern in real codebases with zodvex or custom builders.
 type ZodvexQueryConfig<H> = { args?: any; returns?: any; handler: H }
 
-function zQuery<H extends (ctx: QueryCtx, args: any) => any>(
-  config: ZodvexQueryConfig<H>
-): H {
+function zQuery<H extends (ctx: QueryCtx, args: any) => any>(config: ZodvexQueryConfig<H>): H {
   return config.handler
 }
 
