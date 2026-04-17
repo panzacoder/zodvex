@@ -6,6 +6,10 @@ import {
   type FunctionExpression
 } from 'ts-morph'
 import { DB_METHODS, DB_METHODS_IGNORED } from './db-methods'
+
+const isDbMethod = (methodName: string): boolean => {
+  return methodName in DB_METHODS || DB_METHODS_IGNORED.has(methodName)
+}
 import { type CallableDeclaration, extractTableFromIdType, getArgumentType, resolveCallee, resolveStringLiteral } from './resolve'
 import {
   addTaintFromParameter,
@@ -79,7 +83,7 @@ function analyzeFunctionBody(
   const body = getFunctionBody(fn)
   if (!body) return
 
-  processBodyDeclarations(body, state)
+  processBodyDeclarations(body, state, isDbMethod)
 
   const calls = getCallExpressions(body)
 

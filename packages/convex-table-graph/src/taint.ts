@@ -155,16 +155,19 @@ export function classifyArgument(node: Node, state: TaintState): TaintKind | nul
  * Process a variable declaration that might introduce a tainted alias.
  *
  * Handles:
- *   const x = ctx            // x tainted as ctx
- *   const x = ctx.db         // x tainted as db
- *   const x = db             // x tainted as db
- *   const { db } = ctx       // db (the new symbol) tainted as db
- *   const { db: y } = ctx    // y tainted as db
- *   const [a] = ctx.db       // ignored (array destructure of db makes no sense)
+ *   const x = ctx                    // x tainted as ctx
+ *   const x = ctx.db                 // x tainted as db
+ *   const x = db                     // x tainted as db
+ *   const { db } = ctx               // db (the new symbol) tainted as db
+ *   const { db: y } = ctx            // y tainted as db
+ *   const x = db.withRules(...)      // x tainted as db (wrapper pattern)
+ *   const x = ctx.db.withRules(...)  // x tainted as db (wrapper pattern)
+ *   const [a] = ctx.db               // ignored (array destructure of db makes no sense)
  */
 export function processVariableDeclaration(
   declNode: Node,
-  state: TaintState
+  state: TaintState,
+  isDbMethod: (methodName: string) => boolean
 ): void {
   if (!Node.isVariableDeclaration(declNode)) return
 
@@ -179,8 +182,21 @@ export function processVariableDeclaration(
     if (!targetSymbol) return
 
     const kind = classifyArgument(init, state)
-    if (kind === 'ctx') state.ctxSymbols.add(targetSymbol)
-    else if (kind === 'db') state.dbSymbols.add(targetSymbol)
+    if (kind === 'ctx') {
+      state.ctxSymbols.add(targetSymbol)
+      return
+    }
+    if (kind === 'db') {
+      state.dbSymbols.add(targetSymbol)
+      return
+    }
+
+    // Wrapper pattern: `const x = db.someWrapper(...)` where someWrapper is NOT a known
+    // db read/write method. Wrapper calls return a db-like object (e.g. `withRules`,
+    // `withAuth`, `withIndex`-on-db-not-query). We don't know all possible wrapper names,
+    // so we taint anything that isn't a known data-method call.
+    const wrapperTaint = classifyWrapperCall(init, state, isDbMethod)
+    if (wrapperTaint) state.dbSymbols.add(targetSymbol)
     return
   }
 
@@ -203,6 +219,33 @@ export function processVariableDeclaration(
 }
 
 /**
+ * If a call expression is a method call on a tainted db using a method we don't
+ * recognize as a data operation, assume it's a db-wrapping method (e.g. withRules)
+ * that returns a db-like object. Returns true if so.
+ */
+function classifyWrapperCall(
+  node: Node,
+  state: TaintState,
+  isDbMethod: (methodName: string) => boolean
+): boolean {
+  if (!Node.isCallExpression(node)) return false
+
+  const expr = node.getExpression()
+  if (!Node.isPropertyAccessExpression(expr)) return false
+
+  const receiver = expr.getExpression()
+  if (!isDbReference(receiver, state)) return false
+
+  const methodName = expr.getNameNode().getText()
+  // If the method IS a known data method (query, insert, etc.), its return value is data
+  // or a QueryInitializer — not another db. Don't taint.
+  if (isDbMethod(methodName)) return false
+
+  // Unknown method on a tainted db → assume db-wrapping pattern, taint the result.
+  return true
+}
+
+/**
  * Find all variable declarations within a function body and process them for taint.
  * This is typically called once at the start of analyzing a function body, before
  * walking for db calls, so that taint aliases are ready when we encounter uses.
@@ -210,10 +253,14 @@ export function processVariableDeclaration(
  * Note: this is flow-insensitive. We assume aliases remain valid throughout the
  * function body, which is almost always true in Convex handler code.
  */
-export function processBodyDeclarations(body: Node, state: TaintState): void {
+export function processBodyDeclarations(
+  body: Node,
+  state: TaintState,
+  isDbMethod: (methodName: string) => boolean
+): void {
   body.forEachDescendant((node) => {
     if (Node.isVariableDeclaration(node)) {
-      processVariableDeclaration(node, state)
+      processVariableDeclaration(node, state, isDbMethod)
     }
   })
 }

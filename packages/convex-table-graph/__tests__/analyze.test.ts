@@ -212,6 +212,28 @@ describe('analyze — custom wrapper builders via config', () => {
   })
 })
 
+describe('analyze — db wrapper methods (e.g. withRules)', () => {
+  const graph = analyze({ convexDir: fixture('db-wrapper') })
+
+  it('taints the return of an unknown method on db as db', () => {
+    const fn = graph.functions['tasks:listWithRules']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:listWithRules')
+  })
+
+  it('propagates through wrapper for writes', () => {
+    const fn = graph.functions['tasks:updateWithRules']!
+    expect(fn.writes).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:updateWithRules')
+  })
+
+  it('handles chained wrappers', () => {
+    const fn = graph.functions['tasks:chainedWrappers']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:chainedWrappers')
+  })
+})
+
 describe('analyze — depth limit', () => {
   it('emits diagnostic when max depth is exceeded', () => {
     // Default depth of 3 — handler(0) -> level1(1) -> level2(2) -> level3(3) -> level4(4)

@@ -95,34 +95,73 @@ export function resolveStringLiteral(expr: Expression | Node): string | null {
 }
 
 /**
+ * Names of branded properties used by Convex Id types to carry the table literal.
+ *
+ * `__tableName` is the standard in Convex's open-source runtime. Others are
+ * permissive fallbacks for custom/branded Id aliases in user code.
+ */
+const TABLE_BRAND_PROPS = ['__tableName', '_tableName', 'tableName', '__table']
+
+/**
  * Extract the table-name type argument from an `Id<"tableName">` type.
  *
- * Returns null if the type is not an Id, the argument is not a string literal type,
- * or the type cannot be resolved.
+ * Tries three strategies in order:
+ *   1. Alias-preserved generic form — `Id<"tasks">` with getAliasTypeArguments()
+ *   2. Direct type-argument form — rare after type expansion
+ *   3. Expanded intersection form — `string & { __tableName: "tasks" }`
+ *
+ * Returns null if no strategy yields a string-literal table name.
  */
 export function extractTableFromIdType(type: Type): string | null {
-  // Look for Id<"tableName"> structure. The type may be a reference alias.
-  const symbol = type.getSymbol() ?? type.getAliasSymbol()
-  if (!symbol) return tryFromTypeArguments(type)
+  const fromAlias = tryFromAliasArguments(type)
+  if (fromAlias) return fromAlias
 
-  const name = symbol.getName()
-  // Convex Id type has name "GenericId" (internally) or "Id" (aliased)
-  if (name !== 'Id' && name !== 'GenericId') {
-    return tryFromTypeArguments(type)
-  }
+  const fromArgs = tryFromTypeArguments(type)
+  if (fromArgs) return fromArgs
 
-  return tryFromTypeArguments(type)
+  return tryFromBrandProperty(type)
+}
+
+function tryFromAliasArguments(type: Type): string | null {
+  const aliasArgs = type.getAliasTypeArguments()
+  if (aliasArgs.length === 0) return null
+  return literalFromType(aliasArgs[0]!)
 }
 
 function tryFromTypeArguments(type: Type): string | null {
   const typeArgs = type.getTypeArguments()
-  if (typeArgs.length === 0) {
-    const aliasArgs = type.getAliasTypeArguments()
-    if (aliasArgs.length === 0) return null
-    return literalFromType(aliasArgs[0]!)
+  if (typeArgs.length === 0) return null
+  return literalFromType(typeArgs[0]!)
+}
+
+/**
+ * Recognize the expanded Convex Id shape: `string & { __tableName: "tasks" }`.
+ *
+ * When TypeScript expands `Id<"tasks">` away from its alias, the underlying
+ * intersection survives. We walk it to find a property whose type is a
+ * string-literal — that's the table name.
+ */
+function tryFromBrandProperty(type: Type): string | null {
+  const candidates: Type[] = []
+  if (type.isIntersection()) {
+    candidates.push(...type.getIntersectionTypes())
+  } else {
+    candidates.push(type)
   }
 
-  return literalFromType(typeArgs[0]!)
+  for (const candidate of candidates) {
+    for (const propName of TABLE_BRAND_PROPS) {
+      const prop = candidate.getProperty(propName)
+      if (!prop) continue
+      const declarations = prop.getDeclarations()
+      if (declarations.length === 0) continue
+      const propType = prop.getTypeAtLocation(declarations[0]!)
+      const literal = literalFromType(propType)
+      if (literal) return literal
+    }
+  }
+
+  return null
 }
 
 function literalFromType(type: Type): string | null {
