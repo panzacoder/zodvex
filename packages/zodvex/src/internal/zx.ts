@@ -177,11 +177,29 @@ type ZxModelInput = {
  * Full models bypass these caches entirely — they carry a pre-built schema
  * bundle, and `zx.*(fullModel)` returns the bundle's schema directly so
  * identity matches `fullModel.schema.{doc,base,...}`.
+ *
+ * The cache maps are pinned to `globalThis` under a `Symbol.for` registry so
+ * multiple bundled copies of this module share state. tsup splits each entry
+ * into its own bundle (CLI, codegen, main, server, …), duplicating this file
+ * per entry. Without the shared registry, `zx.doc(Model)` in user code
+ * (loaded from `dist/index.js`) and `zx.doc(ref)` in codegen (loaded from
+ * `dist/cli/index.js`) would write to distinct WeakMaps, producing different
+ * instances for the same model — identity matching would silently fail.
  */
-const baseCache = new WeakMap<object, $ZodType>()
-const docCache = new WeakMap<object, $ZodType>()
-const updateCache = new WeakMap<object, $ZodType>()
-const docArrayCache = new WeakMap<object, $ZodType>()
+function sharedWeakMap(name: string): WeakMap<object, $ZodType> {
+  const key = Symbol.for(`zodvex.zx.cache.${name}`)
+  const g = globalThis as unknown as Record<symbol, WeakMap<object, $ZodType>>
+  const existing = g[key]
+  if (existing) return existing
+  const created = new WeakMap<object, $ZodType>()
+  g[key] = created
+  return created
+}
+
+const baseCache = sharedWeakMap('base')
+const docCache = sharedWeakMap('doc')
+const updateCache = sharedWeakMap('update')
+const docArrayCache = sharedWeakMap('docArray')
 
 /**
  * Stable cache key for slim models:

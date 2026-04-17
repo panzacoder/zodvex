@@ -9,6 +9,10 @@ export const commentFields = {
   createdAt: zx.date(),
 }
 
-export const CommentModel = defineZodModel('comments', commentFields)
+// Slim model (schemaHelpers: false) — no pre-built schema bundle on the model.
+// Endpoints derive doc/base/update/docArray on demand via cached zx.* helpers.
+// This gives the validation pipeline real slim-model coverage through a live
+// Convex deploy and smoke test (create + list via api.comments).
+export const CommentModel = defineZodModel('comments', commentFields, { schemaHelpers: false })
   .index('by_task', ['taskId'])
   .index('by_created', ['createdAt'])

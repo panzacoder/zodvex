@@ -19,7 +19,7 @@ export const zodvexRegistry = {
   },
   'comments:list': {
     args: z.object({ taskId: zx.id("tasks") }),
-    returns: CommentModel.schema.docArray,
+    returns: zx.docArray(CommentModel),
   },
   'filters:namedRecentUsers': {
     args: z.object({ after: zx.date() }),

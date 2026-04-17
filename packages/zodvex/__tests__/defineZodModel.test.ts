@@ -879,6 +879,34 @@ describe('defineZodModel with schemaHelpers: false', () => {
     expect(Model.schema).toBe(unionSchema)
   })
 
+  it('zx caches are pinned to globalThis via Symbol.for registry (cross-bundle sharing)', () => {
+    // tsup bundles each entry (CLI, codegen, main, server) independently,
+    // duplicating zx.ts per bundle. Without a shared registry, each bundle's
+    // WeakMap would hold distinct entries for the same model — codegen's
+    // `zx.docArray(ref)` would produce a different instance than user code's
+    // `zx.docArray(ref)` in the same process, and identity matching silently
+    // fails. Pinning caches to globalThis via Symbol.for ensures a single
+    // shared map across all bundled copies. Regression guard for a real bug
+    // discovered while flipping CommentModel to slim in examples/task-manager.
+    const Model = defineZodModel('pinned', { name: z.string() }, { schemaHelpers: false })
+    // Populate the cache
+    zx.doc(Model)
+    zx.base(Model)
+    zx.update(Model)
+    zx.docArray(Model)
+
+    const g = globalThis as any
+    const docMap = g[Symbol.for('zodvex.zx.cache.doc')]
+    const baseMap = g[Symbol.for('zodvex.zx.cache.base')]
+    const updateMap = g[Symbol.for('zodvex.zx.cache.update')]
+    const docArrayMap = g[Symbol.for('zodvex.zx.cache.docArray')]
+
+    expect(docMap).toBeInstanceOf(WeakMap)
+    expect(baseMap).toBeInstanceOf(WeakMap)
+    expect(updateMap).toBeInstanceOf(WeakMap)
+    expect(docArrayMap).toBeInstanceOf(WeakMap)
+  })
+
   it('zx.{doc,base,update,docArray}(fullModel) reuses the pre-built schema bundle', () => {
     // Full models carry schemas in model.schema.{...}. zx.* should return
     // those instances directly (not re-allocate), so codegen identity
