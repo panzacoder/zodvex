@@ -12,7 +12,8 @@ This is a bun workspaces monorepo:
 
 - `packages/zodvex/` — the publishable library (source, tests, build config)
 - `packages/convex-table-graph/` — experimental static analyzer that extracts function↔table dependency graphs from Convex projects via ts-morph. Intended to be extracted to a standalone repo. Has its own tests and CLI. See `packages/convex-table-graph/DESIGN.md` for motivation and architecture.
-- `packages/tanstack-db-convex/` — placeholder for a future TanStack DB adapter. Deferred pending validation from a simpler optimistic-updates helper.
+- `packages/convex-auto-optimistic/` — experimental React helper that consumes the convex-table-graph output to auto-wire optimistic updates. First real consumer of the graph; validates the output format. Framework-agnostic core + `/react` entrypoint.
+- `packages/tanstack-db-convex/` — placeholder for a future TanStack DB adapter. Deferred pending validation from the optimistic-updates helper.
 - `packages/zod-to-mini/` — private workspace pkg providing the codemod used by `zodvex/labs`.
 - `examples/task-manager/` — full example app using zodvex via `workspace:*`
 - `examples/task-manager-mini/` — same app using `zod/mini` to verify mini compatibility
