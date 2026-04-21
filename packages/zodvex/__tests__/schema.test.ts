@@ -45,19 +45,17 @@ describe('defineZodSchema', () => {
     expect(schema.__zodTableMap.posts).toBeDefined()
   })
 
-  it('captures full zodTable schema set in the table map', () => {
+  it('captures doc and insert in the table map for zodTable entries', () => {
     const schema = defineZodSchema({ users: Users })
     const userSchemas = schema.__zodTableMap.users
 
-    // Should have all schema variants
+    // zodTableMap is a runtime slice — only doc (decode) and insert (encode) retained.
+    // Other derived schemas (docArray/paginatedDoc/base/update) are accessed via zx.* helpers.
     expect(userSchemas.doc).toBeDefined()
     expect(userSchemas.insert).toBeDefined()
-    expect(userSchemas.base).toBeDefined()
-    expect(userSchemas.update).toBeDefined()
-    expect(userSchemas.docArray).toBeDefined()
 
     // doc schema includes _id and _creationTime
-    const parsed = userSchemas.doc.parse({
+    const parsed = (userSchemas.doc as any).parse({
       _id: 'users:abc123',
       _creationTime: 1700000000000,
       name: 'Alice',
@@ -67,7 +65,7 @@ describe('defineZodSchema', () => {
     expect(parsed.createdAt).toBeInstanceOf(Date)
 
     // insert schema has user fields only (no system fields)
-    const insertParsed = userSchemas.insert.parse({
+    const insertParsed = (userSchemas.insert as any).parse({
       name: 'Bob',
       createdAt: 1700000000000
     })
@@ -88,20 +86,18 @@ describe('defineZodSchema', () => {
   })
 
   // ===========================================================================
-  // paginatedDoc propagation (zodTable)
+  // paginatedDoc derived from map.doc via zx.paginationResult
   // ===========================================================================
 
-  it('captures paginatedDoc in the table map for zodTable entries', () => {
+  it('paginatedDoc derived via zx.paginationResult for zodTable entries', () => {
     const schema = defineZodSchema({ users: Users })
     const userSchemas = schema.__zodTableMap.users
 
-    expect(userSchemas.paginatedDoc).toBeDefined()
-
-    // Should validate a paginated response
-    const result = userSchemas.paginatedDoc.safeParse({
+    const paginatedDoc = zx.paginationResult(userSchemas.doc) as any
+    const result = paginatedDoc.safeParse({
       page: [{ _id: 'users:abc', _creationTime: 1, name: 'Alice', createdAt: 1700000000000 }],
       isDone: false,
-      continueCursor: null
+      continueCursor: 'cursor_value'
     })
     expect(result.success).toBe(true)
   })
@@ -119,19 +115,17 @@ describe('defineZodSchema', () => {
     const taskSchemas = schema.__zodTableMap.tasks
     expect(taskSchemas.doc).toBeDefined()
     expect(taskSchemas.insert).toBeDefined()
-    expect(taskSchemas.update).toBeDefined()
-    expect(taskSchemas.docArray).toBeDefined()
-    expect(taskSchemas.paginatedDoc).toBeDefined()
   })
 
-  it('captures paginatedDoc in the table map for defineZodModel entries', () => {
+  it('paginatedDoc derived via zx.paginationResult for defineZodModel entries', () => {
     const schema = defineZodSchema({ tasks: TaskModel })
     const taskSchemas = schema.__zodTableMap.tasks
+    const paginatedDoc = zx.paginationResult(taskSchemas.doc) as any
 
-    const result = taskSchemas.paginatedDoc.safeParse({
+    const result = paginatedDoc.safeParse({
       page: [{ _id: 'tasks:abc', _creationTime: 1, title: 'Test', done: false }],
       isDone: true,
-      continueCursor: null
+      continueCursor: 'cursor_value'
     })
     expect(result.success).toBe(true)
   })
@@ -149,9 +143,6 @@ describe('defineZodSchema', () => {
     const visitSchemas = schema.__zodTableMap.visits
     expect(visitSchemas.doc).toBeDefined()
     expect(visitSchemas.insert).toBeDefined()
-    expect(visitSchemas.update).toBeDefined()
-    expect(visitSchemas.docArray).toBeDefined()
-    expect(visitSchemas.paginatedDoc).toBeDefined()
   })
 
   it('union model doc schema validates variants with system fields', () => {

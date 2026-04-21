@@ -2,6 +2,7 @@ import type {
   ZodMiniArray,
   ZodMiniBoolean,
   ZodMiniDiscriminatedUnion,
+  ZodMiniEnum,
   ZodMiniNullable,
   ZodMiniNumber,
   ZodMiniObject,
@@ -10,7 +11,11 @@ import type {
   ZodMiniType,
   ZodMiniUnion
 } from 'zod/mini'
-import { defineZodModel as _defineZodModel } from '../../internal/model'
+import {
+  defineZodModel as _defineZodModel,
+  type DefineZodModelOptions,
+  type ZodModelBase
+} from '../../internal/model'
 import {
   type $strip,
   type $ZodShape,
@@ -85,6 +90,36 @@ export type AddSystemFieldsToMiniUnion<Name extends string, Schema extends $ZodT
         ? ZodMiniDiscriminatedUnion<MapSystemFieldsMini<Name, Options>, Disc>
         : Schema
 
+/** Slim object model for zod/mini consumers. */
+export type SlimMiniObjectModel<
+  Name extends string = string,
+  Fields extends $ZodShape = $ZodShape,
+  InsertSchema extends $ZodType = ZodMiniObject<Fields, $strip>,
+  Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
+  SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
+  VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
+> = ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes> & {
+  readonly schema: InsertSchema
+  readonly doc: ZodMiniObject<
+    Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber },
+    $strip
+  >
+}
+
+/** Slim union model for zod/mini consumers. */
+export type SlimMiniUnionModel<
+  Name extends string = string,
+  Schema extends $ZodType = $ZodType,
+  Indexes extends Record<string, readonly string[]> = Record<string, readonly string[]>,
+  SearchIndexes extends Record<string, SearchIndexConfig> = Record<string, SearchIndexConfig>,
+  VectorIndexes extends Record<string, VectorIndexConfig> = Record<string, VectorIndexConfig>
+> = ZodModelBase<Name, $ZodShape, Schema, Indexes, SearchIndexes, VectorIndexes> & {
+  readonly schema: Schema
+  readonly doc: AddSystemFieldsToMiniUnion<Name, Schema>
+}
+
+export type { DefineZodModelOptions }
+
 export type MiniModelSchemas<Name extends string, Fields extends $ZodShape> = {
   readonly doc: ZodMiniObject<
     Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber },
@@ -107,7 +142,9 @@ export type MiniModelSchemas<Name extends string, Fields extends $ZodShape> = {
         ZodMiniObject<Fields & { _id: ZxMiniId<Name>; _creationTime: ZodMiniNumber }, $strip>
       >
       isDone: ZodMiniBoolean
-      continueCursor: ZodMiniOptional<ZodMiniNullable<ZodMiniString>>
+      continueCursor: ZodMiniString
+      splitCursor: ZodMiniOptional<ZodMiniNullable<ZodMiniString>>
+      pageStatus: ZodMiniOptional<ZodMiniNullable<ZodMiniEnum>>
     },
     $strip
   >
@@ -191,6 +228,22 @@ export type ZodModel<
   >
 }
 
+// Overload: raw shape with schemaHelpers: false
+export function defineZodModel<Name extends string, Fields extends $ZodShape>(
+  name: Name,
+  fields: Fields,
+  options: { schemaHelpers: false }
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional
+): SlimMiniObjectModel<Name, Fields, ZodMiniObject<Fields, $strip>, {}, {}, {}>
+
+// Overload: pre-built schema with schemaHelpers: false
+export function defineZodModel<Name extends string, Schema extends $ZodType>(
+  name: Name,
+  schema: Schema,
+  options: { schemaHelpers: false }
+  // biome-ignore lint/complexity/noBannedTypes: {} is intentional
+): SlimMiniUnionModel<Name, Schema, {}, {}, {}>
+
 export function defineZodModel<Name extends string, Fields extends $ZodShape>(
   name: Name,
   fields: Fields
@@ -205,10 +258,11 @@ export function defineZodModel<Name extends string, Schema extends $ZodType>(
 
 export function defineZodModel<Name extends string>(
   name: Name,
-  fieldsOrSchema: $ZodShape | $ZodType
+  fieldsOrSchema: $ZodShape | $ZodType,
+  options?: DefineZodModelOptions
 ): any {
   if (fieldsOrSchema instanceof $ZodType) {
-    return _defineZodModel(name, fieldsOrSchema)
+    return (_defineZodModel as any)(name, fieldsOrSchema, options)
   }
-  return _defineZodModel(name, fieldsOrSchema)
+  return (_defineZodModel as any)(name, fieldsOrSchema, options)
 }

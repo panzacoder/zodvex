@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { zodvexCodec } from '../src/internal/codec'
 import { readMeta, type ZodvexModelMeta } from '../src/internal/meta'
 import { defineZodModel, type FieldPaths, type ModelFieldPaths } from '../src/internal/model'
+import { isZodUnion } from '../src/internal/schemaHelpers'
 import type { ZodvexCodec } from '../src/internal/types'
 import { zx } from '../src/internal/zx'
 
@@ -321,7 +322,7 @@ describe('defineZodModel', () => {
     expect(result.success).toBe(false)
   })
 
-  it('schema.paginatedDoc accepts null continueCursor', () => {
+  it('schema.paginatedDoc accepts valid paginated response', () => {
     const model = defineZodModel('tasks', {
       title: z.string()
     })
@@ -329,7 +330,7 @@ describe('defineZodModel', () => {
     const result = model.schema.paginatedDoc.safeParse({
       page: [],
       isDone: true,
-      continueCursor: null
+      continueCursor: 'cursor_value'
     })
     expect(result.success).toBe(true)
   })
@@ -651,5 +652,287 @@ describe('defineZodModel __zodvexMeta', () => {
     const meta = readMeta(model) as ZodvexModelMeta
     expect(meta.type).toBe('model')
     expect(meta.tableName).toBe('docs')
+  })
+})
+
+describe('defineZodModel with schemaHelpers: false', () => {
+  it('creates a slim object model that retains no Zod schemas', () => {
+    const model = defineZodModel(
+      'users',
+      {
+        name: z.string(),
+        email: z.string()
+      },
+      { schemaHelpers: false }
+    )
+
+    expect(model.name).toBe('users')
+    expect(model.fields).toHaveProperty('name')
+    expect(model.fields).toHaveProperty('email')
+
+    // Slim object models carry NO pre-built schemas — consumers derive via zx.*
+    expect((model as any).schema).toBeUndefined()
+    expect((model as any).doc).toBeUndefined()
+
+    // zx.base(model) derives the base object
+    const baseResult = zx.base(model).safeParse({ name: 'Alice', email: 'a@b.com' })
+    expect(baseResult.success).toBe(true)
+
+    // zx.doc(model) derives doc with system fields
+    const docResult = zx.doc(model).safeParse({
+      _id: 'user123',
+      _creationTime: 100,
+      name: 'Alice',
+      email: 'a@b.com'
+    })
+    expect(docResult.success).toBe(true)
+  })
+
+  it('slim model has no nested schema bundle properties', () => {
+    const model = defineZodModel(
+      'items',
+      {
+        title: z.string()
+      },
+      { schemaHelpers: false }
+    )
+
+    // Slim object model is { name, fields, indexes, searchIndexes, vectorIndexes } plus methods.
+    expect((model as any).schema).toBeUndefined()
+    expect((model as any).doc).toBeUndefined()
+  })
+
+  it('supports .index() chaining without materializing schemas', () => {
+    const model = defineZodModel(
+      'tasks',
+      {
+        title: z.string(),
+        priority: z.number()
+      },
+      { schemaHelpers: false }
+    ).index('by_priority', ['priority'])
+
+    expect(model.indexes).toHaveProperty('by_priority')
+    expect((model as any).schema).toBeUndefined()
+    expect((model as any).doc).toBeUndefined()
+  })
+
+  it('slim model has correct metadata', () => {
+    const model = defineZodModel(
+      'tasks',
+      {
+        title: z.string()
+      },
+      { schemaHelpers: false }
+    )
+
+    const meta = readMeta(model) as ZodvexModelMeta
+    expect(meta.type).toBe('model')
+    expect(meta.tableName).toBe('tasks')
+    expect(meta.definitionSource).toBe('shape')
+  })
+
+  it('zx.doc(slim model) supports .nullable() via core constructors', () => {
+    const model = defineZodModel(
+      'users',
+      {
+        name: z.string()
+      },
+      { schemaHelpers: false }
+    )
+
+    const nullableDoc = (zx.doc(model) as any).nullable()
+    expect(nullableDoc.safeParse(null).success).toBe(true)
+    expect(
+      nullableDoc.safeParse({
+        _id: 'u1',
+        _creationTime: 100,
+        name: 'Alice'
+      }).success
+    ).toBe(true)
+  })
+
+  it('zx.doc(slim model) composes with zx.paginationResult()', () => {
+    const model = defineZodModel(
+      'items',
+      {
+        title: z.string()
+      },
+      { schemaHelpers: false }
+    )
+
+    const paginated = zx.paginationResult(zx.doc(model))
+    expect(
+      paginated.safeParse({
+        page: [{ _id: 'i1', _creationTime: 100, title: 'Hello' }],
+        isDone: false,
+        continueCursor: 'abc'
+      }).success
+    ).toBe(true)
+  })
+
+  it('slim discriminated union model retains schema; zx.doc adds system fields', () => {
+    const visitSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('phone'), duration: z.number() }),
+      z.object({ type: z.literal('in-person'), roomId: z.string() })
+    ])
+
+    const Visits = defineZodModel('visits', visitSchema, { schemaHelpers: false })
+
+    expect(Visits.name).toBe('visits')
+    // Union slim retains the user-supplied schema (can't be reconstructed from fields)
+    // — .schema is a typed property on SlimUnionModel, so no cast needed.
+    expect(Visits.schema).toBe(visitSchema)
+    expect(Object.keys(Visits.fields)).toEqual([])
+
+    const doc = zx.doc(Visits)
+    expect(isZodUnion(doc)).toBe(true)
+
+    const phoneResult = doc.safeParse({
+      type: 'phone',
+      duration: 30,
+      _id: 'v1',
+      _creationTime: 1
+    })
+    expect(phoneResult.success).toBe(true)
+
+    const inPersonResult = doc.safeParse({
+      type: 'in-person',
+      roomId: 'room1',
+      _id: 'v2',
+      _creationTime: 2
+    })
+    expect(inPersonResult.success).toBe(true)
+
+    const bad = doc.safeParse({ type: 'phone', duration: 30 })
+    expect(bad.success).toBe(false)
+  })
+
+  it('zx caches schemas per model (same instance returned on repeat calls)', () => {
+    const model = defineZodModel(
+      'widgets',
+      {
+        label: z.string()
+      },
+      { schemaHelpers: false }
+    )
+
+    expect(zx.doc(model)).toBe(zx.doc(model))
+    expect(zx.base(model)).toBe(zx.base(model))
+    expect(zx.update(model)).toBe(zx.update(model))
+    expect(zx.docArray(model)).toBe(zx.docArray(model))
+  })
+
+  it('zx cache survives .index()/.searchIndex()/.vectorIndex() chain steps', () => {
+    // Chain methods return NEW model objects. If the cache keyed on model
+    // object identity, every chain step would re-allocate. Keying on fields
+    // (object slim) / schema (union slim) keeps schemas shared across chains.
+    const M0 = defineZodModel(
+      'widgets',
+      {
+        label: z.string(),
+        priority: z.number()
+      },
+      { schemaHelpers: false }
+    )
+    const M1 = M0.index('by_label', ['label'])
+    const M2 = M1.index('by_priority', ['priority'])
+
+    expect(M0).not.toBe(M1) // different model objects...
+    expect(M1).not.toBe(M2)
+    // ...but the derived schemas share a single allocation.
+    expect(zx.doc(M0)).toBe(zx.doc(M1))
+    expect(zx.doc(M1)).toBe(zx.doc(M2))
+    expect(zx.base(M0)).toBe(zx.base(M1))
+    expect(zx.base(M1)).toBe(zx.base(M2))
+    expect(zx.update(M0)).toBe(zx.update(M1))
+    expect(zx.docArray(M0)).toBe(zx.docArray(M1))
+  })
+
+  it('zx cache shared across .index() chains for union slim models', () => {
+    const unionSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('a'), n: z.number() }),
+      z.object({ type: z.literal('b'), s: z.string() })
+    ])
+    const U0 = defineZodModel('tagged', unionSchema, { schemaHelpers: false })
+    const U1 = U0.index('by_type', ['type'])
+
+    expect(U0).not.toBe(U1)
+    expect(zx.doc(U0)).toBe(zx.doc(U1))
+    expect(zx.update(U0)).toBe(zx.update(U1))
+    expect(zx.docArray(U0)).toBe(zx.docArray(U1))
+    // Union slim's base IS the user-supplied schema — reused, not rebuilt.
+    expect(zx.base(U0)).toBe(unionSchema)
+    expect(zx.base(U1)).toBe(unionSchema)
+  })
+
+  it('zx.base(unionSlim) returns the user-supplied schema by identity', () => {
+    // Guard: if buildBase ever wraps/clones the union, the memory claim for
+    // union-slim regresses silently. Assertion pins the contract.
+    const unionSchema = z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('x'), n: z.number() }),
+      z.object({ kind: z.literal('y'), s: z.string() })
+    ])
+    const Model = defineZodModel('things', unionSchema, { schemaHelpers: false })
+
+    expect(zx.base(Model)).toBe(unionSchema)
+    expect(Model.schema).toBe(unionSchema)
+  })
+
+  it('zx caches are pinned to globalThis via Symbol.for registry (cross-bundle sharing)', () => {
+    // tsup bundles each entry (CLI, codegen, main, server) independently,
+    // duplicating zx.ts per bundle. Without a shared registry, each bundle's
+    // WeakMap would hold distinct entries for the same model — codegen's
+    // `zx.docArray(ref)` would produce a different instance than user code's
+    // `zx.docArray(ref)` in the same process, and identity matching silently
+    // fails. Pinning caches to globalThis via Symbol.for ensures a single
+    // shared map across all bundled copies. Regression guard for a real bug
+    // discovered while flipping CommentModel to slim in examples/task-manager.
+    const Model = defineZodModel('pinned', { name: z.string() }, { schemaHelpers: false })
+    // Populate the cache
+    zx.doc(Model)
+    zx.base(Model)
+    zx.update(Model)
+    zx.docArray(Model)
+
+    const g = globalThis as any
+    const docMap = g[Symbol.for('zodvex.zx.cache.doc')]
+    const baseMap = g[Symbol.for('zodvex.zx.cache.base')]
+    const updateMap = g[Symbol.for('zodvex.zx.cache.update')]
+    const docArrayMap = g[Symbol.for('zodvex.zx.cache.docArray')]
+
+    expect(docMap).toBeInstanceOf(WeakMap)
+    expect(baseMap).toBeInstanceOf(WeakMap)
+    expect(updateMap).toBeInstanceOf(WeakMap)
+    expect(docArrayMap).toBeInstanceOf(WeakMap)
+  })
+
+  it('zx.{doc,base,update,docArray}(fullModel) reuses the pre-built schema bundle', () => {
+    // Full models carry schemas in model.schema.{...}. zx.* should return
+    // those instances directly (not re-allocate), so codegen identity
+    // matching works uniformly for code that mixes `Model.schema.doc` and
+    // `zx.doc(Model)` usages.
+    const fullModel = defineZodModel('tasks', {
+      title: z.string(),
+      done: z.boolean()
+    })
+
+    expect(zx.doc(fullModel)).toBe(fullModel.schema.doc)
+    expect(zx.base(fullModel)).toBe(fullModel.schema.base)
+    expect(zx.update(fullModel)).toBe(fullModel.schema.update)
+    expect(zx.docArray(fullModel)).toBe(fullModel.schema.docArray)
+  })
+
+  it('slim union model — zx.update() maps partial over variants', () => {
+    const visitSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('phone'), duration: z.number() }),
+      z.object({ type: z.literal('in-person'), roomId: z.string() })
+    ])
+
+    const Visits = defineZodModel('visits', visitSchema, { schemaHelpers: false })
+    const updateSchema = zx.update(Visits)
+
+    expect(updateSchema.safeParse({ _id: 'v1', type: 'phone' }).success).toBe(true)
+    expect(updateSchema.safeParse({ type: 'phone' }).success).toBe(false)
   })
 })

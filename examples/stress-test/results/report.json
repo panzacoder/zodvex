@@ -1,0 +1,303 @@
+{
+  "date": "2026-04-17T20:38:46.183Z",
+  "budget": 64,
+  "results": [
+    {
+      "variant": "zod",
+      "ceiling": 166,
+      "points": [
+        {
+          "variant": "zod",
+          "count": 50,
+          "heapDeltaMB": 19.99,
+          "heapPeakMB": 22.45,
+          "modulesLoaded": 100
+        },
+        {
+          "variant": "zod",
+          "count": 100,
+          "heapDeltaMB": 38.79,
+          "heapPeakMB": 41.25,
+          "modulesLoaded": 200
+        },
+        {
+          "variant": "zod",
+          "count": 150,
+          "heapDeltaMB": 57.51,
+          "heapPeakMB": 59.98,
+          "modulesLoaded": 300
+        },
+        {
+          "variant": "zod",
+          "count": 200,
+          "heapDeltaMB": 76.54,
+          "heapPeakMB": 79,
+          "modulesLoaded": 400
+        },
+        {
+          "variant": "zod",
+          "count": 175,
+          "heapDeltaMB": 66.93,
+          "heapPeakMB": 69.4,
+          "modulesLoaded": 350
+        },
+        {
+          "variant": "zod",
+          "count": 163,
+          "heapDeltaMB": 62.53,
+          "heapPeakMB": 64.99,
+          "modulesLoaded": 326
+        },
+        {
+          "variant": "zod",
+          "count": 169,
+          "heapDeltaMB": 64.88,
+          "heapPeakMB": 67.34,
+          "modulesLoaded": 338
+        },
+        {
+          "variant": "zod",
+          "count": 166,
+          "heapDeltaMB": 63.77,
+          "heapPeakMB": 66.23,
+          "modulesLoaded": 332
+        }
+      ]
+    },
+    {
+      "variant": "zod + slim",
+      "ceiling": 219,
+      "points": [
+        {
+          "variant": "zod + slim",
+          "count": 50,
+          "heapDeltaMB": 15.44,
+          "heapPeakMB": 17.9,
+          "modulesLoaded": 100
+        },
+        {
+          "variant": "zod + slim",
+          "count": 100,
+          "heapDeltaMB": 29.77,
+          "heapPeakMB": 32.24,
+          "modulesLoaded": 200
+        },
+        {
+          "variant": "zod + slim",
+          "count": 150,
+          "heapDeltaMB": 43.95,
+          "heapPeakMB": 46.41,
+          "modulesLoaded": 300
+        },
+        {
+          "variant": "zod + slim",
+          "count": 200,
+          "heapDeltaMB": 58.4,
+          "heapPeakMB": 60.87,
+          "modulesLoaded": 400
+        },
+        {
+          "variant": "zod + slim",
+          "count": 250,
+          "heapDeltaMB": 72.46,
+          "heapPeakMB": 74.93,
+          "modulesLoaded": 500
+        },
+        {
+          "variant": "zod + slim",
+          "count": 225,
+          "heapDeltaMB": 65.4,
+          "heapPeakMB": 67.87,
+          "modulesLoaded": 450
+        },
+        {
+          "variant": "zod + slim",
+          "count": 213,
+          "heapDeltaMB": 61.91,
+          "heapPeakMB": 64.37,
+          "modulesLoaded": 426
+        },
+        {
+          "variant": "zod + slim",
+          "count": 219,
+          "heapDeltaMB": 63.61,
+          "heapPeakMB": 66.08,
+          "modulesLoaded": 438
+        },
+        {
+          "variant": "zod + slim",
+          "count": 222,
+          "heapDeltaMB": 64.53,
+          "heapPeakMB": 66.99,
+          "modulesLoaded": 444
+        }
+      ]
+    },
+    {
+      "variant": "mini",
+      "ceiling": 372,
+      "points": [
+        {
+          "variant": "mini",
+          "count": 50,
+          "heapDeltaMB": 9.44,
+          "heapPeakMB": 11.73,
+          "modulesLoaded": 100
+        },
+        {
+          "variant": "mini",
+          "count": 100,
+          "heapDeltaMB": 17.95,
+          "heapPeakMB": 20.24,
+          "modulesLoaded": 200
+        },
+        {
+          "variant": "mini",
+          "count": 150,
+          "heapDeltaMB": 26.37,
+          "heapPeakMB": 28.66,
+          "modulesLoaded": 300
+        },
+        {
+          "variant": "mini",
+          "count": 200,
+          "heapDeltaMB": 34.94,
+          "heapPeakMB": 37.23,
+          "modulesLoaded": 400
+        },
+        {
+          "variant": "mini",
+          "count": 250,
+          "heapDeltaMB": 43.2,
+          "heapPeakMB": 45.49,
+          "modulesLoaded": 500
+        },
+        {
+          "variant": "mini",
+          "count": 300,
+          "heapDeltaMB": 51.65,
+          "heapPeakMB": 53.94,
+          "modulesLoaded": 600
+        },
+        {
+          "variant": "mini",
+          "count": 350,
+          "heapDeltaMB": 60.18,
+          "heapPeakMB": 62.47,
+          "modulesLoaded": 700
+        },
+        {
+          "variant": "mini",
+          "count": 400,
+          "heapDeltaMB": 68.57,
+          "heapPeakMB": 70.86,
+          "modulesLoaded": 800
+        },
+        {
+          "variant": "mini",
+          "count": 375,
+          "heapDeltaMB": 64.47,
+          "heapPeakMB": 66.76,
+          "modulesLoaded": 750
+        },
+        {
+          "variant": "mini",
+          "count": 363,
+          "heapDeltaMB": 62.38,
+          "heapPeakMB": 64.66,
+          "modulesLoaded": 726
+        },
+        {
+          "variant": "mini",
+          "count": 369,
+          "heapDeltaMB": 63.43,
+          "heapPeakMB": 65.71,
+          "modulesLoaded": 738
+        },
+        {
+          "variant": "mini",
+          "count": 372,
+          "heapDeltaMB": 63.92,
+          "heapPeakMB": 66.2,
+          "modulesLoaded": 744
+        }
+      ]
+    },
+    {
+      "variant": "mini + slim",
+      "ceiling": 500,
+      "points": [
+        {
+          "variant": "mini + slim",
+          "count": 50,
+          "heapDeltaMB": 7.18,
+          "heapPeakMB": 9.46,
+          "modulesLoaded": 100
+        },
+        {
+          "variant": "mini + slim",
+          "count": 100,
+          "heapDeltaMB": 13.52,
+          "heapPeakMB": 15.81,
+          "modulesLoaded": 200
+        },
+        {
+          "variant": "mini + slim",
+          "count": 150,
+          "heapDeltaMB": 19.68,
+          "heapPeakMB": 21.97,
+          "modulesLoaded": 300
+        },
+        {
+          "variant": "mini + slim",
+          "count": 200,
+          "heapDeltaMB": 26,
+          "heapPeakMB": 28.29,
+          "modulesLoaded": 400
+        },
+        {
+          "variant": "mini + slim",
+          "count": 250,
+          "heapDeltaMB": 32.09,
+          "heapPeakMB": 34.39,
+          "modulesLoaded": 500
+        },
+        {
+          "variant": "mini + slim",
+          "count": 300,
+          "heapDeltaMB": 38.23,
+          "heapPeakMB": 40.52,
+          "modulesLoaded": 600
+        },
+        {
+          "variant": "mini + slim",
+          "count": 350,
+          "heapDeltaMB": 44.56,
+          "heapPeakMB": 46.85,
+          "modulesLoaded": 700
+        },
+        {
+          "variant": "mini + slim",
+          "count": 400,
+          "heapDeltaMB": 50.79,
+          "heapPeakMB": 53.07,
+          "modulesLoaded": 800
+        },
+        {
+          "variant": "mini + slim",
+          "count": 450,
+          "heapDeltaMB": 57.07,
+          "heapPeakMB": 59.36,
+          "modulesLoaded": 900
+        },
+        {
+          "variant": "mini + slim",
+          "count": 500,
+          "heapDeltaMB": 63.2,
+          "heapPeakMB": 65.48,
+          "modulesLoaded": 1000
+        }
+      ]
+    }
+  ]
+}

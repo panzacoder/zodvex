@@ -62,6 +62,7 @@ export {
 } from './codec'
 // Re-export model types (ZodModel generic works for both full/mini via Schemas param)
 export {
+  type DefineZodModelOptions,
   defineZodModel,
   type FieldPaths,
   type MiniModelSchemas,
@@ -69,6 +70,8 @@ export {
   type ModelFieldPaths,
   type ModelSchemas,
   type SearchIndexConfig,
+  type SlimMiniObjectModel,
+  type SlimMiniUnionModel,
   type VectorIndexConfig,
   type ZodModel
 } from './model'

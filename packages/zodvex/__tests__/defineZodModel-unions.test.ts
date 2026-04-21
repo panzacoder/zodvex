@@ -130,7 +130,7 @@ describe('defineZodModel with union schema', () => {
     const result = Visits.schema.paginatedDoc.safeParse({
       page: [{ type: 'phone', duration: 30, _id: 'v1', _creationTime: 1 }],
       isDone: false,
-      continueCursor: null
+      continueCursor: 'cursor_value'
     })
     expect(result.success).toBe(true)
   })

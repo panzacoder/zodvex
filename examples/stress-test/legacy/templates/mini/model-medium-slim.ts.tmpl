@@ -1,0 +1,26 @@
+import { z } from 'zod/mini'
+import { defineZodModel, zx } from 'zodvex/mini'
+
+const {{NAME}}Metadata = z.object({
+  source: z.string(),
+  version: z.number(),
+})
+
+export const {{NAME}}Fields = {
+  title: z.string(),
+  description: z.optional(z.string()),
+  status: z.enum(['draft', 'active', 'archived']),
+  priority: z.number(),
+  ownerId: zx.id('users_{{INDEX_FIELD}}'),
+  tags: z.array(z.string()),
+  metadata: z.optional({{NAME}}Metadata),
+  isPublic: z.boolean(),
+  score: z.nullable(z.number()),
+  createdAt: zx.date(),
+  updatedAt: z.optional(zx.date()),
+}
+
+export const {{NAME}}Model = defineZodModel('{{TABLE_NAME}}', {{NAME}}Fields, { schemaHelpers: false })
+  .index('by_owner', ['ownerId'])
+  .index('by_status', ['status'])
+  .index('by_created', ['createdAt'])

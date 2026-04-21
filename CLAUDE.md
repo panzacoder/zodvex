@@ -37,6 +37,12 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 - `bun run lint:fix` - Fix code issues with Biome
 - `bun run format` - Format code with Biome
 
+### Validation
+
+- `bun run validate` - **Full pre-release validation.** Runs lint → type-check → test → verify:consumer-declarations → build → verify:examples (local) → verify:examples:network (deploys task-manager + task-manager-mini + quickstart to their Convex dev instances and runs real HTTP smoke tests) → full stress-test ceiling search. Requires `CONVEX_DEPLOYMENT` configured in each example's `.env.local` (one-time `npx convex dev --configure` per example). Run locally before trialing a release in downstream projects — CI can't do the Convex deploy step.
+- `bun run verify:examples` - Local-only subset (no network). Typechecks + runs vitest + regenerates codegen in both task-manager apps.
+- `bun run verify:examples:network` - Deploys schemas to real Convex and runs smoke tests. Standalone script if you want the Convex portion without the whole pipeline.
+
 ### Releasing
 
 **Beta releases** (manual, fast):

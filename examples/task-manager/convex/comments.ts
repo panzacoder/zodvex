@@ -12,7 +12,7 @@ export const list = zq({
       .order('desc')
       .collect()
   },
-  returns: CommentModel.schema.docArray,
+  returns: zx.docArray(CommentModel),
 })
 
 export const create = zm({

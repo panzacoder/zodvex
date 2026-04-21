@@ -14,7 +14,7 @@ export type ZodvexModelMeta = {
   type: 'model'
   tableName: string
   definitionSource?: ZodvexModelDefinitionSource
-  schemas: {
+  schemas?: {
     doc: $ZodType
     insert: $ZodType
     update: $ZodType

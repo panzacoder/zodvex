@@ -2,6 +2,7 @@ import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodToConvex, zx } from '../src'
+import { defineZodModel } from '../src/internal/model'
 
 describe('zx namespace', () => {
   describe('zx.date()', () => {
@@ -270,6 +271,206 @@ describe('zx namespace', () => {
       expect(decoded.timestamp.getTime()).toBe(original.timestamp.getTime())
       expect(decoded.data.nested).toBeInstanceOf(Date)
       expect(decoded.data.nested.getTime()).toBe(original.data.nested.getTime())
+    })
+  })
+
+  describe('zx.paginationOpts()', () => {
+    it('creates a ZodObject with numItems and cursor fields', () => {
+      const opts = zx.paginationOpts()
+      const result = opts.safeParse({ numItems: 10, cursor: null })
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts full pagination options', () => {
+      const opts = zx.paginationOpts()
+      const result = opts.safeParse({
+        numItems: 25,
+        cursor: 'abc123',
+        endCursor: null,
+        id: 42,
+        maximumRowsRead: 1000,
+        maximumBytesRead: 8_000_000
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects missing required fields', () => {
+      const opts = zx.paginationOpts()
+      const result = opts.safeParse({})
+      expect(result.success).toBe(false)
+    })
+
+    it('works with zodToConvex', () => {
+      const opts = zx.paginationOpts()
+      const validator = zodToConvex(opts)
+      expect(validator).toEqual(
+        v.object({
+          numItems: v.float64(),
+          cursor: v.union(v.string(), v.null()),
+          endCursor: v.optional(v.union(v.string(), v.null())),
+          id: v.optional(v.float64()),
+          maximumRowsRead: v.optional(v.float64()),
+          maximumBytesRead: v.optional(v.float64())
+        })
+      )
+    })
+  })
+
+  describe('zx.doc()', () => {
+    it('adds _id and _creationTime to model fields', () => {
+      const model = defineZodModel('users', {
+        name: z.string(),
+        email: z.string()
+      })
+      const docSchema = zx.doc(model)
+      const result = docSchema.safeParse({
+        _id: 'user123',
+        _creationTime: 1718452800000,
+        name: 'Alice',
+        email: 'alice@example.com'
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects docs missing system fields', () => {
+      const model = defineZodModel('users', {
+        name: z.string()
+      })
+      const docSchema = zx.doc(model)
+      const result = docSchema.safeParse({ name: 'Alice' })
+      expect(result.success).toBe(false)
+    })
+
+    it('works with zodToConvex', () => {
+      const model = defineZodModel('items', {
+        title: z.string(),
+        count: z.number()
+      })
+      const docSchema = zx.doc(model)
+      const validator = zodToConvex(docSchema)
+      expect(validator).toEqual(
+        v.object({
+          _id: v.id('items'),
+          _creationTime: v.float64(),
+          title: v.string(),
+          count: v.float64()
+        })
+      )
+    })
+  })
+
+  describe('zx.update()', () => {
+    it('creates update schema with _id required and fields optional', () => {
+      const model = defineZodModel('tasks', {
+        title: z.string(),
+        done: z.boolean()
+      })
+      const updateSchema = zx.update(model)
+
+      // _id is required
+      const noId = updateSchema.safeParse({ title: 'New title' })
+      expect(noId.success).toBe(false)
+
+      // With _id, fields are optional
+      const withId = updateSchema.safeParse({ _id: 'task123' })
+      expect(withId.success).toBe(true)
+
+      // With partial fields
+      const partial = updateSchema.safeParse({ _id: 'task123', title: 'Updated' })
+      expect(partial.success).toBe(true)
+    })
+
+    it('works with zodToConvex', () => {
+      const model = defineZodModel('tasks', {
+        title: z.string(),
+        count: z.number()
+      })
+      const updateSchema = zx.update(model)
+      const validator = zodToConvex(updateSchema)
+      expect(validator).toEqual(
+        v.object({
+          _id: v.id('tasks'),
+          _creationTime: v.optional(v.float64()),
+          title: v.optional(v.string()),
+          count: v.optional(v.float64())
+        })
+      )
+    })
+  })
+
+  describe('zx.docArray()', () => {
+    it('creates array of doc schemas', () => {
+      const model = defineZodModel('items', {
+        name: z.string()
+      })
+      const arraySchema = zx.docArray(model)
+      const result = arraySchema.safeParse([
+        { _id: 'item1', _creationTime: 100, name: 'First' },
+        { _id: 'item2', _creationTime: 200, name: 'Second' }
+      ])
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects invalid items in the array', () => {
+      const model = defineZodModel('items', {
+        name: z.string()
+      })
+      const arraySchema = zx.docArray(model)
+      const result = arraySchema.safeParse([{ wrong: true }])
+      expect(result.success).toBe(false)
+    })
+  })
+
+  describe('zx.paginationResult()', () => {
+    it('wraps an item schema in a paginated response', () => {
+      const itemSchema = z.object({ name: z.string() })
+      const paginated = zx.paginationResult(itemSchema)
+      const result = paginated.safeParse({
+        page: [{ name: 'Alice' }],
+        isDone: false,
+        continueCursor: 'cursor_abc'
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts optional splitCursor', () => {
+      const itemSchema = z.object({ id: z.number() })
+      const paginated = zx.paginationResult(itemSchema)
+      const result = paginated.safeParse({
+        page: [{ id: 1 }],
+        isDone: true,
+        continueCursor: 'done',
+        splitCursor: null
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects invalid page items', () => {
+      const itemSchema = z.object({ name: z.string() })
+      const paginated = zx.paginationResult(itemSchema)
+      const result = paginated.safeParse({
+        page: [{ wrong: 123 }],
+        isDone: false,
+        continueCursor: ''
+      })
+      expect(result.success).toBe(false)
+    })
+
+    it('works with zodToConvex', () => {
+      const itemSchema = z.object({ title: z.string(), count: z.number() })
+      const paginated = zx.paginationResult(itemSchema)
+      const validator = zodToConvex(paginated)
+      expect(validator).toEqual(
+        v.object({
+          page: v.array(v.object({ title: v.string(), count: v.float64() })),
+          isDone: v.boolean(),
+          continueCursor: v.string(),
+          splitCursor: v.optional(v.union(v.string(), v.null())),
+          pageStatus: v.optional(
+            v.union(v.union(v.literal('SplitRecommended'), v.literal('SplitRequired')), v.null())
+          )
+        })
+      )
     })
   })
 })

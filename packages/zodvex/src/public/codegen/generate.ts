@@ -5,6 +5,7 @@ import {
   $ZodOptional,
   $ZodType
 } from '../../internal/zod-core'
+import { zx } from '../../internal/zx'
 import type {
   DiscoveredFunction,
   DiscoveredModel,
@@ -49,7 +50,23 @@ export function generateSchemaFile(models: DiscoveredModel[]): GeneratedFile {
 type SchemaRef = {
   importPath: string
   exportName: string
+  /**
+   * Property path relative to the model export, e.g. "schema.doc" for full
+   * models or "schema" for union-slim. Emitted as `${exportName}.${schemaKey}`
+   * unless `expression` is set.
+   */
   schemaKey: string
+  /**
+   * Complete access expression to emit, e.g. "zx.doc(TaskModel)". Used for
+   * slim models where there's no plain property path. When present, emitted
+   * verbatim (the `zx` import is auto-added).
+   */
+  expression?: string
+}
+
+/** Emission helper: returns the full access expression for a SchemaRef. */
+function refExpression(ref: SchemaRef): string {
+  return ref.expression ?? `${ref.exportName}.${ref.schemaKey}`
 }
 
 export type CodecForGeneration = {
@@ -194,12 +211,55 @@ export function generateApiFile(
 
   for (const model of models) {
     const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
-    for (const key of ['doc', 'insert', 'update', 'docArray', 'paginatedDoc'] as const) {
-      identityMap.set(model.schemas[key] as $ZodType, {
-        importPath,
-        exportName: model.exportName,
-        schemaKey: key
-      })
+
+    if (model.schemas) {
+      // Full model: existing behavior — schema.doc, schema.insert, etc.
+      for (const key of ['doc', 'insert', 'update', 'docArray', 'paginatedDoc'] as const) {
+        identityMap.set(model.schemas[key] as $ZodType, {
+          importPath,
+          exportName: model.exportName,
+          schemaKey: `schema.${key}`
+        })
+      }
+    } else if (model._modelRef) {
+      // Slim model: schemas live in the per-model zx WeakMap cache, not on the
+      // model object. Populate identityMap with cached `zx.*` instances so
+      // function code like `returns: zx.doc(SlimModel)` resolves by identity.
+      // Emit `zx.doc(SlimModel)` (not `SlimModel.doc`) since slim models have
+      // no such property.
+      const ref = model._modelRef as any
+      const slimKeys = [
+        { key: 'doc', schema: zx.doc(ref) as $ZodType, expr: `zx.doc(${model.exportName})` },
+        { key: 'insert', schema: zx.base(ref) as $ZodType, expr: `zx.base(${model.exportName})` },
+        { key: 'base', schema: zx.base(ref) as $ZodType, expr: `zx.base(${model.exportName})` },
+        {
+          key: 'update',
+          schema: zx.update(ref) as $ZodType,
+          expr: `zx.update(${model.exportName})`
+        },
+        {
+          key: 'docArray',
+          schema: zx.docArray(ref) as $ZodType,
+          expr: `zx.docArray(${model.exportName})`
+        }
+      ]
+      for (const { key, schema, expr } of slimKeys) {
+        identityMap.set(schema, {
+          importPath,
+          exportName: model.exportName,
+          schemaKey: key,
+          expression: expr
+        })
+      }
+      // Union slim retains `.schema` on the model object — map that too so
+      // `returns: SlimModel.schema` resolves as a direct property reference.
+      if (ref.schema instanceof $ZodType) {
+        identityMap.set(ref.schema, {
+          importPath,
+          exportName: model.exportName,
+          schemaKey: 'schema'
+        })
+      }
     }
   }
 
@@ -218,13 +278,29 @@ export function generateApiFile(
   // Add model-embedded codecs to the codecMap (exported codecs take precedence)
   const modelCodecVars: { varName: string; expression: string; modelExportName: string }[] = []
   const MODEL_CODEC_SENTINEL = '__model_codec__'
+  // Build slim model lookup for codec expression generation
+  const slimModelNames = new Set(
+    models.filter(m => !m.schemas && m._modelRef).map(m => m.exportName)
+  )
   if (modelCodecs) {
     for (const mc of modelCodecs) {
       // Skip if this codec is already in codecMap (exported codec takes precedence)
       if (codecMap.has(mc.codec)) continue
 
       const varName = deriveCodecVarName(mc.modelExportName, mc.accessPath)
-      const expression = `extractCodec(${mc.modelExportName}.schema.${mc.schemaKey}${mc.accessPath})`
+      // Slim models: schemas are cached in the zx WeakMap, accessed via
+      //   zx.doc(Model) / zx.base(Model) / zx.update(Model).
+      // Full models: schema bundle is at Model.schema.{doc,insert,update,...}.
+      const isSlim = slimModelNames.has(mc.modelExportName)
+      let schemaAccess: string
+      if (isSlim) {
+        // Map walkModelCodecs keys (doc/insert/update) to their zx equivalents.
+        const slimKey = mc.schemaKey === 'insert' ? 'base' : mc.schemaKey
+        schemaAccess = `zx.${slimKey}(${mc.modelExportName})`
+      } else {
+        schemaAccess = `${mc.modelExportName}.schema.${mc.schemaKey}`
+      }
+      const expression = `extractCodec(${schemaAccess}${mc.accessPath})`
       modelCodecVars.push({ varName, expression, modelExportName: mc.modelExportName })
       codecMap.set(mc.codec, {
         exportName: varName,
@@ -272,6 +348,14 @@ export function generateApiFile(
   let needsZod = false
   let needsZx = false
 
+  function emitRef(ref: SchemaRef): string {
+    neededModelImports.add(ref.exportName)
+    const expr = refExpression(ref)
+    // Slim-model refs use zx.* helpers; ensure `zx` is imported in the output.
+    if (ref.expression?.startsWith('zx.')) needsZx = true
+    return expr
+  }
+
   // Resolve each schema to either a model reference or serialized source
   function resolveSchema(schema: $ZodType | unknown): string {
     if (!schema) return 'undefined'
@@ -279,26 +363,15 @@ export function generateApiFile(
 
     // 1. Direct identity match
     const ref = identityMap.get(s)
-    if (ref) {
-      neededModelImports.add(ref.exportName)
-      return `${ref.exportName}.schema.${ref.schemaKey}`
-    }
+    if (ref) return emitRef(ref)
 
     // 2. Wrapper-aware identity match (peel .nullable()/.optional())
     const unwrapped = tryUnwrapToIdentity(s, identityMap, options?.mini)
-    if (unwrapped) {
-      neededModelImports.add(unwrapped.ref.exportName)
-      const inner = `${unwrapped.ref.exportName}.schema.${unwrapped.ref.schemaKey}`
-      return unwrapped.wrapSource(inner)
-    }
+    if (unwrapped) return unwrapped.wrapSource(emitRef(unwrapped.ref))
 
     // 3. Partial-aware match (detect .partial() of a model schema)
     const partialMatch = tryMatchPartial(s, identityMap, options?.mini)
-    if (partialMatch) {
-      neededModelImports.add(partialMatch.ref.exportName)
-      const inner = `${partialMatch.ref.exportName}.schema.${partialMatch.ref.schemaKey}`
-      return partialMatch.wrapSource(inner)
-    }
+    if (partialMatch) return partialMatch.wrapSource(emitRef(partialMatch.ref))
 
     // 4. Fall back to zodToSource (with codec context)
     const source = zodToSource(s, zodToSourceCtx)
@@ -322,10 +395,12 @@ export function generateApiFile(
     return sentinelExports?.has(mc.varName)
   })
 
-  // Add model imports for models referenced by used model codec vars
+  // Add model imports for models referenced by used model codec vars.
+  // Slim codec vars use zx.base(Model)/zx.doc(Model) expressions — require zx import.
   if (usedModelCodecVars.length > 0) {
     for (const mc of usedModelCodecVars) {
       neededModelImports.add(mc.modelExportName)
+      if (mc.expression.includes('zx.')) needsZx = true
     }
   }
 

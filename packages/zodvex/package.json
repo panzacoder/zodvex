@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.7.1-beta.16",
+  "version": "0.7.1-beta.18",
   "description": "Codec-first Zod v4 integration for Convex -- type-safe validation, encoding, DB wrapping, and codegen.",
   "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
   "homepage": "https://github.com/panzacoder/zodvex#readme",

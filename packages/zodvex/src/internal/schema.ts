@@ -7,7 +7,6 @@ import {
   type TableNamesInDataModel
 } from 'convex/server'
 import type { ObjectType, VObject } from 'convex/values'
-import type { z } from 'zod'
 import type { ZodvexFilterBuilder } from './db'
 import {
   type ConvexValidatorFromZod,
@@ -16,7 +15,7 @@ import {
   zodToConvexFields
 } from './mapping'
 import { readMeta, type ZodvexModelMeta } from './meta'
-import type { AnyZodModel, SearchIndexConfig, VectorIndexConfig } from './model'
+import type { AnyZodModel, AnyZodModelBase, SearchIndexConfig, VectorIndexConfig } from './model'
 import type {
   $ZodDiscriminatedUnion,
   $ZodShape,
@@ -24,20 +23,21 @@ import type {
   $ZodUnion,
   output as zoutput
 } from './zod-core'
+import { zx } from './zx'
 
 /**
- * The set of Zod schemas produced by zodTable() or defineZodModel() for a single table.
- * Carries doc (full with system fields), insert (user fields only),
- * update (partial user fields + _id), base, and docArray.
+ * The runtime schema slice the DB wrapper needs for a single table:
+ *   - `doc` — decode shape for reads (full doc with system fields)
+ *   - `insert` — encode shape for writes (user fields only)
+ *
+ * Other derived schemas (`update`, `docArray`, `paginatedDoc`, `base`) are not
+ * retained here — they're constructed on demand via `zx.*` at use sites, with
+ * per-model WeakMap caches deduplicating across call sites. This keeps
+ * `zodTableMap` minimal for the Convex 64MB isolate budget.
  */
 export type ZodTableSchemas = {
   doc: $ZodType
-  docArray: $ZodType
-  /** Optional — only used by codegen, not by the DB wrapper at runtime. */
-  paginatedDoc?: $ZodType
-  base: $ZodType
   insert: $ZodType
-  update: $ZodType
 }
 
 /**
@@ -52,8 +52,9 @@ type ZodTableEntry = {
   schema: ZodTableSchemas
 }
 
-// Accept defineZodModel() results
-export type ZodModelEntry = AnyZodModel
+// Accept defineZodModel() results — constrained against the base type
+// so both full models (with schema bundle) and slim models work.
+export type ZodModelEntry = AnyZodModelBase
 
 type ZodSchemaEntry = ZodTableEntry | ZodModelEntry
 
@@ -92,7 +93,7 @@ type ConvexTableFor<E> =
   // zodTable entry — extract .table with full VObject type
   E extends { table: infer T extends TableDefinition }
     ? T
-    : // model entry — compute from fields/schema + indexes
+    : // Full model entry — schema is nested bundle with .base
       E extends {
           fields: infer F extends Record<string, $ZodType>
           schema: { base: infer Base extends $ZodType }
@@ -101,27 +102,62 @@ type ConvexTableFor<E> =
           vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
         }
       ? Base extends $ZodUnion<any> | $ZodDiscriminatedUnion<any, any>
-        ? // Union model — compute validator from schema.base (the union type)
-          TableDefinition<
+        ? TableDefinition<
             ConvexValidatorFromZod<Base, 'required'>,
             { [K in keyof I]: [...I[K]] },
             { [K in keyof SI]: { searchField: string; filterFields: string } },
             { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
           >
-        : // Regular model — compute from fields
-          TableDefinition<
+        : TableDefinition<
             VObject<
               ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
               ConvexValidatorFromZodFieldsAuto<F>
             >,
-            // Convert readonly index tuples to mutable (Convex's format)
             { [K in keyof I]: [...I[K]] },
-            // Preserve search index names (field paths widen to string)
             { [K in keyof SI]: { searchField: string; filterFields: string } },
-            // Preserve vector index names (field paths widen to string)
             { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
           >
-      : TableDefinition
+      : // Slim union model entry — `schema` is the bare $ZodType (user-supplied union)
+        E extends {
+            fields: infer F extends Record<string, $ZodType>
+            schema: infer Base extends $ZodType
+            indexes: infer I extends Record<string, readonly string[]>
+            searchIndexes: infer SI extends Record<string, SearchIndexConfig>
+            vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
+          }
+        ? Base extends $ZodUnion<any> | $ZodDiscriminatedUnion<any, any>
+          ? TableDefinition<
+              ConvexValidatorFromZod<Base, 'required'>,
+              { [K in keyof I]: [...I[K]] },
+              { [K in keyof SI]: { searchField: string; filterFields: string } },
+              { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+            >
+          : TableDefinition<
+              VObject<
+                ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
+                ConvexValidatorFromZodFieldsAuto<F>
+              >,
+              { [K in keyof I]: [...I[K]] },
+              { [K in keyof SI]: { searchField: string; filterFields: string } },
+              { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+            >
+        : // Slim object model entry — no `schema` property; derive from fields.
+          E extends {
+              fields: infer F extends Record<string, $ZodType>
+              indexes: infer I extends Record<string, readonly string[]>
+              searchIndexes: infer SI extends Record<string, SearchIndexConfig>
+              vectorIndexes: infer VI extends Record<string, VectorIndexConfig>
+            }
+          ? TableDefinition<
+              VObject<
+                ObjectType<ConvexValidatorFromZodFieldsAuto<F>>,
+                ConvexValidatorFromZodFieldsAuto<F>
+              >,
+              { [K in keyof I]: [...I[K]] },
+              { [K in keyof SI]: { searchField: string; filterFields: string } },
+              { [K in keyof VI]: { vectorField: string; dimensions: number; filterFields: string } }
+            >
+          : TableDefinition
 
 /**
  * Map all entries to their Convex TableDefinition types.
@@ -137,11 +173,15 @@ type ConvexTablesFrom<T extends Record<string, ZodSchemaEntry>> = {
  * (e.g., zx.date() wire number → runtime Date).
  *
  * This is a phantom type — it exists only for TypeScript inference, never accessed at runtime.
- * The constraint uses the structural shape `{ schema: { doc: $ZodType } }` rather than
- * ZodSchemaEntry so it can be exported without exposing internal union types.
+ * Handles both full models (schema bundle with .doc) and slim models (no schema bundle)
+ * by falling through to `any` when the schema shape doesn't match.
  */
-export type DecodedDocFor<T extends Record<string, { schema: { doc: $ZodType } }>> = {
-  [K in keyof T & string]: zoutput<T[K]['schema']['doc']>
+export type DecodedDocFor<T extends Record<string, ZodSchemaEntry>> = {
+  [K in keyof T & string]: T[K] extends { schema: { doc: infer D extends $ZodType } }
+    ? zoutput<D>
+    : T[K] extends { doc: infer D extends $ZodType }
+      ? zoutput<D>
+      : any
 }
 
 // ============================================================================
@@ -158,7 +198,7 @@ function tableFromModel(model: ZodModelEntry) {
     (meta.definitionSource == null && Object.keys(model.fields).length === 0)
 
   let table = usesBaseSchema
-    ? defineTable(zodToConvex(model.schema.base) as any)
+    ? defineTable(zodToConvex(zx.base(model as any)) as any)
     : defineTable(zodToConvexFields(model.fields))
 
   for (const [indexName, indexFields] of Object.entries(model.indexes)) {
@@ -232,17 +272,30 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
         )
       }
       convexTables[name] = tableFromModel(entry)
-      zodTableMap[name] = {
-        doc: entry.schema.doc,
-        docArray: entry.schema.docArray,
-        paginatedDoc: entry.schema.paginatedDoc,
-        base: entry.schema.base,
-        insert: entry.schema.insert,
-        update: entry.schema.update
+
+      // Only `doc` (read decode) and `insert` (write encode) are consumed at
+      // runtime by the DB wrapper. Full models already carry `meta.schemas.doc`
+      // and `meta.schemas.insert` — alias them (no allocation). Slim models go
+      // through cached zx helpers, so `doc`/`base` allocate at most once each.
+      const meta = getZodModelMeta(entry)
+      if (meta.schemas) {
+        zodTableMap[name] = {
+          doc: meta.schemas.doc,
+          insert: meta.schemas.insert
+        }
+      } else {
+        zodTableMap[name] = {
+          doc: zx.doc(entry),
+          insert: zx.base(entry)
+        }
       }
     } else {
       convexTables[name] = entry.table
-      zodTableMap[name] = entry.schema
+      // zodTable produces a 6-schema bundle; we only need doc + insert.
+      zodTableMap[name] = {
+        doc: entry.schema.doc,
+        insert: entry.schema.insert
+      }
     }
   }
 

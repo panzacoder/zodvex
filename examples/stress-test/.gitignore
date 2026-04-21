@@ -1,4 +1,7 @@
 convex/generated/
+convex/composed/
+convex/compiled/
 node_modules/
 
 .env.local
+.measure-result.json
