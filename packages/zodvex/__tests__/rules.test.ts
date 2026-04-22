@@ -963,3 +963,185 @@ describe('edge cases', () => {
     expect(auditLog).toHaveLength(0)
   })
 })
+
+// ============================================================================
+// ZodvexDatabaseWriter.audit() — beforeWrite hook tests
+// ============================================================================
+
+describe('ZodvexDatabaseWriter.audit() — beforeWrite', () => {
+  it('beforeWrite fires for insert and can transform the value', async () => {
+    const intents: any[] = []
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      beforeWrite: (table: string, intent: any) => {
+        intents.push({ table, intent })
+        if (intent.type === 'insert') {
+          return { ...intent.value, name: 'HOOKED' }
+        }
+      }
+    })
+    await auditedDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    expect(intents).toHaveLength(1)
+    expect(intents[0].intent.type).toBe('insert')
+    // The inner write received the transformed value
+    const insertCall = calls.find(c => c.method === 'insert')
+    expect(insertCall?.args[1].name).toBe('HOOKED')
+  })
+
+  it('beforeWrite void return leaves insert value unchanged', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      beforeWrite: (_table: string, _intent: any) => {
+        // no-op
+      }
+    })
+    await auditedDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    const insertCall = calls.find(c => c.method === 'insert')
+    expect(insertCall?.args[1].name).toBe('Charlie')
+  })
+
+  it('beforeWrite fires for patch with current doc and can transform the patch', async () => {
+    const intents: any[] = []
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      beforeWrite: (table: string, intent: any) => {
+        intents.push({ table, intent })
+        if (intent.type === 'patch') {
+          return { ...intent.value, role: 'admin' }
+        }
+      }
+    })
+    await auditedDb.patch('users:1' as any, { name: 'Updated' } as any)
+    expect(intents).toHaveLength(1)
+    expect(intents[0].intent.type).toBe('patch')
+    // doc is decoded — createdAt should be a Date
+    expect(intents[0].intent.doc.createdAt).toBeInstanceOf(Date)
+    expect(intents[0].intent.doc.name).toBe('Alice')
+    // Inner write received the transformed patch
+    const patchCall = calls.find(c => c.method === 'patch')
+    const wirePatch = patchCall?.args[1]
+    expect(wirePatch.name).toBe('Updated')
+    expect(wirePatch.role).toBe('admin')
+  })
+
+  it('beforeWrite fires for replace and can transform the replacement', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      beforeWrite: (_table: string, intent: any) => {
+        if (intent.type === 'replace') {
+          return { ...intent.value, role: 'admin' }
+        }
+      }
+    })
+    await auditedDb.replace(
+      'users:1' as any,
+      {
+        name: 'Alice Replaced',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    const replaceCall = calls.find(c => c.method === 'replace')
+    expect(replaceCall?.args[1].role).toBe('admin')
+  })
+
+  it('beforeWrite fires for delete with current doc (observational)', async () => {
+    const intents: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      beforeWrite: (table: string, intent: any) => {
+        intents.push({ table, intent })
+      }
+    })
+    await auditedDb.delete('users:1' as any)
+    expect(intents).toHaveLength(1)
+    expect(intents[0].intent.type).toBe('delete')
+    expect(intents[0].intent.doc.name).toBe('Alice')
+  })
+
+  it('afterWrite observes the transformed value from beforeWrite', async () => {
+    const auditLog: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      beforeWrite: (_table: string, intent: any) => {
+        if (intent.type === 'insert') return { ...intent.value, name: 'HOOKED' }
+      },
+      afterWrite: (_table: string, event: any) => {
+        auditLog.push(event)
+      }
+    })
+    await auditedDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    expect(auditLog).toHaveLength(1)
+    expect(auditLog[0].value.name).toBe('HOOKED')
+  })
+
+  it('beforeWrite insert intent has no id (not yet assigned)', async () => {
+    const intents: any[] = []
+    const { db: mockDb } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      beforeWrite: (_table: string, intent: any) => {
+        intents.push(intent)
+      }
+    })
+    await auditedDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    expect(intents[0].id).toBeUndefined()
+  })
+
+  it('beforeWrite is async-aware', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(mockDb, tableMap)
+    const auditedDb = db.audit({
+      beforeWrite: async (_table: string, intent: any) => {
+        await new Promise(r => setTimeout(r, 0))
+        if (intent.type === 'insert') {
+          return { ...intent.value, name: 'ASYNC' }
+        }
+      }
+    })
+    await auditedDb.insert(
+      'users' as any,
+      {
+        name: 'Charlie',
+        createdAt: new Date(1700000000000),
+        role: 'user'
+      } as any
+    )
+    const insertCall = calls.find(c => c.method === 'insert')
+    expect(insertCall?.args[1].name).toBe('ASYNC')
+  })
+})

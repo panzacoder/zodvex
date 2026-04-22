@@ -59,6 +59,7 @@ export {
 //
 // Rule and audit types (re-exported from ruleTypes.ts via rules.ts)
 export type {
+  BeforeWriteResult,
   DeleteRule,
   InsertRule,
   PatchRule,
@@ -67,6 +68,7 @@ export type {
   ReplaceRule,
   TableRules,
   WriteEvent,
+  WriteIntent,
   WriterAuditConfig,
   ZodvexRules,
   ZodvexRulesConfig

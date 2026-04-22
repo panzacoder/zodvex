@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { ZodvexDatabaseReader, ZodvexDatabaseWriter, ZodvexQueryChain } from './db'
 
 export {
+  type BeforeWriteResult,
   type DeleteRule,
   type InsertDoc,
   type InsertRule,
@@ -20,6 +21,7 @@ export {
   type ResolveDecodedDocForRules,
   type TableRules,
   type WriteEvent,
+  type WriteIntent,
   type WriterAuditConfig,
   type ZodvexRules,
   type ZodvexRulesConfig
@@ -32,6 +34,7 @@ import type {
   ResolveDecodedDocForRules,
   TableRules,
   WriteEvent,
+  WriteIntent,
   WriterAuditConfig,
   ZodvexRules,
   ZodvexRulesConfig
@@ -617,14 +620,16 @@ class AuditDatabaseWriter<
   private inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>
   private auditReader: ZodvexDatabaseReader<DataModel, DecodedDocs>
   private afterWrite: ((table: string, event: WriteEvent) => void | Promise<void>) | undefined
+  private beforeWrite: ((table: string, intent: WriteIntent) => any | Promise<any>) | undefined
 
   constructor(inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>, config: WriterAuditConfig) {
     // Pass the inner's protected db + tableMap to super.
     const { db, tableMap, reader: innerReader } = inner._internals
     super(db, tableMap)
     this.inner = inner
-    // Generic WriterAuditConfig.afterWrite signature widens to string-keyed dispatch internally
+    // Generic WriterAuditConfig.afterWrite / beforeWrite signatures widen to string-keyed dispatch internally
     this.afterWrite = config.afterWrite as typeof this.afterWrite
+    this.beforeWrite = config.beforeWrite as typeof this.beforeWrite
 
     // Build an audit-aware reader from the inner writer's reader for read operations.
     this.auditReader = config.afterRead
@@ -650,12 +655,17 @@ class AuditDatabaseWriter<
     return this.auditReader.query(tableName)
   }
 
-  // --- Write methods: delegate to inner, then fire afterWrite ---
+  // --- Write methods: fire beforeWrite, delegate to inner, then fire afterWrite ---
 
   async insert(table: any, value: any): Promise<any> {
-    const id = await this.inner.insert(table, value)
+    let nextValue = value
+    if (this.beforeWrite) {
+      const result = await this.beforeWrite(table as string, { type: 'insert', value })
+      if (result !== undefined) nextValue = result
+    }
+    const id = await this.inner.insert(table, nextValue)
     if (this.afterWrite) {
-      await this.afterWrite(table as string, { type: 'insert', id, value })
+      await this.afterWrite(table as string, { type: 'insert', id, value: nextValue })
     }
     return id
   }
@@ -676,17 +686,26 @@ class AuditDatabaseWriter<
     // Fetch current doc via inner (not audited) to avoid audit recursion
     const doc = await this.inner.get(id)
 
+    let nextValue = value
+    if (this.beforeWrite && doc !== null) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        const result = await this.beforeWrite(tableName, { type: 'patch', id, doc, value })
+        if (result !== undefined) nextValue = result
+      }
+    }
+
     // Delegate the actual write to inner
     if (maybeValue !== undefined) {
-      await this.inner.patch(idOrTable, idOrValue, maybeValue)
+      await this.inner.patch(idOrTable, idOrValue, nextValue)
     } else {
-      await this.inner.patch(id, value)
+      await this.inner.patch(id, nextValue)
     }
 
     if (this.afterWrite) {
       const tableName = this.resolveTableFromId(id)
       if (tableName) {
-        await this.afterWrite(tableName, { type: 'patch', id, doc, value })
+        await this.afterWrite(tableName, { type: 'patch', id, doc, value: nextValue })
       }
     }
   }
@@ -706,17 +725,26 @@ class AuditDatabaseWriter<
     // Fetch current doc via inner to avoid audit recursion
     const doc = await this.inner.get(id)
 
+    let nextValue = value
+    if (this.beforeWrite && doc !== null) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        const result = await this.beforeWrite(tableName, { type: 'replace', id, doc, value })
+        if (result !== undefined) nextValue = result
+      }
+    }
+
     // Delegate the actual write to inner
     if (maybeValue !== undefined) {
-      await this.inner.replace(idOrTable, idOrValue, maybeValue)
+      await this.inner.replace(idOrTable, idOrValue, nextValue)
     } else {
-      await this.inner.replace(id, value)
+      await this.inner.replace(id, nextValue)
     }
 
     if (this.afterWrite) {
       const tableName = this.resolveTableFromId(id)
       if (tableName) {
-        await this.afterWrite(tableName, { type: 'replace', id, doc, value })
+        await this.afterWrite(tableName, { type: 'replace', id, doc, value: nextValue })
       }
     }
   }
@@ -732,6 +760,14 @@ class AuditDatabaseWriter<
 
     // Fetch current doc via inner to avoid audit recursion
     const doc = await this.inner.get(id)
+
+    if (this.beforeWrite && doc !== null) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        // Delete intent is observational — return value is ignored.
+        await this.beforeWrite(tableName, { type: 'delete', id, doc })
+      }
+    }
 
     // Delegate the actual delete to inner
     if (maybeId !== undefined) {

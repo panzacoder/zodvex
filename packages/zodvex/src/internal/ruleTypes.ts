@@ -98,6 +98,42 @@ export type WriteEvent<Doc = any> =
   | { type: 'delete'; id: GenericId<any>; doc: Doc }
 
 /**
+ * Describes a pending write operation for `beforeWrite` hooks.
+ * Mirrors WriteEvent but for pre-write dispatch:
+ * - insert has no `id` yet (Convex assigns it on write)
+ * - patch/replace/delete include the current `doc` read from the database
+ *
+ * The hook MAY return a replacement `value` for insert/patch/replace to
+ * transform the write. Returning `void`/`undefined` leaves the value
+ * unchanged. For delete there is no value to transform.
+ */
+export type WriteIntent<Doc = any> =
+  | { type: 'insert'; value: InsertDoc<Doc> }
+  | { type: 'patch'; id: GenericId<any>; doc: Doc; value: Partial<Doc> }
+  | { type: 'replace'; id: GenericId<any>; doc: Doc; value: Doc }
+  | { type: 'delete'; id: GenericId<any>; doc: Doc }
+
+/**
+ * Return type for `beforeWrite`. When the hook fires for a given event type,
+ * it may return a replacement value of the matching shape, or `void`/`undefined`
+ * to signal "no change".
+ *
+ * - insert: full next insert value (InsertDoc<Doc>)
+ * - patch:  full next patch value (Partial<Doc>) — replaces the incoming patch
+ * - replace: full next replacement (Doc)
+ * - delete: no transformation supported
+ */
+export type BeforeWriteResult<Doc, Intent extends WriteIntent<Doc>> = Intent extends {
+  type: 'insert'
+}
+  ? InsertDoc<Doc> | void
+  : Intent extends { type: 'patch' }
+    ? Partial<Doc> | void
+    : Intent extends { type: 'replace' }
+      ? Doc | void
+      : void
+
+/**
  * Audit configuration for .audit() on a reader.
  */
 export type ReaderAuditConfig = {
@@ -117,4 +153,27 @@ export type WriterAuditConfig<
     table: T,
     event: WriteEvent<ResolveDecodedDocForRules<DataModel, DecodedDocs, T>>
   ) => void | Promise<void>
+  /**
+   * Fires before insert/patch/replace/delete. May return a replacement value
+   * (matching the event's shape) to transform the write, or void to leave it
+   * unchanged. See WriteIntent + BeforeWriteResult for per-event return types.
+   *
+   * Ordering: fires AFTER any upstream `.withRules()` write-rule transforms
+   * (rules run in the order they were chained). Sees decoded values —
+   * encoding happens inside the inner writer after the hook returns.
+   */
+  beforeWrite?: <T extends TableNamesInDataModel<DataModel>>(
+    table: T,
+    intent: WriteIntent<ResolveDecodedDocForRules<DataModel, DecodedDocs, T>>
+  ) =>
+    | BeforeWriteResult<
+        ResolveDecodedDocForRules<DataModel, DecodedDocs, T>,
+        WriteIntent<ResolveDecodedDocForRules<DataModel, DecodedDocs, T>>
+      >
+    | Promise<
+        BeforeWriteResult<
+          ResolveDecodedDocForRules<DataModel, DecodedDocs, T>,
+          WriteIntent<ResolveDecodedDocForRules<DataModel, DecodedDocs, T>>
+        >
+      >
 }
