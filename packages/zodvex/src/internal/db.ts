@@ -25,27 +25,24 @@ import type {
 import type { GenericId, NumericValue } from 'convex/values'
 import { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
+import {
+  createAuditDatabaseReader,
+  createAuditDatabaseWriter,
+  createRulesDatabaseReader,
+  createRulesDatabaseWriter,
+  installRulesSubclasses
+} from './rules'
 import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './ruleTypes'
 import type { ZodTableMap } from './schema'
 import { $ZodObject, $ZodType, $ZodUnion, encode } from './zod-core'
 
-// Lazy import to avoid circular dependency — rules.ts extends classes from this file.
-// The dynamic import() fires after db.ts finishes initializing, so rules.ts can
-// safely extend ZodvexDatabaseReader/Writer. By the time user code calls
-// .withRules() or .audit(), the module is loaded and cached.
-let _rules: typeof import('./rules') | null = null
-const _rulesReady = import('./rules').then(m => {
-  _rules = m
-})
-function getRules(): typeof import('./rules') {
-  if (!_rules) {
-    throw new Error(
-      'zodvex rules module not yet loaded. This usually means .withRules() or .audit() ' +
-        'was called at module scope. Move it inside a function handler.'
-    )
-  }
-  return _rules
-}
+// Note on cycle: rules.ts imports ONLY types from db.ts, so this static import
+// triggers no runtime cycle. rules.ts loads first (its top level has no
+// references to db.ts values), then db.ts declares its base classes, and
+// installRulesSubclasses (called at the end of this file) lets rules.ts
+// build its subclass chain. This replaces a prior `dynamic import()`
+// workaround whose promise could race `.withRules()` / `.audit()` calls
+// made from within `withContext`-style input functions.
 
 // ============================================================================
 // Index builder types — decoded-aware replacements for Convex's IndexRangeBuilder
@@ -551,7 +548,7 @@ export class ZodvexDatabaseReader<
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
   ): ZodvexDatabaseReader<DataModel, DecodedDocs> {
-    return getRules().createRulesDatabaseReader(this, ctx, rules, config)
+    return createRulesDatabaseReader(this, ctx, rules, config)
   }
 
   /**
@@ -560,7 +557,7 @@ export class ZodvexDatabaseReader<
    * with `.withRules()`.
    */
   audit(config: ReaderAuditConfig): ZodvexDatabaseReader<DataModel, DecodedDocs> {
-    return getRules().createAuditDatabaseReader(this, config)
+    return createAuditDatabaseReader(this, config)
   }
 }
 
@@ -726,7 +723,7 @@ export class ZodvexDatabaseWriter<
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
   ): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
-    return getRules().createRulesDatabaseWriter(this, ctx, rules, config)
+    return createRulesDatabaseWriter(this, ctx, rules, config)
   }
 
   /**
@@ -735,7 +732,7 @@ export class ZodvexDatabaseWriter<
    * with `.withRules()`.
    */
   audit(config: WriterAuditConfig): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
-    return getRules().createAuditDatabaseWriter(this, config)
+    return createAuditDatabaseWriter(this, config)
   }
 }
 
@@ -772,3 +769,11 @@ export function createZodDbWriter<
 ): ZodvexDatabaseWriter<DataModel, DD> {
   return new ZodvexDatabaseWriter(db, schema.__zodTableMap) as ZodvexDatabaseWriter<DataModel, DD>
 }
+
+// Wire rules.ts subclasses now that base classes above are fully declared.
+// Safe to run at module scope — synchronous, idempotent, no promises.
+installRulesSubclasses({
+  ZodvexQueryChain,
+  ZodvexDatabaseReader,
+  ZodvexDatabaseWriter
+})
