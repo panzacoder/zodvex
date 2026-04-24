@@ -7,7 +7,7 @@ import { join, resolve } from 'path'
 import { existsSync, readdirSync, writeFileSync, mkdirSync } from 'fs'
 import v8 from 'v8'
 
-type Flavor = 'zodvex' | 'convex'
+type Flavor = 'zodvex' | 'convex' | 'convex-helpers'
 
 interface MeasureConfig {
   dir: string
@@ -62,6 +62,12 @@ export async function measure(config: MeasureConfig): Promise<MeasureResult> {
   if (flavor === 'convex') {
     await import('convex/server')
     await import('convex/values')
+  } else if (flavor === 'convex-helpers') {
+    await import('convex/server')
+    await import('convex/values')
+    await import('zod')
+    await import('convex-helpers/server/zod4')
+    await import('convex-helpers/server/customFunctions')
   } else if (runtime === 'mini') {
     await import('zod/mini')
     await import('zodvex/mini')

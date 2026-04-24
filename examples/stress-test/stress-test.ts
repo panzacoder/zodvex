@@ -12,13 +12,14 @@ const RESULTS_DIR = join(ROOT, 'results')
 
 // --- Flag Parsing ---
 
-type Flavor = 'zodvex' | 'convex'
+type Flavor = 'zodvex' | 'convex' | 'convex-helpers'
 
 interface Flags {
   count?: number
   slim: boolean
   mini: boolean
   convex: boolean
+  convexHelpers: boolean
   deploy: boolean
   budget: number
 }
@@ -30,6 +31,7 @@ function parseFlags(): Flags {
     slim: args.includes('--slim'),
     mini: args.includes('--mini'),
     convex: args.includes('--convex'),
+    convexHelpers: args.includes('--convex-helpers'),
     deploy: args.includes('--deploy'),
     budget: parseInt(args.find(a => a.startsWith('--budget='))?.split('=')[1] ?? '64'),
   }
@@ -48,11 +50,15 @@ function getVariants(flags: Flags): Variant[] {
   if (flags.convex) {
     return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false }]
   }
+  if (flags.convexHelpers) {
+    return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false }]
+  }
   if (flags.slim || flags.mini) {
     return [{ name: zodvexVariantName(flags.slim, flags.mini), flavor: 'zodvex', slim: flags.slim, mini: flags.mini }]
   }
   return [
     { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false },
+    { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false },
     { name: 'zod', flavor: 'zodvex', slim: false, mini: false },
     { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false },
     { name: 'mini', flavor: 'zodvex', slim: false, mini: true },
@@ -185,7 +191,7 @@ function findCeiling(variant: Variant, budget: number): { ceiling: number; point
   let lastGood = 0
   // Convex baseline has ~zero per-model overhead beyond validators — the
   // ceiling can be much higher than zodvex's, so probe further.
-  const initialHi = variant.flavor === 'convex' ? 10_000 : 500
+  const initialHi = variant.flavor === 'convex' ? 10_000 : 1000
   const step = variant.flavor === 'convex' ? 500 : 50
   let hi = initialHi
 
