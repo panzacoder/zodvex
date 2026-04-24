@@ -5,15 +5,19 @@
 
 ## OOM Ceilings
 
-| Variant | Max Endpoints | Heap at Ceiling (MB) |
-|---------|--------------|---------------------|
-| convex (baseline) | 2614 | 63.99 |
-| convex-helpers/zod3 | 625 | 63.67 |
-| convex-helpers/zod4 | 425 | 63.92 |
-| zod | 166 | 63.81 |
-| zod + slim | 219 | 63.67 |
-| mini | 372 | 63.94 |
-| mini + slim | 504 | 63.69 |
+`per-endpoint` is the slope between the smallest and largest passing
+measurements — the incremental cost of adding one model. Heap at the
+ceiling itself is always ≈ budget by construction, so it's omitted here.
+
+| Variant | Max Endpoints | Per-endpoint (KB) |
+|---------|--------------|-------------------|
+| convex (baseline) | 2614 | 24.9 |
+| convex-helpers/zod3 | 625 | 102.9 |
+| convex-helpers/zod4 | 425 | 151.7 |
+| zod | 166 | 386.0 |
+| zod + slim | 219 | 291.8 |
+| mini | 372 | 173.0 |
+| mini + slim | 504 | 127.5 |
 
 ## All Measurements
 

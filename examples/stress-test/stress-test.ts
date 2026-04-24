@@ -249,6 +249,21 @@ function findCeiling(variant: Variant, budget: number): { ceiling: number; point
 
 // --- Report ---
 
+/**
+ * Per-endpoint cost in KB, computed as the slope between the first and last
+ * passing points so fixed overhead (runtime, functions.ts, etc.) is excluded.
+ * This is the number that actually drives the ceiling — heap at the ceiling
+ * itself is tautological (≈ budget by construction).
+ */
+function perEndpointKB(points: MeasurePoint[]): number | null {
+  if (points.length < 2) return null
+  const sorted = [...points].sort((a, b) => a.count - b.count)
+  const a = sorted[0]
+  const b = sorted[sorted.length - 1]
+  if (b.count === a.count) return null
+  return ((b.heapDeltaMB - a.heapDeltaMB) / (b.count - a.count)) * 1024
+}
+
 function writeReport(
   results: { variant: string; ceiling: number; points: MeasurePoint[] }[],
   budget: number
@@ -263,13 +278,17 @@ function writeReport(
     '',
     '## OOM Ceilings',
     '',
-    '| Variant | Max Endpoints | Heap at Ceiling (MB) |',
-    '|---------|--------------|---------------------|',
+    '`per-endpoint` is the slope between the smallest and largest passing',
+    'measurements — the incremental cost of adding one model. Heap at the',
+    'ceiling itself is always ≈ budget by construction, so it\'s omitted here.',
+    '',
+    '| Variant | Max Endpoints | Per-endpoint (KB) |',
+    '|---------|--------------|-------------------|',
   ]
 
   for (const r of results) {
-    const ceilingPoint = r.points.find(p => p.count === r.ceiling)
-    lines.push(`| ${r.variant} | ${r.ceiling} | ${ceilingPoint?.heapDeltaMB.toFixed(2) ?? 'n/a'} |`)
+    const perEp = perEndpointKB(r.points)
+    lines.push(`| ${r.variant} | ${r.ceiling} | ${perEp !== null ? perEp.toFixed(1) : 'n/a'} |`)
   }
 
   lines.push('', '## All Measurements', '')
@@ -334,11 +353,11 @@ async function main() {
   console.log('\n' + '='.repeat(60))
   console.log('RESULTS')
   console.log('='.repeat(60))
-  console.log(`\n| Variant | Ceiling (endpoints) | Heap at ceiling (MB) |`)
+  console.log(`\n| Variant | Ceiling (endpoints) | Per-endpoint (KB) |`)
   console.log(`|---------|--------------------|--------------------|`)
   for (const r of results) {
-    const p = r.points.find(p => p.count === r.ceiling)
-    console.log(`| ${r.variant} | ${r.ceiling} | ${p?.heapDeltaMB.toFixed(2) ?? 'n/a'} |`)
+    const perEp = perEndpointKB(r.points)
+    console.log(`| ${r.variant} | ${r.ceiling} | ${perEp !== null ? perEp.toFixed(1) : 'n/a'} |`)
   }
 
   writeReport(results, flags.budget)
