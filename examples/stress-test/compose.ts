@@ -5,111 +5,46 @@ import { fileURLToPath } from 'url'
 const EXAMPLE_DIR = fileURLToPath(new URL('.', import.meta.url))
 const SEEDS_DIR = join(EXAMPLE_DIR, 'seeds')
 
+export type Flavor = 'zodvex' | 'convex'
+
 export interface ComposeConfig {
   count: number
   outputDir: string
+  flavor?: Flavor
 }
 
-interface SeedInfo {
-  name: string
-  pascal: string
-  modelSource: string
-  endpointSource: string
-  tableName: string
-  modelExport: string
-  fieldsExport: string
+interface FlavorSpec {
+  // Pascal-suffixed identifiers on each seed that get renamed (e.g. 'Model' or 'Table'+'Doc')
+  pascalSuffixes: string[]
+  // How to find a seed's table name. Searches model source, then endpoint source.
+  findTableName(modelSource: string, endpointSource: string, fallback: string): string
+  // Builds schema.ts
+  buildSchema(entries: Array<{ table: string; fileName: string; pascal: string }>): string
+  // Builds functions.ts — returns null to skip
+  buildFunctions(): string | null
 }
 
-function toPascal(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
+const FLAVORS: Record<Flavor, FlavorSpec> = {
+  zodvex: {
+    pascalSuffixes: ['Model'],
+    findTableName(modelSource, _endpointSource, fallback) {
+      const m = modelSource.match(/defineZodModel\(\s*'([^']+)'/)
+      return m ? m[1] : fallback
+    },
+    buildSchema(entries) {
+      const imports = entries.map(e => `import { ${e.pascal}Model } from './models/${e.fileName}'`).join('\n')
+      const tables = entries.map(e => `  ${e.table}: ${e.pascal}Model,`).join('\n')
+      return `import { defineZodSchema } from 'zodvex/server'
 
-function loadSeeds(): SeedInfo[] {
-  const modelDir = join(SEEDS_DIR, 'models')
-  const endpointDir = join(SEEDS_DIR, 'endpoints')
-  const seeds: SeedInfo[] = []
-
-  for (const file of readdirSync(modelDir).filter(f => f.endsWith('.ts')).sort()) {
-    const name = basename(file, '.ts')
-    const pascal = toPascal(name)
-    const modelSource = readFileSync(join(modelDir, file), 'utf-8')
-    const endpointPath = join(endpointDir, file)
-    const endpointSource = existsSync(endpointPath) ? readFileSync(endpointPath, 'utf-8') : ''
-
-    const tableMatch = modelSource.match(/defineZodModel\(\s*'([^']+)'/)
-    const tableName = tableMatch ? tableMatch[1] : name + 's'
-
-    const modelExport = `${pascal}Model`
-    const fieldsExport = `${name}Fields`
-
-    seeds.push({ name, pascal, modelSource, endpointSource, tableName, modelExport, fieldsExport })
-  }
-
-  return seeds
-}
-
-function renameSeed(
-  source: string,
-  seed: SeedInfo,
-  index: number,
-  suffix: string,
-  newTable: string,
-  newPascal: string
-): string {
-  let out = source
-  out = out.replaceAll(`'${seed.tableName}'`, `'${newTable}'`)
-  out = out.replaceAll(seed.modelExport, `${newPascal}Model`)
-  out = out.replaceAll(seed.fieldsExport, `${newPascal.charAt(0).toLowerCase() + newPascal.slice(1)}Fields`)
-  out = out.replaceAll(`../models/${seed.name}`, `../models/${seed.name}_${suffix}`)
-  return out
-}
-
-export function compose(config: ComposeConfig): { modelsDir: string; endpointsDir: string; outputDir: string } {
-  const { count, outputDir } = config
-  const modelsDir = join(outputDir, 'models')
-  const endpointsDir = join(outputDir, 'endpoints')
-
-  if (existsSync(outputDir)) rmSync(outputDir, { recursive: true })
-  mkdirSync(modelsDir, { recursive: true })
-  mkdirSync(endpointsDir, { recursive: true })
-
-  const seeds = loadSeeds()
-  if (seeds.length === 0) throw new Error('No seed files found')
-
-  const modelImports: string[] = []
-  const tableEntries: string[] = []
-
-  for (let i = 0; i < count; i++) {
-    const seed = seeds[i % seeds.length]
-    const suffix = String(i).padStart(4, '0')
-    const newTable = `${seed.tableName}_${suffix}`
-    const newPascal = `${seed.pascal}${suffix}`
-    const fileName = `${seed.name}_${suffix}`
-
-    const modelOut = renameSeed(seed.modelSource, seed, i, suffix, newTable, newPascal)
-    writeFileSync(join(modelsDir, `${fileName}.ts`), modelOut)
-
-    if (seed.endpointSource) {
-      const endpointOut = renameSeed(seed.endpointSource, seed, i, suffix, newTable, newPascal)
-      writeFileSync(join(endpointsDir, `${fileName}.ts`), endpointOut)
-    }
-
-    const modelExport = `${newPascal}Model`
-    modelImports.push(`import { ${modelExport} } from './models/${fileName}'`)
-    tableEntries.push(`  ${newTable}: ${modelExport},`)
-  }
-
-  const schemaSource = `import { defineZodSchema } from 'zodvex/server'
-
-${modelImports.join('\n')}
+${imports}
 
 export default defineZodSchema({
-${tableEntries.join('\n')}
+${tables}
 })
 `
-  writeFileSync(join(outputDir, 'schema.ts'), schemaSource)
-
-  const functionsSource = `import { initZodvex } from 'zodvex/server'
+    },
+    buildFunctions() {
+      return `import { initZodvex } from 'zodvex/server'
 import {
   query,
   mutation,
@@ -130,9 +65,141 @@ export const { zq, zm } = initZodvex(schema, {
   internalAction,
 }, { wrapDb: false })
 `
-  writeFileSync(join(outputDir, 'functions.ts'), functionsSource)
+    },
+  },
+  convex: {
+    pascalSuffixes: ['Table', 'Doc'],
+    findTableName(modelSource, endpointSource, fallback) {
+      // Convex seeds don't carry the table name in the model file itself.
+      // Look in the endpoint for the first v.id('<table>') — every endpoint has at least one.
+      const m = endpointSource.match(/v\.id\(\s*'([^']+)'\s*\)/)
+      return m ? m[1] : fallback
+    },
+    buildSchema(entries) {
+      const imports = entries.map(e => `import { ${e.pascal}Table } from './models/${e.fileName}'`).join('\n')
+      const tables = entries.map(e => `  ${e.table}: ${e.pascal}Table,`).join('\n')
+      return `import { defineSchema } from 'convex/server'
 
-  writeFileSync(join(outputDir, 'summary.json'), JSON.stringify({ count, seeds: seeds.length }, null, 2))
+${imports}
+
+export default defineSchema({
+${tables}
+})
+`
+    },
+    buildFunctions() {
+      // Emit a proxy so endpoints (one dir below) can import via '../functions'.
+      // Same trick as zodvex — endpoint files would otherwise resolve
+      // '../_generated/server' to the wrong directory.
+      return `export { query, mutation, action, internalQuery, internalMutation, internalAction } from '../_generated/server'
+`
+    },
+  },
+}
+
+interface SeedInfo {
+  name: string
+  pascal: string
+  modelSource: string
+  endpointSource: string
+  tableName: string
+  fieldsExport: string
+}
+
+function toPascal(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function loadSeeds(flavor: Flavor): SeedInfo[] {
+  const spec = FLAVORS[flavor]
+  const flavorDir = join(SEEDS_DIR, flavor)
+  const modelDir = join(flavorDir, 'models')
+  const endpointDir = join(flavorDir, 'endpoints')
+  if (!existsSync(modelDir)) {
+    throw new Error(`Seeds not found for flavor '${flavor}': ${modelDir}`)
+  }
+  const seeds: SeedInfo[] = []
+
+  for (const file of readdirSync(modelDir).filter(f => f.endsWith('.ts')).sort()) {
+    const name = basename(file, '.ts')
+    const pascal = toPascal(name)
+    const modelSource = readFileSync(join(modelDir, file), 'utf-8')
+    const endpointPath = join(endpointDir, file)
+    const endpointSource = existsSync(endpointPath) ? readFileSync(endpointPath, 'utf-8') : ''
+
+    const tableName = spec.findTableName(modelSource, endpointSource, name + 's')
+    const fieldsExport = `${name}Fields`
+
+    seeds.push({ name, pascal, modelSource, endpointSource, tableName, fieldsExport })
+  }
+
+  return seeds
+}
+
+function renameSeed(
+  source: string,
+  seed: SeedInfo,
+  suffix: string,
+  newTable: string,
+  newPascal: string,
+  spec: FlavorSpec
+): string {
+  let out = source
+  out = out.replaceAll(`'${seed.tableName}'`, `'${newTable}'`)
+  for (const s of spec.pascalSuffixes) {
+    out = out.replaceAll(`${seed.pascal}${s}`, `${newPascal}${s}`)
+  }
+  const newFields = `${newPascal.charAt(0).toLowerCase() + newPascal.slice(1)}Fields`
+  out = out.replaceAll(seed.fieldsExport, newFields)
+  out = out.replaceAll(`../models/${seed.name}`, `../models/${seed.name}_${suffix}`)
+  return out
+}
+
+export function compose(config: ComposeConfig): { modelsDir: string; endpointsDir: string; outputDir: string } {
+  const { count, outputDir } = config
+  const flavor: Flavor = config.flavor ?? 'zodvex'
+  const spec = FLAVORS[flavor]
+  const modelsDir = join(outputDir, 'models')
+  const endpointsDir = join(outputDir, 'endpoints')
+
+  if (existsSync(outputDir)) rmSync(outputDir, { recursive: true })
+  mkdirSync(modelsDir, { recursive: true })
+  mkdirSync(endpointsDir, { recursive: true })
+
+  const seeds = loadSeeds(flavor)
+  if (seeds.length === 0) throw new Error(`No seed files found for flavor '${flavor}'`)
+
+  const entries: Array<{ table: string; fileName: string; pascal: string }> = []
+
+  for (let i = 0; i < count; i++) {
+    const seed = seeds[i % seeds.length]
+    const suffix = String(i).padStart(4, '0')
+    const newTable = `${seed.tableName}_${suffix}`
+    const newPascal = `${seed.pascal}${suffix}`
+    const fileName = `${seed.name}_${suffix}`
+
+    const modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, spec)
+    writeFileSync(join(modelsDir, `${fileName}.ts`), modelOut)
+
+    if (seed.endpointSource) {
+      const endpointOut = renameSeed(seed.endpointSource, seed, suffix, newTable, newPascal, spec)
+      writeFileSync(join(endpointsDir, `${fileName}.ts`), endpointOut)
+    }
+
+    entries.push({ table: newTable, fileName, pascal: newPascal })
+  }
+
+  writeFileSync(join(outputDir, 'schema.ts'), spec.buildSchema(entries))
+
+  const functionsSource = spec.buildFunctions()
+  if (functionsSource !== null) {
+    writeFileSync(join(outputDir, 'functions.ts'), functionsSource)
+  }
+
+  writeFileSync(
+    join(outputDir, 'summary.json'),
+    JSON.stringify({ count, flavor, seeds: seeds.length }, null, 2)
+  )
 
   return { modelsDir, endpointsDir, outputDir }
 }
@@ -140,9 +207,17 @@ export const { zq, zm } = initZodvex(schema, {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)
   const count = parseInt(args.find(a => a.startsWith('--count='))?.split('=')[1] ?? '50')
+  const flavor = (args.find(a => a.startsWith('--flavor='))?.split('=')[1] ?? 'zodvex') as Flavor
   const outputDir = args.find(a => a.startsWith('--output='))?.split('=')[1] ?? join(EXAMPLE_DIR, 'convex', 'composed')
 
-  console.log(`Composing ${count} models from ${readdirSync(join(SEEDS_DIR, 'models')).filter(f => f.endsWith('.ts')).length} seeds`)
-  compose({ count, outputDir })
+  if (flavor !== 'zodvex' && flavor !== 'convex') {
+    throw new Error(`Unknown --flavor=${flavor} (expected 'zodvex' or 'convex')`)
+  }
+
+  const flavorSeedsDir = join(SEEDS_DIR, flavor, 'models')
+  console.log(
+    `Composing ${count} models (flavor=${flavor}) from ${readdirSync(flavorSeedsDir).filter(f => f.endsWith('.ts')).length} seeds`
+  )
+  compose({ count, outputDir, flavor })
   console.log(`Output: ${outputDir}`)
 }

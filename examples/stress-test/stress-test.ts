@@ -12,10 +12,13 @@ const RESULTS_DIR = join(ROOT, 'results')
 
 // --- Flag Parsing ---
 
+type Flavor = 'zodvex' | 'convex'
+
 interface Flags {
   count?: number
   slim: boolean
   mini: boolean
+  convex: boolean
   deploy: boolean
   budget: number
 }
@@ -26,6 +29,7 @@ function parseFlags(): Flags {
     count: args.find(a => a.startsWith('--count=')) ? parseInt(args.find(a => a.startsWith('--count='))!.split('=')[1]) : undefined,
     slim: args.includes('--slim'),
     mini: args.includes('--mini'),
+    convex: args.includes('--convex'),
     deploy: args.includes('--deploy'),
     budget: parseInt(args.find(a => a.startsWith('--budget='))?.split('=')[1] ?? '64'),
   }
@@ -35,23 +39,28 @@ function parseFlags(): Flags {
 
 interface Variant {
   name: string
+  flavor: Flavor
   slim: boolean
   mini: boolean
 }
 
 function getVariants(flags: Flags): Variant[] {
+  if (flags.convex) {
+    return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false }]
+  }
   if (flags.slim || flags.mini) {
-    return [{ name: variantName(flags.slim, flags.mini), slim: flags.slim, mini: flags.mini }]
+    return [{ name: zodvexVariantName(flags.slim, flags.mini), flavor: 'zodvex', slim: flags.slim, mini: flags.mini }]
   }
   return [
-    { name: 'zod', slim: false, mini: false },
-    { name: 'zod + slim', slim: true, mini: false },
-    { name: 'mini', slim: false, mini: true },
-    { name: 'mini + slim', slim: true, mini: true },
+    { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false },
+    { name: 'zod', flavor: 'zodvex', slim: false, mini: false },
+    { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false },
+    { name: 'mini', flavor: 'zodvex', slim: false, mini: true },
+    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true },
   ]
 }
 
-function variantName(slim: boolean, mini: boolean): string {
+function zodvexVariantName(slim: boolean, mini: boolean): string {
   if (slim && mini) return 'mini + slim'
   if (slim) return 'zod + slim'
   if (mini) return 'mini'
@@ -130,11 +139,11 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
 
   try {
     // Compose
-    execSync(`bun run compose.ts --count=${count} --output=${COMPOSED_DIR}`, {
+    execSync(`bun run compose.ts --count=${count} --flavor=${variant.flavor} --output=${COMPOSED_DIR}`, {
       cwd: ROOT, stdio: 'pipe', timeout: 60_000,
     })
 
-    // Compile if mini
+    // Compile if mini (zodvex flavor only — convex seeds have no zod to transform)
     let measureDir = COMPOSED_DIR
     if (variant.mini) {
       compileDirectory(COMPOSED_DIR, COMPILED_DIR)
@@ -144,7 +153,7 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
     // Measure in subprocess
     const runtime = variant.mini ? 'mini' : 'zod'
     execSync(
-      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime} --results=${resultsFile}`,
+      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime} --flavor=${variant.flavor} --results=${resultsFile}`,
       { cwd: ROOT, encoding: 'utf-8', timeout: 120_000, env }
     )
 
@@ -174,10 +183,14 @@ function findCeiling(variant: Variant, budget: number): { ceiling: number; point
 
   const points: MeasurePoint[] = []
   let lastGood = 0
-  let hi = 500
+  // Convex baseline has ~zero per-model overhead beyond validators — the
+  // ceiling can be much higher than zodvex's, so probe further.
+  const initialHi = variant.flavor === 'convex' ? 10_000 : 500
+  const step = variant.flavor === 'convex' ? 500 : 50
+  let hi = initialHi
 
-  // Coarse pass: step by 50
-  for (let count = 50; count <= hi; count += 50) {
+  // Coarse pass
+  for (let count = step; count <= hi; count += step) {
     const point = measureAtCount(count, variant)
     if (!point) { hi = count; break }
     points.push(point)
@@ -188,6 +201,13 @@ function findCeiling(variant: Variant, budget: number): { ceiling: number; point
       hi = count
       break
     }
+  }
+
+  // If we exhausted the coarse range without overshooting, we can't pinpoint
+  // a ceiling — report the largest passing count we saw.
+  if (lastGood > 0 && lastGood === hi) {
+    console.log(`  → Reached probe cap at ${lastGood} endpoints without exceeding ${budget} MB`)
+    return { ceiling: lastGood, points }
   }
 
   if (lastGood === 0) return { ceiling: 0, points }
