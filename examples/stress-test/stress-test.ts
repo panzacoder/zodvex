@@ -12,7 +12,7 @@ const RESULTS_DIR = join(ROOT, 'results')
 
 // --- Flag Parsing ---
 
-type Flavor = 'zodvex' | 'convex' | 'convex-helpers'
+type Flavor = 'zodvex' | 'convex' | 'convex-helpers' | 'convex-helpers-zod3'
 
 interface Flags {
   count?: number
@@ -20,6 +20,7 @@ interface Flags {
   mini: boolean
   convex: boolean
   convexHelpers: boolean
+  convexHelpersZod3: boolean
   deploy: boolean
   budget: number
 }
@@ -32,6 +33,7 @@ function parseFlags(): Flags {
     mini: args.includes('--mini'),
     convex: args.includes('--convex'),
     convexHelpers: args.includes('--convex-helpers'),
+    convexHelpersZod3: args.includes('--convex-helpers-zod3'),
     deploy: args.includes('--deploy'),
     budget: parseInt(args.find(a => a.startsWith('--budget='))?.split('=')[1] ?? '64'),
   }
@@ -53,11 +55,15 @@ function getVariants(flags: Flags): Variant[] {
   if (flags.convexHelpers) {
     return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false }]
   }
+  if (flags.convexHelpersZod3) {
+    return [{ name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false }]
+  }
   if (flags.slim || flags.mini) {
     return [{ name: zodvexVariantName(flags.slim, flags.mini), flavor: 'zodvex', slim: flags.slim, mini: flags.mini }]
   }
   return [
     { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false },
+    { name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false },
     { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false },
     { name: 'zod', flavor: 'zodvex', slim: false, mini: false },
     { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false },

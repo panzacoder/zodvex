@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 const EXAMPLE_DIR = fileURLToPath(new URL('.', import.meta.url))
 const SEEDS_DIR = join(EXAMPLE_DIR, 'seeds')
 
-export type Flavor = 'zodvex' | 'convex' | 'convex-helpers'
+export type Flavor = 'zodvex' | 'convex' | 'convex-helpers' | 'convex-helpers-zod3'
 
 export interface ComposeConfig {
   count: number
@@ -116,6 +116,45 @@ ${tables}
     },
     buildFunctions() {
       return `import { zCustomQuery, zCustomMutation, zCustomAction } from 'convex-helpers/server/zod4'
+import { NoOp } from 'convex-helpers/server/customFunctions'
+import {
+  query,
+  mutation,
+  action,
+  internalQuery,
+  internalMutation,
+  internalAction,
+} from '../_generated/server'
+
+export const zQuery = zCustomQuery(query, NoOp)
+export const zMutation = zCustomMutation(mutation, NoOp)
+export const zAction = zCustomAction(action, NoOp)
+export const zInternalQuery = zCustomQuery(internalQuery, NoOp)
+export const zInternalMutation = zCustomMutation(internalMutation, NoOp)
+export const zInternalAction = zCustomAction(internalAction, NoOp)
+`
+    },
+  },
+  'convex-helpers-zod3': {
+    pascalSuffixes: ['Table'],
+    findTableName(_modelSource, endpointSource, fallback) {
+      const m = endpointSource.match(/zid\(\s*'([^']+)'\s*\)/)
+      return m ? m[1] : fallback
+    },
+    buildSchema(entries) {
+      const imports = entries.map(e => `import { ${e.pascal}Table } from './models/${e.fileName}'`).join('\n')
+      const tables = entries.map(e => `  ${e.table}: ${e.pascal}Table,`).join('\n')
+      return `import { defineSchema } from 'convex/server'
+
+${imports}
+
+export default defineSchema({
+${tables}
+})
+`
+    },
+    buildFunctions() {
+      return `import { zCustomQuery, zCustomMutation, zCustomAction } from 'convex-helpers/server/zod3'
 import { NoOp } from 'convex-helpers/server/customFunctions'
 import {
   query,
@@ -250,8 +289,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const flavor = (args.find(a => a.startsWith('--flavor='))?.split('=')[1] ?? 'zodvex') as Flavor
   const outputDir = args.find(a => a.startsWith('--output='))?.split('=')[1] ?? join(EXAMPLE_DIR, 'convex', 'composed')
 
-  if (flavor !== 'zodvex' && flavor !== 'convex' && flavor !== 'convex-helpers') {
-    throw new Error(`Unknown --flavor=${flavor} (expected 'zodvex', 'convex', or 'convex-helpers')`)
+  if (flavor !== 'zodvex' && flavor !== 'convex' && flavor !== 'convex-helpers' && flavor !== 'convex-helpers-zod3') {
+    throw new Error(`Unknown --flavor=${flavor} (expected 'zodvex', 'convex', 'convex-helpers', or 'convex-helpers-zod3')`)
   }
 
   const flavorSeedsDir = join(SEEDS_DIR, flavor, 'models')
