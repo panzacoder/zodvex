@@ -1,197 +1,197 @@
 {
-  "date": "2026-04-26T16:36:02.225Z",
+  "date": "2026-04-26T17:33:32.521Z",
   "budget": 64,
   "results": [
     {
       "variant": "convex (baseline)",
-      "ceiling": 2610,
+      "ceiling": 2606,
       "points": [
         {
           "variant": "convex (baseline)",
           "count": 500,
-          "heapDeltaMB": 12.59,
-          "heapPeakMB": 13.95,
+          "heapDeltaMB": 12.6,
+          "heapPeakMB": 13.94,
           "modulesLoaded": 1000
         },
         {
           "variant": "convex (baseline)",
           "count": 1000,
-          "heapDeltaMB": 24.48,
+          "heapDeltaMB": 24.49,
           "heapPeakMB": 25.83,
           "modulesLoaded": 2000
         },
         {
           "variant": "convex (baseline)",
           "count": 1500,
-          "heapDeltaMB": 36.69,
-          "heapPeakMB": 38.04,
+          "heapDeltaMB": 36.71,
+          "heapPeakMB": 38.05,
           "modulesLoaded": 3000
         },
         {
           "variant": "convex (baseline)",
           "count": 2000,
-          "heapDeltaMB": 48.65,
-          "heapPeakMB": 50,
+          "heapDeltaMB": 48.66,
+          "heapPeakMB": 50.01,
           "modulesLoaded": 4000
         },
         {
           "variant": "convex (baseline)",
           "count": 2500,
-          "heapDeltaMB": 61.38,
-          "heapPeakMB": 62.72,
+          "heapDeltaMB": 61.43,
+          "heapPeakMB": 62.77,
           "modulesLoaded": 5000
         },
         {
           "variant": "convex (baseline)",
           "count": 3000,
-          "heapDeltaMB": 73.33,
-          "heapPeakMB": 74.69,
+          "heapDeltaMB": 73.36,
+          "heapPeakMB": 74.71,
           "modulesLoaded": 6000
         },
         {
           "variant": "convex (baseline)",
           "count": 2750,
-          "heapDeltaMB": 67.21,
-          "heapPeakMB": 68.57,
+          "heapDeltaMB": 67.38,
+          "heapPeakMB": 68.72,
           "modulesLoaded": 5500
         },
         {
           "variant": "convex (baseline)",
           "count": 2625,
-          "heapDeltaMB": 64.24,
-          "heapPeakMB": 65.6,
+          "heapDeltaMB": 64.39,
+          "heapPeakMB": 65.74,
           "modulesLoaded": 5250
         },
         {
           "variant": "convex (baseline)",
           "count": 2563,
-          "heapDeltaMB": 62.78,
-          "heapPeakMB": 64.14,
+          "heapDeltaMB": 62.92,
+          "heapPeakMB": 64.26,
           "modulesLoaded": 5126
         },
         {
           "variant": "convex (baseline)",
           "count": 2594,
-          "heapDeltaMB": 63.53,
-          "heapPeakMB": 64.87,
+          "heapDeltaMB": 63.67,
+          "heapPeakMB": 65.01,
           "modulesLoaded": 5188
         },
         {
           "variant": "convex (baseline)",
           "count": 2610,
-          "heapDeltaMB": 63.89,
-          "heapPeakMB": 65.24,
+          "heapDeltaMB": 64.04,
+          "heapPeakMB": 65.38,
           "modulesLoaded": 5220
         },
         {
           "variant": "convex (baseline)",
-          "count": 2618,
-          "heapDeltaMB": 64.08,
-          "heapPeakMB": 65.43,
-          "modulesLoaded": 5236
+          "count": 2602,
+          "heapDeltaMB": 63.85,
+          "heapPeakMB": 65.19,
+          "modulesLoaded": 5204
         },
         {
           "variant": "convex (baseline)",
-          "count": 2614,
-          "heapDeltaMB": 64.11,
-          "heapPeakMB": 65.47,
-          "modulesLoaded": 5228
+          "count": 2606,
+          "heapDeltaMB": 63.95,
+          "heapPeakMB": 65.29,
+          "modulesLoaded": 5212
         }
       ]
     },
     {
       "variant": "convex-helpers/zod3",
-      "ceiling": 625,
+      "ceiling": 629,
       "points": [
         {
           "variant": "convex-helpers/zod3",
           "count": 50,
-          "heapDeltaMB": 5.83,
-          "heapPeakMB": 7.44,
+          "heapDeltaMB": 5.82,
+          "heapPeakMB": 7.43,
           "modulesLoaded": 100
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 100,
-          "heapDeltaMB": 10.93,
-          "heapPeakMB": 12.54,
+          "heapDeltaMB": 10.9,
+          "heapPeakMB": 12.51,
           "modulesLoaded": 200
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 150,
-          "heapDeltaMB": 15.93,
-          "heapPeakMB": 17.54,
+          "heapDeltaMB": 15.91,
+          "heapPeakMB": 17.52,
           "modulesLoaded": 300
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 200,
-          "heapDeltaMB": 20.96,
-          "heapPeakMB": 22.58,
+          "heapDeltaMB": 20.95,
+          "heapPeakMB": 22.56,
           "modulesLoaded": 400
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 250,
-          "heapDeltaMB": 25.95,
-          "heapPeakMB": 27.56,
+          "heapDeltaMB": 25.93,
+          "heapPeakMB": 27.55,
           "modulesLoaded": 500
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 300,
-          "heapDeltaMB": 30.96,
-          "heapPeakMB": 32.56,
+          "heapDeltaMB": 30.93,
+          "heapPeakMB": 32.55,
           "modulesLoaded": 600
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 350,
-          "heapDeltaMB": 35.94,
-          "heapPeakMB": 37.56,
+          "heapDeltaMB": 35.93,
+          "heapPeakMB": 37.54,
           "modulesLoaded": 700
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 400,
-          "heapDeltaMB": 41.06,
-          "heapPeakMB": 42.68,
+          "heapDeltaMB": 41.05,
+          "heapPeakMB": 42.66,
           "modulesLoaded": 800
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 450,
-          "heapDeltaMB": 46.02,
-          "heapPeakMB": 47.63,
+          "heapDeltaMB": 46,
+          "heapPeakMB": 47.62,
           "modulesLoaded": 900
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 500,
-          "heapDeltaMB": 51.21,
-          "heapPeakMB": 52.82,
+          "heapDeltaMB": 51.19,
+          "heapPeakMB": 52.81,
           "modulesLoaded": 1000
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 550,
           "heapDeltaMB": 56.2,
-          "heapPeakMB": 57.82,
+          "heapPeakMB": 57.81,
           "modulesLoaded": 1100
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 600,
-          "heapDeltaMB": 61.15,
+          "heapDeltaMB": 61.16,
           "heapPeakMB": 62.77,
           "modulesLoaded": 1200
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 650,
-          "heapDeltaMB": 66.12,
-          "heapPeakMB": 67.73,
+          "heapDeltaMB": 66.11,
+          "heapPeakMB": 67.72,
           "modulesLoaded": 1300
         },
         {
@@ -204,22 +204,22 @@
         {
           "variant": "convex-helpers/zod3",
           "count": 638,
-          "heapDeltaMB": 65.02,
-          "heapPeakMB": 66.63,
+          "heapDeltaMB": 65.01,
+          "heapPeakMB": 66.62,
           "modulesLoaded": 1276
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 632,
-          "heapDeltaMB": 64.37,
-          "heapPeakMB": 65.99,
+          "heapDeltaMB": 64.36,
+          "heapPeakMB": 65.98,
           "modulesLoaded": 1264
         },
         {
           "variant": "convex-helpers/zod3",
           "count": 629,
-          "heapDeltaMB": 64.01,
-          "heapPeakMB": 65.63,
+          "heapDeltaMB": 64,
+          "heapPeakMB": 65.62,
           "modulesLoaded": 1258
         }
       ]
@@ -231,92 +231,92 @@
         {
           "variant": "convex-helpers/zod4",
           "count": 50,
-          "heapDeltaMB": 8.55,
-          "heapPeakMB": 10.62,
+          "heapDeltaMB": 8.53,
+          "heapPeakMB": 10.59,
           "modulesLoaded": 100
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 100,
-          "heapDeltaMB": 15.99,
-          "heapPeakMB": 18.05,
+          "heapDeltaMB": 15.97,
+          "heapPeakMB": 18.04,
           "modulesLoaded": 200
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 150,
-          "heapDeltaMB": 23.35,
-          "heapPeakMB": 25.41,
+          "heapDeltaMB": 23.32,
+          "heapPeakMB": 25.39,
           "modulesLoaded": 300
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 200,
-          "heapDeltaMB": 30.77,
-          "heapPeakMB": 32.84,
+          "heapDeltaMB": 30.75,
+          "heapPeakMB": 32.81,
           "modulesLoaded": 400
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 250,
-          "heapDeltaMB": 38.07,
-          "heapPeakMB": 40.14,
+          "heapDeltaMB": 38.05,
+          "heapPeakMB": 40.11,
           "modulesLoaded": 500
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 300,
-          "heapDeltaMB": 45.39,
-          "heapPeakMB": 47.46,
+          "heapDeltaMB": 45.37,
+          "heapPeakMB": 47.43,
           "modulesLoaded": 600
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 350,
-          "heapDeltaMB": 52.74,
-          "heapPeakMB": 54.81,
+          "heapDeltaMB": 52.71,
+          "heapPeakMB": 54.78,
           "modulesLoaded": 700
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 400,
-          "heapDeltaMB": 60.34,
-          "heapPeakMB": 62.41,
+          "heapDeltaMB": 60.32,
+          "heapPeakMB": 62.38,
           "modulesLoaded": 800
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 450,
-          "heapDeltaMB": 67.79,
-          "heapPeakMB": 69.86,
+          "heapDeltaMB": 67.78,
+          "heapPeakMB": 69.84,
           "modulesLoaded": 900
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 425,
-          "heapDeltaMB": 63.92,
-          "heapPeakMB": 65.99,
+          "heapDeltaMB": 63.9,
+          "heapPeakMB": 65.97,
           "modulesLoaded": 850
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 438,
-          "heapDeltaMB": 65.89,
-          "heapPeakMB": 67.96,
+          "heapDeltaMB": 65.87,
+          "heapPeakMB": 67.94,
           "modulesLoaded": 876
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 432,
-          "heapDeltaMB": 64.95,
-          "heapPeakMB": 67.02,
+          "heapDeltaMB": 64.93,
+          "heapPeakMB": 66.99,
           "modulesLoaded": 864
         },
         {
           "variant": "convex-helpers/zod4",
           "count": 429,
-          "heapDeltaMB": 64.53,
-          "heapPeakMB": 66.6,
+          "heapDeltaMB": 64.51,
+          "heapPeakMB": 66.57,
           "modulesLoaded": 858
         }
       ]
@@ -328,57 +328,57 @@
         {
           "variant": "zod",
           "count": 50,
-          "heapDeltaMB": 18.67,
-          "heapPeakMB": 21.15,
+          "heapDeltaMB": 18.65,
+          "heapPeakMB": 21.11,
           "modulesLoaded": 100
         },
         {
           "variant": "zod",
           "count": 100,
-          "heapDeltaMB": 36.11,
-          "heapPeakMB": 38.58,
+          "heapDeltaMB": 36.07,
+          "heapPeakMB": 38.53,
           "modulesLoaded": 200
         },
         {
           "variant": "zod",
           "count": 150,
-          "heapDeltaMB": 53.45,
-          "heapPeakMB": 55.93,
+          "heapDeltaMB": 53.42,
+          "heapPeakMB": 55.89,
           "modulesLoaded": 300
         },
         {
           "variant": "zod",
           "count": 200,
-          "heapDeltaMB": 71.09,
-          "heapPeakMB": 73.58,
+          "heapDeltaMB": 71.07,
+          "heapPeakMB": 73.54,
           "modulesLoaded": 400
         },
         {
           "variant": "zod",
           "count": 175,
-          "heapDeltaMB": 62.19,
-          "heapPeakMB": 64.66,
+          "heapDeltaMB": 62.15,
+          "heapPeakMB": 64.62,
           "modulesLoaded": 350
         },
         {
           "variant": "zod",
           "count": 188,
-          "heapDeltaMB": 66.73,
-          "heapPeakMB": 69.22,
+          "heapDeltaMB": 66.71,
+          "heapPeakMB": 69.18,
           "modulesLoaded": 376
         },
         {
           "variant": "zod",
           "count": 182,
-          "heapDeltaMB": 64.59,
-          "heapPeakMB": 67.08,
+          "heapDeltaMB": 64.57,
+          "heapPeakMB": 67.04,
           "modulesLoaded": 364
         },
         {
           "variant": "zod",
           "count": 179,
-          "heapDeltaMB": 63.87,
-          "heapPeakMB": 66.35,
+          "heapDeltaMB": 63.83,
+          "heapPeakMB": 66.3,
           "modulesLoaded": 358
         }
       ]
@@ -390,57 +390,57 @@
         {
           "variant": "zod + codegen",
           "count": 50,
-          "heapDeltaMB": 18.67,
-          "heapPeakMB": 21.14,
+          "heapDeltaMB": 18.63,
+          "heapPeakMB": 21.1,
           "modulesLoaded": 100
         },
         {
           "variant": "zod + codegen",
           "count": 100,
-          "heapDeltaMB": 36.1,
-          "heapPeakMB": 38.57,
+          "heapDeltaMB": 36.07,
+          "heapPeakMB": 38.53,
           "modulesLoaded": 200
         },
         {
           "variant": "zod + codegen",
           "count": 150,
-          "heapDeltaMB": 53.47,
-          "heapPeakMB": 55.94,
+          "heapDeltaMB": 53.42,
+          "heapPeakMB": 55.89,
           "modulesLoaded": 300
         },
         {
           "variant": "zod + codegen",
           "count": 200,
-          "heapDeltaMB": 71.12,
-          "heapPeakMB": 73.59,
+          "heapDeltaMB": 71.07,
+          "heapPeakMB": 73.54,
           "modulesLoaded": 400
         },
         {
           "variant": "zod + codegen",
           "count": 175,
-          "heapDeltaMB": 62.18,
-          "heapPeakMB": 64.67,
+          "heapDeltaMB": 62.14,
+          "heapPeakMB": 64.62,
           "modulesLoaded": 350
         },
         {
           "variant": "zod + codegen",
           "count": 188,
-          "heapDeltaMB": 66.75,
-          "heapPeakMB": 69.22,
+          "heapDeltaMB": 66.71,
+          "heapPeakMB": 69.18,
           "modulesLoaded": 376
         },
         {
           "variant": "zod + codegen",
           "count": 182,
-          "heapDeltaMB": 64.62,
-          "heapPeakMB": 67.1,
+          "heapDeltaMB": 64.57,
+          "heapPeakMB": 67.04,
           "modulesLoaded": 364
         },
         {
           "variant": "zod + codegen",
           "count": 179,
-          "heapDeltaMB": 63.86,
-          "heapPeakMB": 66.34,
+          "heapDeltaMB": 63.83,
+          "heapPeakMB": 66.3,
           "modulesLoaded": 358
         }
       ]
@@ -452,64 +452,64 @@
         {
           "variant": "zod + slim",
           "count": 50,
-          "heapDeltaMB": 14.19,
-          "heapPeakMB": 16.66,
+          "heapDeltaMB": 14.13,
+          "heapPeakMB": 16.61,
           "modulesLoaded": 100
         },
         {
           "variant": "zod + slim",
           "count": 100,
-          "heapDeltaMB": 27.09,
-          "heapPeakMB": 29.56,
+          "heapDeltaMB": 27.05,
+          "heapPeakMB": 29.52,
           "modulesLoaded": 200
         },
         {
           "variant": "zod + slim",
           "count": 150,
-          "heapDeltaMB": 39.9,
-          "heapPeakMB": 42.37,
+          "heapDeltaMB": 39.86,
+          "heapPeakMB": 42.32,
           "modulesLoaded": 300
         },
         {
           "variant": "zod + slim",
           "count": 200,
-          "heapDeltaMB": 53.03,
-          "heapPeakMB": 55.5,
+          "heapDeltaMB": 52.99,
+          "heapPeakMB": 55.46,
           "modulesLoaded": 400
         },
         {
           "variant": "zod + slim",
           "count": 250,
-          "heapDeltaMB": 65.7,
-          "heapPeakMB": 68.18,
+          "heapDeltaMB": 65.67,
+          "heapPeakMB": 68.14,
           "modulesLoaded": 500
         },
         {
           "variant": "zod + slim",
           "count": 225,
-          "heapDeltaMB": 59.36,
-          "heapPeakMB": 61.83,
+          "heapDeltaMB": 59.32,
+          "heapPeakMB": 61.8,
           "modulesLoaded": 450
         },
         {
           "variant": "zod + slim",
           "count": 238,
-          "heapDeltaMB": 62.47,
-          "heapPeakMB": 64.95,
+          "heapDeltaMB": 62.44,
+          "heapPeakMB": 64.92,
           "modulesLoaded": 476
         },
         {
           "variant": "zod + slim",
           "count": 244,
-          "heapDeltaMB": 64.06,
-          "heapPeakMB": 66.54,
+          "heapDeltaMB": 64.02,
+          "heapPeakMB": 66.5,
           "modulesLoaded": 488
         },
         {
           "variant": "zod + slim",
           "count": 241,
-          "heapDeltaMB": 63.32,
-          "heapPeakMB": 65.79,
+          "heapDeltaMB": 63.3,
+          "heapPeakMB": 65.76,
           "modulesLoaded": 482
         }
       ]
@@ -521,85 +521,85 @@
         {
           "variant": "mini",
           "count": 50,
-          "heapDeltaMB": 8.99,
-          "heapPeakMB": 11.29,
+          "heapDeltaMB": 8.95,
+          "heapPeakMB": 11.25,
           "modulesLoaded": 100
         },
         {
           "variant": "mini",
           "count": 100,
-          "heapDeltaMB": 17.01,
-          "heapPeakMB": 19.31,
+          "heapDeltaMB": 16.98,
+          "heapPeakMB": 19.27,
           "modulesLoaded": 200
         },
         {
           "variant": "mini",
           "count": 150,
-          "heapDeltaMB": 24.94,
-          "heapPeakMB": 27.25,
+          "heapDeltaMB": 24.91,
+          "heapPeakMB": 27.2,
           "modulesLoaded": 300
         },
         {
           "variant": "mini",
           "count": 200,
-          "heapDeltaMB": 33.01,
-          "heapPeakMB": 35.32,
+          "heapDeltaMB": 32.97,
+          "heapPeakMB": 35.27,
           "modulesLoaded": 400
         },
         {
           "variant": "mini",
           "count": 250,
-          "heapDeltaMB": 40.8,
-          "heapPeakMB": 43.11,
+          "heapDeltaMB": 40.78,
+          "heapPeakMB": 43.07,
           "modulesLoaded": 500
         },
         {
           "variant": "mini",
           "count": 300,
-          "heapDeltaMB": 48.75,
-          "heapPeakMB": 51.05,
+          "heapDeltaMB": 48.71,
+          "heapPeakMB": 51.01,
           "modulesLoaded": 600
         },
         {
           "variant": "mini",
           "count": 350,
-          "heapDeltaMB": 56.78,
-          "heapPeakMB": 59.08,
+          "heapDeltaMB": 56.77,
+          "heapPeakMB": 59.07,
           "modulesLoaded": 700
         },
         {
           "variant": "mini",
           "count": 400,
-          "heapDeltaMB": 64.68,
-          "heapPeakMB": 66.98,
+          "heapDeltaMB": 64.66,
+          "heapPeakMB": 66.95,
           "modulesLoaded": 800
         },
         {
           "variant": "mini",
           "count": 375,
-          "heapDeltaMB": 60.82,
-          "heapPeakMB": 63.13,
+          "heapDeltaMB": 60.8,
+          "heapPeakMB": 63.09,
           "modulesLoaded": 750
         },
         {
           "variant": "mini",
           "count": 388,
-          "heapDeltaMB": 62.75,
-          "heapPeakMB": 65.05,
+          "heapDeltaMB": 62.73,
+          "heapPeakMB": 65.02,
           "modulesLoaded": 776
         },
         {
           "variant": "mini",
           "count": 394,
           "heapDeltaMB": 63.69,
-          "heapPeakMB": 66,
+          "heapPeakMB": 65.99,
           "modulesLoaded": 788
         },
         {
           "variant": "mini",
           "count": 397,
-          "heapDeltaMB": 64.21,
-          "heapPeakMB": 66.52,
+          "heapDeltaMB": 64.19,
+          "heapPeakMB": 66.49,
           "modulesLoaded": 794
         }
       ]
@@ -611,106 +611,106 @@
         {
           "variant": "mini + slim",
           "count": 50,
-          "heapDeltaMB": 6.76,
-          "heapPeakMB": 9.07,
+          "heapDeltaMB": 6.73,
+          "heapPeakMB": 9.02,
           "modulesLoaded": 100
         },
         {
           "variant": "mini + slim",
           "count": 100,
-          "heapDeltaMB": 12.58,
-          "heapPeakMB": 14.88,
+          "heapDeltaMB": 12.55,
+          "heapPeakMB": 14.85,
           "modulesLoaded": 200
         },
         {
           "variant": "mini + slim",
           "count": 150,
-          "heapDeltaMB": 18.24,
-          "heapPeakMB": 20.54,
+          "heapDeltaMB": 18.2,
+          "heapPeakMB": 20.51,
           "modulesLoaded": 300
         },
         {
           "variant": "mini + slim",
           "count": 200,
-          "heapDeltaMB": 24.15,
-          "heapPeakMB": 26.45,
+          "heapDeltaMB": 24.12,
+          "heapPeakMB": 26.41,
           "modulesLoaded": 400
         },
         {
           "variant": "mini + slim",
           "count": 250,
-          "heapDeltaMB": 29.71,
-          "heapPeakMB": 32.02,
+          "heapDeltaMB": 29.69,
+          "heapPeakMB": 31.98,
           "modulesLoaded": 500
         },
         {
           "variant": "mini + slim",
           "count": 300,
-          "heapDeltaMB": 35.37,
-          "heapPeakMB": 37.67,
+          "heapDeltaMB": 35.34,
+          "heapPeakMB": 37.63,
           "modulesLoaded": 600
         },
         {
           "variant": "mini + slim",
           "count": 350,
-          "heapDeltaMB": 41.21,
-          "heapPeakMB": 43.51,
+          "heapDeltaMB": 41.19,
+          "heapPeakMB": 43.48,
           "modulesLoaded": 700
         },
         {
           "variant": "mini + slim",
           "count": 400,
-          "heapDeltaMB": 47.02,
-          "heapPeakMB": 49.33,
+          "heapDeltaMB": 47.01,
+          "heapPeakMB": 49.3,
           "modulesLoaded": 800
         },
         {
           "variant": "mini + slim",
           "count": 450,
-          "heapDeltaMB": 52.81,
-          "heapPeakMB": 55.12,
+          "heapDeltaMB": 52.8,
+          "heapPeakMB": 55.09,
           "modulesLoaded": 900
         },
         {
           "variant": "mini + slim",
           "count": 500,
-          "heapDeltaMB": 58.42,
-          "heapPeakMB": 60.73,
+          "heapDeltaMB": 58.4,
+          "heapPeakMB": 60.7,
           "modulesLoaded": 1000
         },
         {
           "variant": "mini + slim",
           "count": 550,
-          "heapDeltaMB": 64.16,
-          "heapPeakMB": 66.46,
+          "heapDeltaMB": 64.14,
+          "heapPeakMB": 66.43,
           "modulesLoaded": 1100
         },
         {
           "variant": "mini + slim",
           "count": 525,
-          "heapDeltaMB": 61.26,
-          "heapPeakMB": 63.56,
+          "heapDeltaMB": 61.24,
+          "heapPeakMB": 63.53,
           "modulesLoaded": 1050
         },
         {
           "variant": "mini + slim",
           "count": 538,
-          "heapDeltaMB": 62.75,
-          "heapPeakMB": 65.04,
+          "heapDeltaMB": 62.72,
+          "heapPeakMB": 65.01,
           "modulesLoaded": 1076
         },
         {
           "variant": "mini + slim",
           "count": 544,
-          "heapDeltaMB": 63.45,
-          "heapPeakMB": 65.76,
+          "heapDeltaMB": 63.43,
+          "heapPeakMB": 65.73,
           "modulesLoaded": 1088
         },
         {
           "variant": "mini + slim",
           "count": 547,
-          "heapDeltaMB": 63.8,
-          "heapPeakMB": 66.1,
+          "heapDeltaMB": 63.78,
+          "heapPeakMB": 66.07,
           "modulesLoaded": 1094
         }
       ]
