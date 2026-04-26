@@ -109,25 +109,20 @@ function containsCustom(schema: $ZodType, maxDepth = 50, currentDepth = 0): bool
   return result
 }
 
-export function normalizeDirectFunctionInput(input: DirectFunctionInput): {
-  /**
-   * Parseable schema for the args. When the caller passed a raw shape we
-   * leave this undefined — the wrapper will build `z.object(shape)` inside
-   * its handler so the ZodObject doesn't live in the wrapper's closure.
-   * When the caller passed a ZodObject we reuse it (no new allocation).
-   */
-  zodSchema: $ZodType | undefined
-  /**
-   * The raw shape the caller provided, for per-request parsing when
-   * `zodSchema` is undefined. Same shape used to build `convexArgs`.
-   */
-  argsShape: ZodValidator | undefined
-  convexArgs: Record<string, any>
-} {
+/**
+ * Discriminated union: either the caller gave us a parseable schema (eager —
+ * we keep their ZodObject), or they gave us a raw shape and the wrapper will
+ * build `z.object(shape)` inside its handler per request (lazy — keeps the
+ * ZodObject out of the wrapper's closure).
+ */
+export type NormalizedDirectInput =
+  | { zodSchema: $ZodType; argsShape?: undefined; convexArgs: Record<string, any> }
+  | { zodSchema?: undefined; argsShape: ZodValidator; convexArgs: Record<string, any> }
+
+export function normalizeDirectFunctionInput(input: DirectFunctionInput): NormalizedDirectInput {
   if (input instanceof $ZodObject) {
     return {
       zodSchema: input,
-      argsShape: undefined,
       convexArgs: zodToConvexFields(getObjectShape(input))
     }
   }
@@ -135,13 +130,11 @@ export function normalizeDirectFunctionInput(input: DirectFunctionInput): {
   if (input instanceof $ZodType) {
     return {
       zodSchema: z.object({ value: input as any }),
-      argsShape: undefined,
       convexArgs: { value: zodToConvex(input as any) }
     }
   }
 
   return {
-    zodSchema: undefined,
     argsShape: input,
     convexArgs: zodToConvexFields(input)
   }

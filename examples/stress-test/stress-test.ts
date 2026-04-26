@@ -75,6 +75,7 @@ function getVariants(flags: Flags): Variant[] {
     { name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false },
     { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false },
     { name: 'zod', flavor: 'zodvex', slim: false, mini: false, codegen: false },
+    { name: 'zod + codegen', flavor: 'zodvex', slim: false, mini: false, codegen: true },
     { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false, codegen: false },
     { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false },
     { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true, codegen: false },

@@ -52,11 +52,10 @@ ${tables}
     },
     buildFunctions(opts) {
       if (opts?.withCodegen) {
-        // Mirror the real-world codegen-using app pattern: static import of
-        // `_zodvex/api.js` so the registry's full Zod schemas land in the
-        // push-time module graph. The registry is wired into initZodvex via
-        // a thunk (only called at action invocation), but the static import
-        // is what costs memory at push time — exactly what we want to measure.
+        // Mirror the recommended codegen-using app pattern: dynamic-import
+        // `_zodvex/api.js` so the registry's full Zod schemas stay out of
+        // the push-time module graph. The registry resolves on first action
+        // invocation and is cached thereafter.
         return `import { initZodvex } from 'zodvex/server'
 import {
   query,
@@ -67,7 +66,6 @@ import {
   internalAction,
 } from '../_generated/server'
 import schema from './schema'
-import { zodvexRegistry } from './_zodvex/api.js'
 
 export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   query,
@@ -77,7 +75,7 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   internalMutation,
   internalAction,
 }, {
-  registry: () => zodvexRegistry,
+  registry: async () => (await import('./_zodvex/api.js')).zodvexRegistry,
 })
 `
       }
