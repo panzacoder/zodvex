@@ -3,16 +3,48 @@
 
 import { z } from 'zod/mini'
 import { zx, extractCodec } from 'zodvex/mini'
+import { ActivityModel } from '../models/activity.js'
 import { CommentModel } from '../models/comment.js'
 import { NotificationModel } from '../models/notification.js'
 import { TaskModel } from '../models/task.js'
 import { UserModel } from '../models/user.js'
-import { ActivityModel } from '../models/activity.js'
 import { zDuration } from '../codecs.js'
 
 const _userEmail = extractCodec(UserModel.schema.doc.shape.email)
 
 export const zodvexRegistry = {
+  'actions:health': {
+    args: undefined,
+    returns: z.string(),
+  },
+  'actions:ping': {
+    args: z.object({ message: z.string() }),
+    returns: z.string(),
+  },
+  'actions:resolveUserViaAction': {
+    args: z.object({ id: zx.id("users") }),
+    returns: z.union([z.string(), z.null()]),
+  },
+  'activities:get': {
+    args: z.object({ id: zx.id("activities") }),
+    returns: z.nullable(ActivityModel.schema.doc),
+  },
+  'activities:listByActor': {
+    args: z.object({ actorId: zx.id("users") }),
+    returns: ActivityModel.schema.docArray,
+  },
+  'activities:update': {
+    args: ActivityModel.schema.update,
+    returns: undefined,
+  },
+  'api/reports:summary': {
+    args: z.object({ ownerId: z.optional(zx.id("users")) }),
+    returns: z.object({ total: z.number(), done: z.number() }),
+  },
+  'api/reports:taskById': {
+    args: z.object({ id: zx.id("tasks") }),
+    returns: z.nullable(TaskModel.schema.doc),
+  },
   'comments:create': {
     args: z.object({ taskId: zx.id("tasks"), authorId: zx.id("users"), body: z.string() }),
     returns: zx.id("comments"),
@@ -20,6 +52,14 @@ export const zodvexRegistry = {
   'comments:list': {
     args: z.object({ taskId: zx.id("tasks") }),
     returns: zx.docArray(CommentModel),
+  },
+  'componentFunctions:getTaskById': {
+    args: z.object({ taskId: zx.id("tasks") }),
+    returns: undefined,
+  },
+  'componentFunctions:retryableAction': {
+    args: z.object({ taskId: zx.id("tasks"), attempt: z.optional(z.number()) }),
+    returns: undefined,
   },
   'filters:namedRecentUsers': {
     args: z.object({ after: zx.date() }),
@@ -69,52 +109,12 @@ export const zodvexRegistry = {
     args: z.object({ recipientId: zx.id("users"), kind: z.enum(["email", "push", "in_app"]) }),
     returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
   },
-  'actions:health': {
-    args: undefined,
-    returns: z.string(),
-  },
-  'actions:ping': {
-    args: z.object({ message: z.string() }),
-    returns: z.string(),
-  },
   'securedTasks:listOwnTasks': {
     args: z.object({ ownerId: zx.id("users") }),
     returns: z.array(z.object({ title: z.string(), description: z.optional(z.string()), status: z.enum(["todo", "in_progress", "done"]), priority: z.nullable(z.enum(["low", "medium", "high"])), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), completedAt: z.optional(zx.date()), estimate: z.optional(zDuration), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
   },
   'securedTasks:updateOwnTask': {
     args: z.object({ taskId: zx.id("tasks"), title: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), actorId: zx.id("users") }),
-    returns: undefined,
-  },
-  'api/reports:summary': {
-    args: z.object({ ownerId: z.optional(zx.id("users")) }),
-    returns: z.object({ total: z.number(), done: z.number() }),
-  },
-  'api/reports:taskById': {
-    args: z.object({ id: zx.id("tasks") }),
-    returns: z.nullable(TaskModel.schema.doc),
-  },
-  'componentFunctions:getTaskById': {
-    args: z.object({ taskId: zx.id("tasks") }),
-    returns: undefined,
-  },
-  'componentFunctions:retryableAction': {
-    args: z.object({ taskId: zx.id("tasks"), attempt: z.optional(z.number()) }),
-    returns: undefined,
-  },
-  'users:create': {
-    args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.optional(z.string()) }),
-    returns: zx.id("users"),
-  },
-  'users:get': {
-    args: z.object({ id: zx.id("users") }),
-    returns: z.nullable(UserModel.schema.doc),
-  },
-  'users:getByEmail': {
-    args: z.object({ email: _userEmail }),
-    returns: z.nullable(UserModel.schema.doc),
-  },
-  'users:update': {
-    args: UserModel.schema.update,
     returns: undefined,
   },
   'tasks:complete': {
@@ -141,16 +141,20 @@ export const zodvexRegistry = {
     args: z.object({ id: zx.id("tasks"), title: z.optional(z.string()), description: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), priority: z.optional(z.nullable(z.enum(["low", "medium", "high"]))), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration) }),
     returns: undefined,
   },
-  'activities:get': {
-    args: z.object({ id: zx.id("activities") }),
-    returns: z.nullable(ActivityModel.schema.doc),
+  'users:create': {
+    args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.optional(z.string()) }),
+    returns: zx.id("users"),
   },
-  'activities:listByActor': {
-    args: z.object({ actorId: zx.id("users") }),
-    returns: ActivityModel.schema.docArray,
+  'users:get': {
+    args: z.object({ id: zx.id("users") }),
+    returns: z.nullable(UserModel.schema.doc),
   },
-  'activities:update': {
-    args: ActivityModel.schema.update,
+  'users:getByEmail': {
+    args: z.object({ email: _userEmail }),
+    returns: z.nullable(UserModel.schema.doc),
+  },
+  'users:update': {
+    args: UserModel.schema.update,
     returns: undefined,
   },
 }

@@ -2,7 +2,7 @@
 // Run `zodvex generate` to regenerate
 
 export { ActivityModel } from '../models/activity.js'
-export { NotificationModel } from '../models/notification.js'
 export { CommentModel } from '../models/comment.js'
-export { UserModel } from '../models/user.js'
+export { NotificationModel } from '../models/notification.js'
 export { TaskModel } from '../models/task.js'
+export { UserModel } from '../models/user.js'

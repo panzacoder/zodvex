@@ -135,6 +135,17 @@ async function main() {
   assert(taskPage.page !== undefined, 'paginated result has page')
   assert(taskPage.page.length >= 1, 'at least one task in page')
 
+  // --- Part 3: Lazy registry import via action codec ---
+  console.log('\n3. Action codec — verifies lazy `_zodvex/api.js` import')
+
+  // resolveUserViaAction is a za() action that calls ctx.runQuery(api.users.get).
+  // The runQuery codec wrapping fires the registry thunk, which is now wired as
+  // `async () => (await import('./_zodvex/api.js')).zodvexRegistry` in the
+  // example's functions.ts. If the dynamic import fails for any reason (bundler
+  // stripping it, path resolution, registry-shape change), this throws.
+  const resolvedName = await client.action(api.actions.resolveUserViaAction, { id: userId })
+  assert(resolvedName === 'Smoke Test User', `action resolved user name via lazy registry: ${resolvedName}`)
+
   // --- Summary ---
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
   process.exit(failed > 0 ? 1 : 0)

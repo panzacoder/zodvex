@@ -219,6 +219,28 @@ function tableFromModel(model: ZodModelEntry) {
   return table
 }
 
+/**
+ * Build a `ZodTableSchemas` entry whose `doc` and `insert` schemas are
+ * constructed on first property access rather than at `defineZodSchema`
+ * time. Slim models force `zx.doc(entry)` / `zx.base(entry)` only when the
+ * DB wrapper actually reads them — pushing schema construction out of
+ * Convex's module-analysis phase and into request-time. Since `zx.*`
+ * memoizes per-Model on globalThis, the first read populates both the
+ * entry-level cache and the zx cache; subsequent reads are hash lookups.
+ */
+function createLazyTableEntry(entry: ZodModelEntry): ZodTableSchemas {
+  let docCache: $ZodType | undefined
+  let insertCache: $ZodType | undefined
+  return {
+    get doc() {
+      return (docCache ??= zx.doc(entry as any))
+    },
+    get insert() {
+      return (insertCache ??= zx.base(entry as any))
+    }
+  }
+}
+
 // ============================================================================
 // defineZodSchema
 // ============================================================================
@@ -275,8 +297,10 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
 
       // Only `doc` (read decode) and `insert` (write encode) are consumed at
       // runtime by the DB wrapper. Full models already carry `meta.schemas.doc`
-      // and `meta.schemas.insert` — alias them (no allocation). Slim models go
-      // through cached zx helpers, so `doc`/`base` allocate at most once each.
+      // and `meta.schemas.insert` — alias them (no allocation). Slim models
+      // defer to cached zx helpers, built on first property read so the
+      // push-time module-analysis phase doesn't force schema construction
+      // for tables the isolate never touches.
       const meta = getZodModelMeta(entry)
       if (meta.schemas) {
         zodTableMap[name] = {
@@ -284,10 +308,7 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
           insert: meta.schemas.insert
         }
       } else {
-        zodTableMap[name] = {
-          doc: zx.doc(entry),
-          insert: zx.base(entry)
-        }
+        zodTableMap[name] = createLazyTableEntry(entry)
       }
     } else {
       convexTables[name] = entry.table

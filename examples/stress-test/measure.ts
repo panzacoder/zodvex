@@ -7,9 +7,12 @@ import { join, resolve } from 'path'
 import { existsSync, readdirSync, writeFileSync, mkdirSync } from 'fs'
 import v8 from 'v8'
 
+type Flavor = 'zodvex' | 'convex' | 'convex-helpers' | 'convex-helpers-zod3'
+
 interface MeasureConfig {
   dir: string
   runtime: 'zod' | 'mini'
+  flavor: Flavor
   resultsFile?: string
 }
 
@@ -41,13 +44,14 @@ function parseArgs(): MeasureConfig {
   const dir = args.find(a => a.startsWith('--dir='))?.split('=')[1]
   if (!dir) throw new Error('--dir=<path> is required')
   const runtime = (args.find(a => a.startsWith('--runtime='))?.split('=')[1] ?? 'zod') as 'zod' | 'mini'
+  const flavor = (args.find(a => a.startsWith('--flavor='))?.split('=')[1] ?? 'zodvex') as Flavor
   const resultsFile = args.find(a => a.startsWith('--results='))?.split('=')[1]
-  return { dir, runtime, resultsFile }
+  return { dir, runtime, flavor, resultsFile }
 }
 
 export async function measure(config: MeasureConfig): Promise<MeasureResult> {
   const dir = resolve(config.dir)
-  const { runtime } = config
+  const { runtime, flavor } = config
 
   if (!existsSync(dir)) {
     throw new Error(`Directory not found: ${dir}`)
@@ -55,7 +59,22 @@ export async function measure(config: MeasureConfig): Promise<MeasureResult> {
 
   // Pre-import runtime libraries to baseline them out.
   // Must match the imports the composed code uses so we measure only schema creation.
-  if (runtime === 'mini') {
+  if (flavor === 'convex') {
+    await import('convex/server')
+    await import('convex/values')
+  } else if (flavor === 'convex-helpers') {
+    await import('convex/server')
+    await import('convex/values')
+    await import('zod')
+    await import('convex-helpers/server/zod4')
+    await import('convex-helpers/server/customFunctions')
+  } else if (flavor === 'convex-helpers-zod3') {
+    await import('convex/server')
+    await import('convex/values')
+    await import('zod/v3')
+    await import('convex-helpers/server/zod3')
+    await import('convex-helpers/server/customFunctions')
+  } else if (runtime === 'mini') {
     await import('zod/mini')
     await import('zodvex/mini')
     await import('zodvex/mini/server')

@@ -42,16 +42,41 @@ function normalizeFunctionMetaArgs(input: FunctionSchemaInput): z.ZodObject<any>
   return z.object(input)
 }
 
+/**
+ * Attach function metadata via lazy getters so we don't retain a wrapper
+ * ZodObject inside Convex's 64 MB push-time isolate. `meta.zodArgs` /
+ * `meta.zodReturns` are only ever read by codegen (extractCodec, discover,
+ * generate), which runs in a separate Node process. Building the wrapper
+ * there on first access costs nothing at push time.
+ */
 export function attachFunctionMeta(
   target: object,
   args: FunctionSchemaInput,
   returns: FunctionSchemaInput
 ): void {
-  attachMeta(target, {
-    type: 'function',
-    zodArgs: normalizeFunctionMetaArgs(args),
-    zodReturns: normalizeFunctionSchema(returns)
-  })
+  let cachedArgs: z.ZodObject<any> | undefined
+  let argsBuilt = false
+  let cachedReturns: $ZodType | undefined
+  let returnsBuilt = false
+
+  const meta = {
+    type: 'function' as const,
+    get zodArgs() {
+      if (!argsBuilt) {
+        cachedArgs = normalizeFunctionMetaArgs(args)
+        argsBuilt = true
+      }
+      return cachedArgs
+    },
+    get zodReturns() {
+      if (!returnsBuilt) {
+        cachedReturns = normalizeFunctionSchema(returns)
+        returnsBuilt = true
+      }
+      return cachedReturns
+    }
+  }
+  attachMeta(target, meta)
 }
 
 // Cache to avoid re-checking the same schema
@@ -84,10 +109,17 @@ function containsCustom(schema: $ZodType, maxDepth = 50, currentDepth = 0): bool
   return result
 }
 
-export function normalizeDirectFunctionInput(input: DirectFunctionInput): {
-  zodSchema: $ZodType
-  convexArgs: Record<string, any>
-} {
+/**
+ * Discriminated union: either the caller gave us a parseable schema (eager —
+ * we keep their ZodObject), or they gave us a raw shape and the wrapper will
+ * build `z.object(shape)` inside its handler per request (lazy — keeps the
+ * ZodObject out of the wrapper's closure).
+ */
+export type NormalizedDirectInput =
+  | { zodSchema: $ZodType; argsShape?: undefined; convexArgs: Record<string, any> }
+  | { zodSchema?: undefined; argsShape: ZodValidator; convexArgs: Record<string, any> }
+
+export function normalizeDirectFunctionInput(input: DirectFunctionInput): NormalizedDirectInput {
   if (input instanceof $ZodObject) {
     return {
       zodSchema: input,
@@ -103,14 +135,14 @@ export function normalizeDirectFunctionInput(input: DirectFunctionInput): {
   }
 
   return {
-    zodSchema: z.object(input),
+    argsShape: input,
     convexArgs: zodToConvexFields(input)
   }
 }
 
 export function normalizeCustomArgsValidator(args: ZodValidator | $ZodObject): {
   argsValidator: ZodValidator
-  argsSchema: $ZodObject
+  argsSchema: $ZodObject | undefined
 } {
   if (args instanceof $ZodType) {
     if (args instanceof $ZodObject) {
@@ -124,9 +156,13 @@ export function normalizeCustomArgsValidator(args: ZodValidator | $ZodObject): {
     )
   }
 
+  // User passed a raw shape — don't eagerly build z.object(args) here. The
+  // wrapper (custom.ts / wrappers.ts) builds it per request inside the
+  // handler body, matching convex-helpers' pattern. This keeps ~25 KB per
+  // function out of the retained push-time isolate.
   return {
     argsValidator: args,
-    argsSchema: z.object(args)
+    argsSchema: undefined
   }
 }
 

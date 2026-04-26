@@ -1,4 +1,6 @@
 import { z } from 'zod/mini'
+import { zx } from 'zodvex/mini'
+import { api } from './_generated/api'
 import { za } from './functions'
 
 // Simple action with .withContext() to verify action context types work.
@@ -31,4 +33,20 @@ export const health = za({
     return identity ? 'authenticated' : 'anonymous'
   },
   returns: z.string(),
+})
+
+// Exercises the registry path: `ctx.runQuery` goes through the boundary codec,
+// which forces the lazy `() => (await import('./_zodvex/api.js')).zodvexRegistry`
+// thunk to resolve. If the dynamic import is broken (path mismatch, bundler
+// stripping, registry shape change), this action throws.
+//
+// Used by test/smoke.ts to verify the lazy-import pattern survives a real
+// Convex deploy.
+export const resolveUserViaAction = za({
+  args: { id: zx.id('users') },
+  handler: async (ctx, { id }): Promise<string | null> => {
+    const user = await ctx.runQuery(api.users.get, { id })
+    return user?.name ?? null
+  },
+  returns: z.union([z.string(), z.null()]),
 })

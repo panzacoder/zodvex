@@ -12,10 +12,16 @@ const RESULTS_DIR = join(ROOT, 'results')
 
 // --- Flag Parsing ---
 
+type Flavor = 'zodvex' | 'convex' | 'convex-helpers' | 'convex-helpers-zod3'
+
 interface Flags {
   count?: number
   slim: boolean
   mini: boolean
+  codegen: boolean
+  convex: boolean
+  convexHelpers: boolean
+  convexHelpersZod3: boolean
   deploy: boolean
   budget: number
 }
@@ -26,6 +32,10 @@ function parseFlags(): Flags {
     count: args.find(a => a.startsWith('--count=')) ? parseInt(args.find(a => a.startsWith('--count='))!.split('=')[1]) : undefined,
     slim: args.includes('--slim'),
     mini: args.includes('--mini'),
+    codegen: args.includes('--codegen'),
+    convex: args.includes('--convex'),
+    convexHelpers: args.includes('--convex-helpers'),
+    convexHelpersZod3: args.includes('--convex-helpers-zod3'),
     deploy: args.includes('--deploy'),
     budget: parseInt(args.find(a => a.startsWith('--budget='))?.split('=')[1] ?? '64'),
   }
@@ -35,27 +45,49 @@ function parseFlags(): Flags {
 
 interface Variant {
   name: string
+  flavor: Flavor
   slim: boolean
   mini: boolean
+  codegen: boolean
 }
 
 function getVariants(flags: Flags): Variant[] {
-  if (flags.slim || flags.mini) {
-    return [{ name: variantName(flags.slim, flags.mini), slim: flags.slim, mini: flags.mini }]
+  if (flags.convex) {
+    return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false }]
+  }
+  if (flags.convexHelpers) {
+    return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false }]
+  }
+  if (flags.convexHelpersZod3) {
+    return [{ name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false }]
+  }
+  if (flags.slim || flags.mini || flags.codegen) {
+    return [{
+      name: zodvexVariantName(flags.slim, flags.mini, flags.codegen),
+      flavor: 'zodvex',
+      slim: flags.slim,
+      mini: flags.mini,
+      codegen: flags.codegen,
+    }]
   }
   return [
-    { name: 'zod', slim: false, mini: false },
-    { name: 'zod + slim', slim: true, mini: false },
-    { name: 'mini', slim: false, mini: true },
-    { name: 'mini + slim', slim: true, mini: true },
+    { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false },
+    { name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false },
+    { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false },
+    { name: 'zod', flavor: 'zodvex', slim: false, mini: false, codegen: false },
+    { name: 'zod + codegen', flavor: 'zodvex', slim: false, mini: false, codegen: true },
+    { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false, codegen: false },
+    { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false },
+    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true, codegen: false },
   ]
 }
 
-function variantName(slim: boolean, mini: boolean): string {
-  if (slim && mini) return 'mini + slim'
-  if (slim) return 'zod + slim'
-  if (mini) return 'mini'
-  return 'zod'
+function zodvexVariantName(slim: boolean, mini: boolean, codegen: boolean): string {
+  const parts: string[] = []
+  parts.push(mini ? 'mini' : 'zod')
+  if (slim) parts.push('slim')
+  if (codegen) parts.push('codegen')
+  return parts.join(' + ')
 }
 
 // --- Compile (zod → mini) ---
@@ -130,21 +162,32 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
 
   try {
     // Compose
-    execSync(`bun run compose.ts --count=${count} --output=${COMPOSED_DIR}`, {
+    const codegenFlag = variant.codegen ? ' --with-codegen' : ''
+    execSync(`bun run compose.ts --count=${count} --flavor=${variant.flavor}${codegenFlag} --output=${COMPOSED_DIR}`, {
       cwd: ROOT, stdio: 'pipe', timeout: 60_000,
     })
 
-    // Compile if mini
+    // Compile if mini (zodvex flavor only — convex seeds have no zod to transform)
     let measureDir = COMPOSED_DIR
     if (variant.mini) {
       compileDirectory(COMPOSED_DIR, COMPILED_DIR)
       measureDir = COMPILED_DIR
     }
 
+    // Run real `zodvex generate` so the push-time graph includes the
+    // codegen-emitted `_zodvex/api.js` (which redeclares Zod schemas inline
+    // for every function). This is what real codegen-using apps pay.
+    if (variant.codegen) {
+      const miniFlag = variant.mini ? ' --mini' : ''
+      execSync(`bunx zodvex generate ${measureDir}${miniFlag}`, {
+        cwd: ROOT, stdio: 'pipe', timeout: 120_000,
+      })
+    }
+
     // Measure in subprocess
     const runtime = variant.mini ? 'mini' : 'zod'
     execSync(
-      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime} --results=${resultsFile}`,
+      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime} --flavor=${variant.flavor} --results=${resultsFile}`,
       { cwd: ROOT, encoding: 'utf-8', timeout: 120_000, env }
     )
 
@@ -174,10 +217,14 @@ function findCeiling(variant: Variant, budget: number): { ceiling: number; point
 
   const points: MeasurePoint[] = []
   let lastGood = 0
-  let hi = 500
+  // Convex baseline has ~zero per-model overhead beyond validators — the
+  // ceiling can be much higher than zodvex's, so probe further.
+  const initialHi = variant.flavor === 'convex' ? 10_000 : 1000
+  const step = variant.flavor === 'convex' ? 500 : 50
+  let hi = initialHi
 
-  // Coarse pass: step by 50
-  for (let count = 50; count <= hi; count += 50) {
+  // Coarse pass
+  for (let count = step; count <= hi; count += step) {
     const point = measureAtCount(count, variant)
     if (!point) { hi = count; break }
     points.push(point)
@@ -188,6 +235,13 @@ function findCeiling(variant: Variant, budget: number): { ceiling: number; point
       hi = count
       break
     }
+  }
+
+  // If we exhausted the coarse range without overshooting, we can't pinpoint
+  // a ceiling — report the largest passing count we saw.
+  if (lastGood > 0 && lastGood === hi) {
+    console.log(`  → Reached probe cap at ${lastGood} endpoints without exceeding ${budget} MB`)
+    return { ceiling: lastGood, points }
   }
 
   if (lastGood === 0) return { ceiling: 0, points }
@@ -217,6 +271,21 @@ function findCeiling(variant: Variant, budget: number): { ceiling: number; point
 
 // --- Report ---
 
+/**
+ * Per-endpoint cost in KB, computed as the slope between the first and last
+ * passing points so fixed overhead (runtime, functions.ts, etc.) is excluded.
+ * This is the number that actually drives the ceiling — heap at the ceiling
+ * itself is tautological (≈ budget by construction).
+ */
+function perEndpointKB(points: MeasurePoint[]): number | null {
+  if (points.length < 2) return null
+  const sorted = [...points].sort((a, b) => a.count - b.count)
+  const a = sorted[0]
+  const b = sorted[sorted.length - 1]
+  if (b.count === a.count) return null
+  return ((b.heapDeltaMB - a.heapDeltaMB) / (b.count - a.count)) * 1024
+}
+
 function writeReport(
   results: { variant: string; ceiling: number; points: MeasurePoint[] }[],
   budget: number
@@ -231,13 +300,17 @@ function writeReport(
     '',
     '## OOM Ceilings',
     '',
-    '| Variant | Max Endpoints | Heap at Ceiling (MB) |',
-    '|---------|--------------|---------------------|',
+    '`per-endpoint` is the slope between the smallest and largest passing',
+    'measurements — the incremental cost of adding one model. Heap at the',
+    'ceiling itself is always ≈ budget by construction, so it\'s omitted here.',
+    '',
+    '| Variant | Max Endpoints | Per-endpoint (KB) |',
+    '|---------|--------------|-------------------|',
   ]
 
   for (const r of results) {
-    const ceilingPoint = r.points.find(p => p.count === r.ceiling)
-    lines.push(`| ${r.variant} | ${r.ceiling} | ${ceilingPoint?.heapDeltaMB.toFixed(2) ?? 'n/a'} |`)
+    const perEp = perEndpointKB(r.points)
+    lines.push(`| ${r.variant} | ${r.ceiling} | ${perEp !== null ? perEp.toFixed(1) : 'n/a'} |`)
   }
 
   lines.push('', '## All Measurements', '')
@@ -302,11 +375,11 @@ async function main() {
   console.log('\n' + '='.repeat(60))
   console.log('RESULTS')
   console.log('='.repeat(60))
-  console.log(`\n| Variant | Ceiling (endpoints) | Heap at ceiling (MB) |`)
+  console.log(`\n| Variant | Ceiling (endpoints) | Per-endpoint (KB) |`)
   console.log(`|---------|--------------------|--------------------|`)
   for (const r of results) {
-    const p = r.points.find(p => p.count === r.ceiling)
-    console.log(`| ${r.variant} | ${r.ceiling} | ${p?.heapDeltaMB.toFixed(2) ?? 'n/a'} |`)
+    const perEp = perEndpointKB(r.points)
+    console.log(`| ${r.variant} | ${r.ceiling} | ${perEp !== null ? perEp.toFixed(1) : 'n/a'} |`)
   }
 
   writeReport(results, flags.budget)

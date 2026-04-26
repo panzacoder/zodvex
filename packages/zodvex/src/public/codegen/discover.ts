@@ -388,6 +388,29 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
 
     const functionCodecs = walkFunctionCodecs(functions)
 
+    // Sort everything by a stable key so codegen output is deterministic
+    // across platforms. (`globSync` ordering varies between filesystems —
+    // committed `_zodvex/*.js` would otherwise drift between CI and local
+    // runs and trip `git diff --exit-code` checks.)
+    models.sort((a, b) => a.sourceFile.localeCompare(b.sourceFile))
+    functions.sort((a, b) => a.functionPath.localeCompare(b.functionPath))
+    codecs.sort(
+      (a, b) => a.sourceFile.localeCompare(b.sourceFile) || a.exportName.localeCompare(b.exportName)
+    )
+    modelCodecs.sort(
+      (a, b) =>
+        a.modelExportName.localeCompare(b.modelExportName) ||
+        a.schemaKey.localeCompare(b.schemaKey) ||
+        a.accessPath.localeCompare(b.accessPath)
+    )
+    functionCodecs.sort(
+      (a, b) =>
+        a.functionExportName.localeCompare(b.functionExportName) ||
+        a.functionSourceFile.localeCompare(b.functionSourceFile) ||
+        a.schemaSource.localeCompare(b.schemaSource) ||
+        a.accessPath.localeCompare(b.accessPath)
+    )
+
     return { models, functions, codecs, modelCodecs, functionCodecs }
   } finally {
     cleanupStubs()

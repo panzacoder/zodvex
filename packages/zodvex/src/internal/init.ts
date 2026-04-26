@@ -127,7 +127,7 @@ export function initZodvex<DM extends GenericDataModel>(
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options: { wrapDb: false; registry?: () => AnyRegistry }
+  options: { wrapDb: false; registry?: () => AnyRegistry | Promise<AnyRegistry> }
 ): {
   zq: ZodvexBuilder<'query', NoCodecCtx, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<'mutation', NoCodecCtx, GenericMutationCtx<DM>, 'public'>
@@ -153,7 +153,7 @@ export function initZodvex<
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options?: { wrapDb?: true; registry?: () => AnyRegistry }
+  options?: { wrapDb?: true; registry?: () => AnyRegistry | Promise<AnyRegistry> }
 ): {
   zq: ZodvexBuilder<'query', { db: ZodvexDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<
@@ -177,7 +177,7 @@ export function initZodvex<
 export function initZodvex(
   schema: { __zodTableMap: ZodTableMap },
   server: InitServerBuilders,
-  options?: { wrapDb?: boolean; registry?: () => AnyRegistry }
+  options?: { wrapDb?: boolean; registry?: () => AnyRegistry | Promise<AnyRegistry> }
 ) {
   const codec = createZodvexCustomization(schema.__zodTableMap)
   const noOp = createNoOpCustomization()
@@ -198,17 +198,25 @@ function createNoOpCustomization(): InternalCustomization {
 }
 
 function createActionCustomization(
-  registryThunk: (() => AnyRegistry) | undefined,
+  registryThunk: (() => AnyRegistry | Promise<AnyRegistry>) | undefined,
   noOp: InternalCustomization
 ): InternalCustomization {
   if (!registryThunk) {
     return noOp
   }
 
+  // Cache the resolved registry across action invocations. When the user wires
+  // `registry: async () => (await import('./_zodvex/api.js')).zodvexRegistry`,
+  // the dynamic import only fires on the first action call — subsequent calls
+  // hit the cached value. This pattern keeps the heavy `_zodvex/api.js` schemas
+  // out of the push-time module graph entirely.
+  let cachedRegistry: AnyRegistry | undefined
+
   return {
     args: {} as Record<string, never>,
     input: async (ctx: any) => {
-      const wrapped = createZodvexActionCtx(registryThunk(), ctx)
+      cachedRegistry ??= await registryThunk()
+      const wrapped = createZodvexActionCtx(cachedRegistry, ctx)
       return {
         ctx: { runQuery: wrapped.runQuery, runMutation: wrapped.runMutation },
         args: {}

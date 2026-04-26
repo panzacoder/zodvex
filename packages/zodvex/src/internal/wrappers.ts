@@ -4,6 +4,7 @@ import type {
   RegisteredMutation,
   RegisteredQuery
 } from 'convex/server'
+import { z } from 'zod'
 import {
   assertFunctionSchemas,
   createConvexReturnsValidator,
@@ -35,17 +36,26 @@ function registerZodFunction<
   ) => InferHandlerReturns<R> | Promise<InferHandlerReturns<R>>,
   options?: { returns?: R }
 ): any {
-  const { zodSchema, convexArgs } = normalizeDirectFunctionInput(input)
+  const normalized = normalizeDirectFunctionInput(input)
+  const { convexArgs } = normalized
   const returnsSchema = options?.returns as $ZodType | undefined
   const returns = createConvexReturnsValidator(returnsSchema, { skipCustomSchemas: true })
 
-  assertFunctionSchemas(zodSchema, returnsSchema)
+  // Run the guard once with a temp ZodObject when the caller passed a raw
+  // shape — the temp is never retained in the closure.
+  const guardSchema = normalized.zodSchema ?? z.object(normalized.argsShape)
+  assertFunctionSchemas(guardSchema, returnsSchema)
 
   return builder({
     args: convexArgs,
     returns,
     handler: async (ctx: any, argsObject: unknown) => {
-      const parsed = parseFunctionArgsOrThrow(zodSchema, argsObject)
+      // Build the ZodObject per request when the caller passed a raw shape;
+      // reuse the caller's schema when they provided one. This matches
+      // convex-helpers' pattern and keeps the wrapper's closure free of a
+      // retained ZodObject inside the push-time isolate.
+      const parseSchema = normalized.zodSchema ?? z.object(normalized.argsShape)
+      const parsed = parseFunctionArgsOrThrow(parseSchema, argsObject)
       const raw = await handler(ctx, parsed)
       return finalizeFunctionReturn(raw, { returns: returnsSchema })
     }

@@ -8,7 +8,6 @@ import {
   internalAction,
 } from './_generated/server'
 import schema from './schema'
-import { zodvexRegistry } from './_zodvex/api.js'
 
 export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   query,
@@ -18,5 +17,8 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   internalMutation,
   internalAction,
 }, {
-  registry: () => zodvexRegistry,
+  // Dynamic import keeps `_zodvex/api.js` (which redeclares Zod schemas
+  // for every registered function) out of the push-time isolate graph.
+  // The registry is loaded once, on first action invocation, and cached.
+  registry: async () => (await import('./_zodvex/api.js')).zodvexRegistry,
 })
