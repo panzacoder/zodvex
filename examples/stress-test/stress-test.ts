@@ -9,6 +9,10 @@ const ROOT = fileURLToPath(new URL('.', import.meta.url))
 const COMPOSED_DIR = join(ROOT, 'convex', 'composed')
 const COMPILED_DIR = join(ROOT, 'convex', 'compiled')
 const RESULTS_DIR = join(ROOT, 'results')
+// Use the workspace dev build of zodvex CLI directly. `bunx zodvex` resolves
+// to whatever version is cached globally, which won't have unreleased
+// subcommands (e.g. `compile`).
+const ZODVEX_CLI = join(ROOT, '..', '..', 'packages', 'zodvex', 'dist', 'cli', 'index.js')
 
 // --- Flag Parsing ---
 
@@ -19,6 +23,7 @@ interface Flags {
   slim: boolean
   mini: boolean
   codegen: boolean
+  compile: boolean
   convex: boolean
   convexHelpers: boolean
   convexHelpersZod3: boolean
@@ -33,6 +38,7 @@ function parseFlags(): Flags {
     slim: args.includes('--slim'),
     mini: args.includes('--mini'),
     codegen: args.includes('--codegen'),
+    compile: args.includes('--compile'),
     convex: args.includes('--convex'),
     convexHelpers: args.includes('--convex-helpers'),
     convexHelpersZod3: args.includes('--convex-helpers-zod3'),
@@ -49,44 +55,48 @@ interface Variant {
   slim: boolean
   mini: boolean
   codegen: boolean
+  compile: boolean
 }
 
 function getVariants(flags: Flags): Variant[] {
   if (flags.convex) {
-    return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false }]
+    return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false, compile: false }]
   }
   if (flags.convexHelpers) {
-    return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false }]
+    return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false, compile: false }]
   }
   if (flags.convexHelpersZod3) {
-    return [{ name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false }]
+    return [{ name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false, compile: false }]
   }
-  if (flags.slim || flags.mini || flags.codegen) {
+  if (flags.slim || flags.mini || flags.codegen || flags.compile) {
     return [{
-      name: zodvexVariantName(flags.slim, flags.mini, flags.codegen),
+      name: zodvexVariantName(flags.slim, flags.mini, flags.codegen, flags.compile),
       flavor: 'zodvex',
       slim: flags.slim,
       mini: flags.mini,
       codegen: flags.codegen,
+      compile: flags.compile,
     }]
   }
   return [
-    { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false },
-    { name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false },
-    { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false },
-    { name: 'zod', flavor: 'zodvex', slim: false, mini: false, codegen: false },
-    { name: 'zod + codegen', flavor: 'zodvex', slim: false, mini: false, codegen: true },
-    { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false, codegen: false },
-    { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false },
-    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true, codegen: false },
+    { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false, compile: false },
+    { name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false, compile: false },
+    { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false, compile: false },
+    { name: 'zod', flavor: 'zodvex', slim: false, mini: false, codegen: false, compile: false },
+    { name: 'zod + codegen', flavor: 'zodvex', slim: false, mini: false, codegen: true, compile: false },
+    { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false, codegen: false, compile: false },
+    { name: 'zod + compile', flavor: 'zodvex', slim: false, mini: false, codegen: false, compile: true },
+    { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false, compile: false },
+    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true, codegen: false, compile: false },
   ]
 }
 
-function zodvexVariantName(slim: boolean, mini: boolean, codegen: boolean): string {
+function zodvexVariantName(slim: boolean, mini: boolean, codegen: boolean, compile: boolean): string {
   const parts: string[] = []
   parts.push(mini ? 'mini' : 'zod')
   if (slim) parts.push('slim')
   if (codegen) parts.push('codegen')
+  if (compile) parts.push('compile')
   return parts.join(' + ')
 }
 
@@ -179,7 +189,16 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
     // for every function). This is what real codegen-using apps pay.
     if (variant.codegen) {
       const miniFlag = variant.mini ? ' --mini' : ''
-      execSync(`bunx zodvex generate ${measureDir}${miniFlag}`, {
+      execSync(`bun ${ZODVEX_CLI} generate ${measureDir}${miniFlag}`, {
+        cwd: ROOT, stdio: 'pipe', timeout: 120_000,
+      })
+    }
+
+    // Run `zodvex compile` to rewrite zq/zm/za call sites into vanilla Convex
+    // builders with pre-extracted v.* validator literals. The push-time isolate
+    // then carries only Convex validators, not retained Zod schemas.
+    if (variant.compile) {
+      execSync(`bun ${ZODVEX_CLI} compile ${measureDir}`, {
         cwd: ROOT, stdio: 'pipe', timeout: 120_000,
       })
     }
