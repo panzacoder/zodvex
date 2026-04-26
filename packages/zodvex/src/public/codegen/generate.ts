@@ -418,7 +418,9 @@ export function generateApiFile(
     imports.push(`import { ${coreImports.join(', ')} } from '${zodvexImport}'`)
   }
 
-  for (const exportName of neededModelImports) {
+  // Sort model imports by export name so output is stable across platforms
+  // (Set insertion order otherwise depends on globSync filesystem ordering).
+  for (const exportName of [...neededModelImports].sort()) {
     const model = models.find(m => m.exportName === exportName)
     if (model) {
       const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
@@ -426,8 +428,12 @@ export function generateApiFile(
     }
   }
 
-  // Codec imports (collected by zodToSource via context)
-  for (const [importPath, exportNames] of zodToSourceCtx.neededCodecImports) {
+  // Codec imports (collected by zodToSource via context). Sorted by import
+  // path for stable output.
+  const codecImportPaths = [...zodToSourceCtx.neededCodecImports.entries()].sort(([a], [b]) =>
+    a.localeCompare(b)
+  )
+  for (const [importPath, exportNames] of codecImportPaths) {
     if (importPath === MODEL_CODEC_SENTINEL) continue
     const names = Array.from(exportNames).sort().join(', ')
     imports.push(`import { ${names} } from '${importPath}'`)

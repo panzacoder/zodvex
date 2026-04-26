@@ -135,6 +135,12 @@ async function main() {
   assert(taskPage.page !== undefined, 'paginated result has page')
   assert(taskPage.page.length >= 1, 'at least one task in page')
 
+  // --- Part 3: Lazy registry import via action codec ---
+  console.log('\n3. Action codec — verifies lazy `_zodvex/api.js` import')
+
+  const resolvedName = await client.action(api.actions.resolveUserViaAction, { id: userId })
+  assert(resolvedName === 'Smoke Test User', `action resolved user name via lazy registry: ${resolvedName}`)
+
   // --- Summary ---
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
   process.exit(failed > 0 ? 1 : 0)
