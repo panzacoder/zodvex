@@ -65,6 +65,24 @@ async function main() {
       await runToMiniCodemod(targetDir, { dryRun })
       break
     }
+    case 'compile': {
+      const dryRun = process.argv.includes('--dry-run')
+      const verbose = process.argv.includes('--verbose')
+      const targetDir = process.argv.slice(3).find(a => !a.startsWith('--')) ?? 'convex'
+      // Lazy import — pulls in ts-morph only when compile is used
+      const { runCompile } = await import('./compile')
+      const result = await runCompile(targetDir, { dryRun, verbose })
+      if (result.skipped > 0) {
+        console.log(
+          `[zodvex compile] ${result.transformedCalls} call(s) transformed across ${result.filesChanged} file(s); ${result.skipped} call(s) skipped (unsupported shape)`
+        )
+      } else {
+        console.log(
+          `[zodvex compile] ${result.transformedCalls} call(s) transformed across ${result.filesChanged} file(s)`
+        )
+      }
+      break
+    }
     case 'help':
     case '--help':
     case '-h':
@@ -90,6 +108,9 @@ Usage:
   zodvex migrate [dir] --dry-run         Preview changes without writing
   zodvex codemod --to-mini [dir]           Convert full-zod code to zod/mini syntax
   zodvex codemod --to-mini [dir] --dry-run Preview changes without writing
+  zodvex compile [dir]                   Compile zq/zm/za to vanilla Convex (push-time memory)
+  zodvex compile [dir] --dry-run         Preview changes without writing
+  zodvex compile [dir] --verbose         Print every transformed/skipped call site
   zodvex help                            Show this help message
 
 Flags:
