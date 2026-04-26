@@ -25,7 +25,11 @@ export type DiscoveredModel = {
   tableName: string
   sourceFile: string
   schemas: ZodvexModelMeta['schemas']
-  /** @internal For slim models — used to reconstruct schemas at codegen time. */
+  /**
+   * @internal The live model object. Used by codegen (slim path: reconstruct
+   * schemas from fields) and by `zodvex compile` (read fields/indexes directly
+   * to emit Convex source).
+   */
   _modelRef?: unknown
 }
 
@@ -332,7 +336,7 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
                   tableName: meta.tableName,
                   sourceFile: file,
                   schemas: meta.schemas,
-                  _modelRef: meta.schemas ? undefined : value
+                  _modelRef: value
                 }
               }
               // If existing is direct and new is barrel, skip
@@ -342,7 +346,7 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
                 tableName: meta.tableName,
                 sourceFile: file,
                 schemas: meta.schemas,
-                _modelRef: meta.schemas ? undefined : value
+                _modelRef: value
               })
             }
           } else if (meta.type === 'function') {

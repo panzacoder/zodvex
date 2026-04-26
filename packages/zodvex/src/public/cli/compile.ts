@@ -18,7 +18,7 @@ import path from 'node:path'
 import { globSync } from 'tinyglobby'
 import { zodToConvex, zodToConvexFields } from '../../internal/mapping'
 import { $ZodObject } from '../../internal/zod-core'
-import { type DiscoveredFunction, discoverModules } from '../codegen/discover'
+import { type DiscoveredFunction, type DiscoveredModel, discoverModules } from '../codegen/discover'
 import { convexArgsToSource, convexValidatorToSource } from './compileSerialize'
 
 const ZQ_NAMES = ['zq', 'zm', 'za', 'ziq', 'zim', 'zia'] as const
@@ -65,12 +65,8 @@ export async function runCompile(
   )
 
   const discovered = await discoverModules(convexDir)
-  if (discovered.functions.length === 0) {
-    console.log('[zodvex compile] No zodvex functions found.')
-    return { filesChanged: 0, transformedCalls: 0, skipped: 0 }
-  }
 
-  // Index functions by source file → exportName for fast lookup during AST walk.
+  // Build per-file indexes so each file is touched exactly once.
   const fnIndex = new Map<string, Map<string, ResolvedFunction>>()
   for (const fn of discovered.functions) {
     const resolved = resolveFunctionToConvexSource(fn, options.verbose)
@@ -82,8 +78,28 @@ export async function runCompile(
     bucket.set(fn.exportName, resolved)
   }
 
-  // Collect candidate files: only ones that have at least one zodvex function meta.
-  const candidateFiles = [...fnIndex.keys()]
+  const modelIndex = new Map<string, Map<string, ResolvedModel>>()
+  for (const m of discovered.models) {
+    const resolved = resolveModelToConvexSource(m, options.verbose)
+    if (!resolved) continue
+    let bucket = modelIndex.get(m.sourceFile)
+    if (!bucket) {
+      bucket = new Map()
+      modelIndex.set(m.sourceFile, bucket)
+    }
+    bucket.set(m.exportName, resolved)
+  }
+
+  // Schema files: any .ts file that imports `defineZodSchema` from
+  // `'zodvex'` / `'zodvex/server'`. Scan globally so we catch the user's
+  // schema.ts even if it has no zodvex meta of its own.
+  const schemaFiles = findSchemaFiles(convexDir)
+
+  const candidateFiles = new Set<string>([...fnIndex.keys(), ...modelIndex.keys(), ...schemaFiles])
+  if (candidateFiles.size === 0) {
+    console.log('[zodvex compile] No zodvex usages found.')
+    return { filesChanged: 0, transformedCalls: 0, skipped: 0 }
+  }
 
   const project = new Project({
     useInMemoryFileSystem: false,
@@ -91,19 +107,34 @@ export async function runCompile(
     compilerOptions: { allowJs: true, target: 99 } // ESNext
   })
 
+  // Add ALL .ts files in convexDir to the project so the cross-file prune
+  // pass below has the full picture of which exports are still referenced.
+  const allFiles = globSync(['**/*.ts'], {
+    cwd: convexDir,
+    ignore: ['_generated/**', '_zodvex/**', 'node_modules/**', '**/*.d.ts']
+  })
+  for (const rel of allFiles) {
+    const abs = path.resolve(convexDir, rel)
+    project.addSourceFileAtPath(abs)
+  }
+
   let filesChanged = 0
   let transformedCalls = 0
   let skipped = 0
+
+  const transformedFiles = new Set<import('ts-morph').SourceFile>()
 
   for (const relFile of candidateFiles) {
     const absFile = path.resolve(convexDir, relFile)
     if (!fs.existsSync(absFile)) continue
 
-    const sf = project.addSourceFileAtPath(absFile)
-    const bucket = fnIndex.get(relFile)
-    if (!bucket) continue
+    const sf = project.getSourceFile(absFile)
+    if (!sf) continue
+    const fnBucket = fnIndex.get(relFile)
+    const modelBucket = modelIndex.get(relFile)
+    const isSchemaFile = schemaFiles.has(relFile)
 
-    const result = transformSourceFile(sf, bucket, {
+    const result = transformSourceFile(sf, fnBucket, modelBucket, isSchemaFile, {
       convexDir,
       verbose: options.verbose
     })
@@ -111,21 +142,168 @@ export async function runCompile(
     if (result.transformed > 0) {
       filesChanged++
       transformedCalls += result.transformed
-      if (options.dryRun) {
-        if (options.verbose) {
-          console.log(`  would change: ${relFile} (${result.transformed} call(s))`)
-        }
-      } else {
-        sf.saveSync()
-        if (options.verbose) {
-          console.log(`  changed: ${relFile} (${result.transformed} call(s))`)
-        }
-      }
+      transformedFiles.add(sf)
     }
     skipped += result.skipped
   }
 
+  // Cross-file prune pass: any exported declaration in a transformed file
+  // that has no remaining references project-wide can be dropped, taking its
+  // imports with it. Catches `taskFields` (only ever read by endpoints, which
+  // are now compiled to v.* literals) without needing per-file heuristics.
+  pruneUnusedExportsAcrossProject(project, transformedFiles)
+
+  for (const sf of transformedFiles) {
+    if (options.dryRun) {
+      if (options.verbose) {
+        const rel = path.relative(convexDir, sf.getFilePath())
+        console.log(`  would change: ${rel}`)
+      }
+    } else {
+      sf.saveSync()
+      if (options.verbose) {
+        const rel = path.relative(convexDir, sf.getFilePath())
+        console.log(`  changed: ${rel}`)
+      }
+    }
+  }
+
   return { filesChanged, transformedCalls, skipped }
+}
+
+/**
+ * For every exported `const` in a transformed file, check whether any other
+ * source file in the project references that identifier text. If not, drop
+ * the declaration. Then re-run per-file import pruning so newly-dead imports
+ * fall away. Pure text-match (not type-checker) — fast and correct enough
+ * for the conservative case of "nobody uses this name anywhere else".
+ */
+function pruneUnusedExportsAcrossProject(
+  project: import('ts-morph').Project,
+  transformedFiles: Set<import('ts-morph').SourceFile>
+): void {
+  // Build a global identifier-text usage map across all source files except
+  // each declaration's own file. Two-pass keeps it cheap.
+  const referenceCounts = new Map<string, number>()
+  for (const sf of project.getSourceFiles()) {
+    sf.forEachDescendant(node => {
+      if (!isIdentifier(node)) return
+      const text = node.getText()
+      referenceCounts.set(text, (referenceCounts.get(text) ?? 0) + 1)
+    })
+  }
+
+  for (const sf of transformedFiles) {
+    // Count this file's own usages of each name (declaration + body).
+    const ownCounts = new Map<string, number>()
+    sf.forEachDescendant(node => {
+      if (!isIdentifier(node)) return
+      const text = node.getText()
+      ownCounts.set(text, (ownCounts.get(text) ?? 0) + 1)
+    })
+
+    for (const stmt of [...sf.getVariableStatements()]) {
+      if (!stmt.hasExportKeyword()) continue
+      for (const decl of [...stmt.getDeclarations()]) {
+        const name = decl.getName()
+        const total = referenceCounts.get(name) ?? 0
+        const own = ownCounts.get(name) ?? 0
+        // `total` counts every Identifier with this text across the project.
+        // The declaration itself contributes once (the LHS Identifier). If
+        // total == own, no other file references it.
+        if (total <= own) {
+          // Within this file too, count usages outside the declaration's
+          // own subtree. If only the declaration name appears, it's dead.
+          const usagesInFile = countIdentifierUsagesOutside(sf, name, decl)
+          if (usagesInFile === 0) {
+            decl.remove()
+          }
+        }
+      }
+    }
+
+    // Re-run per-file prune to mop up imports that just became dead.
+    pruneUnusedSymbols(sf)
+  }
+}
+
+function countIdentifierUsagesOutside(
+  sf: import('ts-morph').SourceFile,
+  name: string,
+  exclude: import('ts-morph').Node
+): number {
+  let count = 0
+  sf.forEachDescendant(node => {
+    if (!isIdentifier(node)) return
+    if (node.getText() !== name) return
+    if (isInsideExcluded(node, exclude)) return
+    count++
+  })
+  return count
+}
+
+type ResolvedModel = {
+  exportName: string
+  sourceFile: string
+  /** v.object({...}) source for the model's fields. */
+  fieldsSource: string
+}
+
+function resolveModelToConvexSource(
+  m: DiscoveredModel,
+  verbose?: boolean
+): ResolvedModel | undefined {
+  const ref = m._modelRef as { fields?: Record<string, unknown> } | undefined
+  const fields = ref?.fields
+  if (!fields || typeof fields !== 'object' || Object.keys(fields).length === 0) {
+    if (verbose) {
+      console.warn(
+        `  [skip model] ${m.sourceFile}:${m.exportName} — no fields (likely union/discriminated)`
+      )
+    }
+    return undefined
+  }
+  try {
+    const convexFields = zodToConvexFields(fields as Record<string, any>)
+    const fieldsSource = `v.object(${convexArgsToSource(convexFields)})`
+    return { exportName: m.exportName, sourceFile: m.sourceFile, fieldsSource }
+  } catch (err) {
+    if (verbose) {
+      console.warn(`  [skip model] ${m.sourceFile}:${m.exportName}: ${(err as Error).message}`)
+    }
+    return undefined
+  }
+}
+
+/**
+ * Returns the set of (relative) `.ts` files in convexDir that import
+ * `defineZodSchema` from `'zodvex'` or `'zodvex/server'`. Cheap — a regex
+ * pre-filter avoids parsing every file.
+ */
+function findSchemaFiles(convexDir: string): Set<string> {
+  const out = new Set<string>()
+  const files = globSync(['**/*.ts'], {
+    cwd: convexDir,
+    ignore: ['_generated/**', '_zodvex/**', 'node_modules/**', '**/*.d.ts']
+  })
+  for (const rel of files) {
+    let src: string
+    try {
+      src = fs.readFileSync(path.join(convexDir, rel), 'utf-8')
+    } catch {
+      continue
+    }
+    if (
+      src.includes('defineZodSchema') &&
+      (src.includes("'zodvex'") ||
+        src.includes('"zodvex"') ||
+        src.includes("'zodvex/server'") ||
+        src.includes('"zodvex/server"'))
+    ) {
+      out.add(rel)
+    }
+  }
+  return out
 }
 
 function resolveFunctionToConvexSource(
@@ -181,76 +359,103 @@ type TransformResult = {
 
 function transformSourceFile(
   sf: import('ts-morph').SourceFile,
-  bucket: Map<string, ResolvedFunction>,
+  fnBucket: Map<string, ResolvedFunction> | undefined,
+  modelBucket: Map<string, ResolvedModel> | undefined,
+  isSchemaFile: boolean,
   ctx: TransformContext
 ): TransformResult {
   let transformed = 0
   let skipped = 0
   const usedBuilders = new Set<string>()
   const replacedZqNames = new Set<string>()
+  let needConvexValues = false
+  let needDefineTable = false
+  let needDefineSchema = false
 
-  for (const stmt of sf.getStatements()) {
-    if (!stmt.getKindName().includes('VariableStatement')) continue
-    // ts-morph: VariableStatement, drill into declaration list
-    const varStmt = stmt as import('ts-morph').VariableStatement
-    if (!varStmt.hasExportKeyword()) continue
-
-    for (const decl of varStmt.getDeclarations()) {
-      const init = decl.getInitializer()
-      if (!init) continue
-      // Looking for CallExpression where callee identifier is one of zq/zm/za/...
-      if (!isCallExpression(init)) continue
-      const call = init as import('ts-morph').CallExpression
-      const callee = call.getExpression()
-      if (!isIdentifier(callee)) continue
-      const calleeName = callee.getText()
-      if (!ZQ_NAMES.includes(calleeName as any)) continue
-
-      const exportName = decl.getName()
-      const fn = bucket.get(exportName)
-      if (!fn || (!fn.argsSource && !fn.returnsSource)) {
-        if (ctx.verbose) {
-          console.log(
-            `  [skip] ${path.basename(sf.getFilePath())}:${exportName} — no resolvable args/returns`
-          )
-        }
-        skipped++
-        continue
-      }
-
-      const arg = call.getArguments()[0]
-      if (!arg || !isObjectLiteral(arg)) {
-        skipped++
-        continue
-      }
-      const obj = arg as import('ts-morph').ObjectLiteralExpression
-
-      // Replace args / returns initializers if we resolved them.
-      if (fn.argsSource) {
-        const argsProp = obj.getProperty('args')
-        if (argsProp && isPropertyAssignment(argsProp)) {
-          ;(argsProp as import('ts-morph').PropertyAssignment).setInitializer(fn.argsSource)
-        } else if (!argsProp) {
-          obj.insertPropertyAssignment(0, {
-            name: 'args',
-            initializer: fn.argsSource
-          })
+  // Model compile: defineZodModel('name', shape, opts?).index(...).index(...)
+  if (modelBucket) {
+    for (const stmt of sf.getStatements()) {
+      if (!stmt.getKindName().includes('VariableStatement')) continue
+      const varStmt = stmt as import('ts-morph').VariableStatement
+      if (!varStmt.hasExportKeyword()) continue
+      for (const decl of varStmt.getDeclarations()) {
+        if (tryTransformDefineZodModel(decl, modelBucket)) {
+          transformed++
+          needConvexValues = true
+          needDefineTable = true
         }
       }
-      if (fn.returnsSource) {
-        const returnsProp = obj.getProperty('returns')
-        if (returnsProp && isPropertyAssignment(returnsProp)) {
-          ;(returnsProp as import('ts-morph').PropertyAssignment).setInitializer(fn.returnsSource)
+    }
+  }
+
+  // Endpoint compile: zq({...}) / zm({...}) / za({...}) etc.
+  if (fnBucket) {
+    for (const stmt of sf.getStatements()) {
+      if (!stmt.getKindName().includes('VariableStatement')) continue
+      const varStmt = stmt as import('ts-morph').VariableStatement
+      if (!varStmt.hasExportKeyword()) continue
+      for (const decl of varStmt.getDeclarations()) {
+        const init = decl.getInitializer()
+        if (!init || !isCallExpression(init)) continue
+        const call = init as import('ts-morph').CallExpression
+        const callee = call.getExpression()
+        if (!isIdentifier(callee)) continue
+        const calleeName = callee.getText()
+        if (!ZQ_NAMES.includes(calleeName as any)) continue
+
+        const exportName = decl.getName()
+        const fn = fnBucket.get(exportName)
+        if (!fn || (!fn.argsSource && !fn.returnsSource)) {
+          if (ctx.verbose) {
+            console.log(
+              `  [skip] ${path.basename(sf.getFilePath())}:${exportName} — no resolvable args/returns`
+            )
+          }
+          skipped++
+          continue
         }
+
+        const arg = call.getArguments()[0]
+        if (!arg || !isObjectLiteral(arg)) {
+          skipped++
+          continue
+        }
+        const obj = arg as import('ts-morph').ObjectLiteralExpression
+
+        if (fn.argsSource) {
+          const argsProp = obj.getProperty('args')
+          if (argsProp && isPropertyAssignment(argsProp)) {
+            ;(argsProp as import('ts-morph').PropertyAssignment).setInitializer(fn.argsSource)
+          } else if (!argsProp) {
+            obj.insertPropertyAssignment(0, {
+              name: 'args',
+              initializer: fn.argsSource
+            })
+          }
+        }
+        if (fn.returnsSource) {
+          const returnsProp = obj.getProperty('returns')
+          if (returnsProp && isPropertyAssignment(returnsProp)) {
+            ;(returnsProp as import('ts-morph').PropertyAssignment).setInitializer(fn.returnsSource)
+          }
+        }
+
+        const newName = ZQ_TO_BUILDER[calleeName as keyof typeof ZQ_TO_BUILDER]
+        callee.replaceWithText(newName)
+        replacedZqNames.add(calleeName)
+        usedBuilders.add(newName)
+        needConvexValues = true
+        transformed++
       }
+    }
+  }
 
-      // Swap the callee: zq → query, etc.
-      const newName = ZQ_TO_BUILDER[calleeName as keyof typeof ZQ_TO_BUILDER]
-      callee.replaceWithText(newName)
-
-      replacedZqNames.add(calleeName)
-      usedBuilders.add(newName)
+  // Schema compile: defineZodSchema(...) → defineSchema(...)
+  if (isSchemaFile) {
+    const schemaChanged = tryTransformDefineZodSchema(sf)
+    if (schemaChanged) {
       transformed++
+      needDefineSchema = true
     }
   }
 
@@ -258,11 +463,12 @@ function transformSourceFile(
     return { transformed: 0, skipped }
   }
 
-  // Imports: drop replaced zq names from their import; add new builder imports
-  // (sourced from the same module the zq names came from); add `v` import.
   rewriteImports(sf, {
     replacedZqNames,
     usedBuilders,
+    needConvexValues,
+    needDefineTable,
+    needDefineSchema,
     convexDir: ctx.convexDir
   })
 
@@ -273,11 +479,81 @@ function transformSourceFile(
   return { transformed, skipped }
 }
 
+/**
+ * Replaces a `defineZodModel('name', shape, opts?)` call's *root* with
+ * `defineTable(<v.object literal>)`, preserving any chained `.index(...)` /
+ * `.searchIndex(...)` / `.vectorIndex(...)` calls. Returns true if changed.
+ */
+function tryTransformDefineZodModel(
+  decl: import('ts-morph').VariableDeclaration,
+  modelBucket: Map<string, ResolvedModel>
+): boolean {
+  const exportName = decl.getName()
+  const resolved = modelBucket.get(exportName)
+  if (!resolved) return false
+
+  const init = decl.getInitializer()
+  if (!init) return false
+  // Walk down the chain (`.index(...)` etc.) to the root call.
+  const root = findRootCall(init)
+  if (!root) return false
+  const callee = root.getExpression()
+  if (!isIdentifier(callee) || callee.getText() !== 'defineZodModel') return false
+
+  // Replace the entire root call with `defineTable(<fields>)`.
+  const newCallText = `defineTable(${resolved.fieldsSource})`
+  root.replaceWithText(newCallText)
+  return true
+}
+
+/**
+ * Replaces `defineZodSchema(<obj>)` with `defineSchema(<obj>)`. Returns true
+ * if changed. Args are passed through verbatim — they're already a record of
+ * model exports, which after model-file compile are vanilla `defineTable(...)`
+ * results.
+ */
+function tryTransformDefineZodSchema(sf: import('ts-morph').SourceFile): boolean {
+  let changed = false
+  sf.forEachDescendant(node => {
+    if (!isCallExpression(node)) return
+    const call = node as import('ts-morph').CallExpression
+    const callee = call.getExpression()
+    if (!isIdentifier(callee)) return
+    if (callee.getText() !== 'defineZodSchema') return
+    callee.replaceWithText('defineSchema')
+    changed = true
+  })
+  return changed
+}
+
+/** Walks down `expr.x().y().z()` style chains to the root CallExpression. */
+function findRootCall(
+  node: import('ts-morph').Node
+): import('ts-morph').CallExpression | undefined {
+  let cur: import('ts-morph').Node | undefined = node
+  while (cur) {
+    if (isCallExpression(cur)) {
+      const expr = (cur as import('ts-morph').CallExpression).getExpression()
+      // CallExpression on PropertyAccessExpression? walk further into the LHS.
+      if (expr.getKindName() === 'PropertyAccessExpression') {
+        cur = (expr as import('ts-morph').PropertyAccessExpression).getExpression()
+        continue
+      }
+      return cur as import('ts-morph').CallExpression
+    }
+    return undefined
+  }
+  return undefined
+}
+
 function rewriteImports(
   sf: import('ts-morph').SourceFile,
   opts: {
     replacedZqNames: Set<string>
     usedBuilders: Set<string>
+    needConvexValues: boolean
+    needDefineTable: boolean
+    needDefineSchema: boolean
     convexDir: string
   }
 ): void {
@@ -292,9 +568,21 @@ function rewriteImports(
     }
   }
 
-  const builderModule = computeGeneratedServerSpecifier(sf, opts.convexDir)
-  upsertNamedImports(sf, builderModule, [...opts.usedBuilders])
-  upsertNamedImports(sf, 'convex/values', ['v'])
+  if (opts.usedBuilders.size > 0) {
+    const builderModule = computeGeneratedServerSpecifier(sf, opts.convexDir)
+    upsertNamedImports(sf, builderModule, [...opts.usedBuilders])
+  }
+  if (opts.needConvexValues) {
+    upsertNamedImports(sf, 'convex/values', ['v'])
+  }
+  // `defineTable` and `defineSchema` both come from `convex/server`. The user
+  // may already import other things from there — upsert dedupes.
+  const convexServerNeeded: string[] = []
+  if (opts.needDefineTable) convexServerNeeded.push('defineTable')
+  if (opts.needDefineSchema) convexServerNeeded.push('defineSchema')
+  if (convexServerNeeded.length > 0) {
+    upsertNamedImports(sf, 'convex/server', convexServerNeeded)
+  }
 }
 
 /**
