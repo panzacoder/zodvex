@@ -13,6 +13,13 @@ interface MeasureConfig {
   dir: string
   runtime: 'zod' | 'mini'
   flavor: Flavor
+  /**
+   * If true, treat the directory as already compiled to vanilla Convex —
+   * skip the zodvex/zod pre-imports. The compiled files don't actually import
+   * zodvex, so the pre-import would otherwise be wasted heap that defeats the
+   * point of measuring the compile-away gain.
+   */
+  compiled?: boolean
   resultsFile?: string
 }
 
@@ -45,8 +52,9 @@ function parseArgs(): MeasureConfig {
   if (!dir) throw new Error('--dir=<path> is required')
   const runtime = (args.find(a => a.startsWith('--runtime='))?.split('=')[1] ?? 'zod') as 'zod' | 'mini'
   const flavor = (args.find(a => a.startsWith('--flavor='))?.split('=')[1] ?? 'zodvex') as Flavor
+  const compiled = args.includes('--compiled')
   const resultsFile = args.find(a => a.startsWith('--results='))?.split('=')[1]
-  return { dir, runtime, flavor, resultsFile }
+  return { dir, runtime, flavor, compiled, resultsFile }
 }
 
 export async function measure(config: MeasureConfig): Promise<MeasureResult> {
@@ -59,7 +67,7 @@ export async function measure(config: MeasureConfig): Promise<MeasureResult> {
 
   // Pre-import runtime libraries to baseline them out.
   // Must match the imports the composed code uses so we measure only schema creation.
-  if (flavor === 'convex') {
+  if (flavor === 'convex' || config.compiled) {
     await import('convex/server')
     await import('convex/values')
   } else if (flavor === 'convex-helpers') {

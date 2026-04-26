@@ -205,8 +205,9 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
 
     // Measure in subprocess
     const runtime = variant.mini ? 'mini' : 'zod'
+    const compiledFlag = variant.compile ? ' --compiled' : ''
     execSync(
-      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime} --flavor=${variant.flavor} --results=${resultsFile}`,
+      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime} --flavor=${variant.flavor}${compiledFlag} --results=${resultsFile}`,
       { cwd: ROOT, encoding: 'utf-8', timeout: 120_000, env }
     )
 
