@@ -11,6 +11,13 @@ export interface ComposeConfig {
   count: number
   outputDir: string
   flavor?: Flavor
+  /**
+   * For the zodvex flavor: emit a `functions.ts` that mirrors the real-world
+   * codegen-using pattern (statically imports `./_zodvex/api.js` and passes
+   * the registry to `initZodvex`). The runner is responsible for invoking
+   * `zodvex generate` against the output dir before measurement.
+   */
+  withCodegen?: boolean
 }
 
 interface FlavorSpec {
@@ -21,7 +28,7 @@ interface FlavorSpec {
   // Builds schema.ts
   buildSchema(entries: Array<{ table: string; fileName: string; pascal: string }>): string
   // Builds functions.ts — returns null to skip
-  buildFunctions(): string | null
+  buildFunctions(opts?: { withCodegen?: boolean }): string | null
 }
 
 const FLAVORS: Record<Flavor, FlavorSpec> = {
@@ -43,7 +50,37 @@ ${tables}
 })
 `
     },
-    buildFunctions() {
+    buildFunctions(opts) {
+      if (opts?.withCodegen) {
+        // Mirror the real-world codegen-using app pattern: static import of
+        // `_zodvex/api.js` so the registry's full Zod schemas land in the
+        // push-time module graph. The registry is wired into initZodvex via
+        // a thunk (only called at action invocation), but the static import
+        // is what costs memory at push time — exactly what we want to measure.
+        return `import { initZodvex } from 'zodvex/server'
+import {
+  query,
+  mutation,
+  action,
+  internalQuery,
+  internalMutation,
+  internalAction,
+} from '../_generated/server'
+import schema from './schema'
+import { zodvexRegistry } from './_zodvex/api.js'
+
+export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
+  query,
+  mutation,
+  action,
+  internalQuery,
+  internalMutation,
+  internalAction,
+}, {
+  registry: () => zodvexRegistry,
+})
+`
+      }
       return `import { initZodvex } from 'zodvex/server'
 import {
   query,
@@ -270,14 +307,14 @@ export function compose(config: ComposeConfig): { modelsDir: string; endpointsDi
 
   writeFileSync(join(outputDir, 'schema.ts'), spec.buildSchema(entries))
 
-  const functionsSource = spec.buildFunctions()
+  const functionsSource = spec.buildFunctions({ withCodegen: config.withCodegen })
   if (functionsSource !== null) {
     writeFileSync(join(outputDir, 'functions.ts'), functionsSource)
   }
 
   writeFileSync(
     join(outputDir, 'summary.json'),
-    JSON.stringify({ count, flavor, seeds: seeds.length }, null, 2)
+    JSON.stringify({ count, flavor, withCodegen: !!config.withCodegen, seeds: seeds.length }, null, 2)
   )
 
   return { modelsDir, endpointsDir, outputDir }
@@ -287,6 +324,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)
   const count = parseInt(args.find(a => a.startsWith('--count='))?.split('=')[1] ?? '50')
   const flavor = (args.find(a => a.startsWith('--flavor='))?.split('=')[1] ?? 'zodvex') as Flavor
+  const withCodegen = args.includes('--with-codegen')
   const outputDir = args.find(a => a.startsWith('--output='))?.split('=')[1] ?? join(EXAMPLE_DIR, 'convex', 'composed')
 
   if (flavor !== 'zodvex' && flavor !== 'convex' && flavor !== 'convex-helpers' && flavor !== 'convex-helpers-zod3') {
@@ -295,8 +333,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const flavorSeedsDir = join(SEEDS_DIR, flavor, 'models')
   console.log(
-    `Composing ${count} models (flavor=${flavor}) from ${readdirSync(flavorSeedsDir).filter(f => f.endsWith('.ts')).length} seeds`
+    `Composing ${count} models (flavor=${flavor}${withCodegen ? ', codegen' : ''}) from ${readdirSync(flavorSeedsDir).filter(f => f.endsWith('.ts')).length} seeds`
   )
-  compose({ count, outputDir, flavor })
+  compose({ count, outputDir, flavor, withCodegen })
   console.log(`Output: ${outputDir}`)
 }

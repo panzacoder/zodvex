@@ -18,6 +18,7 @@ interface Flags {
   count?: number
   slim: boolean
   mini: boolean
+  codegen: boolean
   convex: boolean
   convexHelpers: boolean
   convexHelpersZod3: boolean
@@ -31,6 +32,7 @@ function parseFlags(): Flags {
     count: args.find(a => a.startsWith('--count=')) ? parseInt(args.find(a => a.startsWith('--count='))!.split('=')[1]) : undefined,
     slim: args.includes('--slim'),
     mini: args.includes('--mini'),
+    codegen: args.includes('--codegen'),
     convex: args.includes('--convex'),
     convexHelpers: args.includes('--convex-helpers'),
     convexHelpersZod3: args.includes('--convex-helpers-zod3'),
@@ -46,37 +48,45 @@ interface Variant {
   flavor: Flavor
   slim: boolean
   mini: boolean
+  codegen: boolean
 }
 
 function getVariants(flags: Flags): Variant[] {
   if (flags.convex) {
-    return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false }]
+    return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false }]
   }
   if (flags.convexHelpers) {
-    return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false }]
+    return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false }]
   }
   if (flags.convexHelpersZod3) {
-    return [{ name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false }]
+    return [{ name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false }]
   }
-  if (flags.slim || flags.mini) {
-    return [{ name: zodvexVariantName(flags.slim, flags.mini), flavor: 'zodvex', slim: flags.slim, mini: flags.mini }]
+  if (flags.slim || flags.mini || flags.codegen) {
+    return [{
+      name: zodvexVariantName(flags.slim, flags.mini, flags.codegen),
+      flavor: 'zodvex',
+      slim: flags.slim,
+      mini: flags.mini,
+      codegen: flags.codegen,
+    }]
   }
   return [
-    { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false },
-    { name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false },
-    { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false },
-    { name: 'zod', flavor: 'zodvex', slim: false, mini: false },
-    { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false },
-    { name: 'mini', flavor: 'zodvex', slim: false, mini: true },
-    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true },
+    { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false },
+    { name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false },
+    { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false },
+    { name: 'zod', flavor: 'zodvex', slim: false, mini: false, codegen: false },
+    { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false, codegen: false },
+    { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false },
+    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true, codegen: false },
   ]
 }
 
-function zodvexVariantName(slim: boolean, mini: boolean): string {
-  if (slim && mini) return 'mini + slim'
-  if (slim) return 'zod + slim'
-  if (mini) return 'mini'
-  return 'zod'
+function zodvexVariantName(slim: boolean, mini: boolean, codegen: boolean): string {
+  const parts: string[] = []
+  parts.push(mini ? 'mini' : 'zod')
+  if (slim) parts.push('slim')
+  if (codegen) parts.push('codegen')
+  return parts.join(' + ')
 }
 
 // --- Compile (zod → mini) ---
@@ -151,7 +161,8 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
 
   try {
     // Compose
-    execSync(`bun run compose.ts --count=${count} --flavor=${variant.flavor} --output=${COMPOSED_DIR}`, {
+    const codegenFlag = variant.codegen ? ' --with-codegen' : ''
+    execSync(`bun run compose.ts --count=${count} --flavor=${variant.flavor}${codegenFlag} --output=${COMPOSED_DIR}`, {
       cwd: ROOT, stdio: 'pipe', timeout: 60_000,
     })
 
@@ -160,6 +171,16 @@ function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
     if (variant.mini) {
       compileDirectory(COMPOSED_DIR, COMPILED_DIR)
       measureDir = COMPILED_DIR
+    }
+
+    // Run real `zodvex generate` so the push-time graph includes the
+    // codegen-emitted `_zodvex/api.js` (which redeclares Zod schemas inline
+    // for every function). This is what real codegen-using apps pay.
+    if (variant.codegen) {
+      const miniFlag = variant.mini ? ' --mini' : ''
+      execSync(`bunx zodvex generate ${measureDir}${miniFlag}`, {
+        cwd: ROOT, stdio: 'pipe', timeout: 120_000,
+      })
     }
 
     // Measure in subprocess
