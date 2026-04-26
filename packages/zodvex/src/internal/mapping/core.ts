@@ -29,7 +29,7 @@ import type {
   ConvexValidatorFromZodFieldsAuto,
   ZodValidator
 } from './types'
-import { isZid } from './utils'
+import { getZidTableName } from './utils'
 
 // Module-scoped cache: same Zod schema instance → same Convex validator.
 // Avoids redundant allocations when the same schema is converted across
@@ -87,10 +87,9 @@ function zodToConvexInternal<Z extends $ZodType>(
   let convexValidator: GenericValidator
 
   // Check for Zid first (special case)
-  if (isZid(actualValidator)) {
-    const metadata = registryHelpers.getMetadata(actualValidator)
-    const tableName = metadata?.tableName || 'unknown'
-    convexValidator = v.id(tableName)
+  const zidTable = getZidTableName(actualValidator)
+  if (zidTable) {
+    convexValidator = v.id(zidTable)
   } else {
     // Use def.type for robust, performant type detection instead of instanceof checks.
     // Rationale:
