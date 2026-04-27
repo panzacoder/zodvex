@@ -88,7 +88,13 @@ export async function runCompile(
   targetDir: string,
   options: CompileOptions = {}
 ): Promise<CompileResult> {
+  const profile = options.verbose
+  const t0 = Date.now()
+  const lap = (label: string, since: number) => {
+    if (profile) console.log(`  [perf] ${label}: ${((Date.now() - since) / 1000).toFixed(2)}s`)
+  }
   const { Project } = await import('ts-morph')
+  lap('ts-morph load', t0)
 
   const convexDir = path.resolve(process.cwd(), targetDir)
   if (!fs.existsSync(convexDir)) {
@@ -99,7 +105,9 @@ export async function runCompile(
     `[zodvex compile] ${options.dryRun ? 'Dry run — ' : ''}Discovering modules in ${path.relative(process.cwd(), convexDir) || '.'}/`
   )
 
+  const tDiscover = Date.now()
   const discovered = await discoverModules(convexDir)
+  lap('discoverModules', tDiscover)
 
   // Pass A: pre-resolve every model — we need the *Fields names *before* we
   // serialize any function args/returns so the sharing context is fully
@@ -157,10 +165,12 @@ export async function runCompile(
     cwd: convexDir,
     ignore: ['_generated/**', '_zodvex/**', 'node_modules/**', '**/*.d.ts']
   })
+  const tAdd = Date.now()
   for (const rel of allFiles) {
     const abs = path.resolve(convexDir, rel)
     project.addSourceFileAtPath(abs)
   }
+  lap(`addSourceFileAtPath × ${allFiles.length}`, tAdd)
 
   let filesChanged = 0
   let transformedCalls = 0
@@ -178,6 +188,7 @@ export async function runCompile(
     }
   }
 
+  const tTransform = Date.now()
   for (const relFile of candidateFiles) {
     const absFile = path.resolve(convexDir, relFile)
     if (!fs.existsSync(absFile)) continue
@@ -188,11 +199,13 @@ export async function runCompile(
     const modelBucket = modelIndex.get(relFile)
     const isSchemaFile = schemaFiles.has(relFile)
 
+    const tFile = Date.now()
     const result = transformSourceFile(sf, fnBucket, modelBucket, isSchemaFile, {
       convexDir,
       verbose: options.verbose,
       recordSources
     })
+    if (profile) console.log(`  [perf]   transform ${relFile}: ${((Date.now() - tFile) / 1000).toFixed(2)}s, ${result.transformed} changes`)
 
     if (result.transformed > 0) {
       filesChanged++
@@ -201,12 +214,16 @@ export async function runCompile(
     }
     skipped += result.skipped
   }
+  lap(`transformSourceFile × ${candidateFiles.size}`, tTransform)
 
   // Cross-file prune pass: any exported declaration in a transformed file
   // that has no remaining references project-wide can be dropped, taking its
   // imports with it. Catches `taskFields` (only ever read by endpoints, which
   // are now compiled to v.* literals) without needing per-file heuristics.
+  const tPrune = Date.now()
   pruneUnusedExportsAcrossProject(project, transformedFiles)
+  lap('pruneUnusedExportsAcrossProject', tPrune)
+  const tSave = Date.now()
 
   for (const sf of transformedFiles) {
     if (options.dryRun) {
@@ -222,6 +239,8 @@ export async function runCompile(
       }
     }
   }
+  lap('saveSync × transformedFiles', tSave)
+  lap('runCompile total', t0)
 
   return { filesChanged, transformedCalls, skipped }
 }
@@ -233,53 +252,110 @@ export async function runCompile(
  * fall away. Pure text-match (not type-checker) — fast and correct enough
  * for the conservative case of "nobody uses this name anywhere else".
  */
+/**
+ * Builds a per-file identifier usage map in ONE forEachDescendant walk.
+ *
+ *   appearances:    every standalone Identifier node, by text
+ *   declarationSites: identifier-text → number of nodes that are the
+ *                     name of a declaration (top-level const, import
+ *                     specifier). These are appearances that DON'T count
+ *                     as references.
+ *
+ * "Reference count" for a name = appearances - declarationSites. When zero
+ * (or, more precisely, when no node outside a given declaration's subtree
+ * uses the name), the declaration is unused. The full file is scanned
+ * once; per-decl checks become O(1) map lookups instead of fresh walks.
+ */
+function buildFileUsageMap(sf: import('ts-morph').SourceFile): {
+  appearances: Map<string, number>
+  declarationSites: Map<string, number>
+} {
+  const appearances = new Map<string, number>()
+  const declarationSites = new Map<string, number>()
+  sf.forEachDescendant(node => {
+    if (!isIdentifier(node)) return
+    const text = node.getText()
+    appearances.set(text, (appearances.get(text) ?? 0) + 1)
+    const parent = node.getParent()
+    if (!parent) return
+    const parentKind = parent.getKindName()
+    // Identifier is the *name* of a top-level `const X = ...`, an import
+    // specifier, or a default/namespace import. These are declaration
+    // sites, not references. (We treat ALL VariableDeclaration name
+    // identifiers this way — module-level only matters for our pruner,
+    // which only checks top-level const decls.)
+    if (parentKind === 'ImportSpecifier' && (parent as any).getNameNode?.() === node) {
+      declarationSites.set(text, (declarationSites.get(text) ?? 0) + 1)
+      return
+    }
+    if (parentKind === 'ImportClause' && (parent as any).getDefaultImport?.() === node) {
+      declarationSites.set(text, (declarationSites.get(text) ?? 0) + 1)
+      return
+    }
+    if (parentKind === 'NamespaceImport' && (parent as any).getNameNode?.() === node) {
+      declarationSites.set(text, (declarationSites.get(text) ?? 0) + 1)
+      return
+    }
+    if (parentKind === 'VariableDeclaration' && (parent as any).getNameNode?.() === node) {
+      declarationSites.set(text, (declarationSites.get(text) ?? 0) + 1)
+      return
+    }
+  })
+  return { appearances, declarationSites }
+}
+
+function isReferencedInFile(name: string, usage: ReturnType<typeof buildFileUsageMap>): boolean {
+  const total = usage.appearances.get(name) ?? 0
+  const decl = usage.declarationSites.get(name) ?? 0
+  return total > decl
+}
+
 function pruneUnusedExportsAcrossProject(
   project: import('ts-morph').Project,
   transformedFiles: Set<import('ts-morph').SourceFile>
 ): void {
-  // Build a global identifier-text usage map across all source files except
-  // each declaration's own file. Two-pass keeps it cheap.
-  const referenceCounts = new Map<string, number>()
+  // Build a project-wide usage map (one forEachDescendant per file) so we
+  // can ask O(1) per export whether the name is referenced anywhere.
+  const projectAppearances = new Map<string, number>()
+  const projectDeclSites = new Map<string, number>()
   for (const sf of project.getSourceFiles()) {
-    sf.forEachDescendant(node => {
-      if (!isIdentifier(node)) return
-      const text = node.getText()
-      referenceCounts.set(text, (referenceCounts.get(text) ?? 0) + 1)
-    })
+    const u = buildFileUsageMap(sf)
+    for (const [k, v] of u.appearances) {
+      projectAppearances.set(k, (projectAppearances.get(k) ?? 0) + v)
+    }
+    for (const [k, v] of u.declarationSites) {
+      projectDeclSites.set(k, (projectDeclSites.get(k) ?? 0) + v)
+    }
   }
 
+  // Per file: collect deletion ranges for unused exports, apply once.
+  // Per-decl `.remove()` was quadratic on monolithic files (each mutation
+  // re-parses the surrounding statement list).
   for (const sf of transformedFiles) {
-    // Count this file's own usages of each name (declaration + body).
-    const ownCounts = new Map<string, number>()
-    sf.forEachDescendant(node => {
-      if (!isIdentifier(node)) return
-      const text = node.getText()
-      ownCounts.set(text, (ownCounts.get(text) ?? 0) + 1)
-    })
-
-    for (const stmt of [...sf.getVariableStatements()]) {
+    const text = sf.getFullText()
+    const deletions: TextEdit[] = []
+    for (const stmt of sf.getVariableStatements()) {
       if (!stmt.hasExportKeyword()) continue
-      for (const decl of [...stmt.getDeclarations()]) {
-        // Only drop initializers that aren't Convex registration calls —
-        // `query(...)` / `mutation(...)` / `defineTable(...)` / `defineSchema(...)`
-        // are runtime objects Convex discovers by filesystem walk, so an exported
-        // `getComment = query(...)` has no in-source references but is still
-        // live at runtime. Pure data literals AND lingering `z.*` constructors
-        // are fair game once compile-away has rewritten the call sites.
-        if (!isPruneableInitializer(decl.getInitializer())) continue
-
+      const decls = stmt.getDeclarations()
+      // Conservative: only drop the whole statement when *every* declared
+      // name in it is unreferenced and pruneable. Statements with mixed
+      // pruneable/non-pruneable initializers fall through.
+      const allDroppable = decls.every(decl => {
+        if (!isPruneableInitializer(decl.getInitializer())) return false
         const name = decl.getName()
-        const total = referenceCounts.get(name) ?? 0
-        const own = ownCounts.get(name) ?? 0
-        if (total <= own) {
-          const usagesInFile = countIdentifierUsagesOutside(sf, name, decl)
-          if (usagesInFile === 0) {
-            decl.remove()
-          }
-        }
-      }
+        const total = projectAppearances.get(name) ?? 0
+        const declsCount = projectDeclSites.get(name) ?? 0
+        return total - declsCount <= 0
+      })
+      if (!allDroppable) continue
+      let end = stmt.getEnd()
+      if (text[end] === '\n') end++
+      deletions.push({ start: stmt.getStart(), end, replacement: '' })
     }
 
+    if (deletions.length > 0) {
+      applyTextEdits(sf, deletions)
+    }
     // Re-run per-file prune to mop up imports that just became dead.
     pruneUnusedSymbols(sf)
   }
@@ -598,6 +674,43 @@ type TransformResult = {
   skipped: number
 }
 
+interface TextEdit {
+  start: number
+  end: number
+  replacement: string
+}
+
+/**
+ * Applies a batch of text edits to a source file in ONE replaceWithText call.
+ * Each ts-morph mutation (setInitializer, replaceWithText on a Node, etc.)
+ * triggers an internal re-parse of the surrounding context — fine for small
+ * files, but quadratic on monolithic source (~235ms per mutation × hundreds
+ * of mutations = minutes). Collecting tuple-form edits and applying them as
+ * a single replaceWithText drops the cost to O(file size).
+ */
+function applyTextEdits(sf: import('ts-morph').SourceFile, edits: TextEdit[]): void {
+  if (edits.length === 0) return
+  // Linear assembly: walk edits in ascending order, build the output text
+  // as an array of chunks, then `join('')` once. The previous version did
+  // `text = text.slice(...) + repl + text.slice(...)` per edit which is
+  // O(file size) per edit (a fresh full-string allocation each time) and
+  // turns into N×file-size memory churn on monolithic source.
+  const sorted = [...edits].sort((a, b) => a.start - b.start)
+  const text = sf.getFullText()
+  const chunks: string[] = []
+  let pos = 0
+  for (const e of sorted) {
+    // Defensive: edits should be non-overlapping. If they aren't, drop the
+    // overlapping one rather than corrupting the file.
+    if (e.start < pos) continue
+    if (e.start > pos) chunks.push(text.slice(pos, e.start))
+    chunks.push(e.replacement)
+    pos = e.end
+  }
+  if (pos < text.length) chunks.push(text.slice(pos))
+  sf.replaceWithText(chunks.join(''))
+}
+
 function transformSourceFile(
   sf: import('ts-morph').SourceFile,
   fnBucket: Map<string, ResolvedFunction> | undefined,
@@ -617,6 +730,15 @@ function transformSourceFile(
   let needDefineTable = false
   let needDefineSchema = false
 
+  // Bulk-edit buffer: every per-call-site rewrite pushes (start, end, text)
+  // tuples here instead of mutating ts-morph nodes one at a time. We apply
+  // them all in one replaceWithText after collection.
+  const edits: TextEdit[] = []
+  // Records to inject at the top of the file post-edit (defineZodModel
+  // shape models without a pre-existing `*Fields` declaration). The seed
+  // monolithic source always has them inline so this is rare in practice.
+  const recordsToInject: { name: string; source: string }[] = []
+
   // Model compile: defineZodModel('name', shape, opts?).index(...).index(...)
   if (modelBucket) {
     for (const stmt of sf.getStatements()) {
@@ -624,7 +746,7 @@ function transformSourceFile(
       const varStmt = stmt as import('ts-morph').VariableStatement
       if (!varStmt.hasExportKeyword()) continue
       for (const decl of varStmt.getDeclarations()) {
-        if (tryTransformDefineZodModel(decl, sf, modelBucket)) {
+        if (collectDefineZodModelEdits(decl, sf, modelBucket, edits, recordsToInject)) {
           transformed++
           needConvexValues = true
           needDefineTable = true
@@ -670,23 +792,32 @@ function transformSourceFile(
         if (fn.argsSource) {
           const argsProp = obj.getProperty('args')
           if (argsProp && isPropertyAssignment(argsProp)) {
-            ;(argsProp as import('ts-morph').PropertyAssignment).setInitializer(fn.argsSource)
+            const init = (argsProp as import('ts-morph').PropertyAssignment).getInitializer()
+            if (init) {
+              edits.push({ start: init.getStart(), end: init.getEnd(), replacement: fn.argsSource })
+            }
           } else if (!argsProp) {
-            obj.insertPropertyAssignment(0, {
-              name: 'args',
-              initializer: fn.argsSource
+            // Insert at the start of the object literal — `{` is at obj.getStart(),
+            // we drop a `args: <source>,` right after.
+            edits.push({
+              start: obj.getStart() + 1,
+              end: obj.getStart() + 1,
+              replacement: ` args: ${fn.argsSource},`
             })
           }
         }
         if (fn.returnsSource) {
           const returnsProp = obj.getProperty('returns')
           if (returnsProp && isPropertyAssignment(returnsProp)) {
-            ;(returnsProp as import('ts-morph').PropertyAssignment).setInitializer(fn.returnsSource)
+            const init = (returnsProp as import('ts-morph').PropertyAssignment).getInitializer()
+            if (init) {
+              edits.push({ start: init.getStart(), end: init.getEnd(), replacement: fn.returnsSource })
+            }
           }
         }
 
         const newName = ZQ_TO_BUILDER[calleeName as keyof typeof ZQ_TO_BUILDER]
-        callee.replaceWithText(newName)
+        edits.push({ start: callee.getStart(), end: callee.getEnd(), replacement: newName })
         replacedZqNames.add(calleeName)
         usedBuilders.add(newName)
         needConvexValues = true
@@ -696,11 +827,13 @@ function transformSourceFile(
     }
   }
 
-  // Schema compile: defineZodSchema(...) → defineSchema(...)
+  // Schema compile: defineZodSchema(...) → defineSchema(...). Just a callee
+  // rename — collected as one text edit per call (typically one per file).
   if (isSchemaFile) {
-    const schemaChanged = tryTransformDefineZodSchema(sf)
-    if (schemaChanged) {
-      transformed++
+    const schemaEdits = collectDefineZodSchemaEdits(sf)
+    if (schemaEdits.length > 0) {
+      edits.push(...schemaEdits)
+      transformed += schemaEdits.length
       needDefineSchema = true
     }
   }
@@ -709,6 +842,17 @@ function transformSourceFile(
     return { transformed: 0, skipped }
   }
 
+  const tApply = Date.now()
+  applyTextEdits(sf, edits)
+  if (ctx.verbose) console.log(`  [perf]     applyTextEdits: ${((Date.now() - tApply) / 1000).toFixed(2)}s, ${edits.length} edits`)
+  for (const r of recordsToInject) {
+    sf.insertVariableStatement(0, {
+      isExported: true,
+      declarations: [{ name: r.name, initializer: r.source }]
+    })
+  }
+
+  const tImports = Date.now()
   rewriteImports(sf, {
     replacedZqNames,
     usedBuilders,
@@ -720,28 +864,37 @@ function transformSourceFile(
     recordSources: ctx.recordSources
   })
 
+  if (ctx.verbose) console.log(`  [perf]     rewriteImports: ${((Date.now() - tImports) / 1000).toFixed(2)}s`)
+
   // Drop unused imports + unused local variable declarations to keep the
   // push-time module graph thin (the whole point of compile-away).
+  const tPrune = Date.now()
   pruneUnusedSymbols(sf)
+  if (ctx.verbose) console.log(`  [perf]     pruneUnusedSymbols: ${((Date.now() - tPrune) / 1000).toFixed(2)}s`)
 
   return { transformed, skipped }
 }
 
 /**
- * Phase 1.5 + 2 model transform:
- *   1. Ensure an `export const <fieldsRecordName> = { ... convex fields ... }`
- *      exists at the top of the file. If the user already had one (matched by
- *      identifier name), rewrite its initializer in place (preserving order
- *      so endpoint imports don't go stale). If not, hoist a fresh declaration.
- *   2. Replace `defineZodModel('name', <whatever>, opts?)` with
- *      `defineTable(<fieldsRecordName>)`, keeping any chained `.index(...)`.
+ * Phase 1.5 + 2 model transform — collects edits for the bulk-apply pass.
  *
- * Returns true if any change was made.
+ *   1. Replace the inner `defineZodModel(...)` call with `defineTable(...)`,
+ *      keeping any chained `.index(...)`. Pushed as a TextEdit covering the
+ *      root call expression's source range.
+ *   2. For shape models: ensure an `export const <fieldsRecordName> = {...}`
+ *      exists. If one's already in source (the common monolithic case),
+ *      rewrite its initializer via TextEdit. If not, queue a structural
+ *      insert via `recordsToInject` (rare; applied by ts-morph after the
+ *      bulk text rewrite).
+ *
+ * Returns true if any edit was queued.
  */
-function tryTransformDefineZodModel(
+function collectDefineZodModelEdits(
   decl: import('ts-morph').VariableDeclaration,
   sf: import('ts-morph').SourceFile,
-  modelBucket: Map<string, ResolvedModel>
+  modelBucket: Map<string, ResolvedModel>,
+  edits: TextEdit[],
+  recordsToInject: { name: string; source: string }[]
 ): boolean {
   const exportName = decl.getName()
   const resolved = modelBucket.get(exportName)
@@ -756,45 +909,66 @@ function tryTransformDefineZodModel(
 
   if (resolved.kind === 'shape') {
     const fieldsSource = convexArgsToSource(resolved.convexFields)
-    ensureFieldsRecordDeclaration(sf, decl, resolved.fieldsRecordName, fieldsSource)
-    root.replaceWithText(`defineTable(${resolved.fieldsRecordName})`)
+    queueFieldsRecordEdit(sf, resolved.fieldsRecordName, fieldsSource, edits, recordsToInject)
+    edits.push({
+      start: root.getStart(),
+      end: root.getEnd(),
+      replacement: `defineTable(${resolved.fieldsRecordName})`
+    })
     return true
   }
   // union: emit the v.* literal inline.
-  root.replaceWithText(`defineTable(${resolved.validatorSource})`)
+  edits.push({
+    start: root.getStart(),
+    end: root.getEnd(),
+    replacement: `defineTable(${resolved.validatorSource})`
+  })
   return true
 }
 
 /**
- * Ensures the file has `export const <fieldsRecordName> = { ... }` declared
- * before the model declaration. Rewrites in place if it already exists.
+ * Queues the right edit to ensure `export const <fieldsRecordName> = { ... }`
+ * exists in the file with the given initializer source.
+ *
+ * - Already declared (common monolithic case): TextEdit replacing its
+ *   existing initializer + ensuring `export`.
+ * - Not declared: pushed onto `recordsToInject` so ts-morph inserts a new
+ *   statement after the bulk text rewrite (positions stable).
  */
-function ensureFieldsRecordDeclaration(
+function queueFieldsRecordEdit(
   sf: import('ts-morph').SourceFile,
-  modelDecl: import('ts-morph').VariableDeclaration,
   fieldsRecordName: string,
-  fieldsSource: string
+  fieldsSource: string,
+  edits: TextEdit[],
+  recordsToInject: { name: string; source: string }[]
 ): void {
-  // 1. Existing const with this name?
   for (const stmt of sf.getVariableStatements()) {
     for (const d of stmt.getDeclarations()) {
-      if (d.getName() === fieldsRecordName) {
-        d.setInitializer(fieldsSource)
-        // Make sure it's exported so other files can import it.
-        if (!stmt.hasExportKeyword()) {
-          stmt.setIsExported(true)
-        }
-        return
+      if (d.getName() !== fieldsRecordName) continue
+      const existingInit = d.getInitializer()
+      if (existingInit) {
+        edits.push({
+          start: existingInit.getStart(),
+          end: existingInit.getEnd(),
+          replacement: fieldsSource
+        })
       }
+      // If the const isn't currently exported, prepend `export ` to its
+      // statement. The statement's leading-whitespace offset is `getStart()`
+      // before the leading trivia, so use `getStart(true)` semantics: prepend
+      // at the statement's actual start.
+      if (!stmt.hasExportKeyword()) {
+        edits.push({
+          start: stmt.getStart(),
+          end: stmt.getStart(),
+          replacement: 'export '
+        })
+      }
+      return
     }
   }
-  // 2. None — insert a new statement just before the model declaration.
-  const modelStmt = modelDecl.getVariableStatement()
-  const insertionIndex = modelStmt ? modelStmt.getChildIndex() : sf.getStatements().length
-  sf.insertVariableStatement(insertionIndex, {
-    isExported: true,
-    declarations: [{ name: fieldsRecordName, initializer: fieldsSource }]
-  })
+  // Not declared yet; structural insert handled post-text-edit.
+  recordsToInject.push({ name: fieldsRecordName, source: fieldsSource })
 }
 
 /**
@@ -803,19 +977,19 @@ function ensureFieldsRecordDeclaration(
  * model exports, which after model-file compile are vanilla `defineTable(...)`
  * results.
  */
-function tryTransformDefineZodSchema(sf: import('ts-morph').SourceFile): boolean {
-  let changed = false
+function collectDefineZodSchemaEdits(sf: import('ts-morph').SourceFile): TextEdit[] {
+  const out: TextEdit[] = []
   sf.forEachDescendant(node => {
     if (!isCallExpression(node)) return
     const call = node as import('ts-morph').CallExpression
     const callee = call.getExpression()
     if (!isIdentifier(callee)) return
     if (callee.getText() !== 'defineZodSchema') return
-    callee.replaceWithText('defineSchema')
-    changed = true
+    out.push({ start: callee.getStart(), end: callee.getEnd(), replacement: 'defineSchema' })
   })
-  return changed
+  return out
 }
+
 
 /** Walks down `expr.x().y().z()` style chains to the root CallExpression. */
 function findRootCall(
@@ -973,41 +1147,74 @@ function upsertNamedImports(
  * a const can free up its imports too.
  */
 function pruneUnusedSymbols(sf: import('ts-morph').SourceFile): void {
+  // Up to 4 cascade passes — dropping a const can free its imports, and
+  // dropping imports can free more consts. Each pass is:
+  //   1. one O(file size) forEachDescendant to build the usage map
+  //   2. O(decls) map lookups + collection of deletion ranges
+  //   3. one applyTextEdits to remove all dropped declarations at once
+  //
+  // ts-morph's per-node `.remove()` reparses the surrounding file every
+  // time — with thousands of unused consts on a monolithic source that's
+  // O(N²). Bulk text deletion drops it to O(N) per pass.
   for (let pass = 0; pass < 4; pass++) {
-    let changed = false
+    const usage = buildFileUsageMap(sf)
+    const deletions: TextEdit[] = []
+    const importRewrites: TextEdit[] = []
+    const text = sf.getFullText()
 
-    // Drop unused named imports
-    for (const imp of [...sf.getImportDeclarations()]) {
-      for (const named of [...imp.getNamedImports()]) {
-        if (!isIdentifierReferenced(sf, named.getName(), named)) {
-          named.remove()
-          changed = true
-        }
+    // Imports: rebuild each ImportDeclaration to drop unused specifiers.
+    for (const imp of sf.getImportDeclarations()) {
+      const namedImports = imp.getNamedImports()
+      const usedNamed = namedImports.filter(n => isReferencedInFile(n.getName(), usage))
+      const defaultImport = imp.getDefaultImport()
+      const namespaceImport = imp.getNamespaceImport()
+      const allUsedNamed = usedNamed.length === namedImports.length
+      if (allUsedNamed) continue
+      const moduleSpec = imp.getModuleSpecifierValue() ?? ''
+      const isTypeOnly = imp.isTypeOnly()
+
+      // No default / namespace / specifiers left → drop the whole import.
+      if (
+        usedNamed.length === 0 &&
+        !defaultImport &&
+        !namespaceImport
+      ) {
+        let end = imp.getEnd()
+        if (text[end] === '\n') end++
+        deletions.push({ start: imp.getStart(), end, replacement: '' })
+        continue
       }
-      // If the import has no specifiers left at all, remove the whole declaration
-      const stillNamed = imp.getNamedImports().length
-      const hasDefault = imp.getDefaultImport() !== undefined
-      const hasNamespace = imp.getNamespaceImport() !== undefined
-      if (stillNamed === 0 && !hasDefault && !hasNamespace) {
-        imp.remove()
-        changed = true
+
+      // Rebuild keeping default / namespace + retained named specifiers.
+      const parts: string[] = []
+      if (defaultImport) parts.push(defaultImport.getText())
+      if (namespaceImport) parts.push(`* as ${namespaceImport.getText()}`)
+      if (usedNamed.length > 0) {
+        parts.push(`{ ${usedNamed.map(n => n.getText()).join(', ')} }`)
       }
+      const prefix = isTypeOnly ? 'import type ' : 'import '
+      importRewrites.push({
+        start: imp.getStart(),
+        end: imp.getEnd(),
+        replacement: `${prefix}${parts.join(', ')} from ${JSON.stringify(moduleSpec)}`
+      })
     }
 
-    // Drop unused top-level const declarations (e.g. `const byIdArgs = {...}`)
-    for (const stmt of [...sf.getVariableStatements()]) {
-      if (stmt.hasExportKeyword()) continue // exported — keep
-      for (const decl of [...stmt.getDeclarations()]) {
-        const name = decl.getName()
-        if (!isIdentifierReferenced(sf, name, decl)) {
-          decl.remove()
-          changed = true
-        }
-      }
-      // If the statement now has no declarations, ts-morph drops it automatically
+    // Top-level non-export const statements: drop those whose only declared
+    // names are unreferenced. (Exports are handled by the project-wide pass.)
+    for (const stmt of sf.getVariableStatements()) {
+      if (stmt.hasExportKeyword()) continue
+      const decls = stmt.getDeclarations()
+      const allUnused = decls.every(d => !isReferencedInFile(d.getName(), usage))
+      if (!allUnused) continue
+      let end = stmt.getEnd()
+      if (text[end] === '\n') end++
+      deletions.push({ start: stmt.getStart(), end, replacement: '' })
     }
 
-    if (!changed) break
+    const all = [...deletions, ...importRewrites]
+    if (all.length === 0) break
+    applyTextEdits(sf, all)
   }
 }
 
