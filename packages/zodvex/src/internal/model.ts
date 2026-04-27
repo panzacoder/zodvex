@@ -26,9 +26,10 @@ function createModel<Name extends string>(
   definitionSource: ZodvexModelDefinitionSource,
   indexes: Record<string, readonly string[]> = {},
   searchIndexes: Record<string, SearchIndexConfig> = {},
-  vectorIndexes: Record<string, VectorIndexConfig> = {}
+  vectorIndexes: Record<string, VectorIndexConfig> = {},
+  userSchema?: $ZodType
 ): any {
-  const model = {
+  const model: any = {
     name,
     fields,
     schema,
@@ -43,7 +44,8 @@ function createModel<Name extends string>(
         definitionSource,
         { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
         searchIndexes,
-        vectorIndexes
+        vectorIndexes,
+        userSchema
       )
     },
     searchIndex(indexName: string, config: SearchIndexConfig) {
@@ -54,16 +56,28 @@ function createModel<Name extends string>(
         definitionSource,
         indexes,
         { ...searchIndexes, [indexName]: config },
-        vectorIndexes
+        vectorIndexes,
+        userSchema
       )
     },
     vectorIndex(indexName: string, config: VectorIndexConfig) {
-      return createModel(name, fields, schema, definitionSource, indexes, searchIndexes, {
-        ...vectorIndexes,
-        [indexName]: config
-      })
+      return createModel(
+        name,
+        fields,
+        schema,
+        definitionSource,
+        indexes,
+        searchIndexes,
+        { ...vectorIndexes, [indexName]: config },
+        userSchema
+      )
     }
   }
+  // Retain the user's original schema for non-shape models so build-time
+  // tooling (`zodvex compile`) can emit the shape source-faithfully without
+  // round-tripping through the runtime bundle. Internal-only — not part of
+  // the public model API.
+  if (userSchema) model.userSchema = userSchema
 
   attachMeta(model, { type: 'model', tableName: name, definitionSource, schemas: schema })
   return model
@@ -523,7 +537,16 @@ export function defineZodModel<Name extends string>(
     if (slim) {
       return createSlimModel(name, {}, fieldsOrSchema as $ZodType, 'schema')
     }
-    return createModel(name, {}, createSchemaBundle(name, fieldsOrSchema as $ZodType), 'schema')
+    return createModel(
+      name,
+      {},
+      createSchemaBundle(name, fieldsOrSchema as $ZodType),
+      'schema',
+      undefined,
+      undefined,
+      undefined,
+      fieldsOrSchema as $ZodType
+    )
   }
 
   const fields = fieldsOrSchema as $ZodShape
