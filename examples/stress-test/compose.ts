@@ -60,7 +60,8 @@ const FLAVORS: Record<Flavor, FlavorSpec> = {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Model,`).join('\n')
       return {
         imports: `import { z } from 'zod'
-import { defineZodModel, defineZodSchema, zx } from 'zodvex'`,
+import { defineZodModel, zx } from 'zodvex'
+import { defineZodSchema } from 'zodvex/server'`,
         schemaCall: `export default defineZodSchema({
 ${tables}
 })
