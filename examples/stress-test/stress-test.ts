@@ -216,8 +216,27 @@ function runCli(cmd: string): void {
 interface PushResult {
   pushed: boolean
   durationMs: number
+  /** Total uncompressed bytes of the bundle pushed to the deployment.
+   *  Closest concrete proxy for what the push-time isolate has to load. */
+  unzippedBytes?: number
+  /** Total gzipped bytes of the upload. */
+  zippedBytes?: number
   errorKind?: 'oom' | 'file-limit' | 'function-array' | 'bundle-size' | 'timeout' | 'other'
   errorSnippet?: string
+}
+
+/** Parses Convex's `{ "$integer": "<base64-LE-uint64>" }` encoding. Returns
+ *  the byte count, or undefined if not found. */
+function extractConvexSize(out: string, key: 'unzippedSizeBytes' | 'zippedSizeBytes'): number | undefined {
+  const re = new RegExp(`"${key}"\\s*:\\s*\\{\\s*"\\$integer"\\s*:\\s*"([^"]+)"`)
+  const m = out.match(re)
+  if (!m) return undefined
+  const buf = Buffer.from(m[1], 'base64')
+  if (buf.length !== 8) return undefined
+  const lo = buf.readUInt32LE(0)
+  const hi = buf.readUInt32LE(4)
+  // Sizes fit in a JS number (≤ 2^53 = 9 PB) so no BigInt needed.
+  return hi * 0x100000000 + lo
 }
 
 const KNOWN_OOM_PATTERNS = [
@@ -265,18 +284,29 @@ function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
     const start = Date.now()
     const child = spawnSync(
       'npx',
-      ['convex', 'deploy', '--yes', '--typecheck=disable', '--codegen=disable'],
+      ['convex', 'deploy', '--yes', '--verbose', '--typecheck=disable', '--codegen=disable'],
       {
         cwd: ROOT,
         env: { ...process.env, CI: '1', CONVEX_DEPLOY_KEY: deployKey },
         encoding: 'utf-8',
         timeout: timeoutMs,
+        // Verbose output dumps the full schema graph; can be 50+ MB at high
+        // counts. Default 1 MB cap would truncate and we'd lose the trailing
+        // size lines.
+        maxBuffer: 512 * 1024 * 1024,
         stdio: ['ignore', 'pipe', 'pipe']
       }
     )
     const durationMs = Date.now() - start
-    if (child.status === 0) return { pushed: true, durationMs }
     const out = `${child.stdout ?? ''}\n${child.stderr ?? ''}`
+    if (child.status === 0) {
+      return {
+        pushed: true,
+        durationMs,
+        unzippedBytes: extractConvexSize(out, 'unzippedSizeBytes'),
+        zippedBytes: extractConvexSize(out, 'zippedSizeBytes')
+      }
+    }
     const errorKind: PushResult['errorKind'] = child.signal === 'SIGTERM' ? 'timeout'
       : /Too many function files \(\d+ > maximum 4096\)/i.test(out) ? 'file-limit'
       : /ArrayTooLong:.*maximum length 8192/i.test(out) ? 'function-array'
@@ -301,6 +331,8 @@ interface CeilingPoint {
   count: number
   pushed: boolean
   durationMs: number
+  unzippedBytes?: number
+  zippedBytes?: number
   errorKind?: PushResult['errorKind']
   errorSnippet?: string
 }
@@ -312,6 +344,8 @@ function pushAtCount(count: number, variant: Variant, deployKey: string): Ceilin
     count,
     pushed: r.pushed,
     durationMs: r.durationMs,
+    unzippedBytes: r.unzippedBytes,
+    zippedBytes: r.zippedBytes,
     errorKind: r.errorKind,
     errorSnippet: r.errorSnippet
   }
@@ -369,7 +403,7 @@ function findCeiling(variant: Variant, deployKey: string): { ceiling: number; po
 
 function writeReport(
   results: { variant: string; ceiling: number; points: CeilingPoint[] }[],
-  baselineRows?: { variant: string; durationMs: number; pushed: boolean; errorKind?: string }[]
+  baselineRows?: BaselineRow[]
 ): void {
   if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true })
 
@@ -384,11 +418,18 @@ function writeReport(
     lines.push(
       `## Baseline (each variant @ count=${BASELINE_COUNT})`,
       '',
-      '| Variant | Pushed | Duration (s) | Error |',
-      '|---------|--------|--------------|-------|'
+      'Bundle bytes are reported by `convex deploy --verbose` and reflect',
+      'the size of the compiled artifact uploaded to the deployment, which',
+      'is the closest concrete proxy for what the push-time isolate has',
+      'to load.',
+      '',
+      '| Variant | Pushed | Duration (s) | Unzipped | Zipped | Error |',
+      '|---------|--------|--------------|----------|--------|-------|'
     )
     for (const b of baselineRows) {
-      lines.push(`| ${b.variant} | ${b.pushed ? 'yes' : 'no'} | ${(b.durationMs / 1000).toFixed(1)} | ${b.errorKind ?? ''} |`)
+      lines.push(
+        `| ${b.variant} | ${b.pushed ? 'yes' : 'no'} | ${(b.durationMs / 1000).toFixed(1)} | ${fmtKB(b.unzippedBytes)} | ${fmtKB(b.zippedBytes)} | ${b.errorKind ?? ''} |`
+      )
     }
     lines.push('')
   }
@@ -408,12 +449,12 @@ function writeReport(
     for (const r of results) lines.push(`| ${r.variant} | ${r.ceiling} |`)
 
     lines.push('', '## All probes', '')
-    lines.push('| Variant | Count | Pushed | Duration (s) | Error |')
-    lines.push('|---------|-------|--------|--------------|-------|')
+    lines.push('| Variant | Count | Pushed | Duration (s) | Unzipped | Zipped | Error |')
+    lines.push('|---------|-------|--------|--------------|----------|--------|-------|')
     for (const r of results) {
       const sorted = [...r.points].sort((a, b) => a.count - b.count)
       for (const p of sorted) {
-        lines.push(`| ${r.variant} | ${p.count} | ${p.pushed ? 'yes' : 'no'} | ${(p.durationMs / 1000).toFixed(1)} | ${p.errorKind ?? ''} |`)
+        lines.push(`| ${r.variant} | ${p.count} | ${p.pushed ? 'yes' : 'no'} | ${(p.durationMs / 1000).toFixed(1)} | ${fmtKB(p.unzippedBytes)} | ${fmtKB(p.zippedBytes)} | ${p.errorKind ?? ''} |`)
       }
     }
   }
@@ -432,17 +473,39 @@ function writeReport(
  *  cleanliness before investing real-deploy minutes in ceiling search. */
 const BASELINE_COUNT = 100
 
-function runBaselinePass(variants: Variant[], deployKey: string): { ok: boolean; rows: { variant: string; durationMs: number; pushed: boolean; errorKind?: string }[] } {
+interface BaselineRow {
+  variant: string
+  durationMs: number
+  pushed: boolean
+  unzippedBytes?: number
+  zippedBytes?: number
+  errorKind?: string
+}
+
+function fmtKB(bytes: number | undefined): string {
+  if (bytes == null) return 'n/a'
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+}
+
+function runBaselinePass(variants: Variant[], deployKey: string): { ok: boolean; rows: BaselineRow[] } {
   console.log(`\n${'='.repeat(60)}`)
   console.log(`Baseline pass — each variant @ count=${BASELINE_COUNT}`)
   console.log('='.repeat(60))
-  const rows: { variant: string; durationMs: number; pushed: boolean; errorKind?: string }[] = []
+  const rows: BaselineRow[] = []
   let allOk = true
   for (const v of variants) {
     const p = pushAtCount(BASELINE_COUNT, v, deployKey)
-    rows.push({ variant: v.name, durationMs: p.durationMs, pushed: p.pushed, errorKind: p.errorKind })
+    rows.push({
+      variant: v.name,
+      durationMs: p.durationMs,
+      pushed: p.pushed,
+      unzippedBytes: p.unzippedBytes,
+      zippedBytes: p.zippedBytes,
+      errorKind: p.errorKind
+    })
     if (p.pushed) {
-      console.log(`  ${v.name.padEnd(24)} pushed in ${(p.durationMs / 1000).toFixed(1)}s`)
+      console.log(`  ${v.name.padEnd(24)} pushed in ${(p.durationMs / 1000).toFixed(1)}s   ${fmtKB(p.unzippedBytes)} unzipped, ${fmtKB(p.zippedBytes)} zipped`)
     } else {
       allOk = false
       console.log(`  ${v.name.padEnd(24)} FAILED (${p.errorKind})`)
@@ -463,7 +526,10 @@ async function main() {
   if (flags.count !== undefined) {
     for (const v of variants) {
       const p = pushAtCount(flags.count, v, deployKey)
-      console.log(`${v.name} @ ${flags.count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})`}`)
+      const tag = p.pushed
+        ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s   ${fmtKB(p.unzippedBytes)} unzipped, ${fmtKB(p.zippedBytes)} zipped`
+        : `FAILED (${p.errorKind})`
+      console.log(`${v.name} @ ${flags.count}: ${tag}`)
       if (!p.pushed && p.errorSnippet) console.log(`    ${p.errorSnippet.split('\n').join('\n    ')}`)
     }
     return
