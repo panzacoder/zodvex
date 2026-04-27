@@ -542,10 +542,16 @@ function localHeapBinarySearch(variant: Variant): {
  *     a Bun subprocess loading the composed source stays under the
  *     ~48 MB threshold (push-time budget minus Convex's runtime overhead).
  *  2. Real `convex deploy` push at `candidate` to confirm.
- *  3. If push fails, real-push refines downward [50 .. candidate].
- *  4. We don't probe above `candidate` — accept the conservative number.
- *     The proxy slightly under-counts in our experience, so this is the
- *     "verified safe" ceiling, not the absolute OOM cliff.
+ *  3. If push fails on a memory error: real-push refines downward
+ *     [50 .. candidate].
+ *  4. If push fails on a non-memory error (TooManyReads, function-array,
+ *     file-limit, timeout): the proxy says `candidate` is heap-safe, and
+ *     pushing higher would just hit the same non-memory wall — so we
+ *     accept `candidate` as the ceiling and flag the real-push failure
+ *     in the report. Useful for the convex baseline, which can outrun
+ *     non-memory Convex limits before the heap proxy ever signals OOM.
+ *  5. We don't probe above `candidate` — the proxy slightly under-counts,
+ *     so this is the "verified safe" ceiling, not the absolute OOM cliff.
  */
 function findCeiling(variant: Variant, deployKey: string): { ceiling: number; points: CeilingPoint[] } {
   console.log(`\n${'='.repeat(60)}`)
@@ -566,16 +572,27 @@ function findCeiling(variant: Variant, deployKey: string): { ceiling: number; po
   points.push(candidate)
   console.log(`  [push] ${heap.candidate}: ${candidate.pushed ? `pushed in ${(candidate.durationMs / 1000).toFixed(1)}s` : `FAILED (${candidate.errorKind})`}`)
   if (candidate.pushed) {
-    console.log(`  → ceiling: ${heap.candidate} endpoints (heap proxy + 1 real push)`)
+    console.log(`  → ceiling: ${heap.candidate} endpoints (heap-proxy seed + real-push confirmed)`)
     return { ceiling: heap.candidate, points }
   }
 
-  // Phase 3: refine downward via real push. The proxy mis-estimated; push
-  // capacity is below `candidate`. Binary search [50, candidate).
+  // Phase 3a: non-memory failure → accept the proxy candidate. The proxy
+  // says N is heap-safe; the push hit a Convex limit unrelated to the
+  // 64 MB isolate budget (e.g. TooManyReads at validation, 8192-function
+  // cap). Refining downward via real-push wouldn't tell us anything about
+  // memory — it would just bisect the same non-memory wall. Report
+  // candidate as ceiling and surface the failure kind in the report.
+  if (candidate.errorKind && candidate.errorKind !== 'oom') {
+    console.log(
+      `  → ceiling: ${heap.candidate} endpoints (heap-proxy seed; real-push hit ${candidate.errorKind}, not memory-bound)`
+    )
+    return { ceiling: heap.candidate, points }
+  }
+
+  // Phase 3b: memory failure → refine downward via real push.
   let lo = 50
   let hi = heap.candidate
   let lastGood = 0
-  // Confirm 50 pushes first; if not, no usable lower bound.
   const floorProbe = pushAtCount(lo, variant, deployKey)
   points.push(floorProbe)
   console.log(`  [push] ${lo}: ${floorProbe.pushed ? 'pushed' : `over (${floorProbe.errorKind})`}`)
@@ -592,7 +609,7 @@ function findCeiling(variant: Variant, deployKey: string): { ceiling: number; po
     if (p.pushed) { lo = mid; lastGood = mid }
     else hi = mid
   }
-  console.log(`  → ceiling: ${lastGood} endpoints (heap proxy + binary refine)`)
+  console.log(`  → ceiling: ${lastGood} endpoints (heap-proxy seed + real-push binary refine, OOM-bound)`)
   return { ceiling: lastGood, points }
 }
 
