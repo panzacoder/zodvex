@@ -46,6 +46,7 @@ interface Flags {
   convex: boolean
   convexHelpers: boolean
   convexHelpersZod3: boolean
+  baselineOnly: boolean
 }
 
 function parseFlags(): Flags {
@@ -59,7 +60,8 @@ function parseFlags(): Flags {
     compile: args.includes('--compile'),
     convex: args.includes('--convex'),
     convexHelpers: args.includes('--convex-helpers'),
-    convexHelpersZod3: args.includes('--convex-helpers-zod3')
+    convexHelpersZod3: args.includes('--convex-helpers-zod3'),
+    baselineOnly: args.includes('--baseline')
   }
 }
 
@@ -355,33 +357,54 @@ function findCeiling(variant: Variant, deployKey: string): { ceiling: number; po
 
 // --- Report ---
 
-function writeReport(results: { variant: string; ceiling: number; points: CeilingPoint[] }[]): void {
+function writeReport(
+  results: { variant: string; ceiling: number; points: CeilingPoint[] }[],
+  baselineRows?: { variant: string; durationMs: number; pushed: boolean; errorKind?: string }[]
+): void {
   if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true })
 
   const lines: string[] = [
     '# Stress Test Report (real Convex push)',
     '',
     `**Date:** ${new Date().toISOString().split('T')[0]}`,
-    '',
-    '## Ceilings',
-    '',
-    'Each row is the largest endpoint count that successfully pushes via',
-    '`npx convex dev --once` against a real Convex dev deployment, found by',
-    'doubling-then-binary-search. A failed push (OOM, bundle size, or other)',
-    'sets the upper bound; the next probe halves the range.',
-    '',
-    '| Variant | Max Endpoints |',
-    '|---------|--------------|'
+    ''
   ]
-  for (const r of results) lines.push(`| ${r.variant} | ${r.ceiling} |`)
 
-  lines.push('', '## All probes', '')
-  lines.push('| Variant | Count | Pushed | Duration (s) | Error |')
-  lines.push('|---------|-------|--------|--------------|-------|')
-  for (const r of results) {
-    const sorted = [...r.points].sort((a, b) => a.count - b.count)
-    for (const p of sorted) {
-      lines.push(`| ${r.variant} | ${p.count} | ${p.pushed ? 'yes' : 'no'} | ${(p.durationMs / 1000).toFixed(1)} | ${p.errorKind ?? ''} |`)
+  if (baselineRows && baselineRows.length > 0) {
+    lines.push(
+      `## Baseline (each variant @ count=${BASELINE_COUNT})`,
+      '',
+      '| Variant | Pushed | Duration (s) | Error |',
+      '|---------|--------|--------------|-------|'
+    )
+    for (const b of baselineRows) {
+      lines.push(`| ${b.variant} | ${b.pushed ? 'yes' : 'no'} | ${(b.durationMs / 1000).toFixed(1)} | ${b.errorKind ?? ''} |`)
+    }
+    lines.push('')
+  }
+
+  if (results.length > 0) {
+    lines.push(
+      '## Ceilings',
+      '',
+      'Each row is the largest endpoint count that successfully pushes via',
+      '`npx convex deploy` against a real Convex dev deployment, found by',
+      'doubling-then-binary-search. A failed push (OOM, bundle size, or other)',
+      'sets the upper bound; the next probe halves the range.',
+      '',
+      '| Variant | Max Endpoints |',
+      '|---------|--------------|'
+    )
+    for (const r of results) lines.push(`| ${r.variant} | ${r.ceiling} |`)
+
+    lines.push('', '## All probes', '')
+    lines.push('| Variant | Count | Pushed | Duration (s) | Error |')
+    lines.push('|---------|-------|--------|--------------|-------|')
+    for (const r of results) {
+      const sorted = [...r.points].sort((a, b) => a.count - b.count)
+      for (const p of sorted) {
+        lines.push(`| ${r.variant} | ${p.count} | ${p.pushed ? 'yes' : 'no'} | ${(p.durationMs / 1000).toFixed(1)} | ${p.errorKind ?? ''} |`)
+      }
     }
   }
 
@@ -394,6 +417,30 @@ function writeReport(results: { variant: string; ceiling: number; points: Ceilin
 }
 
 // --- Main ---
+
+/** Baseline pass: push every variant at a fixed small count to confirm
+ *  cleanliness before investing real-deploy minutes in ceiling search. */
+const BASELINE_COUNT = 100
+
+function runBaselinePass(variants: Variant[], deployKey: string): { ok: boolean; rows: { variant: string; durationMs: number; pushed: boolean; errorKind?: string }[] } {
+  console.log(`\n${'='.repeat(60)}`)
+  console.log(`Baseline pass — each variant @ count=${BASELINE_COUNT}`)
+  console.log('='.repeat(60))
+  const rows: { variant: string; durationMs: number; pushed: boolean; errorKind?: string }[] = []
+  let allOk = true
+  for (const v of variants) {
+    const p = pushAtCount(BASELINE_COUNT, v, deployKey)
+    rows.push({ variant: v.name, durationMs: p.durationMs, pushed: p.pushed, errorKind: p.errorKind })
+    if (p.pushed) {
+      console.log(`  ${v.name.padEnd(24)} pushed in ${(p.durationMs / 1000).toFixed(1)}s`)
+    } else {
+      allOk = false
+      console.log(`  ${v.name.padEnd(24)} FAILED (${p.errorKind})`)
+      if (p.errorSnippet) console.log(`      ${p.errorSnippet.split('\n').slice(0, 3).join('\n      ')}`)
+    }
+  }
+  return { ok: allOk, rows }
+}
 
 async function main() {
   const { deployKey } = ensureConvexDeployment()
@@ -412,6 +459,22 @@ async function main() {
     return
   }
 
+  // Phase 0: baseline. Halt before ceiling search if anything fails to push at
+  // a fixed small count — no point burning minutes on a binary search if a
+  // variant can't even build.
+  const baseline = runBaselinePass(variants, deployKey)
+  if (!baseline.ok) {
+    console.error('\nbaseline push failed for one or more variants; halting before ceiling search.')
+    process.exit(1)
+  }
+  if (flags.baselineOnly) {
+    writeReport([], baseline.rows)
+    return
+  }
+
+  console.log(`\n${'='.repeat(60)}`)
+  console.log('Ceiling search')
+  console.log('='.repeat(60))
   const results: { variant: string; ceiling: number; points: CeilingPoint[] }[] = []
   for (const v of variants) {
     const r = findCeiling(v, deployKey)
@@ -425,7 +488,7 @@ async function main() {
   console.log('|---------|--------------------|')
   for (const r of results) console.log(`| ${r.variant} | ${r.ceiling} |`)
 
-  writeReport(results)
+  writeReport(results, baseline.rows)
 }
 
 main().catch(e => {
