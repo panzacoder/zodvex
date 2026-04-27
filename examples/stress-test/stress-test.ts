@@ -454,51 +454,145 @@ function pushAtCount(count: number, variant: Variant, deployKey: string): Ceilin
   }
 }
 
-function findCeiling(variant: Variant, deployKey: string): { ceiling: number; points: CeilingPoint[] } {
-  console.log(`\n${'='.repeat(60)}`)
-  console.log(`Searching ceiling for: ${variant.name}`)
-  console.log('='.repeat(60))
+/** Push-time isolate budget, minus Convex runtime overhead. The proxy
+ *  doesn't load Convex's runtime, so 48 MB is the safe-zone target. */
+const HEAP_PROXY_THRESHOLD_MB = 48
+/** Most variants OOM at low counts; this is just the upper search bound. */
+const HEAP_PROXY_HI = 5000
 
-  const points: CeilingPoint[] = []
-  let lastGood = 0
+interface LocalHeapPoint {
+  count: number
+  heapDeltaMB: number
+}
 
-  // Coarse pass: doubling. Convex baseline is the only one expected to push
-  // through the multi-thousand range, so we go up to 4k for it; others cap
-  // earlier (saves real-deploy minutes).
-  const coarseCap = variant.flavor === 'convex' ? 4000 : variant.compile ? 2000 : 1000
-  let hi = coarseCap
-  for (let count = 50; count <= coarseCap; count = Math.min(coarseCap, Math.floor(count * 1.6))) {
-    const p = pushAtCount(count, variant, deployKey)
-    points.push(p)
-    console.log(`  ${count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})\n    ${p.errorSnippet?.split('\n').join('\n    ')}`}`)
-    if (p.pushed) {
-      lastGood = count
-      if (count === coarseCap) {
-        console.log(`  → reached probe cap at ${coarseCap} without failure`)
-        return { ceiling: lastGood, points }
+function measureLocalHeap(count: number, variant: Variant): LocalHeapPoint | null {
+  prepareConvexDir(count, variant)
+  try {
+    const out = execFileSync(
+      'bun',
+      ['--expose-gc', 'run', join(ROOT, 'measureHeap.ts'), `--dir=${CONVEX_DIR}`],
+      {
+        cwd: ROOT,
+        encoding: 'utf-8',
+        timeout: 120_000,
+        env: { ...process.env, NODE_OPTIONS: '--expose-gc' },
+        // Heap proxy output is small JSON; bump cap modestly anyway.
+        maxBuffer: 16 * 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe']
       }
+    )
+    const parsed = JSON.parse(out.toString().trim()) as { heapDeltaMB: number }
+    return { count, heapDeltaMB: parsed.heapDeltaMB }
+  } catch (err) {
+    console.warn(`  [heap-proxy] count=${count} FAILED: ${(err as Error).message?.split('\n')[0]}`)
+    return null
+  }
+}
+
+/** Local-heap binary search for the largest N where heapDeltaMB ≤ threshold.
+ *  Result is a SEED for real-push confirmation, not the ceiling itself. */
+function localHeapBinarySearch(variant: Variant): {
+  candidate: number
+  highestSafe: number
+  points: LocalHeapPoint[]
+} {
+  const points: LocalHeapPoint[] = []
+  let lo = 0
+  let hi = HEAP_PROXY_HI
+  let highestSafe = 0
+  let firstUnsafe = HEAP_PROXY_HI
+
+  // Doubling-up pass: start at 50, grow until heap exceeds threshold.
+  for (let count = 50; count <= HEAP_PROXY_HI; count = Math.min(HEAP_PROXY_HI, Math.round(count * 1.7))) {
+    const p = measureLocalHeap(count, variant)
+    if (!p) break
+    points.push(p)
+    console.log(`  [heap] ${count}: ${p.heapDeltaMB.toFixed(1)} MB`)
+    if (p.heapDeltaMB <= HEAP_PROXY_THRESHOLD_MB) {
+      lo = count
+      highestSafe = count
+      if (count === HEAP_PROXY_HI) break
     } else {
       hi = count
+      firstUnsafe = count
       break
     }
   }
 
-  if (lastGood === 0) {
-    console.log('  → could not push even the smallest seed count; bailing.')
-    return { ceiling: 0, points }
+  // Fine pass: binary search [highestSafe, firstUnsafe].
+  while (firstUnsafe - highestSafe > 25) {
+    const mid = Math.round((highestSafe + firstUnsafe) / 2)
+    const p = measureLocalHeap(mid, variant)
+    if (!p) break
+    points.push(p)
+    console.log(`  [heap] ${mid}: ${p.heapDeltaMB.toFixed(1)} MB`)
+    if (p.heapDeltaMB <= HEAP_PROXY_THRESHOLD_MB) {
+      highestSafe = mid
+    } else {
+      firstUnsafe = mid
+    }
   }
 
-  // Fine pass: binary search.
-  let lo = lastGood
+  return { candidate: highestSafe, highestSafe, points }
+}
+
+/** Hybrid ceiling search:
+ *
+ *  1. Local heap proxy binary-searches for `candidate` — the highest N where
+ *     a Bun subprocess loading the composed source stays under the
+ *     ~48 MB threshold (push-time budget minus Convex's runtime overhead).
+ *  2. Real `convex deploy` push at `candidate` to confirm.
+ *  3. If push fails, real-push refines downward [50 .. candidate].
+ *  4. We don't probe above `candidate` — accept the conservative number.
+ *     The proxy slightly under-counts in our experience, so this is the
+ *     "verified safe" ceiling, not the absolute OOM cliff.
+ */
+function findCeiling(variant: Variant, deployKey: string): { ceiling: number; points: CeilingPoint[] } {
+  console.log(`\n${'='.repeat(60)}`)
+  console.log(`Ceiling for: ${variant.name}`)
+  console.log('='.repeat(60))
+
+  // Phase 1: local heap proxy.
+  const heap = localHeapBinarySearch(variant)
+  if (heap.candidate === 0) {
+    console.log('  → heap proxy could not seed a candidate; bailing.')
+    return { ceiling: 0, points: [] }
+  }
+  console.log(`  → heap-proxy candidate: ${heap.candidate}`)
+
+  // Phase 2: real-push confirmation.
+  const points: CeilingPoint[] = []
+  const candidate = pushAtCount(heap.candidate, variant, deployKey)
+  points.push(candidate)
+  console.log(`  [push] ${heap.candidate}: ${candidate.pushed ? `pushed in ${(candidate.durationMs / 1000).toFixed(1)}s` : `FAILED (${candidate.errorKind})`}`)
+  if (candidate.pushed) {
+    console.log(`  → ceiling: ${heap.candidate} endpoints (heap proxy + 1 real push)`)
+    return { ceiling: heap.candidate, points }
+  }
+
+  // Phase 3: refine downward via real push. The proxy mis-estimated; push
+  // capacity is below `candidate`. Binary search [50, candidate).
+  let lo = 50
+  let hi = heap.candidate
+  let lastGood = 0
+  // Confirm 50 pushes first; if not, no usable lower bound.
+  const floorProbe = pushAtCount(lo, variant, deployKey)
+  points.push(floorProbe)
+  console.log(`  [push] ${lo}: ${floorProbe.pushed ? 'pushed' : `over (${floorProbe.errorKind})`}`)
+  if (!floorProbe.pushed) {
+    console.log('  → push fails even at the smallest seed count; bailing.')
+    return { ceiling: 0, points }
+  }
+  lastGood = lo
   while (hi - lo > 25) {
     const mid = Math.round((lo + hi) / 2)
     const p = pushAtCount(mid, variant, deployKey)
     points.push(p)
-    console.log(`  ${mid}: ${p.pushed ? 'pushed' : `over (${p.errorKind})`}`)
+    console.log(`  [push] ${mid}: ${p.pushed ? 'pushed' : `over (${p.errorKind})`}`)
     if (p.pushed) { lo = mid; lastGood = mid }
     else hi = mid
   }
-  console.log(`  → ceiling: ${lastGood} endpoints`)
+  console.log(`  → ceiling: ${lastGood} endpoints (heap proxy + binary refine)`)
   return { ceiling: lastGood, points }
 }
 
