@@ -299,13 +299,14 @@ function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
     )
     const durationMs = Date.now() - start
     const out = `${child.stdout ?? ''}\n${child.stderr ?? ''}`
+    // Bundle sizes are reported by Convex *after* upload but *before*
+    // schema-validation runs. Some failures (TooManyReads, post-eval
+    // errors) only surface after the bundle is already there, so we
+    // still extract sizes when available — even on failure.
+    const unzippedBytes = extractConvexSize(out, 'unzippedSizeBytes')
+    const zippedBytes = extractConvexSize(out, 'zippedSizeBytes')
     if (child.status === 0) {
-      return {
-        pushed: true,
-        durationMs,
-        unzippedBytes: extractConvexSize(out, 'unzippedSizeBytes'),
-        zippedBytes: extractConvexSize(out, 'zippedSizeBytes')
-      }
+      return { pushed: true, durationMs, unzippedBytes, zippedBytes }
     }
     const errorKind: PushResult['errorKind'] = child.signal === 'SIGTERM' ? 'timeout'
       : /Too many function files \(\d+ > maximum 4096\)/i.test(out) ? 'file-limit'
@@ -314,7 +315,7 @@ function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
       : /bundle.*size|too large/i.test(out) ? 'bundle-size'
       : 'other'
     const errorSnippet = out.split('\n').filter(l => l.trim()).slice(-6).join('\n')
-    lastResult = { pushed: false, durationMs, errorKind, errorSnippet }
+    lastResult = { pushed: false, durationMs, unzippedBytes, zippedBytes, errorKind, errorSnippet }
     if (attempt < MAX_TRIES && RETRY_PATTERNS.some(p => p.test(out))) {
       const delayMs = 2000 * 2 ** (attempt - 1)
       sleepSync(delayMs)
