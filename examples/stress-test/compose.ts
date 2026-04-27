@@ -32,9 +32,6 @@ interface FlavorSpec {
   pascalSuffixes: string[]
   // How to find a seed's table name. Searches model source, then endpoint source.
   findTableName(modelSource: string, endpointSource: string, fallback: string): string
-  /** The flat list of identifiers each model emits, given the renamed pascal+camel pair.
-   *  Used to build the `import { ... } from './schema'` block in endpoints.ts. */
-  modelExports(pascal: string, camel: string): string[]
   /** Returns the schema-level imports + the schema-construction call.
    *  Model body declarations get spliced between them by the monolithic emitter. */
   buildSchemaParts(entries: Array<{ table: string; fileName: string; pascal: string }>): { imports: string; schemaCall: string }
@@ -52,11 +49,7 @@ const FLAVORS: Record<Flavor, FlavorSpec> = {
     findTableName(modelSource, _endpointSource, fallback) {
       const m = modelSource.match(/defineZodModel\(\s*'([^']+)'/)
       return m ? m[1] : fallback
-    },
-    modelExports(pascal, camel) {
-      return [`${pascal}Model`, `${camel}Fields`]
-    },
-    buildSchemaParts(entries) {
+    },    buildSchemaParts(entries) {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Model,`).join('\n')
       return {
         imports: `import { z } from 'zod'
@@ -121,11 +114,7 @@ export const { zq, zm } = initZodvex(schema, {
     findTableName(modelSource, endpointSource, fallback) {
       const m = endpointSource.match(/v\.id\(\s*'([^']+)'\s*\)/)
       return m ? m[1] : fallback
-    },
-    modelExports(pascal, camel) {
-      return [`${pascal}Table`, `${pascal}Doc`, `${camel}Fields`]
-    },
-    buildSchemaParts(entries) {
+    },    buildSchemaParts(entries) {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Table,`).join('\n')
       return {
         imports: `import { defineSchema, defineTable } from 'convex/server'
@@ -146,11 +135,7 @@ ${tables}
     findTableName(_modelSource, endpointSource, fallback) {
       const m = endpointSource.match(/zid\(\s*'([^']+)'\s*\)/)
       return m ? m[1] : fallback
-    },
-    modelExports(pascal, camel) {
-      return [`${pascal}Table`, `${camel}Fields`]
-    },
-    buildSchemaParts(entries) {
+    },    buildSchemaParts(entries) {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Table,`).join('\n')
       return {
         imports: `import { z } from 'zod'
@@ -188,11 +173,7 @@ export const zInternalAction = zCustomAction(internalAction, NoOp)
     findTableName(_modelSource, endpointSource, fallback) {
       const m = endpointSource.match(/zid\(\s*'([^']+)'\s*\)/)
       return m ? m[1] : fallback
-    },
-    modelExports(pascal, camel) {
-      return [`${pascal}Table`, `${camel}Fields`]
-    },
-    buildSchemaParts(entries) {
+    },    buildSchemaParts(entries) {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Table,`).join('\n')
       return {
         imports: `import { z } from 'zod/v3'
@@ -273,7 +254,7 @@ function renameSeed(
   newTable: string,
   newPascal: string,
   spec: FlavorSpec,
-  opts?: { slim?: boolean }
+  opts?: { slim?: boolean; extraNamesToSuffix?: Iterable<string> }
 ): string {
   let out = source
   out = out.replaceAll(`'${seed.tableName}'`, `'${newTable}'`)
@@ -293,14 +274,27 @@ function renameSeed(
   // `export const listComments`). Concatenating seed bodies into one file
   // would otherwise produce duplicate declarations: every comment seed
   // exports `getComment`, every activity seed declares `const addressObject`,
-  // etc. We skip names already renamed via the pascal/fields pass — those
-  // are already unique by suffix.
-  const renamedModelSymbols = new Set(spec.modelExports(newPascal, camelOf(newPascal)))
+  // etc. We skip names already made unique via the pascal/fields rename
+  // pass — those are already suffix-unique.
+  const renamedModelSymbols = new Set<string>()
+  for (const s of spec.pascalSuffixes) renamedModelSymbols.add(`${newPascal}${s}`)
+  renamedModelSymbols.add(newFields)
   const namesToSuffix = new Set<string>()
   for (const m of out.matchAll(/^(?:export\s+)?const\s+(\w+)\s*=/gm)) {
     const name = m[1]
     if (renamedModelSymbols.has(name)) continue
     namesToSuffix.add(name)
+  }
+  // Endpoints reference declarations made in the matching model file (e.g.
+  // `notificationSchema` from the union model). Those declarations don't
+  // appear in the endpoint body, so the matchAll above misses them; the
+  // caller passes them in via `extraNamesToSuffix` so identifier references
+  // get renamed consistently in both files.
+  if (opts?.extraNamesToSuffix) {
+    for (const name of opts.extraNamesToSuffix) {
+      if (renamedModelSymbols.has(name)) continue
+      namesToSuffix.add(name)
+    }
   }
   for (const name of namesToSuffix) {
     const renamed = `${name}_${suffix}`
@@ -372,7 +366,18 @@ export function compose(config: ComposeConfig): { outputDir: string } {
     modelBodies.push(splitImports(modelOut).body.trim())
 
     if (seed.endpointSource) {
-      const endpointOut = renameSeed(seed.endpointSource, seed, suffix, newTable, newPascal, spec, { slim: config.slim })
+      // Pre-scan the original (pre-rename) model body for top-level `const`
+      // declarations whose identifiers might also appear in the endpoint
+      // body. After rename, those identifiers carry `_<suffix>`; we need
+      // the endpoint's references to match.
+      const modelDeclNames = new Set<string>()
+      for (const m of seed.modelSource.matchAll(/^(?:export\s+)?const\s+(\w+)\s*=/gm)) {
+        modelDeclNames.add(m[1])
+      }
+      const endpointOut = renameSeed(seed.endpointSource, seed, suffix, newTable, newPascal, spec, {
+        slim: config.slim,
+        extraNamesToSuffix: modelDeclNames
+      })
       const { imports, body } = splitImports(endpointOut)
       endpointBodies.push(body.trim())
       // Keep only library imports (zod, zodvex, convex/values, ./functions).
@@ -385,7 +390,16 @@ export function compose(config: ComposeConfig): { outputDir: string } {
     }
 
     entries.push({ table: newTable, fileName, pascal: newPascal })
-    allModelExportNames.push(...spec.modelExports(newPascal, camelOf(newPascal)))
+    // Derive the model's actual exports from its rendered body. Hardcoded
+    // `spec.modelExports(...)` misses seed-specific exports like
+    // `notificationSchema_<suffix>` (a discriminated union, not the
+    // standard `*Fields` shape), which endpoints import by name — they
+    // must appear in the schema-import block or push fails with
+    // `ReferenceError`.
+    const renderedBody = modelBodies[modelBodies.length - 1]
+    for (const m of renderedBody.matchAll(/^export\s+const\s+(\w+)\s*=/gm)) {
+      allModelExportNames.push(m[1])
+    }
   }
 
   // --- schema.ts: canonical imports + all model bodies + defineSchema call.
