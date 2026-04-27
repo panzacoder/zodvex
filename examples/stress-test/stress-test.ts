@@ -88,16 +88,18 @@ function getVariants(flags: Flags): Variant[] {
       compile: flags.compile
     }]
   }
+  // Slim is intentionally not in the default matrix — `compile` is the
+  // strategic replacement for `slim` (preserves ergonomic API, no breaking
+  // changes, eliminates push-time Zod entirely). Slim stays available via
+  // explicit `--slim` for ad-hoc comparisons.
   return [
     { name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false, compile: false },
     { name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false, compile: false },
     { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false, compile: false },
     { name: 'zod', flavor: 'zodvex', slim: false, mini: false, codegen: false, compile: false },
     { name: 'zod + codegen', flavor: 'zodvex', slim: false, mini: false, codegen: true, compile: false },
-    { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false, codegen: false, compile: false },
     { name: 'zod + compile', flavor: 'zodvex', slim: false, mini: false, codegen: false, compile: true },
-    { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false, compile: false },
-    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true, codegen: false, compile: false }
+    { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false, compile: false }
   ]
 }
 
