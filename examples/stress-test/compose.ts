@@ -32,10 +32,18 @@ interface FlavorSpec {
   pascalSuffixes: string[]
   // How to find a seed's table name. Searches model source, then endpoint source.
   findTableName(modelSource: string, endpointSource: string, fallback: string): string
-  // Builds schema.ts
-  buildSchema(entries: Array<{ table: string; fileName: string; pascal: string }>): string
+  /** The flat list of identifiers each model emits, given the renamed pascal+camel pair.
+   *  Used to build the `import { ... } from './schema'` block in endpoints.ts. */
+  modelExports(pascal: string, camel: string): string[]
+  /** Returns the schema-level imports + the schema-construction call.
+   *  Model body declarations get spliced between them by the monolithic emitter. */
+  buildSchemaParts(entries: Array<{ table: string; fileName: string; pascal: string }>): { imports: string; schemaCall: string }
   // Builds functions.ts — returns null to skip
   buildFunctions(opts?: { withCodegen?: boolean }): string | null
+}
+
+function camelOf(pascal: string): string {
+  return pascal.charAt(0).toLowerCase() + pascal.slice(1)
 }
 
 const FLAVORS: Record<Flavor, FlavorSpec> = {
@@ -45,24 +53,22 @@ const FLAVORS: Record<Flavor, FlavorSpec> = {
       const m = modelSource.match(/defineZodModel\(\s*'([^']+)'/)
       return m ? m[1] : fallback
     },
-    buildSchema(entries) {
-      const imports = entries.map(e => `import { ${e.pascal}Model } from './models/${e.fileName}'`).join('\n')
+    modelExports(pascal, camel) {
+      return [`${pascal}Model`, `${camel}Fields`]
+    },
+    buildSchemaParts(entries) {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Model,`).join('\n')
-      return `import { defineZodSchema } from 'zodvex/server'
-
-${imports}
-
-export default defineZodSchema({
+      return {
+        imports: `import { z } from 'zod'
+import { defineZodModel, defineZodSchema, zx } from 'zodvex'`,
+        schemaCall: `export default defineZodSchema({
 ${tables}
 })
 `
+      }
     },
     buildFunctions(opts) {
       if (opts?.withCodegen) {
-        // Mirror the recommended codegen-using app pattern: dynamic-import
-        // `_zodvex/api.js` so the registry's full Zod schemas stay out of
-        // the push-time module graph. The registry resolves on first action
-        // invocation and is cached thereafter.
         return `import { initZodvex } from 'zodvex/server'
 import {
   query,
@@ -112,27 +118,24 @@ export const { zq, zm } = initZodvex(schema, {
   convex: {
     pascalSuffixes: ['Table', 'Doc'],
     findTableName(modelSource, endpointSource, fallback) {
-      // Convex seeds don't carry the table name in the model file itself.
-      // Look in the endpoint for the first v.id('<table>') — every endpoint has at least one.
       const m = endpointSource.match(/v\.id\(\s*'([^']+)'\s*\)/)
       return m ? m[1] : fallback
     },
-    buildSchema(entries) {
-      const imports = entries.map(e => `import { ${e.pascal}Table } from './models/${e.fileName}'`).join('\n')
+    modelExports(pascal, camel) {
+      return [`${pascal}Table`, `${pascal}Doc`, `${camel}Fields`]
+    },
+    buildSchemaParts(entries) {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Table,`).join('\n')
-      return `import { defineSchema } from 'convex/server'
-
-${imports}
-
-export default defineSchema({
+      return {
+        imports: `import { defineSchema, defineTable } from 'convex/server'
+import { v } from 'convex/values'`,
+        schemaCall: `export default defineSchema({
 ${tables}
 })
 `
+      }
     },
     buildFunctions() {
-      // Emit a proxy so endpoints (one dir below) can import via '../functions'.
-      // Same trick as zodvex — endpoint files would otherwise resolve
-      // '../_generated/server' to the wrong directory.
       return `export { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
 `
     },
@@ -140,21 +143,23 @@ ${tables}
   'convex-helpers': {
     pascalSuffixes: ['Table'],
     findTableName(_modelSource, endpointSource, fallback) {
-      // Convex-helpers seeds use zid('<table>') in endpoints; match the first call.
       const m = endpointSource.match(/zid\(\s*'([^']+)'\s*\)/)
       return m ? m[1] : fallback
     },
-    buildSchema(entries) {
-      const imports = entries.map(e => `import { ${e.pascal}Table } from './models/${e.fileName}'`).join('\n')
+    modelExports(pascal, camel) {
+      return [`${pascal}Table`, `${camel}Fields`]
+    },
+    buildSchemaParts(entries) {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Table,`).join('\n')
-      return `import { defineSchema } from 'convex/server'
-
-${imports}
-
-export default defineSchema({
+      return {
+        imports: `import { z } from 'zod'
+import { defineSchema, defineTable } from 'convex/server'
+import { zid, zodToConvex, zodToConvexFields } from 'convex-helpers/server/zod4'`,
+        schemaCall: `export default defineSchema({
 ${tables}
 })
 `
+      }
     },
     buildFunctions() {
       return `import { zCustomQuery, zCustomMutation, zCustomAction } from 'convex-helpers/server/zod4'
@@ -183,17 +188,20 @@ export const zInternalAction = zCustomAction(internalAction, NoOp)
       const m = endpointSource.match(/zid\(\s*'([^']+)'\s*\)/)
       return m ? m[1] : fallback
     },
-    buildSchema(entries) {
-      const imports = entries.map(e => `import { ${e.pascal}Table } from './models/${e.fileName}'`).join('\n')
+    modelExports(pascal, camel) {
+      return [`${pascal}Table`, `${camel}Fields`]
+    },
+    buildSchemaParts(entries) {
       const tables = entries.map(e => `  ${e.table}: ${e.pascal}Table,`).join('\n')
-      return `import { defineSchema } from 'convex/server'
-
-${imports}
-
-export default defineSchema({
+      return {
+        imports: `import { z } from 'zod/v3'
+import { defineSchema, defineTable } from 'convex/server'
+import { zid, zodToConvex, zodToConvexFields } from 'convex-helpers/server/zod3'`,
+        schemaCall: `export default defineSchema({
 ${tables}
 })
 `
+      }
     },
     buildFunctions() {
       return `import { zCustomQuery, zCustomMutation, zCustomAction } from 'convex-helpers/server/zod3'
@@ -273,62 +281,143 @@ function renameSeed(
   }
   const newFields = `${newPascal.charAt(0).toLowerCase() + newPascal.slice(1)}Fields`
   out = out.replaceAll(seed.fieldsExport, newFields)
-  out = out.replaceAll(`../models/${seed.name}`, `../models/${seed.name}_${suffix}`)
-  // Bake the `slim` decision into the emitted source. The seed pattern
-  // `const opts = process.env.ZODVEX_SLIM === '1' ? ... : undefined` would
-  // throw inside Convex's schema-eval sandbox, which forbids env access.
-  out = out.replace(
-    /const\s+opts\s*=\s*process\.env\.ZODVEX_SLIM[^\n]*\n/,
-    opts?.slim ? `const opts = { schemaHelpers: false } as const\n` : `const opts = undefined\n`
-  )
+  // Bake `slim` into the source. Convex's schema-eval sandbox forbids env
+  // access, and concatenated bodies would otherwise produce duplicate
+  // `const opts = ...` declarations.
+  const optsLiteral = opts?.slim ? '{ schemaHelpers: false } as const' : 'undefined'
+  out = out.replace(/^\s*const\s+opts\s*=\s*process\.env\.ZODVEX_SLIM[^\n]*\n/m, '')
+  out = out.replace(/(defineZodModel\([^)]+),\s*opts\s*\)/, `$1, ${optsLiteral})`)
+  // Per-seed rename of module-level `const`s — both local (`const byIdArgs`,
+  // `const addressObject`) and exported (`export const getActivity`,
+  // `export const listComments`). Concatenating seed bodies into one file
+  // would otherwise produce duplicate declarations: every comment seed
+  // exports `getComment`, every activity seed declares `const addressObject`,
+  // etc. We skip names already renamed via the pascal/fields pass — those
+  // are already unique by suffix.
+  const renamedModelSymbols = new Set(spec.modelExports(newPascal, camelOf(newPascal)))
+  const namesToSuffix = new Set<string>()
+  for (const m of out.matchAll(/^(?:export\s+)?const\s+(\w+)\s*=/gm)) {
+    const name = m[1]
+    if (renamedModelSymbols.has(name)) continue
+    namesToSuffix.add(name)
+  }
+  for (const name of namesToSuffix) {
+    const renamed = `${name}_${suffix}`
+    out = out.replace(new RegExp(`\\b${name}\\b`, 'g'), renamed)
+  }
+  // Path fixups for the monolithic layout: endpoints.ts now lives at the
+  // convex root next to functions.ts, not inside an endpoints/ subdir.
+  out = out.replace(/from\s+(['"])\.\.\/functions\1/g, "from './functions'")
   return out
 }
 
-export function compose(config: ComposeConfig): { modelsDir: string; endpointsDir: string; outputDir: string } {
+/**
+ * Splits source into (imports, body). Imports are returned as full lines
+ * (for dedup). The body has imports stripped but is otherwise untouched.
+ */
+function splitImports(src: string): { imports: string[]; body: string } {
+  const imports: string[] = []
+  const bodyLines: string[] = []
+  // Single-line imports are sufficient for the seed source — none span lines.
+  for (const line of src.split('\n')) {
+    if (/^\s*import\s/.test(line)) imports.push(line.trim())
+    else bodyLines.push(line)
+  }
+  return { imports, body: bodyLines.join('\n') }
+}
+
+export function compose(config: ComposeConfig): { outputDir: string } {
   const { count, outputDir } = config
   const flavor: Flavor = config.flavor ?? 'zodvex'
   const spec = FLAVORS[flavor]
-  const modelsDir = join(outputDir, 'models')
-  const endpointsDir = join(outputDir, 'endpoints')
 
-  // Targeted wipe: only the files compose owns. We're typically writing into
-  // a real Convex project root that contains `_generated/`, `convex.config.ts`,
-  // and `tsconfig.json` — those must survive.
-  if (existsSync(modelsDir)) rmSync(modelsDir, { recursive: true })
-  if (existsSync(endpointsDir)) rmSync(endpointsDir, { recursive: true })
-  for (const f of ['schema.ts', 'functions.ts', 'summary.json', '_zodvex']) {
+  // Targeted wipe: only files compose owns. _generated/, convex.config.ts,
+  // tsconfig.json, README.md, .env.local must survive.
+  for (const f of [
+    'schema.ts',
+    'endpoints.ts',
+    'functions.ts',
+    'summary.json',
+    '_zodvex',
+    'models',
+    'endpoints'
+  ]) {
     const p = join(outputDir, f)
     if (existsSync(p)) rmSync(p, { recursive: true })
   }
   mkdirSync(outputDir, { recursive: true })
-  mkdirSync(modelsDir, { recursive: true })
-  mkdirSync(endpointsDir, { recursive: true })
 
   const seeds = loadSeeds(flavor)
   if (seeds.length === 0) throw new Error(`No seed files found for flavor '${flavor}'`)
 
   const entries: Array<{ table: string; fileName: string; pascal: string }> = []
+  const modelBodies: string[] = []
+  const endpointBodies: string[] = []
+  // Imports we'll dedupe and emit at the top of each monolithic file.
+  // For schema.ts we use the spec's canonical imports — model bodies' own
+  // import lines are stripped (zodvex / convex / convex-helpers all bring
+  // their own from spec.buildSchemaParts).
+  const endpointLibImports: string[] = []
+  const allModelExportNames: string[] = []
 
   for (let i = 0; i < count; i++) {
     const seed = seeds[i % seeds.length]
     const suffix = String(i).padStart(4, '0')
     const newTable = `${seed.tableName}_${suffix}`
     const newPascal = `${seed.pascal}${suffix}`
-    const fileName = `${seed.name}_${suffix}`
+    const fileName = `${seed.name}_${suffix}` // kept for summary.json compatibility
 
     const modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, spec, { slim: config.slim })
-    writeFileSync(join(modelsDir, `${fileName}.ts`), modelOut)
+    modelBodies.push(splitImports(modelOut).body.trim())
 
     if (seed.endpointSource) {
       const endpointOut = renameSeed(seed.endpointSource, seed, suffix, newTable, newPascal, spec, { slim: config.slim })
-      writeFileSync(join(endpointsDir, `${fileName}.ts`), endpointOut)
+      const { imports, body } = splitImports(endpointOut)
+      endpointBodies.push(body.trim())
+      // Keep only library imports (zod, zodvex, convex/values, ./functions).
+      // The per-seed `from '../models/<name>'` import is replaced by a single
+      // monolithic block at the top of endpoints.ts.
+      for (const imp of imports) {
+        if (/from\s+['"]\.\.\/models\//.test(imp)) continue
+        endpointLibImports.push(imp)
+      }
     }
 
     entries.push({ table: newTable, fileName, pascal: newPascal })
+    allModelExportNames.push(...spec.modelExports(newPascal, camelOf(newPascal)))
   }
 
-  writeFileSync(join(outputDir, 'schema.ts'), spec.buildSchema(entries))
+  // --- schema.ts: canonical imports + all model bodies + defineSchema call.
+  const { imports: schemaImports, schemaCall } = spec.buildSchemaParts(entries)
+  const schemaSource = [
+    schemaImports,
+    '',
+    modelBodies.join('\n\n'),
+    '',
+    schemaCall
+  ].join('\n')
+  writeFileSync(join(outputDir, 'schema.ts'), schemaSource)
 
+  // --- endpoints.ts: deduped lib imports + bulk import from ./schema + bodies.
+  if (endpointBodies.length > 0) {
+    const dedupLib = [...new Set(endpointLibImports)].join('\n')
+    // Wrap the import list at ~6 names per line for readability.
+    const exportNamesChunked: string[] = []
+    const PER_LINE = 6
+    for (let i = 0; i < allModelExportNames.length; i += PER_LINE) {
+      exportNamesChunked.push('  ' + allModelExportNames.slice(i, i + PER_LINE).join(', ') + ',')
+    }
+    const schemaImport = `import {\n${exportNamesChunked.join('\n')}\n} from './schema'`
+    const endpointsSource = [
+      dedupLib,
+      schemaImport,
+      '',
+      endpointBodies.join('\n\n')
+    ].join('\n')
+    writeFileSync(join(outputDir, 'endpoints.ts'), endpointsSource)
+  }
+
+  // --- functions.ts: unchanged (lib-level wiring, not per-seed).
   const functionsSource = spec.buildFunctions({ withCodegen: config.withCodegen })
   if (functionsSource !== null) {
     writeFileSync(join(outputDir, 'functions.ts'), functionsSource)
@@ -336,10 +425,10 @@ export function compose(config: ComposeConfig): { modelsDir: string; endpointsDi
 
   writeFileSync(
     join(outputDir, 'summary.json'),
-    JSON.stringify({ count, flavor, withCodegen: !!config.withCodegen, seeds: seeds.length }, null, 2)
+    JSON.stringify({ count, flavor, withCodegen: !!config.withCodegen, seeds: seeds.length, layout: 'monolithic' }, null, 2)
   )
 
-  return { modelsDir, endpointsDir, outputDir }
+  return { outputDir }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
