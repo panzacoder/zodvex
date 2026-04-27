@@ -18,12 +18,20 @@
  *
  * Usage:
  *   bun run stress-test                 # all variants, full ceiling search
+ *   bun run stress-test -- --baseline   # only push every variant @ count=100
  *   bun run stress-test -- --count=200  # single point, all variants
  *   bun run stress-test -- --convex     # one variant
  *   bun run stress-test -- --compile
+ *   bun run stress-test -- --force      # ignore the ceilings cache, re-measure
+ *
+ * Caching: ceiling results are cached in `results/ceilings.cache.json` keyed
+ * by a fingerprint of (variant config + seed source + compose.ts + this
+ * runner + zodvex CLI dist + deployment). Subsequent runs reuse cached
+ * ceilings when none of those have changed. Pass `--force` to bypass.
  */
 import { execFileSync, spawnSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, cpSync, rmSync } from 'fs'
+import { createHash } from 'crypto'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, cpSync, rmSync, statSync } from 'fs'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { transformCode, transformImports } from 'zod-to-mini'
@@ -32,8 +40,10 @@ import { compose, type Flavor } from './compose'
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url))
 const CONVEX_DIR = join(ROOT, 'convex')
+const SEEDS_DIR = join(ROOT, 'seeds')
 const RESULTS_DIR = join(ROOT, 'results')
 const ZODVEX_CLI = join(ROOT, '..', '..', 'packages', 'zodvex', 'dist', 'cli', 'index.js')
+const CEILINGS_CACHE = join(RESULTS_DIR, 'ceilings.cache.json')
 
 // --- Flag parsing ---
 
@@ -47,6 +57,8 @@ interface Flags {
   convexHelpers: boolean
   convexHelpersZod3: boolean
   baselineOnly: boolean
+  /** Bypass the ceilings cache — re-measure even when fingerprint matches. */
+  force: boolean
 }
 
 function parseFlags(): Flags {
@@ -61,7 +73,8 @@ function parseFlags(): Flags {
     convex: args.includes('--convex'),
     convexHelpers: args.includes('--convex-helpers'),
     convexHelpersZod3: args.includes('--convex-helpers-zod3'),
-    baselineOnly: args.includes('--baseline')
+    baselineOnly: args.includes('--baseline'),
+    force: args.includes('--force')
   }
 }
 
@@ -115,6 +128,91 @@ function zodvexVariantName(slim: boolean, mini: boolean, codegen: boolean, compi
   if (codegen) parts.push('codegen')
   if (compile) parts.push('compile')
   return parts.join(' + ')
+}
+
+// --- Ceilings cache ---
+//
+// The ceiling search is expensive (real-deploy pushes, 5–20 min per variant).
+// When nothing has changed — same seeds, same compose logic, same zodvex
+// dist, same deployment — re-running is wasteful.
+//
+// We fingerprint everything that could affect a variant's ceiling and cache
+// the result in `results/ceilings.cache.json`. Cache is checked at the start
+// of each ceiling search; on hit we reuse without pushing. `--force` bypasses
+// the cache entirely.
+
+interface CachedCeilingEntry {
+  variant: string
+  fingerprint: string
+  ceiling: number
+  points: CeilingPoint[]
+  baseline?: BaselineRow
+  timestamp: string
+  /** Deployment URL fragment so cache from one deployment doesn't leak to another. */
+  deployment: string
+}
+
+function hashFile(filePath: string, h: ReturnType<typeof createHash>): void {
+  if (!existsSync(filePath)) return
+  const stat = statSync(filePath)
+  if (stat.isDirectory()) {
+    for (const entry of readdirSync(filePath).sort()) {
+      hashFile(join(filePath, entry), h)
+    }
+    return
+  }
+  h.update(filePath)
+  h.update(readFileSync(filePath))
+}
+
+function deploymentKey(deployKey: string): string {
+  // Format: "dev:<slug>|<token>". Use the slug as a stable identifier; the
+  // token rotates without invalidating the cache.
+  const slug = deployKey.split('|')[0] ?? deployKey
+  return slug
+}
+
+function fingerprintVariant(variant: Variant, deployKey: string): string {
+  const h = createHash('sha256')
+  h.update('v3') // bump on schema changes to this fingerprint structure
+  h.update(JSON.stringify({
+    flavor: variant.flavor,
+    slim: variant.slim,
+    mini: variant.mini,
+    codegen: variant.codegen,
+    compile: variant.compile
+  }))
+  h.update(deploymentKey(deployKey))
+  // Seed source for the flavor — what the runner actually pushes.
+  hashFile(join(SEEDS_DIR, variant.flavor), h)
+  // Compose logic
+  hashFile(join(ROOT, 'compose.ts'), h)
+  // The runner itself (changes to the search algorithm, retry, etc. invalidate)
+  hashFile(join(ROOT, 'stress-test.ts'), h)
+  // For zodvex variants that depend on the workspace dist (compile / codegen
+  // transform output, mini codemod), include the relevant built artifacts.
+  if (variant.flavor === 'zodvex') {
+    if (variant.compile || variant.codegen) hashFile(ZODVEX_CLI, h)
+    // The mini codemod is invoked from the runner; hash the workspace package.
+    if (variant.mini) {
+      hashFile(join(ROOT, '..', '..', 'packages', 'zod-to-mini', 'dist'), h)
+    }
+  }
+  return h.digest('hex').slice(0, 16)
+}
+
+function loadCeilingsCache(): Record<string, CachedCeilingEntry> {
+  if (!existsSync(CEILINGS_CACHE)) return {}
+  try {
+    return JSON.parse(readFileSync(CEILINGS_CACHE, 'utf-8'))
+  } catch {
+    return {}
+  }
+}
+
+function saveCeilingsCache(cache: Record<string, CachedCeilingEntry>): void {
+  if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true })
+  writeFileSync(CEILINGS_CACHE, JSON.stringify(cache, null, 2))
 }
 
 // --- Setup check ---
@@ -556,10 +654,39 @@ async function main() {
   console.log(`\n${'='.repeat(60)}`)
   console.log('Ceiling search')
   console.log('='.repeat(60))
+  const cache = loadCeilingsCache()
   const results: { variant: string; ceiling: number; points: CeilingPoint[] }[] = []
+  let cacheHits = 0
+  let cacheMisses = 0
   for (const v of variants) {
+    const fp = fingerprintVariant(v, deployKey)
+    const cached = cache[v.name]
+    if (cached && cached.fingerprint === fp && !flags.force) {
+      console.log(`\n[cache hit] ${v.name}: ceiling=${cached.ceiling} (measured ${cached.timestamp.split('T')[0]})`)
+      results.push({ variant: v.name, ceiling: cached.ceiling, points: cached.points })
+      cacheHits++
+      continue
+    }
+    cacheMisses++
     const r = findCeiling(v, deployKey)
     results.push({ variant: v.name, ceiling: r.ceiling, points: r.points })
+    // Persist this run's result. If the search was inconclusive (ceiling=0)
+    // skip caching — we don't want to short-circuit a future run.
+    if (r.ceiling > 0) {
+      cache[v.name] = {
+        variant: v.name,
+        fingerprint: fp,
+        ceiling: r.ceiling,
+        points: r.points,
+        baseline: baseline.rows.find(b => b.variant === v.name),
+        timestamp: new Date().toISOString(),
+        deployment: deploymentKey(deployKey)
+      }
+      saveCeilingsCache(cache)
+    }
+  }
+  if (cacheHits > 0) {
+    console.log(`\n[cache] ${cacheHits} hit / ${cacheMisses} miss — pass --force to re-measure cached variants.`)
   }
 
   console.log(`\n${'='.repeat(60)}`)

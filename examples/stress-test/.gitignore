@@ -13,3 +13,8 @@ convex/summary.json
 convex/_zodvex/
 
 .env.local
+
+# Per-machine ceiling cache (push durations vary by network; deployment slug
+# is per-developer). The fingerprint key is reproducible but the recorded
+# ceilings include host-specific timing — gitignore.
+results/ceilings.cache.json
