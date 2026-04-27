@@ -6,6 +6,7 @@ node_modules/
 # regenerated.
 convex/schema.ts
 convex/functions.ts
+convex/endpoints.ts
 convex/models/
 convex/endpoints/
 convex/summary.json

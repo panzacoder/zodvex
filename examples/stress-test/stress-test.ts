@@ -246,12 +246,20 @@ function sleepSync(ms: number): void {
 }
 
 function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
-  // Retry transient infra errors (503 cold-starts, network blips). These are
+  // Retry transient infra errors (5xx cold-starts, network blips). These are
   // common immediately after creating a dev deployment and during periods of
   // Convex backend instability. They have nothing to do with the OOM ceiling
-  // we're trying to find.
-  const MAX_TRIES = 4
-  const RETRY_PATTERNS = [/503\s+Service Unavailable/i, /ECONNRESET/i, /ECONNREFUSED/i, /fetch failed/i]
+  // we're trying to find. Backoff: 2s, 4s, 8s, 16s, 32s, 64s — total ~2 min
+  // worst case.
+  const MAX_TRIES = 7
+  const RETRY_PATTERNS = [
+    /\b50[0-9]\b/,
+    /Service Unavailable/i,
+    /ECONNRESET/i,
+    /ECONNREFUSED/i,
+    /fetch failed/i,
+    /Unable to (?:pull|start) (?:deployment|push)/i
+  ]
   let lastResult: PushResult | undefined
   for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
     const start = Date.now()
@@ -276,7 +284,7 @@ function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
     const errorSnippet = out.split('\n').filter(l => l.trim()).slice(-6).join('\n')
     lastResult = { pushed: false, durationMs, errorKind, errorSnippet }
     if (attempt < MAX_TRIES && RETRY_PATTERNS.some(p => p.test(out))) {
-      const delayMs = 1500 * 2 ** (attempt - 1)
+      const delayMs = 2000 * 2 ** (attempt - 1)
       sleepSync(delayMs)
       continue
     }
