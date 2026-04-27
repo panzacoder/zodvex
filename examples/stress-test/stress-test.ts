@@ -1,22 +1,42 @@
-import { execSync } from 'child_process'
+/**
+ * Stress test (real-deploy edition).
+ *
+ * Composes N seed models per variant, optionally compiles or runs codegen,
+ * then drives `npx convex dev --once` against the example's configured Convex
+ * deployment. Bisects on push success/failure to find the actual ceiling for
+ * each variant.
+ *
+ * No more heap proxy. The push goes to a real Convex backend; the bundle is
+ * built with Convex's bundler, loaded into the 64 MB push-time isolate, and
+ * either succeeds or fails the way real users experience.
+ *
+ * Setup (once):
+ *   cd examples/stress-test
+ *   npx convex dev --configure
+ *
+ * That writes `.env.local` with `CONVEX_DEPLOYMENT=...`. The runner reads it
+ * via the Convex CLI itself.
+ *
+ * Usage:
+ *   bun run stress-test                 # all variants, full ceiling search
+ *   bun run stress-test -- --count=200  # single point, all variants
+ *   bun run stress-test -- --convex     # one variant
+ *   bun run stress-test -- --compile
+ */
+import { execFileSync, spawnSync } from 'child_process'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, cpSync, rmSync } from 'fs'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, cpSync, rmSync } from 'fs'
 import { transformCode, transformImports } from 'zod-to-mini'
 import { Project } from 'ts-morph'
+import { compose, type Flavor } from './compose'
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url))
-const COMPOSED_DIR = join(ROOT, 'convex', 'composed')
-const COMPILED_DIR = join(ROOT, 'convex', 'compiled')
+const CONVEX_DIR = join(ROOT, 'convex')
 const RESULTS_DIR = join(ROOT, 'results')
-// Use the workspace dev build of zodvex CLI directly. `bunx zodvex` resolves
-// to whatever version is cached globally, which won't have unreleased
-// subcommands (e.g. `compile`).
 const ZODVEX_CLI = join(ROOT, '..', '..', 'packages', 'zodvex', 'dist', 'cli', 'index.js')
 
-// --- Flag Parsing ---
-
-type Flavor = 'zodvex' | 'convex' | 'convex-helpers' | 'convex-helpers-zod3'
+// --- Flag parsing ---
 
 interface Flags {
   count?: number
@@ -27,27 +47,24 @@ interface Flags {
   convex: boolean
   convexHelpers: boolean
   convexHelpersZod3: boolean
-  deploy: boolean
-  budget: number
 }
 
 function parseFlags(): Flags {
   const args = process.argv.slice(2)
+  const find = (p: string) => args.find(a => a.startsWith(p))?.split('=')[1]
   return {
-    count: args.find(a => a.startsWith('--count=')) ? parseInt(args.find(a => a.startsWith('--count='))!.split('=')[1]) : undefined,
+    count: find('--count=') ? parseInt(find('--count=')!) : undefined,
     slim: args.includes('--slim'),
     mini: args.includes('--mini'),
     codegen: args.includes('--codegen'),
     compile: args.includes('--compile'),
     convex: args.includes('--convex'),
     convexHelpers: args.includes('--convex-helpers'),
-    convexHelpersZod3: args.includes('--convex-helpers-zod3'),
-    deploy: args.includes('--deploy'),
-    budget: parseInt(args.find(a => a.startsWith('--budget='))?.split('=')[1] ?? '64'),
+    convexHelpersZod3: args.includes('--convex-helpers-zod3')
   }
 }
 
-// --- Variant Definition ---
+// --- Variant definition ---
 
 interface Variant {
   name: string
@@ -59,15 +76,9 @@ interface Variant {
 }
 
 function getVariants(flags: Flags): Variant[] {
-  if (flags.convex) {
-    return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false, compile: false }]
-  }
-  if (flags.convexHelpers) {
-    return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false, compile: false }]
-  }
-  if (flags.convexHelpersZod3) {
-    return [{ name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false, compile: false }]
-  }
+  if (flags.convex) return [{ name: 'convex (baseline)', flavor: 'convex', slim: false, mini: false, codegen: false, compile: false }]
+  if (flags.convexHelpers) return [{ name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false, compile: false }]
+  if (flags.convexHelpersZod3) return [{ name: 'convex-helpers/zod3', flavor: 'convex-helpers-zod3', slim: false, mini: false, codegen: false, compile: false }]
   if (flags.slim || flags.mini || flags.codegen || flags.compile) {
     return [{
       name: zodvexVariantName(flags.slim, flags.mini, flags.codegen, flags.compile),
@@ -75,7 +86,7 @@ function getVariants(flags: Flags): Variant[] {
       slim: flags.slim,
       mini: flags.mini,
       codegen: flags.codegen,
-      compile: flags.compile,
+      compile: flags.compile
     }]
   }
   return [
@@ -87,45 +98,86 @@ function getVariants(flags: Flags): Variant[] {
     { name: 'zod + slim', flavor: 'zodvex', slim: true, mini: false, codegen: false, compile: false },
     { name: 'zod + compile', flavor: 'zodvex', slim: false, mini: false, codegen: false, compile: true },
     { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false, compile: false },
-    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true, codegen: false, compile: false },
+    { name: 'mini + slim', flavor: 'zodvex', slim: true, mini: true, codegen: false, compile: false }
   ]
 }
 
 function zodvexVariantName(slim: boolean, mini: boolean, codegen: boolean, compile: boolean): string {
-  const parts: string[] = []
-  parts.push(mini ? 'mini' : 'zod')
+  const parts: string[] = [mini ? 'mini' : 'zod']
   if (slim) parts.push('slim')
   if (codegen) parts.push('codegen')
   if (compile) parts.push('compile')
   return parts.join(' + ')
 }
 
-// --- Compile (zod → mini) ---
+// --- Setup check ---
 
-function compileDirectory(srcDir: string, destDir: string): void {
-  if (existsSync(destDir)) rmSync(destDir, { recursive: true })
-  cpSync(srcDir, destDir, { recursive: true })
-
-  const dirs = ['models', 'endpoints']
-  for (const sub of dirs) {
-    const dir = join(destDir, sub)
-    if (!existsSync(dir)) continue
-    for (const file of readdirSync(dir).filter(f => f.endsWith('.ts'))) {
-      compileFile(join(dir, file))
-    }
+function ensureConvexDeployment(): void {
+  const envFile = join(ROOT, '.env.local')
+  if (!existsSync(envFile)) {
+    console.error('')
+    console.error('error: examples/stress-test/.env.local is missing.')
+    console.error('')
+    console.error('The stress test pushes to a real Convex deployment. Set one up once with:')
+    console.error('')
+    console.error('  cd examples/stress-test')
+    console.error('  npx convex dev --configure')
+    console.error('')
+    console.error('Pick or create a fresh dev deployment — it will be wiped between runs.')
+    console.error('')
+    process.exit(1)
   }
-
-  for (const file of ['schema.ts', 'functions.ts']) {
-    const filePath = join(destDir, file)
-    if (existsSync(filePath)) compileFile(filePath)
+  const env = readFileSync(envFile, 'utf-8')
+  if (!/^CONVEX_DEPLOYMENT=/m.test(env)) {
+    console.error('error: .env.local exists but does not contain CONVEX_DEPLOYMENT.')
+    console.error('Re-run `npx convex dev --configure` to set up.')
+    process.exit(1)
   }
 }
 
-function compileFile(filePath: string): void {
-  const code = readFileSync(filePath, 'utf-8')
-  const result = transformCode(code)
-  let output = result.code
+// --- Compose / compile / codegen / mini transform ---
 
+function prepareConvexDir(count: number, variant: Variant): void {
+  // Compose seeds directly into the example's convex/ root. compose() does a
+  // targeted wipe (models/, endpoints/, schema.ts, functions.ts) and leaves
+  // _generated/, convex.config.ts, tsconfig.json alone.
+  compose({ count, outputDir: CONVEX_DIR, flavor: variant.flavor, withCodegen: variant.codegen })
+
+  // Mini: zod → mini codemod over the composed source.
+  if (variant.mini) {
+    compileMini(CONVEX_DIR)
+  }
+
+  // Compile: zodvex compile rewrites endpoints, models, schema to vanilla Convex.
+  if (variant.compile) {
+    runCli(`${ZODVEX_CLI} compile ${CONVEX_DIR}`)
+  }
+
+  // Codegen: emit `_zodvex/` artifacts.
+  if (variant.codegen) {
+    const miniFlag = variant.mini ? ' --mini' : ''
+    runCli(`${ZODVEX_CLI} generate ${CONVEX_DIR}${miniFlag}`)
+  }
+}
+
+function compileMini(dir: string): void {
+  const dirs = ['models', 'endpoints']
+  for (const sub of dirs) {
+    const d = join(dir, sub)
+    if (!existsSync(d)) continue
+    for (const file of readdirSync(d).filter(f => f.endsWith('.ts'))) {
+      compileMiniFile(join(d, file))
+    }
+  }
+  for (const file of ['schema.ts', 'functions.ts']) {
+    const p = join(dir, file)
+    if (existsSync(p)) compileMiniFile(p)
+  }
+}
+
+function compileMiniFile(filePath: string): void {
+  const code = readFileSync(filePath, 'utf-8')
+  let output = transformCode(code).code
   const project = new Project({ useInMemoryFileSystem: true })
   const sf = project.createSourceFile('tmp.ts', output)
   transformImports(sf)
@@ -134,276 +186,202 @@ function compileFile(filePath: string): void {
     if (spec === 'zodvex' || spec === 'zodvex/core') imp.setModuleSpecifier('zodvex/mini')
     if (spec === 'zodvex/server') imp.setModuleSpecifier('zodvex/mini/server')
   }
-
-  // If codemod introduced z.* calls (e.g. z.nullable()) but the file has no z import, add one
-  const hasZImport = sf.getImportDeclarations().some(imp => {
-    const named = imp.getNamedImports().map(n => n.getName())
-    const defaultImport = imp.getDefaultImport()?.getText()
-    return named.includes('z') || defaultImport === 'z'
-  })
-  if (!hasZImport && sf.getFullText().match(/\bz\./)) {
+  const hasZ = sf.getImportDeclarations().some(i =>
+    i.getNamedImports().some(n => n.getName() === 'z') || i.getDefaultImport()?.getText() === 'z'
+  )
+  if (!hasZ && /\bz\./.test(sf.getFullText())) {
     sf.addImportDeclaration({ namedImports: ['z'], moduleSpecifier: 'zod/mini' })
   }
-
-  output = sf.getFullText()
-
-  writeFileSync(filePath, output)
+  writeFileSync(filePath, sf.getFullText())
 }
 
-// --- Measurement (subprocess) ---
+function runCli(cmd: string): void {
+  execFileSync('bun', cmd.split(' '), { cwd: ROOT, stdio: 'pipe', timeout: 180_000 })
+}
 
-interface MeasurePoint {
-  variant: string
+// --- The push itself ---
+
+interface PushResult {
+  pushed: boolean
+  durationMs: number
+  errorKind?: 'oom' | 'bundle-size' | 'timeout' | 'other'
+  errorSnippet?: string
+}
+
+const KNOWN_OOM_PATTERNS = [
+  /isolate.*memory/i,
+  /memory.*limit/i,
+  /heap out of memory/i,
+  /JavaScript heap/i,
+  /size limit/i,
+  /module.*too large/i,
+  /push.*failed.*bundle/i
+]
+
+function pushOnce(timeoutMs = 240_000): PushResult {
+  const start = Date.now()
+  const child = spawnSync(
+    'npx',
+    ['convex', 'dev', '--once', '--typecheck=disable', '--codegen=disable'],
+    {
+      cwd: ROOT,
+      env: { ...process.env, CI: '1' },
+      encoding: 'utf-8',
+      timeout: timeoutMs,
+      stdio: ['ignore', 'pipe', 'pipe']
+    }
+  )
+  const durationMs = Date.now() - start
+  if (child.status === 0) {
+    return { pushed: true, durationMs }
+  }
+  const out = `${child.stdout ?? ''}\n${child.stderr ?? ''}`
+  const errorKind: PushResult['errorKind'] = child.signal === 'SIGTERM' ? 'timeout'
+    : KNOWN_OOM_PATTERNS.some(p => p.test(out)) ? 'oom'
+    : /bundle.*size|too large/i.test(out) ? 'bundle-size'
+    : 'other'
+  const errorSnippet = out.split('\n').filter(l => l.trim()).slice(-6).join('\n')
+  return { pushed: false, durationMs, errorKind, errorSnippet }
+}
+
+// --- Ceiling search ---
+
+interface CeilingPoint {
   count: number
-  heapDeltaMB: number
-  heapPeakMB: number
-  modulesLoaded: number
+  pushed: boolean
+  durationMs: number
+  errorKind?: PushResult['errorKind']
 }
 
-function measureAtCount(count: number, variant: Variant): MeasurePoint | null {
-  const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
-    NODE_OPTIONS: '--expose-gc',
-  }
-  if (variant.slim) env.ZODVEX_SLIM = '1'
-  else delete env.ZODVEX_SLIM
-
-  const resultsFile = join(ROOT, '.measure-result.json')
-
-  try {
-    // Compose
-    const codegenFlag = variant.codegen ? ' --with-codegen' : ''
-    execSync(`bun run compose.ts --count=${count} --flavor=${variant.flavor}${codegenFlag} --output=${COMPOSED_DIR}`, {
-      cwd: ROOT, stdio: 'pipe', timeout: 60_000,
-    })
-
-    // Compile if mini (zodvex flavor only — convex seeds have no zod to transform)
-    let measureDir = COMPOSED_DIR
-    if (variant.mini) {
-      compileDirectory(COMPOSED_DIR, COMPILED_DIR)
-      measureDir = COMPILED_DIR
-    }
-
-    // Run real `zodvex generate` so the push-time graph includes the
-    // codegen-emitted `_zodvex/api.js` (which redeclares Zod schemas inline
-    // for every function). This is what real codegen-using apps pay.
-    if (variant.codegen) {
-      const miniFlag = variant.mini ? ' --mini' : ''
-      execSync(`bun ${ZODVEX_CLI} generate ${measureDir}${miniFlag}`, {
-        cwd: ROOT, stdio: 'pipe', timeout: 120_000,
-      })
-    }
-
-    // Run `zodvex compile` to rewrite zq/zm/za call sites into vanilla Convex
-    // builders with pre-extracted v.* validator literals. The push-time isolate
-    // then carries only Convex validators, not retained Zod schemas.
-    if (variant.compile) {
-      execSync(`bun ${ZODVEX_CLI} compile ${measureDir}`, {
-        cwd: ROOT, stdio: 'pipe', timeout: 120_000,
-      })
-    }
-
-    // Measure in subprocess
-    const runtime = variant.mini ? 'mini' : 'zod'
-    const compiledFlag = variant.compile ? ' --compiled' : ''
-    execSync(
-      `bun --expose-gc run measure.ts --dir=${measureDir} --runtime=${runtime} --flavor=${variant.flavor}${compiledFlag} --results=${resultsFile}`,
-      { cwd: ROOT, encoding: 'utf-8', timeout: 120_000, env }
-    )
-
-    // Read structured result
-    if (!existsSync(resultsFile)) return null
-    const result = JSON.parse(readFileSync(resultsFile, 'utf-8'))
-
-    return {
-      variant: variant.name,
-      count,
-      heapDeltaMB: parseFloat(result.heapDeltaMB),
-      heapPeakMB: parseFloat(result.heapPeakMB),
-      modulesLoaded: result.modulesLoaded,
-    }
-  } catch (e) {
-    console.error(`  ${count}: FAILED — ${(e as Error).message?.split('\n')[0]}`)
-    return null
-  }
+function pushAtCount(count: number, variant: Variant): CeilingPoint {
+  prepareConvexDir(count, variant)
+  const r = pushOnce()
+  return { count, pushed: r.pushed, durationMs: r.durationMs, errorKind: r.errorKind }
 }
 
-// --- Ceiling Search ---
-
-function findCeiling(variant: Variant, budget: number): { ceiling: number; points: MeasurePoint[] } {
+function findCeiling(variant: Variant): { ceiling: number; points: CeilingPoint[] } {
   console.log(`\n${'='.repeat(60)}`)
-  console.log(`Searching ceiling for: ${variant.name} (budget=${budget} MB)`)
+  console.log(`Searching ceiling for: ${variant.name}`)
   console.log('='.repeat(60))
 
-  const points: MeasurePoint[] = []
+  const points: CeilingPoint[] = []
   let lastGood = 0
-  // Convex baseline has ~zero per-model overhead beyond validators — the
-  // ceiling can be much higher than zodvex's, so probe further. The
-  // `compile` zodvex variant is competitive enough to also need >1000.
-  const initialHi = variant.flavor === 'convex' ? 10_000 : variant.compile ? 2000 : 1000
-  const step = variant.flavor === 'convex' ? 500 : 50
-  let hi = initialHi
 
-  // Coarse pass
-  for (let count = step; count <= hi; count += step) {
-    const point = measureAtCount(count, variant)
-    if (!point) { hi = count; break }
-    points.push(point)
-    console.log(`  ${count}: ${point.heapDeltaMB.toFixed(2)} MB`)
-    if (point.heapDeltaMB <= budget) {
+  // Coarse pass: doubling. Convex baseline is the only one expected to push
+  // through the multi-thousand range, so we go up to 4k for it; others cap
+  // earlier (saves real-deploy minutes).
+  const coarseCap = variant.flavor === 'convex' ? 4000 : variant.compile ? 2000 : 1000
+  let hi = coarseCap
+  for (let count = 50; count <= coarseCap; count = Math.min(coarseCap, Math.floor(count * 1.6))) {
+    const p = pushAtCount(count, variant)
+    points.push(p)
+    console.log(`  ${count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})`}`)
+    if (p.pushed) {
       lastGood = count
+      if (count === coarseCap) {
+        console.log(`  → reached probe cap at ${coarseCap} without failure`)
+        return { ceiling: lastGood, points }
+      }
     } else {
       hi = count
       break
     }
   }
 
-  // If we exhausted the coarse range without overshooting, we can't pinpoint
-  // a ceiling — report the largest passing count we saw.
-  if (lastGood > 0 && lastGood === hi) {
-    console.log(`  → Reached probe cap at ${lastGood} endpoints without exceeding ${budget} MB`)
-    return { ceiling: lastGood, points }
+  if (lastGood === 0) {
+    console.log('  → could not push even the smallest seed count; bailing.')
+    return { ceiling: 0, points }
   }
 
-  if (lastGood === 0) return { ceiling: 0, points }
-
-  // Fine pass: binary search
+  // Fine pass: binary search.
   let lo = lastGood
-  while (hi - lo > 5) {
+  while (hi - lo > 25) {
     const mid = Math.round((lo + hi) / 2)
-    const point = measureAtCount(mid, variant)
-    if (!point || point.heapDeltaMB > budget) {
-      console.log(`  ${mid}: ${point?.heapDeltaMB.toFixed(2) ?? 'FAILED'} MB (over)`)
-      if (point) points.push(point)
-      hi = mid
-    } else {
-      console.log(`  ${mid}: ${point.heapDeltaMB.toFixed(2)} MB (under)`)
-      points.push(point)
-      lo = mid
-      lastGood = mid
-    }
+    const p = pushAtCount(mid, variant)
+    points.push(p)
+    console.log(`  ${mid}: ${p.pushed ? 'OK' : `over (${p.errorKind})`}`)
+    if (p.pushed) { lo = mid; lastGood = mid }
+    else hi = mid
   }
-
-  const ceilingPoint = points.find(p => p.count === lastGood)
-  console.log(`  → Ceiling: ${lastGood} endpoints @ ${ceilingPoint?.heapDeltaMB.toFixed(2) ?? '?'} MB`)
-
+  console.log(`  → ceiling: ${lastGood} endpoints`)
   return { ceiling: lastGood, points }
 }
 
 // --- Report ---
 
-/**
- * Per-endpoint cost in KB, computed as the slope between the first and last
- * passing points so fixed overhead (runtime, functions.ts, etc.) is excluded.
- * This is the number that actually drives the ceiling — heap at the ceiling
- * itself is tautological (≈ budget by construction).
- */
-function perEndpointKB(points: MeasurePoint[]): number | null {
-  if (points.length < 2) return null
-  const sorted = [...points].sort((a, b) => a.count - b.count)
-  const a = sorted[0]
-  const b = sorted[sorted.length - 1]
-  if (b.count === a.count) return null
-  return ((b.heapDeltaMB - a.heapDeltaMB) / (b.count - a.count)) * 1024
-}
-
-function writeReport(
-  results: { variant: string; ceiling: number; points: MeasurePoint[] }[],
-  budget: number
-): void {
+function writeReport(results: { variant: string; ceiling: number; points: CeilingPoint[] }[]): void {
   if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true })
 
   const lines: string[] = [
-    '# Stress Test Report',
+    '# Stress Test Report (real Convex push)',
     '',
     `**Date:** ${new Date().toISOString().split('T')[0]}`,
-    `**Budget:** ${budget} MB`,
     '',
-    '## OOM Ceilings',
+    '## Ceilings',
     '',
-    '`per-endpoint` is the slope between the smallest and largest passing',
-    'measurements — the incremental cost of adding one model. Heap at the',
-    'ceiling itself is always ≈ budget by construction, so it\'s omitted here.',
+    'Each row is the largest endpoint count that successfully pushes via',
+    '`npx convex dev --once` against a real Convex dev deployment, found by',
+    'doubling-then-binary-search. A failed push (OOM, bundle size, or other)',
+    'sets the upper bound; the next probe halves the range.',
     '',
-    '| Variant | Max Endpoints | Per-endpoint (KB) |',
-    '|---------|--------------|-------------------|',
+    '| Variant | Max Endpoints |',
+    '|---------|--------------|'
   ]
+  for (const r of results) lines.push(`| ${r.variant} | ${r.ceiling} |`)
 
-  for (const r of results) {
-    const perEp = perEndpointKB(r.points)
-    lines.push(`| ${r.variant} | ${r.ceiling} | ${perEp !== null ? perEp.toFixed(1) : 'n/a'} |`)
-  }
-
-  lines.push('', '## All Measurements', '')
-  lines.push('| Variant | Count | Heap Delta (MB) | Peak (MB) | Modules |')
-  lines.push('|---------|-------|-----------------|-----------|---------|')
-
+  lines.push('', '## All probes', '')
+  lines.push('| Variant | Count | Pushed | Duration (s) | Error |')
+  lines.push('|---------|-------|--------|--------------|-------|')
   for (const r of results) {
     const sorted = [...r.points].sort((a, b) => a.count - b.count)
     for (const p of sorted) {
-      lines.push(`| ${p.variant} | ${p.count} | ${p.heapDeltaMB.toFixed(2)} | ${p.heapPeakMB.toFixed(2)} | ${p.modulesLoaded} |`)
+      lines.push(`| ${r.variant} | ${p.count} | ${p.pushed ? 'yes' : 'no'} | ${(p.durationMs / 1000).toFixed(1)} | ${p.errorKind ?? ''} |`)
     }
   }
 
-  const reportPath = join(RESULTS_DIR, 'report.md')
-  writeFileSync(reportPath, lines.join('\n'))
-  console.log(`\nReport written to ${reportPath}`)
-
+  writeFileSync(join(RESULTS_DIR, 'report.md'), lines.join('\n'))
   writeFileSync(
     join(RESULTS_DIR, 'report.json'),
-    JSON.stringify({ date: new Date().toISOString(), budget, results }, null, 2)
+    JSON.stringify({ date: new Date().toISOString(), kind: 'real-push', results }, null, 2)
   )
+  console.log(`\nReport written to ${join(RESULTS_DIR, 'report.md')}`)
 }
 
 // --- Main ---
 
 async function main() {
+  ensureConvexDeployment()
   const flags = parseFlags()
-
-  if (flags.deploy) {
-    throw new Error(
-      '--deploy mode is not yet implemented. ' +
-      'It will use `npx convex deploy` to find the real Convex isolate ceiling.'
-    )
-  }
-
   const variants = getVariants(flags)
 
-  console.log(`Stress Test Harness`)
-  console.log(`Budget: ${flags.budget} MB`)
+  console.log('Stress Test (real Convex push)')
   console.log(`Variants: ${variants.map(v => v.name).join(', ')}`)
 
   if (flags.count !== undefined) {
-    // Ad-hoc: single measurement
-    for (const variant of variants) {
-      const point = measureAtCount(flags.count, variant)
-      if (point) {
-        console.log(`${variant.name} @ ${flags.count}: ${point.heapDeltaMB.toFixed(2)} MB (peak: ${point.heapPeakMB.toFixed(2)} MB)`)
-      }
+    for (const v of variants) {
+      const p = pushAtCount(flags.count, v)
+      console.log(`${v.name} @ ${flags.count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})`}`)
     }
     return
   }
 
-  // Ceiling search + report
-  const results: { variant: string; ceiling: number; points: MeasurePoint[] }[] = []
-
-  for (const variant of variants) {
-    const { ceiling, points } = findCeiling(variant, flags.budget)
-    results.push({ variant: variant.name, ceiling, points })
+  const results: { variant: string; ceiling: number; points: CeilingPoint[] }[] = []
+  for (const v of variants) {
+    const r = findCeiling(v)
+    results.push({ variant: v.name, ceiling: r.ceiling, points: r.points })
   }
 
-  // Print summary
-  console.log('\n' + '='.repeat(60))
+  console.log(`\n${'='.repeat(60)}`)
   console.log('RESULTS')
   console.log('='.repeat(60))
-  console.log(`\n| Variant | Ceiling (endpoints) | Per-endpoint (KB) |`)
-  console.log(`|---------|--------------------|--------------------|`)
-  for (const r of results) {
-    const perEp = perEndpointKB(r.points)
-    console.log(`| ${r.variant} | ${r.ceiling} | ${perEp !== null ? perEp.toFixed(1) : 'n/a'} |`)
-  }
+  console.log('\n| Variant | Ceiling (endpoints) |')
+  console.log('|---------|--------------------|')
+  for (const r of results) console.log(`| ${r.variant} | ${r.ceiling} |`)
 
-  writeReport(results, flags.budget)
+  writeReport(results)
 }
 
-main().catch(console.error)
+main().catch(e => {
+  console.error(e)
+  process.exit(1)
+})

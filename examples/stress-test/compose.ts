@@ -276,7 +276,16 @@ export function compose(config: ComposeConfig): { modelsDir: string; endpointsDi
   const modelsDir = join(outputDir, 'models')
   const endpointsDir = join(outputDir, 'endpoints')
 
-  if (existsSync(outputDir)) rmSync(outputDir, { recursive: true })
+  // Targeted wipe: only the files compose owns. We're typically writing into
+  // a real Convex project root that contains `_generated/`, `convex.config.ts`,
+  // and `tsconfig.json` — those must survive.
+  if (existsSync(modelsDir)) rmSync(modelsDir, { recursive: true })
+  if (existsSync(endpointsDir)) rmSync(endpointsDir, { recursive: true })
+  for (const f of ['schema.ts', 'functions.ts', 'summary.json', '_zodvex']) {
+    const p = join(outputDir, f)
+    if (existsSync(p)) rmSync(p, { recursive: true })
+  }
+  mkdirSync(outputDir, { recursive: true })
   mkdirSync(modelsDir, { recursive: true })
   mkdirSync(endpointsDir, { recursive: true })
 

@@ -1,62 +1,71 @@
-# Stress Test Harness
+# Stress Test Harness (real-deploy edition)
 
-Measures memory footprint at scale to find the OOM ceiling on Convex's 64 MB V8 isolate, across four seed **flavors**:
+Pushes increasingly large composed Convex projects to a real Convex dev deployment and bisects on push success/failure to find each variant's actual OOM ceiling. The push goes through Convex's bundler and into the real 64 MB push-time isolate — same path real users hit.
 
-- **`zodvex`** — zodvex models (`defineZodModel` + `zq`/`zm`), measured in four variants: `zod`, `zod + slim`, `mini`, `mini + slim`.
-- **`convex-helpers`** — `convex-helpers/server/zod4` (`zCustomQuery`/`zCustomMutation` + `zodToConvexFields` + `zid`). What you'd get rolling your own zod4-for-convex layer today without zodvex.
-- **`convex-helpers-zod3`** — `convex-helpers/server/zod3` (same API but Zod v3 instead of v4). Useful for comparing against projects that haven't migrated off Zod v3 yet.
-- **`convex`** — pure Convex (`defineTable` + `v.*` + plain `query`/`mutation`). This is the **ideal baseline**: what Convex itself can fit in the 64 MB budget with zero zod/zodvex overhead.
+Previous heap-delta-in-Node-subprocess proxy has been removed: it was misleading (didn't go through Convex's bundler, didn't load `functions.ts`, didn't account for runtime overhead) and gave a false sense of where the OOM cliff lives.
 
-The `convex` baseline tells you how much headroom zodvex is spending; `convex-helpers` (and the zod3 variant) tells you how much of that is inherent to zod validation vs. zodvex's own helpers.
-
-## Quick Start
+## Setup (once)
 
 ```bash
-# Build zodvex first (harness imports from built dist)
-cd ../.. && bun run build && cd examples/stress-test
-
-# Find OOM ceiling for all variants (convex, convex-helpers/zod3, convex-helpers/zod4, + 4 zodvex)
-bun run stress-test
-
-# Only the convex baseline
-bun run stress-test -- --convex
-
-# Only convex-helpers/zod4
-bun run stress-test -- --convex-helpers
-
-# Only convex-helpers/zod3
-bun run stress-test -- --convex-helpers-zod3
-
-# Only a specific zodvex variant
-bun run stress-test -- --slim --mini
-
-# Single measurement at a specific count (for debugging)
-bun run stress-test -- --count=200 --slim
-bun run stress-test -- --count=1000 --convex
+cd examples/stress-test
+npx convex dev --configure   # creates .env.local with CONVEX_DEPLOYMENT
 ```
 
-## How It Works
+Pick or create a fresh dev deployment. Each ceiling-search run wipes the deployment's schema and re-pushes thousands of tables, so don't point this at anything you care about.
 
-1. **Seeds** (`seeds/<flavor>/`) — hand-written models and endpoints covering small/medium/large complexity. All four flavors share the same 7 models (user, task, project, comment, document, activity, notification) with the same field shapes, so the only difference between variants is the library under test. Date fields use `v.number()`/`z.number()` since `convex-helpers`' zod3 and zod4 adapters both reject `z.date()`.
-2. **Composer** (`compose.ts`) — scales seeds to N models via file copy + table/identifier rename. Emits a flavor-appropriate `schema.ts` (+ `functions.ts` for zodvex).
-3. **Compiler** — runs zod-to-mini on composed output for the `mini` variant.
-4. **Measurer** (`measure.ts`) — black-box: imports a directory, reports V8 heap delta. Pre-imports only the runtime libraries the flavor uses, so the baseline is fair.
-5. **Runner** (`stress-test.ts`) — orchestrates ceiling search across all variants. The convex baseline probes up to 10 000 endpoints (coarser step) since its per-model cost is tiny.
+## Variants
+
+| Flavor | What it tests |
+|--------|---------------|
+| **`convex`** | Pure `defineTable` + `v.*` + plain `query`/`mutation`. Ideal baseline. |
+| **`convex-helpers/zod3`** | `convex-helpers/server/zod3` (`zCustomQuery` etc.). |
+| **`convex-helpers/zod4`** | `convex-helpers/server/zod4`. |
+| **`zod`** | Default zodvex. |
+| **`zod + slim`** | zodvex with `{ schemaHelpers: false }` per model. |
+| **`zod + codegen`** | zodvex + `zodvex generate` (codegen-using app pattern). |
+| **`zod + compile`** | zodvex + `zodvex compile` (build-time AOT to vanilla Convex). |
+| **`mini`** | zodvex via `zod/mini`. |
+| **`mini + slim`** | zod/mini + slim models. |
+
+## Usage
+
+```bash
+# Build zodvex first (the runner invokes the workspace dist directly)
+cd ../.. && bun run build && cd examples/stress-test
+
+# Full ceiling search across all variants. Slow — each variant takes ~5–15 min
+# of real Convex pushes.
+bun run stress-test
+
+# One variant only
+bun run stress-test -- --convex
+bun run stress-test -- --compile
+bun run stress-test -- --mini --slim
+
+# Single push at an exact count (for debugging a specific failure)
+bun run stress-test -- --count=500 --compile
+```
+
+## How it works
+
+1. **Seeds** (`seeds/<flavor>/`) — 7 hand-written model + endpoint pairs (small/medium/large) per flavor. Every flavor implements the same logical schemas; the library under test is the only variable.
+2. **Compose** (`compose.ts`) — scales seeds to N models via file copy + identifier rename, writing **directly into `convex/`** (the Convex project root). Targeted wipe leaves `_generated/`, `convex.config.ts`, `tsconfig.json` intact.
+3. **Optional transforms**:
+   - `--mini`: `zod-to-mini` codemod over the composed source.
+   - `--compile`: `zodvex compile` rewrites endpoints/models/schema to vanilla Convex.
+   - `--codegen`: `zodvex generate` emits `_zodvex/`.
+4. **Push** — `npx convex dev --once --typecheck=disable --codegen=disable`. Exit code + stderr classifies the result as `pushed` / `oom` / `bundle-size` / `timeout` / `other`.
+5. **Bisect** — doubling coarse pass until first failure, then binary search down to ±25 endpoints. Records every probe in `results/report.{md,json}`.
 
 ## Flags
 
 | Flag | Description |
 |------|-------------|
-| `--count=N` | Single measurement at N endpoints (skips ceiling search) |
-| `--convex` | Use the pure-Convex baseline (no zod / no zodvex) |
-| `--convex-helpers` | Use `convex-helpers/server/zod4` directly (no zodvex) |
-| `--convex-helpers-zod3` | Use `convex-helpers/server/zod3` directly (Zod v3) |
-| `--slim` | Enable `{ schemaHelpers: false }` via ZODVEX_SLIM env var |
-| `--mini` | Compile zod → zod/mini before measuring |
-| `--budget=N` | MB budget for ceiling search (default: 64) |
-
-## Architecture
-
-Seeds are real code, not templates. When either library's API changes, the seeds may need updating, but the measurement harness (compose/measure/runner) stays stable.
-
-The `ZODVEX_SLIM` env var controls whether zodvex seeds pass `{ schemaHelpers: false }` to `defineZodModel`. The compiler handles the zod → mini transform. All configuration is via flags to the runner.
+| `--count=N` | Single push at N endpoints (skips ceiling search) |
+| `--convex` | Pure Convex baseline |
+| `--convex-helpers` | `convex-helpers/server/zod4` |
+| `--convex-helpers-zod3` | `convex-helpers/server/zod3` |
+| `--slim` | zodvex with `{ schemaHelpers: false }` |
+| `--mini` | zodvex via zod/mini |
+| `--codegen` | zodvex + codegen |
+| `--compile` | zodvex + `zodvex compile` |
