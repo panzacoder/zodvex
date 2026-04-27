@@ -238,8 +238,9 @@ function findCeiling(variant: Variant, budget: number): { ceiling: number; point
   const points: MeasurePoint[] = []
   let lastGood = 0
   // Convex baseline has ~zero per-model overhead beyond validators — the
-  // ceiling can be much higher than zodvex's, so probe further.
-  const initialHi = variant.flavor === 'convex' ? 10_000 : 1000
+  // ceiling can be much higher than zodvex's, so probe further. The
+  // `compile` zodvex variant is competitive enough to also need >1000.
+  const initialHi = variant.flavor === 'convex' ? 10_000 : variant.compile ? 2000 : 1000
   const step = variant.flavor === 'convex' ? 500 : 50
   let hi = initialHi
 
