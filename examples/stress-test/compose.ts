@@ -18,6 +18,13 @@ export interface ComposeConfig {
    * `zodvex generate` against the output dir before measurement.
    */
   withCodegen?: boolean
+  /**
+   * For the zodvex flavor: bake `{ schemaHelpers: false }` into the emitted
+   * `defineZodModel` calls so the real Convex schema-eval sandbox sees a
+   * static value. (Reading `process.env.ZODVEX_SLIM` at module top level
+   * throws in Convex — env access is not allowed during schema eval.)
+   */
+  slim?: boolean
 }
 
 interface FlavorSpec {
@@ -64,7 +71,7 @@ import {
   internalQuery,
   internalMutation,
   internalAction,
-} from '../_generated/server'
+} from './_generated/server'
 import schema from './schema'
 
 export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
@@ -87,7 +94,7 @@ import {
   internalQuery,
   internalMutation,
   internalAction,
-} from '../_generated/server'
+} from './_generated/server'
 
 const schema = { __zodTableMap: {} } as any
 
@@ -126,7 +133,7 @@ ${tables}
       // Emit a proxy so endpoints (one dir below) can import via '../functions'.
       // Same trick as zodvex — endpoint files would otherwise resolve
       // '../_generated/server' to the wrong directory.
-      return `export { query, mutation, action, internalQuery, internalMutation, internalAction } from '../_generated/server'
+      return `export { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
 `
     },
   },
@@ -159,7 +166,7 @@ import {
   internalQuery,
   internalMutation,
   internalAction,
-} from '../_generated/server'
+} from './_generated/server'
 
 export const zQuery = zCustomQuery(query, NoOp)
 export const zMutation = zCustomMutation(mutation, NoOp)
@@ -198,7 +205,7 @@ import {
   internalQuery,
   internalMutation,
   internalAction,
-} from '../_generated/server'
+} from './_generated/server'
 
 export const zQuery = zCustomQuery(query, NoOp)
 export const zMutation = zCustomMutation(mutation, NoOp)
@@ -256,7 +263,8 @@ function renameSeed(
   suffix: string,
   newTable: string,
   newPascal: string,
-  spec: FlavorSpec
+  spec: FlavorSpec,
+  opts?: { slim?: boolean }
 ): string {
   let out = source
   out = out.replaceAll(`'${seed.tableName}'`, `'${newTable}'`)
@@ -266,6 +274,13 @@ function renameSeed(
   const newFields = `${newPascal.charAt(0).toLowerCase() + newPascal.slice(1)}Fields`
   out = out.replaceAll(seed.fieldsExport, newFields)
   out = out.replaceAll(`../models/${seed.name}`, `../models/${seed.name}_${suffix}`)
+  // Bake the `slim` decision into the emitted source. The seed pattern
+  // `const opts = process.env.ZODVEX_SLIM === '1' ? ... : undefined` would
+  // throw inside Convex's schema-eval sandbox, which forbids env access.
+  out = out.replace(
+    /const\s+opts\s*=\s*process\.env\.ZODVEX_SLIM[^\n]*\n/,
+    opts?.slim ? `const opts = { schemaHelpers: false } as const\n` : `const opts = undefined\n`
+  )
   return out
 }
 
@@ -301,11 +316,11 @@ export function compose(config: ComposeConfig): { modelsDir: string; endpointsDi
     const newPascal = `${seed.pascal}${suffix}`
     const fileName = `${seed.name}_${suffix}`
 
-    const modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, spec)
+    const modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, spec, { slim: config.slim })
     writeFileSync(join(modelsDir, `${fileName}.ts`), modelOut)
 
     if (seed.endpointSource) {
-      const endpointOut = renameSeed(seed.endpointSource, seed, suffix, newTable, newPascal, spec)
+      const endpointOut = renameSeed(seed.endpointSource, seed, suffix, newTable, newPascal, spec, { slim: config.slim })
       writeFileSync(join(endpointsDir, `${fileName}.ts`), endpointOut)
     }
 

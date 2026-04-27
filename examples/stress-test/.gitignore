@@ -1,7 +1,14 @@
-convex/generated/
-convex/composed/
-convex/compiled/
 node_modules/
 
+# Composed seeds — written into convex/ root by stress-test.ts on every run.
+# `_generated/`, `convex.config.ts`, `tsconfig.json`, `README.md` (the only
+# checked-in convex/ files) are untouched by the runner; everything else is
+# regenerated.
+convex/schema.ts
+convex/functions.ts
+convex/models/
+convex/endpoints/
+convex/summary.json
+convex/_zodvex/
+
 .env.local
-.measure-result.json

@@ -143,7 +143,13 @@ function prepareConvexDir(count: number, variant: Variant): void {
   // Compose seeds directly into the example's convex/ root. compose() does a
   // targeted wipe (models/, endpoints/, schema.ts, functions.ts) and leaves
   // _generated/, convex.config.ts, tsconfig.json alone.
-  compose({ count, outputDir: CONVEX_DIR, flavor: variant.flavor, withCodegen: variant.codegen })
+  compose({
+    count,
+    outputDir: CONVEX_DIR,
+    flavor: variant.flavor,
+    withCodegen: variant.codegen,
+    slim: variant.slim
+  })
 
   // Mini: zod → mini codemod over the composed source.
   if (variant.mini) {
@@ -220,30 +226,59 @@ const KNOWN_OOM_PATTERNS = [
   /push.*failed.*bundle/i
 ]
 
-function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
-  const start = Date.now()
-  const child = spawnSync(
-    'npx',
-    ['convex', 'deploy', '--yes', '--typecheck=disable', '--codegen=disable'],
-    {
-      cwd: ROOT,
-      env: { ...process.env, CI: '1', CONVEX_DEPLOY_KEY: deployKey },
-      encoding: 'utf-8',
-      timeout: timeoutMs,
-      stdio: ['ignore', 'pipe', 'pipe']
-    }
-  )
-  const durationMs = Date.now() - start
-  if (child.status === 0) {
-    return { pushed: true, durationMs }
+/** Synchronous sleep — bun-native if available, fallback for tsc-clean type. */
+function sleepSync(ms: number): void {
+  const bun = (globalThis as { Bun?: { sleepSync?: (ms: number) => void } }).Bun
+  if (bun?.sleepSync) {
+    bun.sleepSync(ms)
+    return
   }
-  const out = `${child.stdout ?? ''}\n${child.stderr ?? ''}`
-  const errorKind: PushResult['errorKind'] = child.signal === 'SIGTERM' ? 'timeout'
-    : KNOWN_OOM_PATTERNS.some(p => p.test(out)) ? 'oom'
-    : /bundle.*size|too large/i.test(out) ? 'bundle-size'
-    : 'other'
-  const errorSnippet = out.split('\n').filter(l => l.trim()).slice(-6).join('\n')
-  return { pushed: false, durationMs, errorKind, errorSnippet }
+  // Last resort: busy wait. Only hit if not running under bun, which the
+  // package.json already requires.
+  const wake = Date.now() + ms
+  while (Date.now() < wake) {
+    /* spin */
+  }
+}
+
+function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
+  // Retry transient infra errors (503 cold-starts, network blips). These are
+  // common immediately after creating a dev deployment and during periods of
+  // Convex backend instability. They have nothing to do with the OOM ceiling
+  // we're trying to find.
+  const MAX_TRIES = 4
+  const RETRY_PATTERNS = [/503\s+Service Unavailable/i, /ECONNRESET/i, /ECONNREFUSED/i, /fetch failed/i]
+  let lastResult: PushResult | undefined
+  for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+    const start = Date.now()
+    const child = spawnSync(
+      'npx',
+      ['convex', 'deploy', '--yes', '--typecheck=disable', '--codegen=disable'],
+      {
+        cwd: ROOT,
+        env: { ...process.env, CI: '1', CONVEX_DEPLOY_KEY: deployKey },
+        encoding: 'utf-8',
+        timeout: timeoutMs,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    )
+    const durationMs = Date.now() - start
+    if (child.status === 0) return { pushed: true, durationMs }
+    const out = `${child.stdout ?? ''}\n${child.stderr ?? ''}`
+    const errorKind: PushResult['errorKind'] = child.signal === 'SIGTERM' ? 'timeout'
+      : KNOWN_OOM_PATTERNS.some(p => p.test(out)) ? 'oom'
+      : /bundle.*size|too large/i.test(out) ? 'bundle-size'
+      : 'other'
+    const errorSnippet = out.split('\n').filter(l => l.trim()).slice(-6).join('\n')
+    lastResult = { pushed: false, durationMs, errorKind, errorSnippet }
+    if (attempt < MAX_TRIES && RETRY_PATTERNS.some(p => p.test(out))) {
+      const delayMs = 1500 * 2 ** (attempt - 1)
+      sleepSync(delayMs)
+      continue
+    }
+    return lastResult
+  }
+  return lastResult!
 }
 
 // --- Ceiling search ---
@@ -253,12 +288,19 @@ interface CeilingPoint {
   pushed: boolean
   durationMs: number
   errorKind?: PushResult['errorKind']
+  errorSnippet?: string
 }
 
 function pushAtCount(count: number, variant: Variant, deployKey: string): CeilingPoint {
   prepareConvexDir(count, variant)
   const r = pushOnce(deployKey)
-  return { count, pushed: r.pushed, durationMs: r.durationMs, errorKind: r.errorKind }
+  return {
+    count,
+    pushed: r.pushed,
+    durationMs: r.durationMs,
+    errorKind: r.errorKind,
+    errorSnippet: r.errorSnippet
+  }
 }
 
 function findCeiling(variant: Variant, deployKey: string): { ceiling: number; points: CeilingPoint[] } {
@@ -277,7 +319,7 @@ function findCeiling(variant: Variant, deployKey: string): { ceiling: number; po
   for (let count = 50; count <= coarseCap; count = Math.min(coarseCap, Math.floor(count * 1.6))) {
     const p = pushAtCount(count, variant, deployKey)
     points.push(p)
-    console.log(`  ${count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})`}`)
+    console.log(`  ${count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})\n    ${p.errorSnippet?.split('\n').join('\n    ')}`}`)
     if (p.pushed) {
       lastGood = count
       if (count === coarseCap) {
@@ -363,6 +405,7 @@ async function main() {
     for (const v of variants) {
       const p = pushAtCount(flags.count, v, deployKey)
       console.log(`${v.name} @ ${flags.count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})`}`)
+      if (!p.pushed && p.errorSnippet) console.log(`    ${p.errorSnippet.split('\n').join('\n    ')}`)
     }
     return
   }
