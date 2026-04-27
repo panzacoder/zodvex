@@ -100,8 +100,12 @@ function getVariants(flags: Flags): Variant[] {
     { name: 'convex-helpers/zod4', flavor: 'convex-helpers', slim: false, mini: false, codegen: false, compile: false },
     { name: 'zod', flavor: 'zodvex', slim: false, mini: false, codegen: false, compile: false },
     { name: 'zod + codegen', flavor: 'zodvex', slim: false, mini: false, codegen: true, compile: false },
-    { name: 'zod + compile', flavor: 'zodvex', slim: false, mini: false, codegen: false, compile: true },
-    { name: 'mini', flavor: 'zodvex', slim: false, mini: true, codegen: false, compile: false }
+    { name: 'zod + compile', flavor: 'zodvex', slim: false, mini: false, codegen: false, compile: true }
+    // `mini` (zodvex via zod/mini) is dropped from the default matrix: compile
+    // supersedes mini's role (memory-pressure escape) without requiring a
+    // breaking-change codemod, and our test seeds currently surface
+    // pre-existing issue #62 (`zx.doc(...).nullable()` not transformed to the
+    // functional form by zod-to-mini). Available via `--mini` for ad-hoc runs.
   ]
 }
 
