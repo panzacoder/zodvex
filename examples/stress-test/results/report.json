@@ -1,86 +1,88 @@
 {
-  "date": "2026-04-27T15:07:20.411Z",
+  "date": "2026-04-27T15:35:57.410Z",
   "kind": "real-push",
   "results": [
     {
       "variant": "convex (baseline)",
-      "ceiling": 2032,
+      "ceiling": 1632,
       "points": [
         {
           "count": 50,
           "pushed": true,
-          "durationMs": 12013
+          "durationMs": 5391
         },
         {
           "count": 80,
           "pushed": true,
-          "durationMs": 5291
+          "durationMs": 5435
         },
         {
           "count": 128,
           "pushed": true,
-          "durationMs": 6412
+          "durationMs": 135154
         },
         {
           "count": 204,
           "pushed": true,
-          "durationMs": 8045
+          "durationMs": 8421
         },
         {
           "count": 326,
           "pushed": true,
-          "durationMs": 10815
+          "durationMs": 10302
         },
         {
           "count": 521,
           "pushed": true,
-          "durationMs": 15798
+          "durationMs": 14263
         },
         {
           "count": 833,
           "pushed": true,
-          "durationMs": 24493
+          "durationMs": 21887
         },
         {
           "count": 1332,
           "pushed": true,
-          "durationMs": 40697
+          "durationMs": 37715
         },
         {
           "count": 2131,
           "pushed": false,
-          "durationMs": 8256,
+          "durationMs": 65644,
           "errorKind": "other",
-          "errorSnippet": "- Deploying to https://first-skunk-786.convex.cloud...\n× Error: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/evaluate_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nToo many function files (4263 > maximum 4096) in \"convex/\". See our docs (https://docs.convex.dev/using/writing-convex-functions#using-libraries) for more details."
+          "errorSnippet": "Backfilling index activities_1337.by_created (5382/5481 ready), see progress here: https://dashboard.convex.dev/d/first-skunk-786/data?table=activities_1337&showIndexes=true\nSchema validation complete.\nFinalizing push...\n✖ Error: Unable to finish push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/finish_push 400 Bad Request: ArrayTooLong: Hit an error while pushing:\nArray length is too long (10655 > maximum length 8192)"
         },
         {
           "count": 1732,
-          "pushed": true,
-          "durationMs": 48138
-        },
-        {
-          "count": 1932,
-          "pushed": true,
-          "durationMs": 37535
-        },
-        {
-          "count": 2032,
-          "pushed": true,
-          "durationMs": 30651
-        },
-        {
-          "count": 2082,
           "pushed": false,
-          "durationMs": 7281,
-          "errorKind": "other",
-          "errorSnippet": "- Deploying to https://first-skunk-786.convex.cloud...\n\u001b[36mA minor update is available for Convex\u001b[39m \u001b[2m(1.32.0 → 1.36.1)\u001b[22m\n\u001b[2mChangelog:\u001b[22m \u001b[4mhttps://github.com/get-convex/convex-js/blob/main/CHANGELOG.md#changelog\u001b[24m\n× Error: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/evaluate_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nToo many function files (4165 > maximum 4096) in \"convex/\". See our docs (https://docs.convex.dev/using/writing-convex-functions#using-libraries) for more details."
+          "durationMs": 12447,
+          "errorKind": "oom",
+          "errorSnippet": "Pushing code to your Convex deployment...\nSchema validation complete.\nFinalizing push...\n✖ Error: Unable to finish push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/finish_push 400 Bad Request: ArrayTooLong: Hit an error while pushing:\nArray length is too long (8660 > maximum length 8192)"
         },
         {
-          "count": 2057,
+          "count": 1532,
+          "pushed": true,
+          "durationMs": 18045
+        },
+        {
+          "count": 1632,
+          "pushed": true,
+          "durationMs": 15797
+        },
+        {
+          "count": 1682,
           "pushed": false,
-          "durationMs": 6570,
+          "durationMs": 10056,
           "errorKind": "other",
-          "errorSnippet": "- Deploying to https://first-skunk-786.convex.cloud...\n\u001b[36mA minor update is available for Convex\u001b[39m \u001b[2m(1.32.0 → 1.36.1)\u001b[22m\n\u001b[2mChangelog:\u001b[22m \u001b[4mhttps://github.com/get-convex/convex-js/blob/main/CHANGELOG.md#changelog\u001b[24m\n× Error: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/evaluate_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nToo many function files (4115 > maximum 4096) in \"convex/\". See our docs (https://docs.convex.dev/using/writing-convex-functions#using-libraries) for more details."
+          "errorSnippet": "Pushing code to your Convex deployment...\nSchema validation complete.\nFinalizing push...\n✖ Error: Unable to finish push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/finish_push 400 Bad Request: ArrayTooLong: Hit an error while pushing:\nArray length is too long (8410 > maximum length 8192)"
+        },
+        {
+          "count": 1657,
+          "pushed": false,
+          "durationMs": 9075,
+          "errorKind": "oom",
+          "errorSnippet": "Pushing code to your Convex deployment...\nSchema validation complete.\nFinalizing push...\n✖ Error: Unable to finish push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/finish_push 400 Bad Request: ArrayTooLong: Hit an error while pushing:\nArray length is too long (8285 > maximum length 8192)"
         }
       ]
     }

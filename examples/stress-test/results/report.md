@@ -6,7 +6,7 @@
 
 | Variant | Pushed | Duration (s) | Error |
 |---------|--------|--------------|-------|
-| convex (baseline) | yes | 4.9 |  |
+| convex (baseline) | yes | 11.5 |  |
 
 ## Ceilings
 
@@ -17,23 +17,23 @@ sets the upper bound; the next probe halves the range.
 
 | Variant | Max Endpoints |
 |---------|--------------|
-| convex (baseline) | 2032 |
+| convex (baseline) | 1632 |
 
 ## All probes
 
 | Variant | Count | Pushed | Duration (s) | Error |
 |---------|-------|--------|--------------|-------|
-| convex (baseline) | 50 | yes | 12.0 |  |
-| convex (baseline) | 80 | yes | 5.3 |  |
-| convex (baseline) | 128 | yes | 6.4 |  |
-| convex (baseline) | 204 | yes | 8.0 |  |
-| convex (baseline) | 326 | yes | 10.8 |  |
-| convex (baseline) | 521 | yes | 15.8 |  |
-| convex (baseline) | 833 | yes | 24.5 |  |
-| convex (baseline) | 1332 | yes | 40.7 |  |
-| convex (baseline) | 1732 | yes | 48.1 |  |
-| convex (baseline) | 1932 | yes | 37.5 |  |
-| convex (baseline) | 2032 | yes | 30.7 |  |
-| convex (baseline) | 2057 | no | 6.6 | other |
-| convex (baseline) | 2082 | no | 7.3 | other |
-| convex (baseline) | 2131 | no | 8.3 | other |
+| convex (baseline) | 50 | yes | 5.4 |  |
+| convex (baseline) | 80 | yes | 5.4 |  |
+| convex (baseline) | 128 | yes | 135.2 |  |
+| convex (baseline) | 204 | yes | 8.4 |  |
+| convex (baseline) | 326 | yes | 10.3 |  |
+| convex (baseline) | 521 | yes | 14.3 |  |
+| convex (baseline) | 833 | yes | 21.9 |  |
+| convex (baseline) | 1332 | yes | 37.7 |  |
+| convex (baseline) | 1532 | yes | 18.0 |  |
+| convex (baseline) | 1632 | yes | 15.8 |  |
+| convex (baseline) | 1657 | no | 9.1 | oom |
+| convex (baseline) | 1682 | no | 10.1 | other |
+| convex (baseline) | 1732 | no | 12.4 | oom |
+| convex (baseline) | 2131 | no | 65.6 | other |

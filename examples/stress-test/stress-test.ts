@@ -216,7 +216,7 @@ function runCli(cmd: string): void {
 interface PushResult {
   pushed: boolean
   durationMs: number
-  errorKind?: 'oom' | 'bundle-size' | 'timeout' | 'other'
+  errorKind?: 'oom' | 'file-limit' | 'function-array' | 'bundle-size' | 'timeout' | 'other'
   errorSnippet?: string
 }
 
@@ -278,6 +278,8 @@ function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
     if (child.status === 0) return { pushed: true, durationMs }
     const out = `${child.stdout ?? ''}\n${child.stderr ?? ''}`
     const errorKind: PushResult['errorKind'] = child.signal === 'SIGTERM' ? 'timeout'
+      : /Too many function files \(\d+ > maximum 4096\)/i.test(out) ? 'file-limit'
+      : /ArrayTooLong:.*maximum length 8192/i.test(out) ? 'function-array'
       : KNOWN_OOM_PATTERNS.some(p => p.test(out)) ? 'oom'
       : /bundle.*size|too large/i.test(out) ? 'bundle-size'
       : 'other'
