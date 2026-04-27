@@ -1,5 +1,88 @@
 {
-  "date": "2026-04-27T14:58:17.974Z",
+  "date": "2026-04-27T15:07:20.411Z",
   "kind": "real-push",
-  "results": []
+  "results": [
+    {
+      "variant": "convex (baseline)",
+      "ceiling": 2032,
+      "points": [
+        {
+          "count": 50,
+          "pushed": true,
+          "durationMs": 12013
+        },
+        {
+          "count": 80,
+          "pushed": true,
+          "durationMs": 5291
+        },
+        {
+          "count": 128,
+          "pushed": true,
+          "durationMs": 6412
+        },
+        {
+          "count": 204,
+          "pushed": true,
+          "durationMs": 8045
+        },
+        {
+          "count": 326,
+          "pushed": true,
+          "durationMs": 10815
+        },
+        {
+          "count": 521,
+          "pushed": true,
+          "durationMs": 15798
+        },
+        {
+          "count": 833,
+          "pushed": true,
+          "durationMs": 24493
+        },
+        {
+          "count": 1332,
+          "pushed": true,
+          "durationMs": 40697
+        },
+        {
+          "count": 2131,
+          "pushed": false,
+          "durationMs": 8256,
+          "errorKind": "other",
+          "errorSnippet": "- Deploying to https://first-skunk-786.convex.cloud...\n× Error: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/evaluate_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nToo many function files (4263 > maximum 4096) in \"convex/\". See our docs (https://docs.convex.dev/using/writing-convex-functions#using-libraries) for more details."
+        },
+        {
+          "count": 1732,
+          "pushed": true,
+          "durationMs": 48138
+        },
+        {
+          "count": 1932,
+          "pushed": true,
+          "durationMs": 37535
+        },
+        {
+          "count": 2032,
+          "pushed": true,
+          "durationMs": 30651
+        },
+        {
+          "count": 2082,
+          "pushed": false,
+          "durationMs": 7281,
+          "errorKind": "other",
+          "errorSnippet": "- Deploying to https://first-skunk-786.convex.cloud...\n\u001b[36mA minor update is available for Convex\u001b[39m \u001b[2m(1.32.0 → 1.36.1)\u001b[22m\n\u001b[2mChangelog:\u001b[22m \u001b[4mhttps://github.com/get-convex/convex-js/blob/main/CHANGELOG.md#changelog\u001b[24m\n× Error: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/evaluate_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nToo many function files (4165 > maximum 4096) in \"convex/\". See our docs (https://docs.convex.dev/using/writing-convex-functions#using-libraries) for more details."
+        },
+        {
+          "count": 2057,
+          "pushed": false,
+          "durationMs": 6570,
+          "errorKind": "other",
+          "errorSnippet": "- Deploying to https://first-skunk-786.convex.cloud...\n\u001b[36mA minor update is available for Convex\u001b[39m \u001b[2m(1.32.0 → 1.36.1)\u001b[22m\n\u001b[2mChangelog:\u001b[22m \u001b[4mhttps://github.com/get-convex/convex-js/blob/main/CHANGELOG.md#changelog\u001b[24m\n× Error: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/evaluate_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nToo many function files (4115 > maximum 4096) in \"convex/\". See our docs (https://docs.convex.dev/using/writing-convex-functions#using-libraries) for more details."
+        }
+      ]
+    }
+  ]
 }
