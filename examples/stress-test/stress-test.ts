@@ -310,7 +310,10 @@ function compileMiniFile(filePath: string): void {
 }
 
 function runCli(cmd: string): void {
-  execFileSync('bun', cmd.split(' '), { cwd: ROOT, stdio: 'pipe', timeout: 180_000 })
+  // Generous timeout: zodvex compile ts-morph-walks a monolithic source file
+  // that can reach ~2 MB at higher counts; plain `bun` startup itself is also
+  // a few seconds. 600s is comfortably above empirical worst case.
+  execFileSync('bun', cmd.split(' '), { cwd: ROOT, stdio: 'pipe', timeout: 600_000 })
 }
 
 // --- The push itself ---
@@ -341,14 +344,21 @@ function extractConvexSize(out: string, key: 'unzippedSizeBytes' | 'zippedSizeBy
   return hi * 0x100000000 + lo
 }
 
+// Patterns that match Convex's real OOM error from the push-time isolate.
+// The canonical message (verified against a live deployment) is:
+//   "JavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+// embedded in an `InvalidModules: Loading the pushed modules ...` envelope.
+// Keep the other historical patterns as defense-in-depth in case Convex
+// reformats the error in a future release.
 const KNOWN_OOM_PATTERNS = [
+  /execution ran out of memory/i,
+  /maximum memory usage/i,
   /isolate.*memory/i,
   /memory.*limit/i,
+  /out of memory/i,
   /heap out of memory/i,
   /JavaScript heap/i,
-  /size limit/i,
-  /module.*too large/i,
-  /push.*failed.*bundle/i
+  /module.*too large/i
 ]
 
 /** Synchronous sleep — bun-native if available, fallback for tsc-clean type. */
@@ -366,7 +376,7 @@ function sleepSync(ms: number): void {
   }
 }
 
-function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
+function pushOnce(deployKey: string, timeoutMs = 600_000): PushResult {
   // Retry transient infra errors (5xx cold-starts, network blips). These are
   // common immediately after creating a dev deployment and during periods of
   // Convex backend instability. They have nothing to do with the OOM ceiling
