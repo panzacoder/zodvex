@@ -2,20 +2,19 @@
  * Stress test (real-deploy edition).
  *
  * Composes N seed models per variant, optionally compiles or runs codegen,
- * then drives `npx convex dev --once` against the example's configured Convex
- * deployment. Bisects on push success/failure to find the actual ceiling for
- * each variant.
+ * then drives `npx convex deploy` against a real Convex deployment. Bisects
+ * on push success/failure to find the actual ceiling for each variant.
  *
  * No more heap proxy. The push goes to a real Convex backend; the bundle is
  * built with Convex's bundler, loaded into the 64 MB push-time isolate, and
  * either succeeds or fails the way real users experience.
  *
  * Setup (once):
- *   cd examples/stress-test
- *   npx convex dev --configure
+ *   - Create a throwaway dev project at https://dashboard.convex.dev/
+ *   - Settings → URL and Deploy Key → Generate Dev Deploy Key
+ *   - Save it to examples/stress-test/.env.local as `CONVEX_DEPLOY_KEY=<key>`
  *
- * That writes `.env.local` with `CONVEX_DEPLOYMENT=...`. The runner reads it
- * via the Convex CLI itself.
+ * The deploy key encodes the deployment URL; nothing else is needed.
  *
  * Usage:
  *   bun run stress-test                 # all variants, full ceiling search
@@ -112,27 +111,30 @@ function zodvexVariantName(slim: boolean, mini: boolean, codegen: boolean, compi
 
 // --- Setup check ---
 
-function ensureConvexDeployment(): void {
+function ensureConvexDeployment(): { deployKey: string } {
   const envFile = join(ROOT, '.env.local')
   if (!existsSync(envFile)) {
     console.error('')
     console.error('error: examples/stress-test/.env.local is missing.')
     console.error('')
-    console.error('The stress test pushes to a real Convex deployment. Set one up once with:')
+    console.error('Create a throwaway dev deployment at https://dashboard.convex.dev/,')
+    console.error('then Settings → URL and Deploy Key → Generate Dev Deploy Key.')
+    console.error('Save the key to examples/stress-test/.env.local as:')
     console.error('')
-    console.error('  cd examples/stress-test')
-    console.error('  npx convex dev --configure')
+    console.error('  CONVEX_DEPLOY_KEY=<paste-key-here>')
     console.error('')
-    console.error('Pick or create a fresh dev deployment — it will be wiped between runs.')
+    console.error('Each run wipes the deployment\'s schema; do not point this at real data.')
     console.error('')
     process.exit(1)
   }
   const env = readFileSync(envFile, 'utf-8')
-  if (!/^CONVEX_DEPLOYMENT=/m.test(env)) {
-    console.error('error: .env.local exists but does not contain CONVEX_DEPLOYMENT.')
-    console.error('Re-run `npx convex dev --configure` to set up.')
+  const m = env.match(/^CONVEX_DEPLOY_KEY=(.+)$/m)
+  if (!m) {
+    console.error('error: .env.local exists but does not contain CONVEX_DEPLOY_KEY.')
+    console.error('See the stress-test README for setup instructions.')
     process.exit(1)
   }
+  return { deployKey: m[1].trim() }
 }
 
 // --- Compose / compile / codegen / mini transform ---
@@ -218,14 +220,14 @@ const KNOWN_OOM_PATTERNS = [
   /push.*failed.*bundle/i
 ]
 
-function pushOnce(timeoutMs = 240_000): PushResult {
+function pushOnce(deployKey: string, timeoutMs = 240_000): PushResult {
   const start = Date.now()
   const child = spawnSync(
     'npx',
-    ['convex', 'dev', '--once', '--typecheck=disable', '--codegen=disable'],
+    ['convex', 'deploy', '--yes', '--typecheck=disable', '--codegen=disable'],
     {
       cwd: ROOT,
-      env: { ...process.env, CI: '1' },
+      env: { ...process.env, CI: '1', CONVEX_DEPLOY_KEY: deployKey },
       encoding: 'utf-8',
       timeout: timeoutMs,
       stdio: ['ignore', 'pipe', 'pipe']
@@ -253,13 +255,13 @@ interface CeilingPoint {
   errorKind?: PushResult['errorKind']
 }
 
-function pushAtCount(count: number, variant: Variant): CeilingPoint {
+function pushAtCount(count: number, variant: Variant, deployKey: string): CeilingPoint {
   prepareConvexDir(count, variant)
-  const r = pushOnce()
+  const r = pushOnce(deployKey)
   return { count, pushed: r.pushed, durationMs: r.durationMs, errorKind: r.errorKind }
 }
 
-function findCeiling(variant: Variant): { ceiling: number; points: CeilingPoint[] } {
+function findCeiling(variant: Variant, deployKey: string): { ceiling: number; points: CeilingPoint[] } {
   console.log(`\n${'='.repeat(60)}`)
   console.log(`Searching ceiling for: ${variant.name}`)
   console.log('='.repeat(60))
@@ -273,7 +275,7 @@ function findCeiling(variant: Variant): { ceiling: number; points: CeilingPoint[
   const coarseCap = variant.flavor === 'convex' ? 4000 : variant.compile ? 2000 : 1000
   let hi = coarseCap
   for (let count = 50; count <= coarseCap; count = Math.min(coarseCap, Math.floor(count * 1.6))) {
-    const p = pushAtCount(count, variant)
+    const p = pushAtCount(count, variant, deployKey)
     points.push(p)
     console.log(`  ${count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})`}`)
     if (p.pushed) {
@@ -297,9 +299,9 @@ function findCeiling(variant: Variant): { ceiling: number; points: CeilingPoint[
   let lo = lastGood
   while (hi - lo > 25) {
     const mid = Math.round((lo + hi) / 2)
-    const p = pushAtCount(mid, variant)
+    const p = pushAtCount(mid, variant, deployKey)
     points.push(p)
-    console.log(`  ${mid}: ${p.pushed ? 'OK' : `over (${p.errorKind})`}`)
+    console.log(`  ${mid}: ${p.pushed ? 'pushed' : `over (${p.errorKind})`}`)
     if (p.pushed) { lo = mid; lastGood = mid }
     else hi = mid
   }
@@ -350,7 +352,7 @@ function writeReport(results: { variant: string; ceiling: number; points: Ceilin
 // --- Main ---
 
 async function main() {
-  ensureConvexDeployment()
+  const { deployKey } = ensureConvexDeployment()
   const flags = parseFlags()
   const variants = getVariants(flags)
 
@@ -359,7 +361,7 @@ async function main() {
 
   if (flags.count !== undefined) {
     for (const v of variants) {
-      const p = pushAtCount(flags.count, v)
+      const p = pushAtCount(flags.count, v, deployKey)
       console.log(`${v.name} @ ${flags.count}: ${p.pushed ? `pushed in ${(p.durationMs / 1000).toFixed(1)}s` : `FAILED (${p.errorKind})`}`)
     }
     return
@@ -367,7 +369,7 @@ async function main() {
 
   const results: { variant: string; ceiling: number; points: CeilingPoint[] }[] = []
   for (const v of variants) {
-    const r = findCeiling(v)
+    const r = findCeiling(v, deployKey)
     results.push({ variant: v.name, ceiling: r.ceiling, points: r.points })
   }
 

@@ -6,12 +6,17 @@ Previous heap-delta-in-Node-subprocess proxy has been removed: it was misleading
 
 ## Setup (once)
 
-```bash
-cd examples/stress-test
-npx convex dev --configure   # creates .env.local with CONVEX_DEPLOYMENT
-```
+The runner uses `npx convex deploy` with a deploy key — no interactive auth.
 
-Pick or create a fresh dev deployment. Each ceiling-search run wipes the deployment's schema and re-pushes thousands of tables, so don't point this at anything you care about.
+1. Create a throwaway dev project at <https://dashboard.convex.dev/>.
+2. In that project's Settings → **URL and Deploy Key** → **Generate Dev Deploy Key**.
+3. Save the key to `examples/stress-test/.env.local`:
+
+   ```bash
+   CONVEX_DEPLOY_KEY=<paste-key-here>
+   ```
+
+Each ceiling-search run wipes the deployment's schema and re-pushes thousands of tables. Don't point this at anything you care about.
 
 ## Variants
 
