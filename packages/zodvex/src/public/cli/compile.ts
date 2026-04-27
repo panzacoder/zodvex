@@ -19,7 +19,13 @@ import { globSync } from 'tinyglobby'
 import { zodToConvex, zodToConvexFields } from '../../internal/mapping'
 import { $ZodObject } from '../../internal/zod-core'
 import { type DiscoveredFunction, type DiscoveredModel, discoverModules } from '../codegen/discover'
-import { convexArgsToSource, convexValidatorToSource } from './compileSerialize'
+import {
+  convexArgsToSource,
+  convexValidatorToSource,
+  createSharingContext,
+  registerModelFields,
+  type SharingContext
+} from './compileSerialize'
 
 const ZQ_NAMES = ['zq', 'zm', 'za', 'ziq', 'zim', 'zia'] as const
 const ZQ_TO_BUILDER: Record<(typeof ZQ_NAMES)[number], string> = {
@@ -47,7 +53,36 @@ type ResolvedFunction = {
   sourceFile: string // relative to convexDir
   argsSource: string | undefined
   returnsSource: string | undefined
+  /** `*Fields` record names referenced via Phase-2 sharing in args/returns. */
+  usedRecords: Set<string>
 }
+
+type ResolvedModel =
+  | {
+      kind: 'shape'
+      exportName: string
+      sourceFile: string
+      /** The identifier the user (or compile) uses to export this model's fields. */
+      fieldsRecordName: string
+      /** Convex validator record (the value of `*Fields` after compile). */
+      convexFields: Record<string, unknown>
+      /**
+       * Whether the user's source already declares `export const *Fields = {...}`.
+       * Drives whether the model transform rewrites in place vs hoists a new const.
+       */
+      recordExists: boolean
+    }
+  | {
+      /**
+       * Union / discriminated-union model — `defineZodModel(name, unionSchema)`.
+       * No shape record to share; we emit `defineTable(<v.union literal>)` and
+       * let cross-file prune drop the original Zod schema declaration.
+       */
+      kind: 'union'
+      exportName: string
+      sourceFile: string
+      validatorSource: string
+    }
 
 export async function runCompile(
   targetDir: string,
@@ -66,21 +101,13 @@ export async function runCompile(
 
   const discovered = await discoverModules(convexDir)
 
-  // Build per-file indexes so each file is touched exactly once.
-  const fnIndex = new Map<string, Map<string, ResolvedFunction>>()
-  for (const fn of discovered.functions) {
-    const resolved = resolveFunctionToConvexSource(fn, options.verbose)
-    let bucket = fnIndex.get(fn.sourceFile)
-    if (!bucket) {
-      bucket = new Map()
-      fnIndex.set(fn.sourceFile, bucket)
-    }
-    bucket.set(fn.exportName, resolved)
-  }
-
+  // Pass A: pre-resolve every model — we need the *Fields names *before* we
+  // serialize any function args/returns so the sharing context is fully
+  // populated when endpoint emission happens.
   const modelIndex = new Map<string, Map<string, ResolvedModel>>()
+  const sharingCtx = createSharingContext()
   for (const m of discovered.models) {
-    const resolved = resolveModelToConvexSource(m, options.verbose)
+    const resolved = preResolveModel(m, convexDir, options.verbose)
     if (!resolved) continue
     let bucket = modelIndex.get(m.sourceFile)
     if (!bucket) {
@@ -88,6 +115,23 @@ export async function runCompile(
       modelIndex.set(m.sourceFile, bucket)
     }
     bucket.set(m.exportName, resolved)
+    if (resolved.kind === 'shape') {
+      registerModelFields(sharingCtx, resolved.fieldsRecordName, resolved.convexFields, m.tableName)
+    }
+  }
+
+  // Pass B: resolve every function's args/returns *with* the sharing context.
+  // Leaves and object subsets that match a model's fields become references /
+  // spreads in the emitted source, dropping per-endpoint validator allocations.
+  const fnIndex = new Map<string, Map<string, ResolvedFunction>>()
+  for (const fn of discovered.functions) {
+    const resolved = resolveFunctionToConvexSource(fn, sharingCtx, options.verbose)
+    let bucket = fnIndex.get(fn.sourceFile)
+    if (!bucket) {
+      bucket = new Map()
+      fnIndex.set(fn.sourceFile, bucket)
+    }
+    bucket.set(fn.exportName, resolved)
   }
 
   // Schema files: any .ts file that imports `defineZodSchema` from
@@ -124,6 +168,16 @@ export async function runCompile(
 
   const transformedFiles = new Set<import('ts-morph').SourceFile>()
 
+  // Record-name -> source file map for relative-import computation.
+  const recordSources = new Map<string, string>()
+  for (const bucket of modelIndex.values()) {
+    for (const m of bucket.values()) {
+      if (m.kind === 'shape') {
+        recordSources.set(m.fieldsRecordName, m.sourceFile)
+      }
+    }
+  }
+
   for (const relFile of candidateFiles) {
     const absFile = path.resolve(convexDir, relFile)
     if (!fs.existsSync(absFile)) continue
@@ -136,7 +190,8 @@ export async function runCompile(
 
     const result = transformSourceFile(sf, fnBucket, modelBucket, isSchemaFile, {
       convexDir,
-      verbose: options.verbose
+      verbose: options.verbose,
+      recordSources
     })
 
     if (result.transformed > 0) {
@@ -205,15 +260,18 @@ function pruneUnusedExportsAcrossProject(
     for (const stmt of [...sf.getVariableStatements()]) {
       if (!stmt.hasExportKeyword()) continue
       for (const decl of [...stmt.getDeclarations()]) {
+        // Only drop initializers that aren't Convex registration calls —
+        // `query(...)` / `mutation(...)` / `defineTable(...)` / `defineSchema(...)`
+        // are runtime objects Convex discovers by filesystem walk, so an exported
+        // `getComment = query(...)` has no in-source references but is still
+        // live at runtime. Pure data literals AND lingering `z.*` constructors
+        // are fair game once compile-away has rewritten the call sites.
+        if (!isPruneableInitializer(decl.getInitializer())) continue
+
         const name = decl.getName()
         const total = referenceCounts.get(name) ?? 0
         const own = ownCounts.get(name) ?? 0
-        // `total` counts every Identifier with this text across the project.
-        // The declaration itself contributes once (the LHS Identifier). If
-        // total == own, no other file references it.
         if (total <= own) {
-          // Within this file too, count usages outside the declaration's
-          // own subtree. If only the declaration name appears, it's dead.
           const usagesInFile = countIdentifierUsagesOutside(sf, name, decl)
           if (usagesInFile === 0) {
             decl.remove()
@@ -226,6 +284,41 @@ function pruneUnusedExportsAcrossProject(
     pruneUnusedSymbols(sf)
   }
 }
+
+/**
+ * True when the initializer is *NOT* a Convex registration call — i.e., it's
+ * safe to drop if no other file references it. The exclusion list covers
+ * `query`/`mutation`/`action`/`internalQuery`/`internalMutation`/`internalAction`
+ * (function registrations Convex discovers by filesystem walk) and
+ * `defineTable`/`defineSchema` (table/schema registrations). Anything else —
+ * pure data literals AND lingering Zod constructors (`z.object`, `z.union`,
+ * `z.literal`, etc.) — is fair game once compile-away has rewritten the
+ * registration call sites.
+ */
+function isPruneableInitializer(node: import('ts-morph').Node | undefined): boolean {
+  if (!node) return false
+  if (node.getKindName() !== 'CallExpression') return true
+  const call = node as import('ts-morph').CallExpression
+  const callee = call.getExpression()
+  if (!isIdentifier(callee)) return true
+  const name = callee.getText()
+  return !PROTECTED_REGISTRATION_CALLS.has(name)
+}
+
+const PROTECTED_REGISTRATION_CALLS = new Set([
+  'query',
+  'mutation',
+  'action',
+  'internalQuery',
+  'internalMutation',
+  'internalAction',
+  'defineTable',
+  'defineSchema',
+  // Convex-helpers builders, in case the user mixes flavors during migration.
+  'zCustomQuery',
+  'zCustomMutation',
+  'zCustomAction'
+])
 
 function countIdentifierUsagesOutside(
   sf: import('ts-morph').SourceFile,
@@ -242,37 +335,113 @@ function countIdentifierUsagesOutside(
   return count
 }
 
-type ResolvedModel = {
-  exportName: string
-  sourceFile: string
-  /** v.object({...}) source for the model's fields. */
-  fieldsSource: string
-}
-
-function resolveModelToConvexSource(
+/**
+ * Discover the `*Fields` identifier name and Convex fields for one model.
+ * - Reads `model.fields` from the live module ref.
+ * - Greps the source file for `defineZodModel('table', <ident>, ...)` to find
+ *   the user's existing record name. Falls back to `<camelCase(table)>Fields`
+ *   if the source uses an inline shape.
+ */
+function preResolveModel(
   m: DiscoveredModel,
+  convexDir: string,
   verbose?: boolean
 ): ResolvedModel | undefined {
-  const ref = m._modelRef as { fields?: Record<string, unknown> } | undefined
+  const ref = m._modelRef as { fields?: Record<string, unknown>; schema?: unknown } | undefined
   const fields = ref?.fields
-  if (!fields || typeof fields !== 'object' || Object.keys(fields).length === 0) {
-    if (verbose) {
-      console.warn(
-        `  [skip model] ${m.sourceFile}:${m.exportName} — no fields (likely union/discriminated)`
+
+  if (fields && typeof fields === 'object' && Object.keys(fields).length > 0) {
+    // Shape model: build *Fields record + lookup name from source.
+    let convexFields: Record<string, unknown>
+    try {
+      convexFields = zodToConvexFields(fields as Record<string, any>) as Record<string, unknown>
+    } catch (err) {
+      if (verbose) {
+        console.warn(`  [skip model] ${m.sourceFile}:${m.exportName}: ${(err as Error).message}`)
+      }
+      return undefined
+    }
+
+    let recordName: string | undefined
+    let recordExists = false
+    try {
+      const src = fs.readFileSync(path.join(convexDir, m.sourceFile), 'utf-8')
+      const re = new RegExp(
+        `defineZodModel\\(\\s*['"]${escapeForRegex(m.tableName)}['"]\\s*,\\s*([A-Za-z_$][\\w$]*)\\b`
       )
+      const match = src.match(re)
+      if (match) {
+        recordName = match[1]
+        const declRe = new RegExp(`(?:export\\s+)?const\\s+${recordName}\\s*=`)
+        recordExists = declRe.test(src)
+      }
+    } catch {
+      // fall through
     }
-    return undefined
-  }
-  try {
-    const convexFields = zodToConvexFields(fields as Record<string, any>)
-    const fieldsSource = `v.object(${convexArgsToSource(convexFields)})`
-    return { exportName: m.exportName, sourceFile: m.sourceFile, fieldsSource }
-  } catch (err) {
-    if (verbose) {
-      console.warn(`  [skip model] ${m.sourceFile}:${m.exportName}: ${(err as Error).message}`)
+    if (!recordName) {
+      recordName = `${camelCaseTableName(m.tableName)}Fields`
     }
-    return undefined
+
+    return {
+      kind: 'shape',
+      exportName: m.exportName,
+      sourceFile: m.sourceFile,
+      fieldsRecordName: recordName,
+      convexFields,
+      recordExists
+    }
   }
+
+  // Non-shape (union / discriminated-union) model. Both factories retain the
+  // original schema as `userSchema` (slim path always, full path via the
+  // build-tooling-only retention added in createModel). Convert it to a Convex
+  // validator and emit `defineTable(<v.union literal>)`.
+  const userSchema =
+    (ref as { userSchema?: unknown } | undefined)?.userSchema ??
+    (typeof (ref as { schema?: unknown } | undefined)?.schema === 'object' &&
+    !(ref as { schema?: { doc?: unknown } } | undefined)?.schema?.doc
+      ? (ref as { schema?: unknown }).schema
+      : undefined)
+  if (userSchema && typeof userSchema === 'object') {
+    try {
+      const convexValidator = zodToConvex(userSchema as any)
+      const validatorSource = convexValidatorToSource(convexValidator)
+      return {
+        kind: 'union',
+        exportName: m.exportName,
+        sourceFile: m.sourceFile,
+        validatorSource
+      }
+    } catch (err) {
+      if (verbose) {
+        console.warn(
+          `  [skip union model] ${m.sourceFile}:${m.exportName}: ${(err as Error).message}`
+        )
+      }
+    }
+  }
+
+  if (verbose) {
+    console.warn(
+      `  [skip model] ${m.sourceFile}:${m.exportName} — no fields and no resolvable union schema`
+    )
+  }
+  return undefined
+}
+
+function escapeForRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** 'comments_0001' → 'comment0001'; drops trailing 's' once for plural. */
+function camelCaseTableName(table: string): string {
+  // strip non-identifier chars
+  let cleaned = table.replace(/[^A-Za-z0-9]/g, '')
+  // singularize (cheap heuristic — only the trailing 's' if it follows a letter)
+  if (/[a-zA-Z]s$/.test(cleaned)) cleaned = cleaned.slice(0, -1) + cleaned.slice(-1).toLowerCase()
+  // simple singular: drop trailing 's' when there's no other better signal
+  if (cleaned.endsWith('s') && cleaned.length > 1) cleaned = cleaned.slice(0, -1)
+  return cleaned.charAt(0).toLowerCase() + cleaned.slice(1)
 }
 
 /**
@@ -308,18 +477,26 @@ function findSchemaFiles(convexDir: string): Set<string> {
 
 function resolveFunctionToConvexSource(
   fn: DiscoveredFunction,
+  sharingCtx: SharingContext,
   verbose?: boolean
 ): ResolvedFunction {
   let argsSource: string | undefined
   let returnsSource: string | undefined
+  const before = new Set(sharingCtx.usedRecords)
 
+  // Compute the convex args/returns first so we can derive the function's
+  // "primary records" (any model whose tableName appears in a v.id within
+  // args or returns). Sharing is then scoped to those records — prevents
+  // an endpoint for `tasks` from binding `body: v.string()` to
+  // `commentFields.body` just because that name happens to also exist there.
+  let convexArgs: Record<string, unknown> | undefined
+  let convexReturns: unknown
   if (fn.zodArgs) {
     try {
       const argsObject = fn.zodArgs as unknown as InstanceType<typeof $ZodObject>
       const shape = argsObject instanceof $ZodObject ? argsObject._zod.def.shape : undefined
       if (shape) {
-        const convexArgs = zodToConvexFields(shape as Record<string, any>)
-        argsSource = convexArgsToSource(convexArgs)
+        convexArgs = zodToConvexFields(shape as Record<string, any>) as Record<string, unknown>
       }
     } catch (err) {
       if (verbose) {
@@ -327,11 +504,9 @@ function resolveFunctionToConvexSource(
       }
     }
   }
-
   if (fn.zodReturns) {
     try {
-      const convexReturns = zodToConvex(fn.zodReturns as any)
-      returnsSource = convexValidatorToSource(convexReturns)
+      convexReturns = zodToConvex(fn.zodReturns as any)
     } catch (err) {
       if (verbose) {
         console.warn(`  [skip returns] ${fn.functionPath}: ${(err as Error).message}`)
@@ -339,17 +514,83 @@ function resolveFunctionToConvexSource(
     }
   }
 
+  const tablesTouched = new Set<string>()
+  if (convexArgs) collectIdTables(convexArgs, tablesTouched)
+  if (convexReturns) collectIdTables(convexReturns, tablesTouched)
+  const preferredRecordNames = new Set<string>()
+  for (const t of tablesTouched) {
+    const record = sharingCtx.recordByTable.get(t)
+    if (record) preferredRecordNames.add(record)
+  }
+  sharingCtx.preferredRecordNames = preferredRecordNames
+
+  if (convexArgs) {
+    argsSource = convexArgsToSource(convexArgs, sharingCtx)
+  }
+  if (convexReturns) {
+    returnsSource = convexValidatorToSource(convexReturns, sharingCtx)
+  }
+
+  sharingCtx.preferredRecordNames = undefined
+
+  // Diff `usedRecords` to capture only the additions from THIS function.
+  const usedRecords = new Set<string>()
+  for (const r of sharingCtx.usedRecords) {
+    if (!before.has(r)) usedRecords.add(r)
+  }
+
   return {
     exportName: fn.exportName,
     sourceFile: fn.sourceFile,
     argsSource,
-    returnsSource
+    returnsSource,
+    usedRecords
+  }
+}
+
+/** Walks a Convex validator (or args record) and collects every `v.id(table)` table name. */
+function collectIdTables(node: unknown, out: Set<string>): void {
+  if (node == null || typeof node !== 'object') return
+  const v = node as { kind?: string; tableName?: unknown; [k: string]: unknown }
+  if (v.kind === 'id' && typeof v.tableName === 'string') {
+    out.add(v.tableName)
+    return
+  }
+  if (v.kind === 'object') {
+    const fields = (v.fields ?? {}) as Record<string, unknown>
+    for (const child of Object.values(fields)) collectIdTables(child, out)
+    return
+  }
+  if (v.kind === 'union') {
+    const members = (v.members ?? []) as unknown[]
+    for (const child of members) collectIdTables(child, out)
+    return
+  }
+  if (v.kind === 'array') {
+    collectIdTables(v.element, out)
+    return
+  }
+  if (v.kind === 'record') {
+    collectIdTables((v as { value?: unknown }).value, out)
+    return
+  }
+  // For args records (no `kind` field) — iterate values.
+  if (typeof v.kind !== 'string') {
+    for (const child of Object.values(node as Record<string, unknown>)) {
+      collectIdTables(child, out)
+    }
   }
 }
 
 type TransformContext = {
   convexDir: string
   verbose?: boolean
+  /**
+   * fieldsRecordName -> source file (relative to convexDir). Used to compute
+   * relative import paths when an endpoint file references a model's `*Fields`
+   * record via Phase-2 sharing.
+   */
+  recordSources: Map<string, string>
 }
 
 type TransformResult = {
@@ -368,6 +609,10 @@ function transformSourceFile(
   let skipped = 0
   const usedBuilders = new Set<string>()
   const replacedZqNames = new Set<string>()
+  // Track `*Fields` records this endpoint file references via Phase-2 sharing.
+  // Each entry is the record name; we look up the source file via modelInfos
+  // (passed in via ctx) to compute the relative import path.
+  const usedRecordsInFile = new Set<string>()
   let needConvexValues = false
   let needDefineTable = false
   let needDefineSchema = false
@@ -379,7 +624,7 @@ function transformSourceFile(
       const varStmt = stmt as import('ts-morph').VariableStatement
       if (!varStmt.hasExportKeyword()) continue
       for (const decl of varStmt.getDeclarations()) {
-        if (tryTransformDefineZodModel(decl, modelBucket)) {
+        if (tryTransformDefineZodModel(decl, sf, modelBucket)) {
           transformed++
           needConvexValues = true
           needDefineTable = true
@@ -445,6 +690,7 @@ function transformSourceFile(
         replacedZqNames.add(calleeName)
         usedBuilders.add(newName)
         needConvexValues = true
+        for (const r of fn.usedRecords) usedRecordsInFile.add(r)
         transformed++
       }
     }
@@ -469,7 +715,9 @@ function transformSourceFile(
     needConvexValues,
     needDefineTable,
     needDefineSchema,
-    convexDir: ctx.convexDir
+    convexDir: ctx.convexDir,
+    usedRecordsInFile,
+    recordSources: ctx.recordSources
   })
 
   // Drop unused imports + unused local variable declarations to keep the
@@ -480,12 +728,19 @@ function transformSourceFile(
 }
 
 /**
- * Replaces a `defineZodModel('name', shape, opts?)` call's *root* with
- * `defineTable(<v.object literal>)`, preserving any chained `.index(...)` /
- * `.searchIndex(...)` / `.vectorIndex(...)` calls. Returns true if changed.
+ * Phase 1.5 + 2 model transform:
+ *   1. Ensure an `export const <fieldsRecordName> = { ... convex fields ... }`
+ *      exists at the top of the file. If the user already had one (matched by
+ *      identifier name), rewrite its initializer in place (preserving order
+ *      so endpoint imports don't go stale). If not, hoist a fresh declaration.
+ *   2. Replace `defineZodModel('name', <whatever>, opts?)` with
+ *      `defineTable(<fieldsRecordName>)`, keeping any chained `.index(...)`.
+ *
+ * Returns true if any change was made.
  */
 function tryTransformDefineZodModel(
   decl: import('ts-morph').VariableDeclaration,
+  sf: import('ts-morph').SourceFile,
   modelBucket: Map<string, ResolvedModel>
 ): boolean {
   const exportName = decl.getName()
@@ -494,16 +749,52 @@ function tryTransformDefineZodModel(
 
   const init = decl.getInitializer()
   if (!init) return false
-  // Walk down the chain (`.index(...)` etc.) to the root call.
   const root = findRootCall(init)
   if (!root) return false
   const callee = root.getExpression()
   if (!isIdentifier(callee) || callee.getText() !== 'defineZodModel') return false
 
-  // Replace the entire root call with `defineTable(<fields>)`.
-  const newCallText = `defineTable(${resolved.fieldsSource})`
-  root.replaceWithText(newCallText)
+  if (resolved.kind === 'shape') {
+    const fieldsSource = convexArgsToSource(resolved.convexFields)
+    ensureFieldsRecordDeclaration(sf, decl, resolved.fieldsRecordName, fieldsSource)
+    root.replaceWithText(`defineTable(${resolved.fieldsRecordName})`)
+    return true
+  }
+  // union: emit the v.* literal inline.
+  root.replaceWithText(`defineTable(${resolved.validatorSource})`)
   return true
+}
+
+/**
+ * Ensures the file has `export const <fieldsRecordName> = { ... }` declared
+ * before the model declaration. Rewrites in place if it already exists.
+ */
+function ensureFieldsRecordDeclaration(
+  sf: import('ts-morph').SourceFile,
+  modelDecl: import('ts-morph').VariableDeclaration,
+  fieldsRecordName: string,
+  fieldsSource: string
+): void {
+  // 1. Existing const with this name?
+  for (const stmt of sf.getVariableStatements()) {
+    for (const d of stmt.getDeclarations()) {
+      if (d.getName() === fieldsRecordName) {
+        d.setInitializer(fieldsSource)
+        // Make sure it's exported so other files can import it.
+        if (!stmt.hasExportKeyword()) {
+          stmt.setIsExported(true)
+        }
+        return
+      }
+    }
+  }
+  // 2. None — insert a new statement just before the model declaration.
+  const modelStmt = modelDecl.getVariableStatement()
+  const insertionIndex = modelStmt ? modelStmt.getChildIndex() : sf.getStatements().length
+  sf.insertVariableStatement(insertionIndex, {
+    isExported: true,
+    declarations: [{ name: fieldsRecordName, initializer: fieldsSource }]
+  })
 }
 
 /**
@@ -555,6 +846,10 @@ function rewriteImports(
     needDefineTable: boolean
     needDefineSchema: boolean
     convexDir: string
+    /** *Fields records this file references (Phase-2 sharing). */
+    usedRecordsInFile: Set<string>
+    /** fieldsRecordName → source file (relative to convexDir). */
+    recordSources: Map<string, string>
   }
 ): void {
   // Drop replaced zq names from their import declarations. We don't reuse the
@@ -582,6 +877,30 @@ function rewriteImports(
   if (opts.needDefineSchema) convexServerNeeded.push('defineSchema')
   if (convexServerNeeded.length > 0) {
     upsertNamedImports(sf, 'convex/server', convexServerNeeded)
+  }
+
+  // Phase 2: inject `*Fields` imports for any record this file references.
+  // Group by source file so multiple records from the same model file share
+  // a single import declaration.
+  if (opts.usedRecordsInFile.size > 0) {
+    const grouped = new Map<string, string[]>()
+    for (const recordName of opts.usedRecordsInFile) {
+      const sourceFile = opts.recordSources.get(recordName)
+      if (!sourceFile) continue
+      const fileDir = path.dirname(sf.getFilePath())
+      const targetAbs = path.join(opts.convexDir, sourceFile)
+      let rel = path.relative(fileDir, targetAbs).replace(/\.tsx?$/, '')
+      if (!rel.startsWith('.')) rel = `./${rel}`
+      const spec = rel.split(path.sep).join('/')
+      // Skip self-imports — a model file references its own *Fields directly.
+      if (path.resolve(targetAbs) === path.resolve(sf.getFilePath())) continue
+      const arr = grouped.get(spec) ?? []
+      arr.push(recordName)
+      grouped.set(spec, arr)
+    }
+    for (const [spec, names] of grouped) {
+      upsertNamedImports(sf, spec, names)
+    }
   }
 }
 
