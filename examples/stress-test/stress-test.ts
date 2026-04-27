@@ -147,6 +147,7 @@ interface CachedCeilingEntry {
   ceiling: number
   points: CeilingPoint[]
   baseline?: BaselineRow
+  status?: 'pushed' | 'oom' | 'env-failure' | 'unknown'
   timestamp: string
   /** Deployment URL fragment so cache from one deployment doesn't leak to another. */
   deployment: string
@@ -500,133 +501,111 @@ function measureLocalHeap(count: number, variant: Variant): LocalHeapPoint | nul
 }
 
 /** Local-heap binary search for the largest N where heapDeltaMB ≤ threshold.
- *  Result is a SEED for real-push confirmation, not the ceiling itself. */
+ *  Result is a SEED for real-push confirmation, not the ceiling itself.
+ *  Coarse on purpose — refining to ±25 endpoints isn't worth the extra
+ *  per-probe cost (especially for `zod + compile` where every probe re-runs
+ *  the ts-morph transform on monolithic source). ±10% precision is plenty
+ *  for a comparison number that gets a single real-push verification. */
 function localHeapBinarySearch(variant: Variant): {
   candidate: number
   highestSafe: number
   points: LocalHeapPoint[]
 } {
   const points: LocalHeapPoint[] = []
-  let lo = 0
-  let hi = HEAP_PROXY_HI
   let highestSafe = 0
   let firstUnsafe = HEAP_PROXY_HI
 
-  // Doubling-up pass: start at 50, grow until heap exceeds threshold.
-  for (let count = 50; count <= HEAP_PROXY_HI; count = Math.min(HEAP_PROXY_HI, Math.round(count * 1.7))) {
+  // Doubling-up pass: start at 50, grow until heap exceeds threshold or we
+  // reach the cap. Factor of 2.0 — fewer probes than 1.7×, still enough
+  // resolution.
+  for (let count = 50; count <= HEAP_PROXY_HI; count = Math.min(HEAP_PROXY_HI, Math.round(count * 2))) {
     const p = measureLocalHeap(count, variant)
     if (!p) break
     points.push(p)
     console.log(`  [heap] ${count}: ${p.heapDeltaMB.toFixed(1)} MB`)
     if (p.heapDeltaMB <= HEAP_PROXY_THRESHOLD_MB) {
-      lo = count
       highestSafe = count
       if (count === HEAP_PROXY_HI) break
     } else {
-      hi = count
       firstUnsafe = count
       break
     }
   }
 
-  // Fine pass: binary search [highestSafe, firstUnsafe].
-  while (firstUnsafe - highestSafe > 25) {
-    const mid = Math.round((highestSafe + firstUnsafe) / 2)
-    const p = measureLocalHeap(mid, variant)
-    if (!p) break
-    points.push(p)
-    console.log(`  [heap] ${mid}: ${p.heapDeltaMB.toFixed(1)} MB`)
-    if (p.heapDeltaMB <= HEAP_PROXY_THRESHOLD_MB) {
-      highestSafe = mid
-    } else {
-      firstUnsafe = mid
+  // One refinement step: probe the geometric mean of [highestSafe, firstUnsafe]
+  // for ~10% better precision. No further refine — the answer gets verified
+  // by a single real push, not bisected.
+  if (firstUnsafe > 0 && firstUnsafe > highestSafe && highestSafe > 0) {
+    const mid = Math.round(Math.sqrt(highestSafe * firstUnsafe))
+    if (mid > highestSafe && mid < firstUnsafe) {
+      const p = measureLocalHeap(mid, variant)
+      if (p) {
+        points.push(p)
+        console.log(`  [heap] ${mid}: ${p.heapDeltaMB.toFixed(1)} MB`)
+        if (p.heapDeltaMB <= HEAP_PROXY_THRESHOLD_MB) highestSafe = mid
+      }
     }
   }
 
   return { candidate: highestSafe, highestSafe, points }
 }
 
-/** Hybrid ceiling search:
+/** Hybrid ceiling — proxy seed, single real-push verification, NO refine.
  *
- *  1. Local heap proxy binary-searches for `candidate` — the highest N where
- *     a Bun subprocess loading the composed source stays under the
- *     ~48 MB threshold (push-time budget minus Convex's runtime overhead).
- *  2. Real `convex deploy` push at `candidate` to confirm.
- *  3. If push fails on a memory error: real-push refines downward
- *     [50 .. candidate].
- *  4. If push fails on a non-memory error (TooManyReads, function-array,
- *     file-limit, timeout): the proxy says `candidate` is heap-safe, and
- *     pushing higher would just hit the same non-memory wall — so we
- *     accept `candidate` as the ceiling and flag the real-push failure
- *     in the report. Useful for the convex baseline, which can outrun
- *     non-memory Convex limits before the heap proxy ever signals OOM.
- *  5. We don't probe above `candidate` — the proxy slightly under-counts,
- *     so this is the "verified safe" ceiling, not the absolute OOM cliff.
+ *  1. Local heap proxy binary-searches for `candidate` — highest N where
+ *     a Bun subprocess loading the composed source stays under ~48 MB.
+ *  2. Real `convex deploy` push at `candidate` ONCE for verification.
+ *  3. Report `ceiling = candidate` with one of three statuses:
+ *     - `pushed`: real-deploy confirmed the proxy estimate
+ *     - `oom-at-N`: proxy over-estimates by some unknown margin (real
+ *       memory bound is below candidate, but refining via real push is
+ *       unreliable when the deployment is under load — env failures
+ *       at intermediate counts mask the true OOM cliff)
+ *     - `env-failure-at-N`: real push failed for non-memory reasons
+ *       (TooManyReads, function-array, timeout, etc.) — proxy says
+ *       memory is fine, real Convex hit a different limit
+ *
+ *  Refining downward via real push was tried in an earlier iteration and
+ *  fell apart: env-driven failures (TooManyReads from deployment state,
+ *  600s push timeouts at scale) bisected to nonsense numbers. The proxy
+ *  is at least reproducible. Single-push verification + status annotation
+ *  is the most honest signal we can extract.
  */
-function findCeiling(variant: Variant, deployKey: string): { ceiling: number; points: CeilingPoint[] } {
+function findCeiling(variant: Variant, deployKey: string): { ceiling: number; points: CeilingPoint[]; status: 'pushed' | 'oom' | 'env-failure' | 'unknown' } {
   console.log(`\n${'='.repeat(60)}`)
   console.log(`Ceiling for: ${variant.name}`)
   console.log('='.repeat(60))
 
-  // Phase 1: local heap proxy.
   const heap = localHeapBinarySearch(variant)
   if (heap.candidate === 0) {
     console.log('  → heap proxy could not seed a candidate; bailing.')
-    return { ceiling: 0, points: [] }
+    return { ceiling: 0, points: [], status: 'unknown' }
   }
   console.log(`  → heap-proxy candidate: ${heap.candidate}`)
 
-  // Phase 2: real-push confirmation.
-  const points: CeilingPoint[] = []
-  const candidate = pushAtCount(heap.candidate, variant, deployKey)
-  points.push(candidate)
-  console.log(`  [push] ${heap.candidate}: ${candidate.pushed ? `pushed in ${(candidate.durationMs / 1000).toFixed(1)}s` : `FAILED (${candidate.errorKind})`}`)
-  if (candidate.pushed) {
-    console.log(`  → ceiling: ${heap.candidate} endpoints (heap-proxy seed + real-push confirmed)`)
-    return { ceiling: heap.candidate, points }
-  }
+  const push = pushAtCount(heap.candidate, variant, deployKey)
+  console.log(
+    `  [push] ${heap.candidate}: ${
+      push.pushed
+        ? `pushed in ${(push.durationMs / 1000).toFixed(1)}s, ${fmtKB(push.unzippedBytes)} unzipped`
+        : `FAILED (${push.errorKind})`
+    }`
+  )
 
-  // Phase 3a: non-memory failure → accept the proxy candidate. The proxy
-  // says N is heap-safe; the push hit a Convex limit unrelated to the
-  // 64 MB isolate budget (e.g. TooManyReads at validation, 8192-function
-  // cap). Refining downward via real-push wouldn't tell us anything about
-  // memory — it would just bisect the same non-memory wall. Report
-  // candidate as ceiling and surface the failure kind in the report.
-  if (candidate.errorKind && candidate.errorKind !== 'oom') {
-    console.log(
-      `  → ceiling: ${heap.candidate} endpoints (heap-proxy seed; real-push hit ${candidate.errorKind}, not memory-bound)`
-    )
-    return { ceiling: heap.candidate, points }
-  }
+  const status = push.pushed
+    ? 'pushed'
+    : push.errorKind === 'oom'
+      ? 'oom'
+      : 'env-failure'
 
-  // Phase 3b: memory failure → refine downward via real push.
-  let lo = 50
-  let hi = heap.candidate
-  let lastGood = 0
-  const floorProbe = pushAtCount(lo, variant, deployKey)
-  points.push(floorProbe)
-  console.log(`  [push] ${lo}: ${floorProbe.pushed ? 'pushed' : `over (${floorProbe.errorKind})`}`)
-  if (!floorProbe.pushed) {
-    console.log('  → push fails even at the smallest seed count; bailing.')
-    return { ceiling: 0, points }
-  }
-  lastGood = lo
-  while (hi - lo > 25) {
-    const mid = Math.round((lo + hi) / 2)
-    const p = pushAtCount(mid, variant, deployKey)
-    points.push(p)
-    console.log(`  [push] ${mid}: ${p.pushed ? 'pushed' : `over (${p.errorKind})`}`)
-    if (p.pushed) { lo = mid; lastGood = mid }
-    else hi = mid
-  }
-  console.log(`  → ceiling: ${lastGood} endpoints (heap-proxy seed + real-push binary refine, OOM-bound)`)
-  return { ceiling: lastGood, points }
+  console.log(`  → ceiling: ${heap.candidate} endpoints (${status})`)
+  return { ceiling: heap.candidate, points: [push], status }
 }
 
 // --- Report ---
 
 function writeReport(
-  results: { variant: string; ceiling: number; points: CeilingPoint[] }[],
+  results: { variant: string; ceiling: number; points: CeilingPoint[]; status?: 'pushed' | 'oom' | 'env-failure' | 'unknown' }[],
   baselineRows?: BaselineRow[]
 ): void {
   if (!existsSync(RESULTS_DIR)) mkdirSync(RESULTS_DIR, { recursive: true })
@@ -662,17 +641,22 @@ function writeReport(
     lines.push(
       '## Ceilings',
       '',
-      'Each row is the largest endpoint count that successfully pushes via',
-      '`npx convex deploy` against a real Convex dev deployment, found by',
-      'doubling-then-binary-search. A failed push (OOM, bundle size, or other)',
-      'sets the upper bound; the next probe halves the range.',
+      'Each ceiling is found by binary-searching the local heap proxy',
+      '(48 MB threshold, allowing for ~16 MB of Convex runtime overhead in',
+      'the 64 MB push-time isolate), then verified by a single real',
+      '`convex deploy` push at the candidate count. Status:',
       '',
-      '| Variant | Max Endpoints |',
-      '|---------|--------------|'
+      '- `pushed` — real-deploy confirmed the proxy estimate',
+      '- `oom` — proxy over-estimates; real push hit the 64 MB isolate cap',
+      '- `env-failure` — real push failed for non-memory reasons',
+      '  (TooManyReads, function-array, timeout); proxy says memory is fine',
+      '',
+      '| Variant | Ceiling | Status |',
+      '|---------|---------|--------|'
     )
-    for (const r of results) lines.push(`| ${r.variant} | ${r.ceiling} |`)
+    for (const r of results) lines.push(`| ${r.variant} | ${r.ceiling} | ${r.status ?? 'unknown'} |`)
 
-    lines.push('', '## All probes', '')
+    lines.push('', '## Probe detail', '')
     lines.push('| Variant | Count | Pushed | Duration (s) | Unzipped | Zipped | Error |')
     lines.push('|---------|-------|--------|--------------|----------|--------|-------|')
     for (const r of results) {
@@ -776,7 +760,8 @@ async function main() {
   console.log('Ceiling search')
   console.log('='.repeat(60))
   const cache = loadCeilingsCache()
-  const results: { variant: string; ceiling: number; points: CeilingPoint[] }[] = []
+  type ResultRow = { variant: string; ceiling: number; points: CeilingPoint[]; status?: 'pushed' | 'oom' | 'env-failure' | 'unknown' }
+  const results: ResultRow[] = []
   let cacheHits = 0
   let cacheMisses = 0
   for (const v of variants) {
@@ -784,13 +769,18 @@ async function main() {
     const cached = cache[v.name]
     if (cached && cached.fingerprint === fp && !flags.force) {
       console.log(`\n[cache hit] ${v.name}: ceiling=${cached.ceiling} (measured ${cached.timestamp.split('T')[0]})`)
-      results.push({ variant: v.name, ceiling: cached.ceiling, points: cached.points })
+      results.push({
+        variant: v.name,
+        ceiling: cached.ceiling,
+        points: cached.points,
+        status: cached.status as ResultRow['status']
+      })
       cacheHits++
       continue
     }
     cacheMisses++
     const r = findCeiling(v, deployKey)
-    results.push({ variant: v.name, ceiling: r.ceiling, points: r.points })
+    results.push({ variant: v.name, ceiling: r.ceiling, points: r.points, status: r.status })
     // Persist this run's result. If the search was inconclusive (ceiling=0)
     // skip caching — we don't want to short-circuit a future run.
     if (r.ceiling > 0) {
@@ -800,6 +790,7 @@ async function main() {
         ceiling: r.ceiling,
         points: r.points,
         baseline: baseline.rows.find(b => b.variant === v.name),
+        status: r.status,
         timestamp: new Date().toISOString(),
         deployment: deploymentKey(deployKey)
       }
