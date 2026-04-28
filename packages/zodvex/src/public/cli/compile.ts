@@ -205,7 +205,10 @@ export async function runCompile(
       verbose: options.verbose,
       recordSources
     })
-    if (profile) console.log(`  [perf]   transform ${relFile}: ${((Date.now() - tFile) / 1000).toFixed(2)}s, ${result.transformed} changes`)
+    if (profile)
+      console.log(
+        `  [perf]   transform ${relFile}: ${((Date.now() - tFile) / 1000).toFixed(2)}s, ${result.transformed} changes`
+      )
 
     if (result.transformed > 0) {
       filesChanged++
@@ -811,7 +814,11 @@ function transformSourceFile(
           if (returnsProp && isPropertyAssignment(returnsProp)) {
             const init = (returnsProp as import('ts-morph').PropertyAssignment).getInitializer()
             if (init) {
-              edits.push({ start: init.getStart(), end: init.getEnd(), replacement: fn.returnsSource })
+              edits.push({
+                start: init.getStart(),
+                end: init.getEnd(),
+                replacement: fn.returnsSource
+              })
             }
           }
         }
@@ -844,7 +851,10 @@ function transformSourceFile(
 
   const tApply = Date.now()
   applyTextEdits(sf, edits)
-  if (ctx.verbose) console.log(`  [perf]     applyTextEdits: ${((Date.now() - tApply) / 1000).toFixed(2)}s, ${edits.length} edits`)
+  if (ctx.verbose)
+    console.log(
+      `  [perf]     applyTextEdits: ${((Date.now() - tApply) / 1000).toFixed(2)}s, ${edits.length} edits`
+    )
   for (const r of recordsToInject) {
     sf.insertVariableStatement(0, {
       isExported: true,
@@ -864,13 +874,15 @@ function transformSourceFile(
     recordSources: ctx.recordSources
   })
 
-  if (ctx.verbose) console.log(`  [perf]     rewriteImports: ${((Date.now() - tImports) / 1000).toFixed(2)}s`)
+  if (ctx.verbose)
+    console.log(`  [perf]     rewriteImports: ${((Date.now() - tImports) / 1000).toFixed(2)}s`)
 
   // Drop unused imports + unused local variable declarations to keep the
   // push-time module graph thin (the whole point of compile-away).
   const tPrune = Date.now()
   pruneUnusedSymbols(sf)
-  if (ctx.verbose) console.log(`  [perf]     pruneUnusedSymbols: ${((Date.now() - tPrune) / 1000).toFixed(2)}s`)
+  if (ctx.verbose)
+    console.log(`  [perf]     pruneUnusedSymbols: ${((Date.now() - tPrune) / 1000).toFixed(2)}s`)
 
   return { transformed, skipped }
 }
@@ -989,7 +1001,6 @@ function collectDefineZodSchemaEdits(sf: import('ts-morph').SourceFile): TextEdi
   })
   return out
 }
-
 
 /** Walks down `expr.x().y().z()` style chains to the root CallExpression. */
 function findRootCall(
@@ -1174,11 +1185,7 @@ function pruneUnusedSymbols(sf: import('ts-morph').SourceFile): void {
       const isTypeOnly = imp.isTypeOnly()
 
       // No default / namespace / specifiers left → drop the whole import.
-      if (
-        usedNamed.length === 0 &&
-        !defaultImport &&
-        !namespaceImport
-      ) {
+      if (usedNamed.length === 0 && !defaultImport && !namespaceImport) {
         let end = imp.getEnd()
         if (text[end] === '\n') end++
         deletions.push({ start: imp.getStart(), end, replacement: '' })
