@@ -468,8 +468,18 @@ function pushAtCount(count: number, variant: Variant, deployKey: string): Ceilin
 /** Push-time isolate budget, minus Convex runtime overhead. The proxy
  *  doesn't load Convex's runtime, so 48 MB is the safe-zone target. */
 const HEAP_PROXY_THRESHOLD_MB = 48
-/** Most variants OOM at low counts; this is just the upper search bound. */
-const HEAP_PROXY_HI = 5000
+/** Upper search bound for the heap proxy. We cap below the count where:
+ *
+ *  - the convex baseline would hit Convex's 8192-function project cap
+ *    (1638 model+endpoint units × 5 functions/unit), and
+ *  - `zod + compile`'s pre-transform discoverModules OOMs Node trying to
+ *    load thousands of zodvex schemas before compile can rewrite them.
+ *
+ *  2500 keeps both branches alive while still letting the proxy report
+ *  "≥ 2500 heap-safe" for the lightest variants — beyond that, the
+ *  comparison number stops being about the zod tax.
+ */
+const HEAP_PROXY_HI = 2500
 
 interface LocalHeapPoint {
   count: number
