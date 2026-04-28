@@ -1,39 +1,36 @@
 # Stress Test Report (real Convex push)
 
-**Date:** 2026-04-27
+**Date:** 2026-04-28
 
 ## Baseline (each variant @ count=100)
 
-| Variant | Pushed | Duration (s) | Error |
-|---------|--------|--------------|-------|
-| convex (baseline) | yes | 11.5 |  |
+Bundle bytes are reported by `convex deploy --verbose` and reflect
+the size of the compiled artifact uploaded to the deployment, which
+is the closest concrete proxy for what the push-time isolate has
+to load.
+
+| Variant | Pushed | Duration (s) | Unzipped | Zipped | Error |
+|---------|--------|--------------|----------|--------|-------|
+| zod + compile | yes | 13.1 | 1.65 MB | 275.0 KB |  |
 
 ## Ceilings
 
-Each row is the largest endpoint count that successfully pushes via
-`npx convex deploy` against a real Convex dev deployment, found by
-doubling-then-binary-search. A failed push (OOM, bundle size, or other)
-sets the upper bound; the next probe halves the range.
+Each ceiling is found by binary-searching the local heap proxy
+(48 MB threshold, allowing for ~16 MB of Convex runtime overhead in
+the 64 MB push-time isolate), then verified by a single real
+`convex deploy` push at the candidate count. Status:
 
-| Variant | Max Endpoints |
-|---------|--------------|
-| convex (baseline) | 1632 |
+- `pushed` — real-deploy confirmed the proxy estimate
+- `oom` — proxy over-estimates; real push hit the 64 MB isolate cap
+- `env-failure` — real push failed for non-memory reasons
+  (TooManyReads, function-array, timeout); proxy says memory is fine
 
-## All probes
+| Variant | Ceiling | Status |
+|---------|---------|--------|
+| zod + compile | 2000 | env-failure |
 
-| Variant | Count | Pushed | Duration (s) | Error |
-|---------|-------|--------|--------------|-------|
-| convex (baseline) | 50 | yes | 5.4 |  |
-| convex (baseline) | 80 | yes | 5.4 |  |
-| convex (baseline) | 128 | yes | 135.2 |  |
-| convex (baseline) | 204 | yes | 8.4 |  |
-| convex (baseline) | 326 | yes | 10.3 |  |
-| convex (baseline) | 521 | yes | 14.3 |  |
-| convex (baseline) | 833 | yes | 21.9 |  |
-| convex (baseline) | 1332 | yes | 37.7 |  |
-| convex (baseline) | 1532 | yes | 18.0 |  |
-| convex (baseline) | 1632 | yes | 15.8 |  |
-| convex (baseline) | 1657 | no | 9.1 | oom |
-| convex (baseline) | 1682 | no | 10.1 | other |
-| convex (baseline) | 1732 | no | 12.4 | oom |
-| convex (baseline) | 2131 | no | 65.6 | other |
+## Probe detail
+
+| Variant | Count | Pushed | Duration (s) | Unzipped | Zipped | Error |
+|---------|-------|--------|--------------|----------|--------|-------|
+| zod + compile | 2000 | no | 600.0 | 10.93 MB | 795.6 KB | timeout |

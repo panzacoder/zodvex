@@ -1,90 +1,22 @@
 {
-  "date": "2026-04-27T15:35:57.410Z",
+  "date": "2026-04-28T00:47:15.621Z",
   "kind": "real-push",
   "results": [
     {
-      "variant": "convex (baseline)",
-      "ceiling": 1632,
+      "variant": "zod + compile",
+      "ceiling": 2000,
       "points": [
         {
-          "count": 50,
-          "pushed": true,
-          "durationMs": 5391
-        },
-        {
-          "count": 80,
-          "pushed": true,
-          "durationMs": 5435
-        },
-        {
-          "count": 128,
-          "pushed": true,
-          "durationMs": 135154
-        },
-        {
-          "count": 204,
-          "pushed": true,
-          "durationMs": 8421
-        },
-        {
-          "count": 326,
-          "pushed": true,
-          "durationMs": 10302
-        },
-        {
-          "count": 521,
-          "pushed": true,
-          "durationMs": 14263
-        },
-        {
-          "count": 833,
-          "pushed": true,
-          "durationMs": 21887
-        },
-        {
-          "count": 1332,
-          "pushed": true,
-          "durationMs": 37715
-        },
-        {
-          "count": 2131,
+          "count": 2000,
           "pushed": false,
-          "durationMs": 65644,
-          "errorKind": "other",
-          "errorSnippet": "Backfilling index activities_1337.by_created (5382/5481 ready), see progress here: https://dashboard.convex.dev/d/first-skunk-786/data?table=activities_1337&showIndexes=true\nSchema validation complete.\nFinalizing push...\n✖ Error: Unable to finish push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/finish_push 400 Bad Request: ArrayTooLong: Hit an error while pushing:\nArray length is too long (10655 > maximum length 8192)"
-        },
-        {
-          "count": 1732,
-          "pushed": false,
-          "durationMs": 12447,
-          "errorKind": "oom",
-          "errorSnippet": "Pushing code to your Convex deployment...\nSchema validation complete.\nFinalizing push...\n✖ Error: Unable to finish push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/finish_push 400 Bad Request: ArrayTooLong: Hit an error while pushing:\nArray length is too long (8660 > maximum length 8192)"
-        },
-        {
-          "count": 1532,
-          "pushed": true,
-          "durationMs": 18045
-        },
-        {
-          "count": 1632,
-          "pushed": true,
-          "durationMs": 15797
-        },
-        {
-          "count": 1682,
-          "pushed": false,
-          "durationMs": 10056,
-          "errorKind": "other",
-          "errorSnippet": "Pushing code to your Convex deployment...\nSchema validation complete.\nFinalizing push...\n✖ Error: Unable to finish push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/finish_push 400 Bad Request: ArrayTooLong: Hit an error while pushing:\nArray length is too long (8410 > maximum length 8192)"
-        },
-        {
-          "count": 1657,
-          "pushed": false,
-          "durationMs": 9075,
-          "errorKind": "oom",
-          "errorSnippet": "Pushing code to your Convex deployment...\nSchema validation complete.\nFinalizing push...\n✖ Error: Unable to finish push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/finish_push 400 Bad Request: ArrayTooLong: Hit an error while pushing:\nArray length is too long (8285 > maximum length 8192)"
+          "durationMs": 600045,
+          "unzippedBytes": 11456988,
+          "zippedBytes": 814671,
+          "errorKind": "timeout",
+          "errorSnippet": "Backfilling indexes (258/5144 ready)...\nBackfilling indexes (258/5144 ready)...\nBackfilling indexes (258/5144 ready)...\nBackfilling indexes (258/5144 ready)...\nBackfilling indexes (258/5144 ready)...\nBackfilling indexes (258/5144 ready)..."
         }
-      ]
+      ],
+      "status": "env-failure"
     }
   ]
 }
