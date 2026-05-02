@@ -7,7 +7,7 @@
  *
  * Usage: `bun --expose-gc run measureHeap.ts --dir=<path>`
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -30,10 +30,24 @@ async function main(): Promise<void> {
   }
   const before = process.memoryUsage().heapUsed
 
-  const schemaPath = `${dir}/schema.ts`
-  const endpointsPath = `${dir}/endpoints.ts`
-  if (existsSync(schemaPath)) await import(pathToFileURL(schemaPath).href)
-  if (existsSync(endpointsPath)) await import(pathToFileURL(endpointsPath).href)
+  // Load every entrypoint file Convex would push: schema.ts at the convex
+  // root, the monolithic endpoints.ts (legacy layout), and every file under
+  // `models/` and `endpoints/` (per-file layout). Importing each
+  // individually mimics how Convex's per-file analysis loads them — though
+  // here we sum into a single Node heap, so this is a pessimistic upper
+  // bound rather than a per-file budget. Single-file OOM is the limit
+  // worth tracking under the new Convex backend.
+  const candidates: string[] = [`${dir}/schema.ts`, `${dir}/endpoints.ts`]
+  for (const sub of ['models', 'endpoints']) {
+    const subDir = `${dir}/${sub}`
+    if (!existsSync(subDir)) continue
+    for (const entry of readdirSync(subDir)) {
+      if (entry.endsWith('.ts')) candidates.push(`${subDir}/${entry}`)
+    }
+  }
+  for (const p of candidates) {
+    if (existsSync(p)) await import(pathToFileURL(p).href)
+  }
 
   if (gc) {
     gc()
