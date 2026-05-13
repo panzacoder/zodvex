@@ -8,7 +8,7 @@ import {
   internalAction,
 } from './_generated/server'
 import schema from './schema'
-import { zodvexRegistry } from './_zodvex/api.js'
+import { zodvexRegistry } from './_zodvex/api.lazy.js'
 
 export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   query,
@@ -18,5 +18,5 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   internalMutation,
   internalAction,
 }, {
-  registry: () => zodvexRegistry,
+  registry: zodvexRegistry,
 })

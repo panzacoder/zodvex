@@ -58,14 +58,14 @@ convex/_zodvex/
 
 ## Registry wiring
 
-The generated `_zodvex/api.js` exports a `zodvexRegistry` — a plain object mapping every public function path to its `args` and `returns` Zod schemas. Wire it into `initZodvex` via the `registry` option so actions can auto-decode `runQuery` / `runMutation` results:
+The generated `_zodvex/api.lazy.js` exposes a `zodvexRegistry` thunk that dynamic-imports the heavy registry data. Wire it into `initZodvex` via the `registry` option so actions can auto-decode `runQuery` / `runMutation` results:
 
 ```typescript
 // convex/functions.ts
 import { initZodvex } from 'zodvex/server'
 import { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
 import schema from './schema'
-import { zodvexRegistry } from './_zodvex/api.js'
+import { zodvexRegistry } from './_zodvex/api.lazy.js'
 
 export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   query,
@@ -75,17 +75,19 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
   internalMutation,
   internalAction,
 }, {
-  registry: () => zodvexRegistry,
+  registry: zodvexRegistry,
 })
 ```
 
-The `registry` option is a thunk (`() => zodvexRegistry`) to avoid a circular-import issue: `functions.ts` is itself discovered during codegen, so it imports from `_zodvex/api.js` at runtime rather than at module evaluation time.
+`zodvexRegistry` from `api.lazy.js` is a function `() => Promise<Registry>` that dynamically imports the registry on first action invocation and caches it thereafter. The dynamic import lets esbuild hoist the registry's transitive schema graph out of every endpoint's static bundle, keeping per-entrypoint memory well under Convex's 64 MB isolate cap even at large schema counts.
 
 When the registry is provided, `za` and `zia` replace `ctx.runQuery` and `ctx.runMutation` with codec-aware versions that automatically decode results using the registry's `returns` schema.
 
+> **Migrating from `() => zodvexRegistry`?** Earlier versions imported `zodvexRegistry` from `_zodvex/api.js` and wrapped it in an arrow: `registry: () => zodvexRegistry`. That pattern is still supported, but the static top-level import pulls the entire registry into every endpoint's bundle. Run `bun zodvex migrate` (or `npx zodvex migrate`) to automatically rewrite to the lazy form.
+
 ## Generated files
 
-Running `zodvex generate` writes four file pairs (`.js` + `.d.ts`) into `convex/_zodvex/`:
+Running `zodvex generate` writes five file pairs (`.js` + `.d.ts`) into `convex/_zodvex/`:
 
 ### `api.js` — the registry
 
@@ -107,6 +109,17 @@ export const zodvexRegistry = {
 ```
 
 Model references (`TaskModel.schema.doc`) are imported directly — the registry stays live and always reflects the current schema definition.
+
+### `api.lazy.js` — dynamic-import thunk
+
+A tiny wrapper around `api.js`. Exposes `zodvexRegistry` as a cached function `() => Promise<Registry>` that dynamic-imports the registry on demand. Server-side wiring imports from here so the registry's transitive schema graph is hoisted into a chunk under `_deps/` rather than statically bundled into every endpoint.
+
+```typescript
+// _zodvex/api.lazy.js (generated)
+let _cached
+export const zodvexRegistry = () =>
+  (_cached ??= import('./api.js').then(m => m.zodvexRegistry))
+```
 
 ### `schema.js` — model re-exports
 

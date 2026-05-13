@@ -205,6 +205,38 @@ function classifyImport(imported: string): ImportGroup {
  *   import { zid } from 'zodvex/core'
  *   import { type Zid, zid } from 'zodvex'
  */
+/**
+ * Rewrites the codegen-emitted registry consumer pattern so the dynamic
+ * import in `_zodvex/api.lazy` keeps the registry's transitive schema
+ * graph out of the entrypoint's static bundle.
+ *
+ * Two coordinated edits:
+ *   import { zodvexRegistry } from './_zodvex/api'        → './_zodvex/api.lazy'
+ *   registry: () => zodvexRegistry                         → registry: zodvexRegistry
+ *
+ * Only fires when both the import and the registry option are present —
+ * an idempotent no-op on already-migrated files or files that don't use
+ * the registry option.
+ */
+function applyRegistryLazyRewrite(content: string): string {
+  // Quick guard: must mention both the registry option and the api import.
+  if (!/\bregistry\s*:\s*\(\s*\)\s*=>\s*zodvexRegistry\b/.test(content)) {
+    return content
+  }
+  const apiImportRe =
+    /(import\s*\{[^}]*\bzodvexRegistry\b[^}]*\}\s*from\s*['"])([^'"]*\/_zodvex\/api)(\.js)?(['"])/
+  if (!apiImportRe.test(content)) {
+    return content
+  }
+
+  let next = content.replace(
+    apiImportRe,
+    (_m, pre, base, ext, quote) => `${pre}${base}.lazy${ext ?? ''}${quote}`
+  )
+  next = next.replace(/registry\s*:\s*\(\s*\)\s*=>\s*zodvexRegistry\b/, 'registry: zodvexRegistry')
+  return next
+}
+
 function applyImportUpdates(content: string): string {
   const importRe = /import\s*\{([^}]+)\}\s*from\s*(['"]zodvex(?:\/[^'"]*)?['"])/g
 
@@ -310,6 +342,7 @@ export function migrate(dir: string, options: MigrateOptions): MigrateResult {
     content = applyIdentifierRenames(content)
     content = applyZidTransform(content)
     content = applyImportUpdates(content)
+    content = applyRegistryLazyRewrite(content)
 
     const changed = content !== original
 

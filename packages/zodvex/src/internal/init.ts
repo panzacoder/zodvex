@@ -127,7 +127,7 @@ export function initZodvex<DM extends GenericDataModel>(
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options: { wrapDb: false; registry?: () => AnyRegistry }
+  options: { wrapDb: false; registry?: () => AnyRegistry | Promise<AnyRegistry> }
 ): {
   zq: ZodvexBuilder<'query', NoCodecCtx, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<'mutation', NoCodecCtx, GenericMutationCtx<DM>, 'public'>
@@ -153,7 +153,7 @@ export function initZodvex<
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options?: { wrapDb?: true; registry?: () => AnyRegistry }
+  options?: { wrapDb?: true; registry?: () => AnyRegistry | Promise<AnyRegistry> }
 ): {
   zq: ZodvexBuilder<'query', { db: ZodvexDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<
@@ -177,7 +177,7 @@ export function initZodvex<
 export function initZodvex(
   schema: { __zodTableMap: ZodTableMap },
   server: InitServerBuilders,
-  options?: { wrapDb?: boolean; registry?: () => AnyRegistry }
+  options?: { wrapDb?: boolean; registry?: () => AnyRegistry | Promise<AnyRegistry> }
 ) {
   const codec = createZodvexCustomization(schema.__zodTableMap)
   const noOp = createNoOpCustomization()
@@ -198,17 +198,29 @@ function createNoOpCustomization(): InternalCustomization {
 }
 
 function createActionCustomization(
-  registryThunk: (() => AnyRegistry) | undefined,
+  registryThunk: (() => AnyRegistry | Promise<AnyRegistry>) | undefined,
   noOp: InternalCustomization
 ): InternalCustomization {
   if (!registryThunk) {
     return noOp
   }
 
+  // Cache the resolved registry on first call. The thunk may return either
+  // an `AnyRegistry` (the existing sync `registry: () => zodvexRegistry`
+  // pattern) or a `Promise<AnyRegistry>` (the codegen-emitted lazy thunk
+  // from `_zodvex/api.lazy.js`). Both shapes are awaited transparently.
+  let cached: AnyRegistry | undefined
+  const resolveRegistry = async (): Promise<AnyRegistry> => {
+    if (cached !== undefined) return cached
+    cached = await registryThunk()
+    return cached
+  }
+
   return {
     args: {} as Record<string, never>,
     input: async (ctx: any) => {
-      const wrapped = createZodvexActionCtx(registryThunk(), ctx)
+      const registry = await resolveRegistry()
+      const wrapped = createZodvexActionCtx(registry, ctx)
       return {
         ctx: { runQuery: wrapped.runQuery, runMutation: wrapped.runMutation },
         args: {}

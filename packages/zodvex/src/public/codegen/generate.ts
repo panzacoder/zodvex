@@ -490,6 +490,39 @@ export type ActionCtx = ZodvexActionCtx<DataModel>
  * Generates the client file content — pre-bound hooks and client factory.
  * Returns { js, dts } for .js + .d.ts output.
  */
+/**
+ * Generates the api.lazy file content — a tiny wrapper that exposes the
+ * `zodvexRegistry` as a thunk that dynamic-imports `_zodvex/api.js`.
+ *
+ * Server-side consumers (e.g. `convex/functions.ts`) should pass this thunk
+ * as `initZodvex`'s `registry` option:
+ *
+ *     import { zodvexRegistry } from './_zodvex/api.lazy.js'
+ *     export const { zq, zm, za } = initZodvex(schema, server, {
+ *       registry: zodvexRegistry,   // no arrow wrap — this is already a thunk
+ *     })
+ *
+ * The dynamic import lets esbuild hoist the registry's transitive schema
+ * graph out of the entrypoint's static bundle and into a chunk under
+ * `_deps/`. Per-entrypoint heap drops drastically under Convex's new
+ * per-entrypoint analysis without changing the registry's runtime
+ * behavior.
+ */
+export function generateApiLazyFile(): GeneratedFile {
+  const js = `${HEADER}
+let _cached
+export const zodvexRegistry = () => (_cached ??= import('./api.js').then(m => m.zodvexRegistry))
+`
+
+  const dts = `${HEADER}
+import type { zodvexRegistry as RegistryData } from './api'
+
+export declare const zodvexRegistry: () => Promise<typeof RegistryData>
+`
+
+  return { js, dts }
+}
+
 export function generateClientFile(options?: { mini?: boolean }): GeneratedFile {
   const zodvexClientImport = options?.mini ? 'zodvex/mini' : 'zodvex'
   // --- JS ---

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`_zodvex/api.lazy.js`** — new codegen-emitted file exposing `zodvexRegistry` as a cached dynamic-import thunk `() => Promise<Registry>`. Server-side wiring should import from here so esbuild can hoist the registry's transitive schema graph into a chunk under `_deps/`, dramatically reducing per-entrypoint heap under Convex's new per-entrypoint bundle analysis. At N=200 models, per-endpoint heap drops from ~57 MB to ~3 MB for zodvex (20× reduction).
+- **`zodvex migrate` registry rewrite** — `applyRegistryLazyRewrite` automatically converts the legacy pattern `import { zodvexRegistry } from './_zodvex/api'` + `registry: () => zodvexRegistry` to the new lazy form. Idempotent; safe on already-migrated and non-registry files.
+- **`zodvex init`** now emits a `_zodvex/api.lazy.ts` stub alongside the `api.ts` and `client.ts` stubs.
+
+### Changed
+
+- **`initZodvex` registry option** now accepts `() => AnyRegistry | Promise<AnyRegistry>`. `createActionCustomization` awaits the thunk and caches the resolved registry. The legacy sync shape `registry: () => zodvexRegistry` continues to work; the recommended form is `registry: zodvexRegistry` (importing from `_zodvex/api.lazy.js`).
+- **Docs**: `docs/guide/codegen.md` updates the registry-wiring section to recommend `api.lazy.js`.
+
 ## [0.7.0] - 2026-04-02
 
 ### Added
