@@ -574,18 +574,75 @@ export declare const zodvexRegistry: Record<string, { args: ZodTypeAny; returns:
 }
 
 /**
- * Generates the server.ts file content — concrete context types for the app's schema.
+ * Generates _zodvex/server.ts — the single entry point for consumer code.
  *
- * These parallel Convex's _generated/server.ts exports (QueryCtx, MutationCtx, ActionCtx)
- * but with zodvex's codec-wrapped db types baked in.
+ * Consolidates everything the consumer's `convex/functions.ts` would
+ * otherwise wire by hand:
+ *
+ *  1. Concrete context types (QueryCtx, MutationCtx, ActionCtx) baked
+ *     against the app's schema's `__decodedDocs`.
+ *  2. Inline lazy thunks for the registry (was `_zodvex/api.lazy.js`)
+ *     and the table map (was `_zodvex/tableMap.lazy.js`).
+ *  3. A pre-wired `initZodvex(server, options?)` that calls the
+ *     library's initZodvex with `schema`, registry, and tableMap
+ *     defaulted from the inline thunks. Consumers can still pass
+ *     `registry` / `tableMap` in `options` to override.
+ *
+ * Result: userland `convex/functions.ts` becomes one import + one call:
+ *
+ *     import { initZodvex } from './_zodvex/server'
+ *     import { query, mutation, ... } from './_generated/server'
+ *     export const { zq, zm, za, ziq, zim, zia } = initZodvex({
+ *       query, mutation, action, internalQuery, internalMutation, internalAction,
+ *     })
+ *
+ * No async/await syntax, no lazy-* imports, no need to know the
+ * registry exists. The lazy thunks live behind one curtain instead
+ * of in multiple side-by-side files.
  */
-export function generateServerFile(): GeneratedFile {
-  const js = `${HEADER}`
+export function generateServerFile(models: DiscoveredModel[]): GeneratedFile {
+  // Build the inline tableMap thunk body. The thunk dynamically imports
+  // each model file on first DB call and caches the resulting map.
+  // Type-only imports are erased at compile so this adds no runtime
+  // cost to the schema-eval isolate.
+  const typeImports: string[] = []
+  const importStatements: string[] = []
+  const tableMapEntries: string[] = []
+  let included = 0
+  for (const m of models) {
+    if (!m._liveModel) continue
+    const live = m._liveModel as { name: string; fields?: unknown; indexes?: unknown }
+    if (live.fields === undefined || live.indexes === undefined) continue
+    const importPath = `../${m.sourceFile.replace(/\.ts$/, '.js')}`
+    const idx = included++
+    typeImports.push(`import type { ${m.exportName} } from '${importPath}'`)
+    importStatements.push(`      import('${importPath}').then(m => m.${m.exportName})`)
+    tableMapEntries.push(
+      `      ${JSON.stringify(live.name)}: { doc: zx.doc(refs[${idx}]), insert: zx.base(refs[${idx}]) }`
+    )
+  }
 
-  const dts = `${HEADER}
+  const ts = `${HEADER}
+import { zx } from 'zodvex'
+import { initZodvex as _libInitZodvex } from 'zodvex/server'
+import type {
+  ZodvexActionCtx,
+  ZodvexBuilder,
+  ZodvexMutationCtx,
+  ZodvexQueryCtx,
+} from 'zodvex/server'
+import type {
+  ActionBuilder,
+  GenericActionCtx,
+  GenericMutationCtx,
+  GenericQueryCtx,
+  MutationBuilder,
+  QueryBuilder,
+} from 'convex/server'
 import type { DataModel } from '../_generated/dataModel.js'
-import type { ZodvexActionCtx, ZodvexMutationCtx, ZodvexQueryCtx } from 'zodvex/server'
-import type schema from '../schema.js'
+${typeImports.length > 0 ? typeImports.join('\n') + '\n' : ''}import schema from '../schema.js'
+
+// --- Context types ---
 
 type DecodedDocs = (typeof schema)['__decodedDocs']
 
@@ -597,46 +654,67 @@ export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>
 
 /** Action context (no db, but runQuery/runMutation may be codec-wrapped). */
 export type ActionCtx = ZodvexActionCtx<DataModel>
-`
 
-  return { js, dts }
+// --- Lazy registry ---
+// Dynamic import keeps the registry's transitive schema graph out of any
+// entrypoint that statically imports this file. esbuild hoists the target
+// into a chunk under \`_deps/\`.
+
+let _cachedRegistry: Promise<typeof import('./api.js').zodvexRegistry> | undefined
+const _registry = () => (_cachedRegistry ??= import('./api.js').then(m => m.zodvexRegistry))
+
+// --- Lazy table map ---
+// One dynamic import per model file. Resolved + cached on first DB call.
+// Builds the same { doc, insert } shape \`defineZodSchema\` previously
+// attached to the schema synchronously.
+
+let _cachedTableMap: Promise<Record<string, { doc: any; insert: any }>> | undefined
+const _tableMap = () => (_cachedTableMap ??= (async () => {
+  const refs = await Promise.all([
+${importStatements.join(',\n')}
+  ])
+  return {
+${tableMapEntries.join(',\n')}
+  }
+})())
+
+// --- Pre-wired initZodvex ---
+// Calls the library's initZodvex with schema + lazy registry/tableMap
+// already wired. Consumers pass only the Convex server builders.
+// Override registry/tableMap/wrapDb via options if needed.
+
+type Server = {
+  query: QueryBuilder<DataModel, 'public'>
+  mutation: MutationBuilder<DataModel, 'public'>
+  action: ActionBuilder<DataModel, 'public'>
+  internalQuery: QueryBuilder<DataModel, 'internal'>
+  internalMutation: MutationBuilder<DataModel, 'internal'>
+  internalAction: ActionBuilder<DataModel, 'internal'>
 }
 
-/**
- * Generates the client file content — pre-bound hooks and client factory.
- * Returns { js, dts } for .js + .d.ts output.
- */
-/**
- * Generates the api.lazy file content — a tiny wrapper that exposes the
- * `zodvexRegistry` as a thunk that dynamic-imports `_zodvex/api.js`.
- *
- * Server-side consumers (e.g. `convex/functions.ts`) should pass this thunk
- * as `initZodvex`'s `registry` option:
- *
- *     import { zodvexRegistry } from './_zodvex/api.lazy.js'
- *     export const { zq, zm, za } = initZodvex(schema, server, {
- *       registry: zodvexRegistry,   // no arrow wrap — this is already a thunk
- *     })
- *
- * The dynamic import lets esbuild hoist the registry's transitive schema
- * graph out of the entrypoint's static bundle and into a chunk under
- * `_deps/`. Per-entrypoint heap drops drastically under Convex's new
- * per-entrypoint analysis without changing the registry's runtime
- * behavior.
- */
-export function generateApiLazyFile(): GeneratedFile {
-  const js = `${HEADER}
-let _cached
-export const zodvexRegistry = () => (_cached ??= import('./api.js').then(m => m.zodvexRegistry))
+type Bundle = {
+  zq: ZodvexBuilder<'query', { db: QueryCtx['db'] }, GenericQueryCtx<DataModel>, 'public'>
+  zm: ZodvexBuilder<'mutation', { db: MutationCtx['db'] }, GenericMutationCtx<DataModel>, 'public'>
+  za: ZodvexBuilder<'action', {}, GenericActionCtx<DataModel>, 'public'>
+  ziq: ZodvexBuilder<'query', { db: QueryCtx['db'] }, GenericQueryCtx<DataModel>, 'internal'>
+  zim: ZodvexBuilder<'mutation', { db: MutationCtx['db'] }, GenericMutationCtx<DataModel>, 'internal'>
+  zia: ZodvexBuilder<'action', {}, GenericActionCtx<DataModel>, 'internal'>
+}
+
+export function initZodvex(server: Server, options: {
+  wrapDb?: boolean
+  registry?: () => any
+  tableMap?: () => any
+} = {}): Bundle {
+  return (_libInitZodvex as any)(schema, server, {
+    ...options,
+    registry: options.registry ?? _registry,
+    tableMap: options.tableMap ?? _tableMap,
+  }) as Bundle
+}
 `
 
-  const dts = `${HEADER}
-import type { zodvexRegistry as RegistryData } from './api'
-
-export declare const zodvexRegistry: () => Promise<typeof RegistryData>
-`
-
-  return { js, dts }
+  return { js: ts, dts: '' }
 }
 
 /**
@@ -729,68 +807,6 @@ ${decodedDocsEntries.join('\n')}
   // Returned in the .js slot for the existing emit pipeline; commands.ts
   // writes it to tables.ts (see writeIfChanged path below).
   return { js: ts, dts: '' }
-}
-
-/**
- * Generates the tableMap.lazy file — a tiny wrapper that exposes the
- * runtime `__zodTableMap` (consumed by initZodvex's DB codec wrappers)
- * as a thunk that dynamic-imports the heavy zod schemas.
- *
- * Mirrors api.lazy.js: schema.ts loads pure convex; the zod schemas
- * needed at runtime are reached only through this dynamic import.
- *
- * User functions.ts:
- *
- *     import { zodTableMap } from './_zodvex/tableMap.lazy'
- *     export const { zq, zm, za } = initZodvex(schema, server, {
- *       registry: zodvexRegistry,
- *       tableMap: zodTableMap,
- *     })
- */
-export function generateTableMapLazyFile(models: DiscoveredModel[]): GeneratedFile {
-  // The thunk dynamically imports each model file and rebuilds the
-  // tableMap structure that defineZodSchema would have produced. Each
-  // entry is `{ doc, insert }` — only the two schemas the DB wrapper
-  // consumes at runtime.
-  const imports: string[] = []
-  const entries: string[] = []
-  let included = 0
-  for (const m of models) {
-    if (!m._liveModel) continue
-    const live = m._liveModel as { name: string; fields?: unknown; indexes?: unknown }
-    // Same defineZodModel-shape guard as generateTablesFile — keep both
-    // codegen outputs aligned on the same set of tables.
-    if (live.fields === undefined || live.indexes === undefined) continue
-    const importPath = `../${m.sourceFile.replace(/\.ts$/, '.js')}`
-    const idx = included++
-    imports.push(
-      `    import('${importPath}').then(m => [${JSON.stringify(live.name)}, m.${m.exportName}])`
-    )
-    entries.push(
-      `    ${JSON.stringify(live.name)}: { doc: zx.doc(refs[${idx}]), insert: zx.base(refs[${idx}]) }`
-    )
-  }
-
-  const js = `${HEADER}
-import { zx } from 'zodvex'
-
-let _cached
-export const zodTableMap = () => (_cached ??= (async () => {
-  const refs = await Promise.all([
-${imports.join(',\n')}
-  ].map(p => p.then(([_, m]) => m)))
-  return {
-${entries.join(',\n')}
-  }
-})())
-`
-
-  const dts = `${HEADER}
-type ZodTableMap = Record<string, { doc: import('zod/v4/core').$ZodType; insert: import('zod/v4/core').$ZodType }>
-export declare const zodTableMap: () => Promise<ZodTableMap>
-`
-
-  return { js, dts }
 }
 
 export function generateClientFile(options?: { mini?: boolean }): GeneratedFile {
