@@ -1,4 +1,3 @@
-import { initZodvex } from 'zodvex/mini/server'
 import {
   query,
   mutation,
@@ -7,16 +6,13 @@ import {
   internalMutation,
   internalAction,
 } from './_generated/server'
-import schema from './schema'
-import { zodvexRegistry } from './_zodvex/api.lazy.js'
+import { initZodvex } from './_zodvex/server'
 
-export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
+export const { zq, zm, za, ziq, zim, zia } = initZodvex({
   query,
   mutation,
   action,
   internalQuery,
   internalMutation,
   internalAction,
-}, {
-  registry: zodvexRegistry,
 })

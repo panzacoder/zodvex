@@ -1,11 +1,10 @@
-import { initZodvex } from 'zodvex/server'
 import {
   query, mutation, action,
   internalQuery, internalMutation, internalAction,
 } from './_generated/server'
-import schema from './schema'
+import { initZodvex } from './_zodvex/server'
 
-export const { zq, zm } = initZodvex(schema, {
+export const { zq, zm } = initZodvex({
   query, mutation, action,
   internalQuery, internalMutation, internalAction,
 })

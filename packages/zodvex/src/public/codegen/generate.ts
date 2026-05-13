@@ -600,7 +600,12 @@ export declare const zodvexRegistry: Record<string, { args: ZodTypeAny; returns:
  * registry exists. The lazy thunks live behind one curtain instead
  * of in multiple side-by-side files.
  */
-export function generateServerFile(models: DiscoveredModel[]): GeneratedFile {
+export function generateServerFile(
+  models: DiscoveredModel[],
+  options?: { mini?: boolean }
+): GeneratedFile {
+  const serverImport = options?.mini ? 'zodvex/mini/server' : 'zodvex/server'
+  const zxImport = options?.mini ? 'zodvex/mini' : 'zodvex'
   // Build the inline tableMap thunk body. The thunk dynamically imports
   // each model file on first DB call and caches the resulting map.
   // Type-only imports are erased at compile so this adds no runtime
@@ -623,14 +628,14 @@ export function generateServerFile(models: DiscoveredModel[]): GeneratedFile {
   }
 
   const ts = `${HEADER}
-import { zx } from 'zodvex'
-import { initZodvex as _libInitZodvex } from 'zodvex/server'
+import { zx } from '${zxImport}'
+import { initZodvex as _libInitZodvex } from '${serverImport}'
 import type {
   ZodvexActionCtx,
   ZodvexBuilder,
   ZodvexMutationCtx,
   ZodvexQueryCtx,
-} from 'zodvex/server'
+} from '${serverImport}'
 import type {
   ActionBuilder,
   GenericActionCtx,
