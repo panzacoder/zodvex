@@ -32,13 +32,13 @@ placeholder schema so the next deploy's `finish_push` diff is
 "0 → N" (additions only), not "M → N". This captures the true
 single-push ceiling.
 
-| flavor | N=200 | N=500 | N=600 | N=700 | N=750 | N=800 |
-|---|---|---|---|---|---|---|
-| **convex** (plain) | ok | ok | ok | ok | ok | TooManyReads |
-| **convex-helpers + zod3** | ok | ok | ok | — | — | TooManyReads |
-| **convex-helpers + zod4** | ok | OOM | OOM | — | — | — |
-| **zodvex** (new shape) | ok | ok | ok | — | — | TooManyReads |
-| **zodvex-mini** (new shape) | ok | ok | ok | — | — | TooManyReads |
+| flavor | N=200 | N=400 | N=500 | N=600 | N=700 | N=750 | N=800 |
+|---|---|---|---|---|---|---|---|
+| **convex** (plain) | ok | ok | ok | ok | ok | ok | TooManyReads |
+| **convex-helpers + zod3** | ok | ok | ok | ok | ok | ok | TooManyReads |
+| **convex-helpers + zod4** | ok | ok | OOM | OOM | OOM | OOM | OOM |
+| **zodvex** (new shape) | ok | ok | ok | ok | ok | ok | TooManyReads |
+| **zodvex-mini** (new shape) | ok | ok | ok | ok | ok | ok | TooManyReads |
 
 ### Reading the failure modes
 
