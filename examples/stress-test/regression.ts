@@ -5,11 +5,23 @@
 // known-good target proves zodvex stays competitive with pure-convex and
 // continues to beat plain convex-helpers/zod4.
 //
-// Default target: N=800 endpoints (~4,000 functions). Sits well below
-// Convex's documented limits (8,192 functions, 4,096 read intervals per
-// transaction) and below the empirical TooManyReads wall (~N=2000). Gives
-// room for back-to-back runs against the same deployment without diff-
-// stacking failures.
+// Default target: N=600 endpoints (~3,000 functions).
+//
+// Why 600 specifically:
+// - The fresh-diff TooManyReads wall sits between N=750 and N=800 (each
+//   new push reset to a 1-table state, full N-table diff in one
+//   `finish_push` transaction). N=600 leaves a comfortable buffer below
+//   that wall.
+// - Convex-helpers + zod4 OOMs at N=500 with no in-library fix path.
+//   N=600 is comfortably above that, so the regression demonstrates the
+//   memory-fix improvement story without flake.
+// - 3,000 functions is real-world-large; well below Convex's documented
+//   8,192 function limit.
+//
+// Earlier targets of N=800 / N=2000 in this codebase reflected sloppy
+// methodology — they passed only because residual state from prior
+// tests shrank the diff. The reset-before-each-test approach used by
+// `sweep.ts` makes the actual single-deploy ceiling visible.
 //
 // Per flavor: compose → bundle → measure schema + endpoint heap → real
 // deploy. Output is a comparison table; exit 0 iff all flavors expected
@@ -20,7 +32,7 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { bench } from './bench.js'
 import { type Flavor } from './composeFlavor.js'
-import { deploy, type DeployOutcome } from './realDeploy.js'
+import { deploy, resetDeployment, type DeployOutcome } from './realDeploy.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -67,18 +79,29 @@ export interface RegressionOptions {
   outFile?: string
   /** Override the default plan (mainly for testing). */
   plan?: FlavorPlan[]
+  /** Push an empty schema before each flavor's test. Default true — without
+   *  this, diff-stacking from prior tests gives misleading pass/fail. */
+  reset?: boolean
 }
 
 export async function regression(opts: RegressionOptions = {}): Promise<{
   ok: boolean
   outcomes: FlavorOutcome[]
 }> {
-  const target = opts.target ?? 800
+  const target = opts.target ?? 600
   const plan = opts.plan ?? DEFAULT_PLAN
+  const doReset = opts.reset ?? true
   const outcomes: FlavorOutcome[] = []
 
   for (const entry of plan) {
-    console.error(`\n[${entry.flavor}] composing N=${target}${entry.lazyTables ? ' lazy-tables' : ''}…`)
+    if (doReset) {
+      console.error(`[${entry.flavor}] reset…`)
+      const reset = await resetDeployment({ verbose: false })
+      if (reset.kind !== 'ok') {
+        console.error(`[${entry.flavor}] reset failed (${reset.kind}); proceeding anyway`)
+      }
+    }
+    console.error(`[${entry.flavor}] composing N=${target}${entry.lazyTables ? ' lazy-tables' : ''}…`)
     const measured = await bench({
       flavor: entry.flavor,
       count: target,
@@ -148,7 +171,7 @@ function fmtTable(target: number, outcomes: FlavorOutcome[]): string {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)
   const get = (k: string) => args.find(a => a.startsWith(`--${k}=`))?.split('=')[1]
-  const target = get('target') ? parseInt(get('target')!) : 800
+  const target = get('target') ? parseInt(get('target')!) : 600
   const outFile = get('out') ?? join(__dirname, 'results', `regression-${new Date().toISOString().slice(0, 10)}.json`)
 
   console.error(`zodvex regression suite — target N=${target}`)

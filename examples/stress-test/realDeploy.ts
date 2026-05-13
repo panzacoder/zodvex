@@ -189,6 +189,35 @@ export async function deployComposed(composed: ComposeResult, opts: Omit<DeployO
   return deploy({ source: composed.outputDir, ...opts })
 }
 
+/**
+ * Pushes a near-empty convex/ tree (one placeholder table, no functions)
+ * to clear residual schema + function state from prior tests. The next
+ * deploy's diff is then "0 → N" (pure additions), not "M → N" — which
+ * matters because finish_push commits the diff in a single transaction
+ * bounded by the 4096 read-interval cap. Diff-stacking between
+ * sequential tests at high N can spuriously trip TooManyReads even when
+ * the target deploy itself would have fit a clean budget.
+ *
+ * Reset takes ~3–5 s. Useful between flavor/N tests in a sweep.
+ */
+export async function resetDeployment(opts: { verbose?: boolean } = {}): Promise<DeployOutcome> {
+  // Materialize a placeholder source tree we deploy. Outside of
+  // _deploy/convex/ so stageSource doesn't try to read it as our compose
+  // target.
+  const resetSrcDir = join(DEPLOY_DIR, '_reset')
+  mkdirSync(resetSrcDir, { recursive: true })
+  writeFileSync(
+    join(resetSrcDir, 'schema.ts'),
+    `import { defineSchema, defineTable } from 'convex/server'
+import { v } from 'convex/values'
+export default defineSchema({
+  scaffold: defineTable({ x: v.string() }),
+})
+`,
+  )
+  return deploy({ source: resetSrcDir, verbose: opts.verbose, timeoutMs: 2 * 60 * 1000 })
+}
+
 // CLI: bun run realDeploy.ts --source=<dir> [--timeout=300000]
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)

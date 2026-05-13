@@ -110,19 +110,31 @@ The migrate command rewrites `convex/schema.ts` and `convex/functions.ts`
 to the new shape; generate emits the new codegen artifacts and cleans
 up the deprecated files. Both commands are idempotent — safe to re-run.
 
-### Memory ceiling (real Convex deploys)
+### Memory ceiling (real Convex deploys, fresh-diff)
 
-  Configuration                    Before      After
-  ───────────────────────────────────────────────────
-  zodvex (default)                 N≈155       N≈2000+
-  zodvex + slim models             N≈350       N≈2000+
-  zodvex/mini                      N≈425       N≈2000+
-  zodvex/mini + slim               N≈700       N≈2000+
+  Configuration                    Before          After
+  ───────────────────────────────────────────────────────
+  zodvex (default)                 OOM at N≈155    not OOM-bound
+  zodvex + slim models             OOM at N≈350    not OOM-bound
+  zodvex/mini                      OOM at N≈425    not OOM-bound
+  zodvex/mini + slim               OOM at N≈700    not OOM-bound
 
-Limits at the new N≈2000 wall are Convex's own non-memory constraints
-(file count, TooManyReads at finish_push) — the same wall pure-convex
-apps hit. zod/mini and slim models remain useful for per-endpoint
-bundle size but are no longer required for memory headroom.
+After the fix, zodvex isn't OOM-bound at any tested N — the same
+position pure-convex and convex-helpers+zod3 occupy. The wall that
+remains for all memory-OK flavors is **TooManyReads at N≈800**, a
+Convex backend transaction-level limit (`TRANSACTION_MAX_READ_SET_INTERVALS
+= 4096`) hit when finish_push commits the schema+function-handle
+diff in a single transaction. That's architectural to Convex, not
+zodvex-specific.
+
+For comparison: `convex-helpers + zod4` (same Convex adapter, same
+schemas, but no equivalent optimization stack) still OOMs at N≈500.
+zodvex now scales ~50% past that and matches the pure-convex
+function-count headroom.
+
+`bun zodvex migrate` updates legacy schema.ts + functions.ts files in
+place. See `examples/stress-test/results/sweep-2026-05-13.md` for the
+authoritative ceiling data, methodology, and reproducibility notes.
 
 ## [0.7.0] - 2026-04-02
 

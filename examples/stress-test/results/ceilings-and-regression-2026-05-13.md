@@ -1,5 +1,14 @@
 # Ceilings vs. regression: how to read our stress-test results
 
+> **Update — methodology correction**: An earlier version of this
+> document reported ceilings at N=2000/2500 because tests ran
+> back-to-back without resetting the deployment between them — the
+> `finish_push` diff was small (only adding deltas to prior state)
+> rather than the full N. The authoritative ceiling data is now in
+> `sweep-2026-05-13.md`, captured with a deployment reset before each
+> test. True fresh-diff ceiling for memory-OK flavors is N≈800
+> (TooManyReads, not OOM); the regression target is N=600.
+
 Two distinct questions, two distinct results files. Both matter; they
 answer different things.
 
@@ -16,21 +25,20 @@ Run on every PR. Cheap. Lives in `regression.ts` + the dated
 `results/regression-<date>.{md,json}` snapshots. Use it as a release
 gate.
 
-## Current ceilings (real Convex deploys)
+## Current ceilings (real Convex deploys, fresh-diff)
 
-Most-recent consolidated picture across all flavors. Non-zodvex
-flavors are external libraries unchanged by our work; their ceilings
-come from `cross-library-real-deploy-2026-05-13.md`. zodvex/zodvex-mini
-flavors run with the new shape — lazy-tables + marker + consolidated
-`_zodvex/server.ts`.
+Methodology: each test starts with `resetDeployment()` — pushes a
+placeholder schema so the next deploy's `finish_push` diff is
+"0 → N" (additions only), not "M → N". This captures the true
+single-push ceiling.
 
-| flavor | N=200 | N=500 | N=800 | N=1000 | N=1500 | N=2000 | N=2500 |
-|---|---|---|---|---|---|---|---|
-| **convex** (plain) | ok | ok | ok | ok | — | TooManyReads | n/a |
-| **convex-helpers + zod3** | ok | ok | ok | ok | ok | ok | 4096-file cap |
-| **convex-helpers + zod4** | ok | OOM | OOM | OOM | OOM | OOM | OOM |
-| **zodvex (new shape)** | ok | ok | ok | ok | ok | TooManyReads | n/a |
-| **zodvex-mini (new shape)** | ok | ok | ok | ok | ok | TooManyReads | n/a |
+| flavor | N=200 | N=500 | N=600 | N=700 | N=750 | N=800 |
+|---|---|---|---|---|---|---|
+| **convex** (plain) | ok | ok | ok | ok | ok | TooManyReads |
+| **convex-helpers + zod3** | ok | ok | ok | — | — | TooManyReads |
+| **convex-helpers + zod4** | ok | OOM | OOM | — | — | — |
+| **zodvex** (new shape) | ok | ok | ok | — | — | TooManyReads |
+| **zodvex-mini** (new shape) | ok | ok | ok | — | — | TooManyReads |
 
 ### Reading the failure modes
 
@@ -67,24 +75,25 @@ endpoint file) plus generated codegen, so this hits around N=2500.
    codecs + auto-decode + DB wrappers that the plain ch + zod3 stack
    doesn't.
 
-## Regression target — N=800
+## Regression target — N=600
 
 The regression suite picks one N and runs all 5 flavors at it.
 
-Why **N=800** specifically:
+Why **N=600** specifically:
 
-- 800 endpoints ≈ 4,000 functions. Real-world-large but a recognizable
-  Convex usage scale.
-- Sits under all of Convex's documented limits
-  ([source](https://docs.convex.dev/production/state/limits)): 8,192
-  functions, 4,096 read intervals per transaction, 4,096 function
-  files.
-- Tolerates diff-stacking from prior deploys against the same
-  deployment. The empirical TooManyReads wall is at ~N=2000;
-  back-to-back N=800 pushes add 4,000 functions over residual state,
-  still well under.
-- Big enough that all of our memory work matters (a 4,000-function
-  zodvex app would have OOMed at N≈155 before the overhaul).
+- The fresh-diff TooManyReads wall sits between N=750 and N=800. N=600
+  leaves a 25% buffer below that wall.
+- Above ch/zod4's OOM at N=500, so the apples-to-apples comparison
+  (zodvex passes, ch/zod4 OOMs) remains intact.
+- 3,000 functions is real-world-large; well below Convex's published
+  8,192 function limit.
+- Survives a fresh single deploy with no diff-stacking magic. Every
+  regression run starts from a near-empty state via `resetDeployment()`.
+
+The previous default of N=800 in this codebase was set against
+sloppy methodology — passes only happened because residual state from
+prior tests shrank the diff. With the correct reset-each-test
+methodology, N=800 is exactly at the TooManyReads wall.
 
 ## How to run
 

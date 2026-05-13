@@ -1,50 +1,50 @@
 {
-  "target": 800,
-  "timestamp": "2026-05-13T19:27:01.726Z",
+  "target": 600,
+  "timestamp": "2026-05-13T20:09:50.039Z",
   "allOk": true,
   "outcomes": [
     {
       "flavor": "convex",
       "deploy": "ok",
-      "durationMs": 37965,
-      "endpointHeapMaxMB": 0.41,
-      "schemaHeapMB": 6.9,
+      "durationMs": 32510,
+      "endpointHeapMaxMB": 0.4,
+      "schemaHeapMB": 5.28,
       "ok": true,
       "note": "baseline: plain Convex validators, no zod"
     },
     {
       "flavor": "convex-helpers-zod3",
       "deploy": "ok",
-      "durationMs": 9628,
+      "durationMs": 33934,
       "endpointHeapMaxMB": 1.2,
-      "schemaHeapMB": 7.04,
+      "schemaHeapMB": 5.57,
       "ok": true,
       "note": "zod3 + convex-helpers adapter; ~6× lighter per object than zod4"
     },
     {
       "flavor": "zodvex",
       "deploy": "ok",
-      "durationMs": 18888,
+      "durationMs": 35772,
       "endpointHeapMaxMB": 2.69,
-      "schemaHeapMB": 8.09,
+      "schemaHeapMB": 6.48,
       "ok": true,
       "note": "zodvex (full zod) with the new lazy-tables + marker + consolidated server.ts"
     },
     {
       "flavor": "zodvex-mini",
       "deploy": "ok",
-      "durationMs": 11574,
+      "durationMs": 34741,
       "endpointHeapMaxMB": 2.09,
-      "schemaHeapMB": 7.87,
+      "schemaHeapMB": 6.25,
       "ok": true,
       "note": "zodvex/mini (zod-mini); should match zodvex performance + slightly lighter"
     },
     {
       "flavor": "convex-helpers",
       "deploy": "oom",
-      "durationMs": 10255,
+      "durationMs": 8510,
       "endpointHeapMaxMB": 2.29,
-      "schemaHeapMB": 7.75,
+      "schemaHeapMB": 6.41,
       "ok": true,
       "note": "reference point: plain convex-helpers/zod4 still OOMs at this N (no lazy schema)"
     }

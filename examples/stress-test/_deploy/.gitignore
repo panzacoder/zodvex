@@ -8,5 +8,6 @@ convex/registryApi.ts
 convex/summary.json
 convex/_generated/
 convex/_zodvex/
+_reset/
 node_modules
 .env.local
