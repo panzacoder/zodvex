@@ -644,7 +644,11 @@ ${typeImports.length > 0 ? typeImports.join('\n') + '\n' : ''}import schema from
 
 // --- Context types ---
 
-type DecodedDocs = (typeof schema)['__decodedDocs']
+// Decoded doc types are imported directly from the codegen-emitted
+// tables.ts so userland \`schema.ts\` can use Convex's canonical
+// \`defineSchema(tables)\` without carrying a zodvex-specific token.
+import type { DecodedDocs as _DecodedDocs } from './tables'
+type DecodedDocs = _DecodedDocs
 
 /** Query context with codec-wrapped db (decoded types on reads). */
 export type QueryCtx = ZodvexQueryCtx<DataModel, DecodedDocs>

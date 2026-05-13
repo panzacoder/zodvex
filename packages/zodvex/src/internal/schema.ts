@@ -351,28 +351,45 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
 // Schema-derived helper types
 // ============================================================================
 
-/** Extract the DataModel from a defineZodSchema result */
-export type InferDataModel<Schema extends ReturnType<typeof defineZodSchema>> =
-  DataModelFromSchemaDefinition<Schema>
+// Schema constraint accepts either of:
+//   - a plain Convex `defineSchema(tables)` result, OR
+//   - a `defineZodvexSchema(tables)` result (which adds `__decodedDocs`).
+// The Infer* helpers below take an optional `DD` type param so callers
+// using the pure-Convex shape can still get decoded-doc-typed filter
+// builders by passing `DecodedDocs` from `_zodvex/tables` explicitly.
+type AnySchema = { tables: any; strictTableNameTypes: any }
 
-/** Extract TableInfo for a specific table */
+/** Extract the DataModel from a schema (plain Convex or defineZodvexSchema). */
+export type InferDataModel<Schema extends AnySchema> = DataModelFromSchemaDefinition<
+  Schema extends import('convex/server').SchemaDefinition<any, any> ? Schema : never
+>
+
+/** Extract TableInfo for a specific table. */
 export type InferTableInfo<
-  Schema extends ReturnType<typeof defineZodSchema>,
+  Schema extends AnySchema,
   TableName extends TableNamesInDataModel<InferDataModel<Schema>>
 > = NamedTableInfo<InferDataModel<Schema>, TableName>
 
-/** Extract the decoded document type for a specific table */
+/**
+ * Extract the decoded document type for a specific table.
+ * Resolution order:
+ *   1. explicit `DD` type param (recommended for `defineSchema(tables)` users —
+ *      pass `import('./_zodvex/tables').DecodedDocs`)
+ *   2. `Schema['__decodedDocs']` (set by `defineZodvexSchema`)
+ *   3. fallback to `any`
+ */
 export type InferDecodedDoc<
-  Schema extends ReturnType<typeof defineZodSchema>,
-  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
-> = Schema extends { __decodedDocs: infer DD }
-  ? TableName extends keyof DD
-    ? DD[TableName]
-    : never
-  : never
+  Schema extends AnySchema,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>,
+  DD = Schema extends { __decodedDocs: infer X } ? X : never
+> = TableName extends keyof DD ? DD[TableName] : any
 
-/** A ZodvexFilterBuilder typed for a specific table */
+/** A ZodvexFilterBuilder typed for a specific table. */
 export type InferFilterBuilder<
-  Schema extends ReturnType<typeof defineZodSchema>,
-  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
-> = ZodvexFilterBuilder<InferTableInfo<Schema, TableName>, InferDecodedDoc<Schema, TableName>>
+  Schema extends AnySchema,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>,
+  DD = Schema extends { __decodedDocs: infer X } ? X : never
+> = ZodvexFilterBuilder<
+  InferTableInfo<Schema, TableName>,
+  TableName extends keyof DD ? DD[TableName] : any
+>

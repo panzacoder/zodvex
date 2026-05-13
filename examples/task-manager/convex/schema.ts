@@ -1,4 +1,4 @@
-import { defineZodvexSchema } from 'zodvex/server'
-import tables, { type DecodedDocs } from './_zodvex/tables'
+import { defineSchema } from 'convex/server'
+import tables from './_zodvex/tables'
 
-export default defineZodvexSchema<typeof tables, DecodedDocs>(tables)
+export default defineSchema(tables)

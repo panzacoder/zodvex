@@ -313,8 +313,12 @@ describe('generateServerFile', () => {
     expect(js).toContain("import type { DataModel } from '../_generated/dataModel.js'")
     expect(js).toContain("import schema from '../schema.js'")
 
-    // Context type aliases (same names as before — public surface)
-    expect(js).toContain("type DecodedDocs = (typeof schema)['__decodedDocs']")
+    // Context type aliases (same names as before — public surface).
+    // DecodedDocs comes from the codegen-emitted tables.ts directly so
+    // userland schema.ts can use Convex's canonical defineSchema(tables)
+    // without carrying a zodvex-specific type token.
+    expect(js).toContain("import type { DecodedDocs as _DecodedDocs } from './tables'")
+    expect(js).toContain('type DecodedDocs = _DecodedDocs')
     expect(js).toContain('export type QueryCtx = ZodvexQueryCtx<DataModel, DecodedDocs>')
     expect(js).toContain('export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>')
     expect(js).toContain('export type ActionCtx = ZodvexActionCtx<DataModel>')
