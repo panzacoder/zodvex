@@ -34,6 +34,30 @@ without zod3 downgrading or migration to zodvex.
 pass. That's the bundle/transport difference; mini's per-endpoint
 bundle is ~5–10% smaller.
 
+### Caveat: heap numbers are a proxy, not absolute
+
+Look at row 5 — `convex-helpers + zod4` measures **lighter** heap
+(2.29 endpoint / 7.75 schema MB) than zodvex (2.69 / 8.09), yet
+**OOMs**. The numbers above are Node v8 heap-on-load in an isolated
+subprocess (matching Convex's esbuild config), not Convex's actual
+deploy-isolate heap. Convex's analyzer keeps additional bookkeeping
+(analysis metadata, function-handle diffs, sourcemaps) that pushes
+the real heap higher than our proxy reports.
+
+The structural reason ch/zod4 OOMs but zodvex doesn't: ch/zod4's
+`schema.ts` statically imports 800 zod-flavored model files (each
+loading zod4 + the convex-helpers adapter into the schema-eval
+isolate). zodvex's `schema.ts` under the new shape imports
+`_zodvex/tables.ts` — pure-Convex `defineTable(...)` calls — so
+the schema-eval isolate loads zero zod regardless of model count.
+Our local proxy doesn't fully capture that runtime divergence.
+
+**Ground truth is the deploy outcome column.** Heap delta is a
+regression signal ("did this jump unexpectedly between releases?")
+not an absolute capacity number ("this is what fits in 64 MB").
+See `ceilings-and-regression-2026-05-13.md` for the wider
+orientation.
+
 ## What's still binding at higher N
 
 At ~N=2000 (10,000 functions) all four passing flavors hit Convex's
