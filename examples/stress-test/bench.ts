@@ -37,6 +37,7 @@ interface BenchResult {
   fanIn: number
   registry: boolean
   registryMode: 'static' | 'lazy' | 'invisible'
+  lazyTables: boolean
   endpointsBenched: number
   endpointsOk: number
   endpointsFailed: number
@@ -44,6 +45,9 @@ interface BenchResult {
   bundleBytes: Stats
   heapDeltaMB: Stats
   rssMB: Stats
+  /** schema.ts measured separately — relevant under lazy-tables. null = not measured. */
+  schemaBundleBytes: number | null
+  schemaHeapDeltaMB: number | null
   bundleTimeMs: number
   totalTimeMs: number
   perEndpoint: EndpointMetric[]
@@ -75,6 +79,12 @@ export interface BenchOptions {
   registry?: boolean
   /** Registry consumer pattern. Default 'static'. */
   registryMode?: 'static' | 'lazy' | 'invisible'
+  /**
+   * For zodvex flavors: emit schema.ts in the lazy-tables shape and run
+   * zodvex codegen so `_zodvex/tables.ts` exists. Use this to measure the
+   * schema-eval ceiling under the schema-only-thin pattern.
+   */
+  lazyTables?: boolean
   /** Sample at most N endpoints (random / first-N). Default: all. */
   sample?: number
   /** Concurrency for measure subprocesses. Default 4. */
@@ -95,6 +105,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     fanIn = 0,
     registry = false,
     registryMode = 'static',
+    lazyTables = false,
     sample,
     concurrency = 4,
     capMB,
@@ -110,9 +121,9 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
   if (existsSync(workDir)) rmSync(workDir, { recursive: true })
   mkdirSync(workDir, { recursive: true })
 
-  const variantLabel = `${flavor}${fanIn ? ` fanin=${fanIn}` : ''}${registry ? ` registry/${registryMode}` : ''}`
+  const variantLabel = `${flavor}${fanIn ? ` fanin=${fanIn}` : ''}${registry ? ` registry/${registryMode}` : ''}${lazyTables ? ' lazy-tables' : ''}`
   if (verbose) console.error(`[${variantLabel}] composing ${count} endpoints…`)
-  const composed = compose({ flavor, count, fanIn, registry, registryMode, outputDir: composedDir })
+  const composed = compose({ flavor, count, fanIn, registry, registryMode, lazyTables, outputDir: composedDir })
 
   let entries = composed.endpointFiles
   if (sample && sample < entries.length) entries = entries.slice(0, sample)
@@ -184,6 +195,29 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
 
   metrics.sort((a, b) => a.endpoint.localeCompare(b.endpoint))
 
+  // Schema.ts gets its own measurement so we can quantify the schema-eval
+  // ceiling separately from per-endpoint heap. Convex analyzes schema.ts
+  // in a distinct isolate at deploy time.
+  const schemaPath = join(composedDir, 'schema.ts')
+  let schemaBundleBytes: number | null = null
+  let schemaHeapDeltaMB: number | null = null
+  if (existsSync(schemaPath)) {
+    if (verbose) console.error(`[${variantLabel}] measuring schema.ts…`)
+    try {
+      const r = await bundleEntry({
+        entry: schemaPath,
+        outDir: join(bundlesRoot, '_schema'),
+        outbase: composedDir,
+      })
+      schemaBundleBytes = r.entryBytes + r.chunkBytes
+      const measured = await measureBundle({ bundle: r.entryFile, maxOldSpaceMB: capMB })
+      if (measured.ok) schemaHeapDeltaMB = measured.heapDeltaMB
+      else if (verbose) console.error(`[${variantLabel}] schema load failed: ${measured.error}`)
+    } catch (err) {
+      if (verbose) console.error(`[${variantLabel}] schema bundle failed: ${(err as Error).message}`)
+    }
+  }
+
   const ok = metrics.filter(m => m.ok)
   const failed = metrics.filter(m => !m.ok && !m.oom)
   const oom = metrics.filter(m => m.oom)
@@ -194,6 +228,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     fanIn,
     registry,
     registryMode,
+    lazyTables,
     endpointsBenched: metrics.length,
     endpointsOk: ok.length,
     endpointsFailed: failed.length,
@@ -201,6 +236,8 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     bundleBytes: stats(metrics.map(m => m.bundleBytes)),
     heapDeltaMB: stats(ok.map(m => m.heapDeltaMB)),
     rssMB: stats(ok.map(m => m.rssAfterMB)),
+    schemaBundleBytes,
+    schemaHeapDeltaMB,
     bundleTimeMs,
     totalTimeMs: Date.now() - startedAt,
     perEndpoint: metrics,
@@ -220,11 +257,17 @@ function printSummary(r: BenchResult) {
   const status = `${r.endpointsOk}/${r.endpointsBenched} ok` +
     (r.endpointsFailed ? ` · ${r.endpointsFailed} fail` : '') +
     (r.endpointsOOM ? ` · ${r.endpointsOOM} OOM` : '')
-  const tags = `${r.fanIn ? ` fanin=${r.fanIn}` : ''}${r.registry ? ` registry/${r.registryMode}` : ''}`
+  const tags = `${r.fanIn ? ` fanin=${r.fanIn}` : ''}${r.registry ? ` registry/${r.registryMode}` : ''}${r.lazyTables ? ' lazy-tables' : ''}`
   console.log(`\n=== ${r.flavor}${tags} @ count=${r.count} (${status}) ===`)
-  console.log(`bundle bytes  min/p50/p95/max:  ${fmtBytes(r.bundleBytes.min)} / ${fmtBytes(r.bundleBytes.p50)} / ${fmtBytes(r.bundleBytes.p95)} / ${fmtBytes(r.bundleBytes.max)}`)
-  console.log(`heap delta MB  min/p50/p95/max:  ${r.heapDeltaMB.min.toFixed(2)} / ${r.heapDeltaMB.p50.toFixed(2)} / ${r.heapDeltaMB.p95.toFixed(2)} / ${r.heapDeltaMB.max.toFixed(2)}`)
-  console.log(`rss after  MB  min/p50/p95/max:  ${r.rssMB.min.toFixed(2)} / ${r.rssMB.p50.toFixed(2)} / ${r.rssMB.p95.toFixed(2)} / ${r.rssMB.max.toFixed(2)}`)
+  console.log(`endpoints  bundle min/p50/p95/max:  ${fmtBytes(r.bundleBytes.min)} / ${fmtBytes(r.bundleBytes.p50)} / ${fmtBytes(r.bundleBytes.p95)} / ${fmtBytes(r.bundleBytes.max)}`)
+  console.log(`endpoints  heap   min/p50/p95/max:  ${r.heapDeltaMB.min.toFixed(2)} / ${r.heapDeltaMB.p50.toFixed(2)} / ${r.heapDeltaMB.p95.toFixed(2)} / ${r.heapDeltaMB.max.toFixed(2)} MB`)
+  if (r.schemaBundleBytes !== null || r.schemaHeapDeltaMB !== null) {
+    console.log(
+      `schema     bundle ${r.schemaBundleBytes === null ? 'n/a' : fmtBytes(r.schemaBundleBytes)}   heap ${
+        r.schemaHeapDeltaMB === null ? 'n/a' : `${r.schemaHeapDeltaMB.toFixed(2)} MB`
+      }`,
+    )
+  }
   console.log(`bundle wall    ${(r.bundleTimeMs / 1000).toFixed(2)}s   total wall ${(r.totalTimeMs / 1000).toFixed(2)}s`)
 }
 
@@ -246,6 +289,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     (regArg === 'lazy' || has('lazy-registry')) ? 'lazy'
     : (regArg === 'invisible' || has('invisible-registry')) ? 'invisible'
     : 'static'
+  const lazyTables = has('lazy-tables')
   const sample = get('sample') ? parseInt(get('sample')!) : undefined
   const cap = get('cap') ? parseInt(get('cap')!) : undefined
   const concurrency = get('concurrency') ? parseInt(get('concurrency')!) : 4
@@ -254,7 +298,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const results: BenchResult[] = []
   for (const flavor of flavors) {
-    const r = await bench({ flavor, count, fanIn, registry, registryMode, sample, capMB: cap, concurrency, keep })
+    const r = await bench({ flavor, count, fanIn, registry, registryMode, lazyTables, sample, capMB: cap, concurrency, keep })
     printSummary(r)
     results.push(r)
   }

@@ -11,6 +11,7 @@
 //
 // Bundles target endpoints individually; schema.ts is not bundled here.
 
+import { spawnSync } from 'child_process'
 import { mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync } from 'fs'
 import { join, basename, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -57,6 +58,17 @@ export interface ComposeConfig {
    *    plumbs laziness for them.
    */
   registryMode?: 'static' | 'lazy' | 'invisible'
+  /**
+   * For zodvex / zodvex-mini flavors: emit schema.ts in the lazy-tables
+   * shape (importing pre-generated `_zodvex/tables.ts` from `defineSchema`
+   * instead of `defineZodSchema(models)`). Compose then invokes zodvex
+   * codegen against the composed tree to populate `_zodvex/tables.ts`.
+   *
+   * Models the schema-only-thin pattern shipped in 19d03f8 — keeps zod
+   * out of Convex's schema-eval isolate. No-op for non-zodvex flavors.
+   * Default false.
+   */
+  lazyTables?: boolean
 }
 
 interface SeedInfo {
@@ -250,9 +262,21 @@ interface TableSpec {
   tableName: string // table key in defineSchema({...})
 }
 
-function schemaSource(flavor: Flavor, tables: TableSpec[]): string {
+function schemaSource(flavor: Flavor, tables: TableSpec[], lazyTables: boolean): string {
   if (flavor === 'zodvex' || flavor === 'zodvex-mini') {
     const serverImport = flavor === 'zodvex-mini' ? 'zodvex/mini/server' : 'zodvex/server'
+    if (lazyTables) {
+      // Schema-only-thin shape: schema.ts imports the codegen-emitted
+      // pure-Convex tables file. Zero zod at schema-eval. The codegen
+      // step (runZodvexGenerate) populates `_zodvex/tables.ts` after
+      // compose finishes; until then the file may not exist, but
+      // discovery is configured to skip schema.ts.
+      return `import { defineZodvexSchema } from '${serverImport}'
+import tables, { type DecodedDocs } from './_zodvex/tables'
+
+export default defineZodvexSchema<typeof tables, DecodedDocs>(tables)
+`
+    }
     const imports = tables.map(t => `import { ${t.symbol} as ${t.alias} } from './models/${t.fileName}'`).join('\n')
     const entries = tables.map(t => `  ${t.tableName}: ${t.alias},`).join('\n')
     return `import { defineZodSchema } from '${serverImport}'
@@ -332,7 +356,15 @@ export const __registry = [
 }
 
 export function compose(config: ComposeConfig): ComposeResult {
-  const { flavor, count, outputDir, fanIn = 0, registry = false, registryMode = 'static' } = config
+  const {
+    flavor,
+    count,
+    outputDir,
+    fanIn = 0,
+    registry = false,
+    registryMode = 'static',
+    lazyTables = false,
+  } = config
   const modelsDir = join(outputDir, 'models')
   const endpointsDir = join(outputDir, 'endpoints')
 
@@ -430,13 +462,35 @@ export function compose(config: ComposeConfig): ComposeResult {
     join(outputDir, 'functions.ts'),
     functionsSource(flavor, registry && registryMode === 'invisible'),
   )
-  writeFileSync(join(outputDir, 'schema.ts'), schemaSource(flavor, tables))
+  writeFileSync(join(outputDir, 'schema.ts'), schemaSource(flavor, tables, lazyTables))
   writeFileSync(
     join(outputDir, 'summary.json'),
-    JSON.stringify({ flavor, count, fanIn, registry, registryMode, seeds: seeds.length }, null, 2),
+    JSON.stringify({ flavor, count, fanIn, registry, registryMode, lazyTables, seeds: seeds.length }, null, 2),
   )
 
+  if (lazyTables && (flavor === 'zodvex' || flavor === 'zodvex-mini')) {
+    runZodvexGenerate(outputDir, flavor === 'zodvex-mini')
+  }
+
   return { flavor, outputDir, modelsDir, endpointsDir, endpointFiles }
+}
+
+/**
+ * Invokes the zodvex CLI on the composed tree to emit `_zodvex/tables.ts`.
+ * Required when lazyTables is on — schema.ts statically imports it.
+ *
+ * Shell-outs to bunx so we run the same code path users do. Failures here
+ * propagate; the bench will then fail to bundle schema.ts and surface
+ * the issue rather than producing silently-wrong measurements.
+ */
+function runZodvexGenerate(outputDir: string, mini: boolean): void {
+  const args = ['zodvex', 'generate', outputDir]
+  if (mini) args.push('--mini')
+  const result = spawnSync('bunx', args, { stdio: 'pipe', encoding: 'utf-8' })
+  if (result.status !== 0) {
+    const detail = (result.stderr || '').trim() || (result.stdout || '').trim()
+    throw new Error(`zodvex generate failed (exit ${result.status}):\n${detail}`)
+  }
 }
 
 // CLI: bun run composeFlavor.ts --flavor=zodvex --count=50 [--fanin=5] [--registry] --output=...
