@@ -1,0 +1,11 @@
+# Composed test output — overwritten on every deploy
+convex/endpoints/
+convex/models/
+convex/functions.ts
+convex/schema.ts
+convex/registry.ts
+convex/registryApi.ts
+convex/summary.json
+convex/_generated/
+node_modules
+.env.local

@@ -145,6 +145,13 @@ function renameSeed(
     `${newPascal.charAt(0).toLowerCase() + newPascal.slice(1)}Fields`,
   )
   out = out.replaceAll(`../models/${seed.name}`, `../models/${seed.name}_${suffix}`)
+  // Convex's schema evaluator forbids `process.env` access during module
+  // init. The seed reads ZODVEX_SLIM to optionally pass `{ schemaHelpers:
+  // false }`. For deployable output, inline the default (undefined).
+  out = out.replace(
+    /const opts = process\.env\.ZODVEX_SLIM[^\n]*\n/,
+    'const opts = undefined\n',
+  )
   return out
 }
 
