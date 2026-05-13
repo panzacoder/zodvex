@@ -116,9 +116,23 @@ export type ZodvexBuilder<
   >
 }
 
+type ZodTableMapThunk = () => ZodTableMap | Promise<ZodTableMap>
+
+interface InitZodvexOptionsBase {
+  /**
+   * Lazy tableMap loader — produced by `_zodvex/tableMap.lazy.{js,d.ts}`.
+   * When provided, schema does NOT need to carry `__zodTableMap`; the
+   * runtime codec wrappers resolve the map on first DB call and cache it.
+   * Required for the schema-only-thin pattern (schema.ts uses plain
+   * `defineSchema(tables)`).
+   */
+  tableMap?: ZodTableMapThunk
+  registry?: () => AnyRegistry | Promise<AnyRegistry>
+}
+
 // Overload 1: wrapDb: false — no codec DB wrapping
 export function initZodvex<DM extends GenericDataModel>(
-  schema: { __zodTableMap: ZodTableMap },
+  schema: { __zodTableMap?: ZodTableMap },
   server: {
     query: QueryBuilder<DM, 'public'>
     mutation: MutationBuilder<DM, 'public'>
@@ -127,7 +141,7 @@ export function initZodvex<DM extends GenericDataModel>(
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options: { wrapDb: false; registry?: () => AnyRegistry | Promise<AnyRegistry> }
+  options: InitZodvexOptionsBase & { wrapDb: false }
 ): {
   zq: ZodvexBuilder<'query', NoCodecCtx, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<'mutation', NoCodecCtx, GenericMutationCtx<DM>, 'public'>
@@ -144,7 +158,7 @@ export function initZodvex<
   DM extends GenericDataModel,
   DD extends Record<string, any> = Record<string, any>
 >(
-  schema: { __zodTableMap: ZodTableMap; __decodedDocs: DD },
+  schema: { __zodTableMap?: ZodTableMap; __decodedDocs?: DD },
   server: {
     query: QueryBuilder<DM, 'public'>
     mutation: MutationBuilder<DM, 'public'>
@@ -153,7 +167,7 @@ export function initZodvex<
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options?: { wrapDb?: true; registry?: () => AnyRegistry | Promise<AnyRegistry> }
+  options?: InitZodvexOptionsBase & { wrapDb?: true }
 ): {
   zq: ZodvexBuilder<'query', { db: ZodvexDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<
@@ -175,11 +189,17 @@ export function initZodvex<
 
 // Implementation
 export function initZodvex(
-  schema: { __zodTableMap: ZodTableMap },
+  schema: { __zodTableMap?: ZodTableMap },
   server: InitServerBuilders,
-  options?: { wrapDb?: boolean; registry?: () => AnyRegistry | Promise<AnyRegistry> }
+  options?: InitZodvexOptionsBase & { wrapDb?: boolean }
 ) {
-  const codec = createZodvexCustomization(schema.__zodTableMap)
+  // Source-of-truth for the codec tableMap, in priority order:
+  //   1. options.tableMap (lazy thunk from _zodvex/tableMap.lazy.js)
+  //   2. schema.__zodTableMap (legacy defineZodSchema-driven shape)
+  //   3. {} — no-op (wrapDb pages still work but produce no codec transforms)
+  const tableMapSource: ZodTableMap | ZodTableMapThunk =
+    options?.tableMap ?? schema.__zodTableMap ?? {}
+  const codec = createZodvexCustomization(tableMapSource)
   const noOp = createNoOpCustomization()
   const wrap = options?.wrapDb !== false
 
