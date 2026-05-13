@@ -243,20 +243,39 @@ export const zMutation = zCustomMutation(mutationGeneric, NoOp)
   }
 }
 
-function schemaSource(flavor: Flavor, modelImports: string[], tableEntries: string[]): string {
+interface TableSpec {
+  fileName: string  // e.g. "task_0000"
+  symbol: string    // export name in the model file (per flavor)
+  alias: string     // unique import alias
+  tableName: string // table key in defineSchema({...})
+}
+
+function schemaSource(flavor: Flavor, tables: TableSpec[]): string {
   if (flavor === 'zodvex' || flavor === 'zodvex-mini') {
     const serverImport = flavor === 'zodvex-mini' ? 'zodvex/mini/server' : 'zodvex/server'
+    const imports = tables.map(t => `import { ${t.symbol} as ${t.alias} } from './models/${t.fileName}'`).join('\n')
+    const entries = tables.map(t => `  ${t.tableName}: ${t.alias},`).join('\n')
     return `import { defineZodSchema } from '${serverImport}'
 
-${modelImports.join('\n')}
+${imports}
 
 export default defineZodSchema({
-${tableEntries.join('\n')}
+${entries}
 })
 `
   }
-  // For non-zodvex flavors compose a placeholder schema; not used by bundler.
-  return `// schema not required for ${flavor} per-endpoint bundling.\nexport default {}\n`
+  // Pure convex / convex-helpers / convex-helpers-zod3 all use defineSchema
+  // from convex/server with defineTable values exported by each model file.
+  const imports = tables.map(t => `import { ${t.symbol} as ${t.alias} } from './models/${t.fileName}'`).join('\n')
+  const entries = tables.map(t => `  ${t.tableName}: ${t.alias},`).join('\n')
+  return `import { defineSchema } from 'convex/server'
+
+${imports}
+
+export default defineSchema({
+${entries}
+})
+`
 }
 
 export interface ComposeResult {
@@ -359,8 +378,7 @@ export function compose(config: ComposeConfig): ComposeResult {
 
   // Second pass: write endpoints with optional fan-in + registry imports.
   const endpointFiles: string[] = []
-  const modelImports: string[] = []
-  const tableEntries: string[] = []
+  const tables: TableSpec[] = []
 
   for (let i = 0; i < count; i++) {
     const plan = endpointPlans[i]
@@ -400,16 +418,19 @@ export function compose(config: ComposeConfig): ComposeResult {
     writeFileSync(endpointPath, endpointOut)
     endpointFiles.push(endpointPath)
 
-    const modelExport = `${newPascal}Model`
-    modelImports.push(`import { ${modelExport} } from './models/${fileName}'`)
-    tableEntries.push(`  ${newTable}: ${modelExport},`)
+    tables.push({
+      fileName,
+      symbol: crossImportSymbol(flavor, seed, suffix),
+      alias: `T_${i}`,
+      tableName: newTable,
+    })
   }
 
   writeFileSync(
     join(outputDir, 'functions.ts'),
     functionsSource(flavor, registry && registryMode === 'invisible'),
   )
-  writeFileSync(join(outputDir, 'schema.ts'), schemaSource(flavor, modelImports, tableEntries))
+  writeFileSync(join(outputDir, 'schema.ts'), schemaSource(flavor, tables))
   writeFileSync(
     join(outputDir, 'summary.json'),
     JSON.stringify({ flavor, count, fanIn, registry, registryMode, seeds: seeds.length }, null, 2),
