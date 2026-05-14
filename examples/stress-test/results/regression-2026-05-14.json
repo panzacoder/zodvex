@@ -1,12 +1,12 @@
 {
   "target": 600,
-  "timestamp": "2026-05-14T03:51:36.121Z",
+  "timestamp": "2026-05-14T13:14:14.046Z",
   "allOk": true,
   "outcomes": [
     {
       "flavor": "zodvex",
       "deploy": "ok",
-      "durationMs": 37977,
+      "durationMs": 40159,
       "endpointHeapMaxMB": 2.69,
       "schemaHeapMB": 6.48,
       "ok": true,
@@ -15,7 +15,7 @@
     {
       "flavor": "zodvex-mini",
       "deploy": "ok",
-      "durationMs": 33585,
+      "durationMs": 35926,
       "endpointHeapMaxMB": 2.09,
       "schemaHeapMB": 6.26,
       "ok": true,
