@@ -493,7 +493,7 @@ function runZodvexGenerate(outputDir: string, mini: boolean): void {
   }
 }
 
-// CLI: bun run composeFlavor.ts --flavor=zodvex --count=50 [--fanin=5] [--registry] --output=...
+// CLI: bun run compose.ts --flavor=zodvex --count=50 [--fanin=5] [--registry] --output=...
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)
   const flavor = (args.find(a => a.startsWith('--flavor='))?.split('=')[1] ?? 'zodvex') as Flavor

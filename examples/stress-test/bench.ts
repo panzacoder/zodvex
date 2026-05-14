@@ -11,7 +11,7 @@
 import { mkdirSync, writeFileSync, existsSync, rmSync } from 'fs'
 import { join, basename, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { compose, type Flavor } from './composeFlavor.js'
+import { compose, type Flavor } from './compose.js'
 import { bundleEntry } from './bundle.js'
 import { measureBundle, type MeasureResult } from './measureBundle.js'
 

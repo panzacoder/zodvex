@@ -26,7 +26,7 @@ bun run bench -- --flavor=zodvex --count=200
    per flavor (zodvex, convex, convex-helpers, convex-helpers-zod3).
    The zodvex seeds are reused for zodvex-mini via the zod-to-mini
    codemod at compose time.
-2. **Composer** (`composeFlavor.ts`) — scales seeds to N models +
+2. **Composer** (`compose.ts`) — scales seeds to N models +
    endpoints per flavor via file copy with table-name + symbol
    replacement. Outputs to `tmp/<flavor>/composed/`.
 3. **Bundler** (`bundle.ts`) — esbuild per entrypoint, config copied
@@ -69,13 +69,6 @@ bun run bench -- --flavor=zodvex --count=200
 ## Results
 
 Authoritative ceiling snapshots live in `results/`. See
-`results/ceilings-and-regression-2026-05-13.md` for orientation, then
-`results/sweep-static-tablemap-2026-05-14.md` for the most recent
-runtime-verified ceiling table.
-
-## Legacy
-
-The `legacy/` subdirectory contains earlier ceiling-search scripts
-(`find-ceiling.ts`, `report.ts`) plus measurement templates. They
-predate the per-entrypoint `bundle.ts` / `realDeploy.ts` approach
-and may not be runnable on the current shape.
+[`results/README.md`](results/README.md) for an index. Journey-of-the-PR
+snapshots (early registry experiments, deploy-only sweeps,
+spike-validation notes) live in `results/archive/`.

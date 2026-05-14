@@ -14,7 +14,7 @@ import { writeFileSync, mkdirSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { bench } from './bench.js'
-import { type Flavor } from './composeFlavor.js'
+import { type Flavor } from './compose.js'
 import { deploy, resetDeployment } from './realDeploy.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))

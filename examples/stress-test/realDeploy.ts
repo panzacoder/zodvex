@@ -17,7 +17,7 @@ import { spawn } from 'child_process'
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import type { ComposeResult } from './composeFlavor.js'
+import type { ComposeResult } from './compose.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DEPLOY_DIR = join(__dirname, '_deploy')
