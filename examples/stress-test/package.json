@@ -4,10 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "stress-test": "bun run stress-test.ts",
     "regression": "bun run regression.ts",
-    "compose": "bun run compose.ts",
-    "measure": "bun run measure.ts",
+    "sweep": "bun run sweep.ts",
     "bench": "bun run bench.ts",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json"
   },
