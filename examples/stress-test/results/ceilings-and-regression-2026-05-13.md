@@ -1,13 +1,18 @@
 # Ceilings vs. regression: how to read our stress-test results
 
-> **Update — methodology correction**: An earlier version of this
-> document reported ceilings at N=2000/2500 because tests ran
-> back-to-back without resetting the deployment between them — the
-> `finish_push` diff was small (only adding deltas to prior state)
-> rather than the full N. The authoritative ceiling data is now in
-> `sweep-2026-05-13.md`, captured with a deployment reset before each
-> test. True fresh-diff ceiling for memory-OK flavors is N≈800
-> (TooManyReads, not OOM); the regression target is N=600.
+> **Updates**:
+> - 2026-05-13: An earlier version of this document reported
+>   ceilings at N=2000/2500 because tests ran back-to-back without
+>   resetting the deployment between them. Authoritative ceiling
+>   data with resets is in `sweep-2026-05-13.md`.
+> - 2026-05-14: The 2026-05-13 sweep measured deploy outcome only.
+>   It missed a runtime regression: the lazy tableMap thunk used
+>   dynamic `import()` which Convex's Q/M V8 sandbox forbids.
+>   Authoritative runtime-verified ceiling data is now in
+>   `sweep-static-tablemap-2026-05-14.md`. Numbers happen to be the
+>   same — ceilings are stable across the static-tableMap revert —
+>   but every passing cell is now confirmed to serve real Q/M
+>   requests via a `bunx convex run` smoke step after each deploy.
 
 Two distinct questions, two distinct results files. Both matter; they
 answer different things.

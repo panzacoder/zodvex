@@ -7,28 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **🚧 Runtime regression — not releasable as-is.** The lazy tableMap
-> thunk this entry introduces uses dynamic `import()` from query and
-> mutation handlers. Convex's Q/M V8 sandbox forbids dynamic imports,
-> so every Q/M call fails at runtime with `dynamic module import
-> unsupported`. Deploys still succeed (the analyzer doesn't follow
-> dynamic imports), but functions don't run. See
-> `examples/stress-test/results/dynamic-import-runtime-finding-2026-05-14.md`.
-> A follow-up branch reverts the tableMap to static imports; the
-> action registry thunk stays (actions run in Node where dynamic
-> imports work). Memory ceilings below describe deploy-time only and
-> will need re-measurement with runtime verification before release.
-
 ### TL;DR
 
-zodvex apps now scale to the same endpoint count as plain Convex apps under
-the new per-entrypoint deploy analyzer. Previously zodvex apps OOMed at
-~155 endpoints (schema-eval) or ~400 endpoints (registry size). With the
-fixes in this release, real Convex deploys pass cleanly at N=2000 — the
-limit becomes Convex's own non-memory ceilings (function-file count,
-TooManyReads at finish_push). No source migration is required for memory
-relief beyond `bun zodvex migrate`. Userland surface is also smaller —
-one import, one call.
+zodvex apps now scale to the same endpoint count as plain Convex apps
+both at deploy time *and* runtime. Previously zodvex OOMed at ~155
+endpoints in the schema-eval isolate. With this release, real Convex
+deploys pass cleanly at N=750 and Q/M handlers serve requests
+end-to-end; the wall becomes Convex's own non-memory ceiling
+(TooManyReads at N=800 during `finish_push`). One source migration
+via `bun zodvex migrate` covers schema and functions files. Userland
+surface is smaller — one import, one call.
+
+> **Runtime path note.** An earlier draft of this entry used a lazy
+> dynamic-import thunk for the runtime tableMap. That deployed
+> cleanly but crashed every Q/M call because Convex's Q/M V8 sandbox
+> forbids dynamic `import()`. The shipped shape uses static model
+> imports inside `_zodvex/server.ts`; the action registry remains a
+> lazy thunk (actions run in Node where dynamic imports work). See
+> `examples/stress-test/results/dynamic-import-runtime-finding-2026-05-14.md`
+> for the finding and
+> `examples/stress-test/results/sweep-static-tablemap-2026-05-14.md`
+> for the runtime-verified ceiling sweep.
 
 ### Added
 
@@ -145,8 +144,14 @@ zodvex now scales ~50% past that and matches the pure-convex
 function-count headroom.
 
 `bun zodvex migrate` updates legacy schema.ts + functions.ts files in
-place. See `examples/stress-test/results/sweep-2026-05-13.md` for the
-authoritative ceiling data, methodology, and reproducibility notes.
+place. See
+`examples/stress-test/results/sweep-static-tablemap-2026-05-14.md` for
+the authoritative ceiling data — runtime-verified with a
+`bunx convex run` smoke call per cell — plus methodology and
+reproducibility notes. The earlier `sweep-2026-05-13.md` measured
+deploy outcome only; the numbers happened to be the same, but it
+didn't catch the dynamic-import runtime regression that the
+2026-05-14 sweep is designed to.
 
 ## [0.7.0] - 2026-04-02
 
