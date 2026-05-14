@@ -116,10 +116,18 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
       }
 
       console.error(`[${flavor} N=${n}] deploying…`)
+      // Smoke-check the codec-wrapped db path on the first (smallest) N
+      // per flavor — that's enough to catch runtime regressions like the
+      // dynamic-import-unsupported bug. Higher Ns share the same codepath
+      // so a single runtime verification per flavor covers them all.
+      const isFirstN = n === ns[0]
       const outcome = await deploy({
         source: join(__dirname, 'tmp', flavor, 'composed'),
         timeoutMs: 5 * 60 * 1000,
         verbose: false,
+        smokeFunction: isFirstN
+          ? 'endpoints/activity_0000:listActivities'
+          : undefined,
       })
       const kind = classifyOutcome(outcome)
       results.push({

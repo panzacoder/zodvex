@@ -39,12 +39,19 @@ const BUNDLE_LIMIT_PATTERNS = [
   /total bundle size/i,
 ]
 
+const TOO_MANY_READS_PATTERNS = [
+  /TooManyReads/,
+  /Too many reads/i,
+]
+
 export type DeployOutcome =
   | { kind: 'ok'; durationMs: number; stdoutTail: string }
   | { kind: 'oom'; durationMs: number; stderrSnippet: string }
   | { kind: 'function-limit'; durationMs: number; stderrSnippet: string }
   | { kind: 'bundle-limit'; durationMs: number; stderrSnippet: string }
   | { kind: 'schema-error'; durationMs: number; stderrSnippet: string }
+  | { kind: 'too-many-reads'; durationMs: number; stderrSnippet: string }
+  | { kind: 'runtime-error'; durationMs: number; stderrSnippet: string }
   | { kind: 'timeout'; durationMs: number }
   | { kind: 'other'; exitCode: number; durationMs: number; stderrSnippet: string; stdoutTail: string }
 
@@ -57,6 +64,14 @@ export interface DeployOptions {
   timeoutMs?: number
   /** Log progress to stderr. Default true. */
   verbose?: boolean
+  /**
+   * If set, after a successful deploy run `convex run <function>` and
+   * downgrade to `runtime-error` on failure. The query/mutation called
+   * exercises the codec-wrapped db path — used to detect cases where the
+   * deploy passes analyzer checks but Q/M handlers crash at runtime
+   * (e.g. the "dynamic module import unsupported" regression).
+   */
+  smokeFunction?: string
 }
 
 function classify(stdout: string, stderr: string): DeployOutcome['kind'] {
@@ -64,8 +79,66 @@ function classify(stdout: string, stderr: string): DeployOutcome['kind'] {
   if (OOM_PATTERNS.some(re => re.test(combined))) return 'oom'
   if (FUNCTION_LIMIT_PATTERNS.some(re => re.test(combined))) return 'function-limit'
   if (BUNDLE_LIMIT_PATTERNS.some(re => re.test(combined))) return 'bundle-limit'
+  if (TOO_MANY_READS_PATTERNS.some(re => re.test(combined))) return 'too-many-reads'
   if (/schema/i.test(stderr) && /error/i.test(stderr)) return 'schema-error'
   return 'other'
+}
+
+/**
+ * Invokes `bunx convex run <function> '{}'` against the configured
+ * deployment. Returns null on success, or a stderr snippet describing
+ * the failure on error. Used as a post-deploy smoke check to verify
+ * Q/M handlers actually run — deploy success alone misses regressions
+ * like the dynamic-import-unsupported one.
+ */
+function smokeCall(
+  fnPath: string,
+  slug: string,
+  timeoutMs: number,
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    let stdout = ''
+    let stderr = ''
+    let killed = false
+
+    const child = spawn(
+      'bunx',
+      ['convex', 'run', fnPath, '{}'],
+      {
+        cwd: DEPLOY_DIR,
+        env: { ...process.env, CONVEX_DEPLOYMENT: slug },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    )
+
+    const timer = setTimeout(() => {
+      killed = true
+      child.kill('SIGKILL')
+    }, timeoutMs)
+
+    child.stdout.on('data', (b) => { stdout += b.toString() })
+    child.stderr.on('data', (b) => { stderr += b.toString() })
+
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      if (killed) {
+        resolve(`smoke timeout after ${timeoutMs}ms`)
+        return
+      }
+      // Any non-zero exit or "dynamic module import" / "Server Error" in
+      // either stream means the handler crashed at runtime.
+      const combined = `${stderr}\n${stdout}`
+      const failure =
+        /dynamic module import/i.test(combined) ||
+        /Server Error/i.test(combined) ||
+        /Uncaught/.test(combined)
+      if (code !== 0 || failure) {
+        resolve(lastLines(combined, 10))
+        return
+      }
+      resolve(null)
+    })
+  })
 }
 
 function lastLines(s: string, n: number): string {
@@ -102,7 +175,7 @@ function stageSource(source: string): void {
 }
 
 export function deploy(opts: DeployOptions): Promise<DeployOutcome> {
-  const { source, deployment, timeoutMs = 5 * 60 * 1000, verbose = true } = opts
+  const { source, deployment, timeoutMs = 5 * 60 * 1000, verbose = true, smokeFunction } = opts
 
   // Resolve deployment slug.
   let slug = deployment ?? process.env.CONVEX_DEPLOYMENT
@@ -163,6 +236,25 @@ export function deploy(opts: DeployOptions): Promise<DeployOutcome> {
       }
 
       if (code === 0) {
+        if (smokeFunction) {
+          // Deploy succeeded — verify Q/M handlers actually run.
+          smokeCall(smokeFunction, slug!, 30_000).then((err) => {
+            if (err) {
+              resolve({
+                kind: 'runtime-error',
+                durationMs: Date.now() - startedAt,
+                stderrSnippet: err,
+              })
+            } else {
+              resolve({
+                kind: 'ok',
+                durationMs: Date.now() - startedAt,
+                stdoutTail: lastLines(stdout, 5),
+              })
+            }
+          })
+          return
+        }
         resolve({ kind: 'ok', durationMs, stdoutTail: lastLines(stdout, 5) })
         return
       }

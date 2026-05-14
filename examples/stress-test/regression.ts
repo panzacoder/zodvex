@@ -112,12 +112,18 @@ export async function regression(opts: RegressionOptions = {}): Promise<{
     })
 
     console.error(`[${entry.flavor}] deploying…`)
+    // The composer emits `endpoints/<seed.name>_<NNNN>.ts` with stable
+    // exports per seed. `endpoints/activity_0000:listActivities` exists at
+    // every N≥1 and exercises the codec-wrapped db path through `zq` — the
+    // exact path that crashed during the dynamic-import regression.
     const outcome = await deploy({
       source: measured.perEndpoint.length > 0
         ? join(__dirname, 'tmp', entry.flavor, 'composed')
         : join(__dirname, 'tmp', entry.flavor, 'composed'),
       timeoutMs: 5 * 60 * 1000,
       verbose: false,
+      smokeFunction:
+        entry.expectedDeploy === 'ok' ? 'endpoints/activity_0000:listActivities' : undefined,
     })
 
     const ok = outcome.kind === entry.expectedDeploy

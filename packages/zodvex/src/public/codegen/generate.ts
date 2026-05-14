@@ -626,8 +626,7 @@ export function generateServerFile(
     )
   }
   const modelImportSection = modelImports.length > 0 ? modelImports.join('\n') + '\n' : ''
-  const tableMapBody =
-    tableMapEntries.length > 0 ? tableMapEntries.join(',\n') + '\n' : ''
+  const tableMapBody = tableMapEntries.length > 0 ? tableMapEntries.join(',\n') + '\n' : ''
 
   const ts = `${HEADER}
 import { zx } from '${zxImport}'
