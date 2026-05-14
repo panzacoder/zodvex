@@ -1,21 +1,21 @@
 {
   "target": 600,
-  "timestamp": "2026-05-14T13:14:14.046Z",
+  "timestamp": "2026-05-14T15:50:37.175Z",
   "allOk": true,
   "outcomes": [
     {
       "flavor": "zodvex",
       "deploy": "ok",
-      "durationMs": 40159,
-      "endpointHeapMaxMB": 2.69,
-      "schemaHeapMB": 6.48,
+      "durationMs": 36688,
+      "endpointHeapMaxMB": 2.64,
+      "schemaHeapMB": 6.47,
       "ok": true,
       "note": "zodvex (full zod) with the new lazy-tables + marker + consolidated server.ts"
     },
     {
       "flavor": "zodvex-mini",
       "deploy": "ok",
-      "durationMs": 35926,
+      "durationMs": 35503,
       "endpointHeapMaxMB": 2.09,
       "schemaHeapMB": 6.26,
       "ok": true,
