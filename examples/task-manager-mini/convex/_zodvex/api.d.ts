@@ -4,3 +4,4 @@
 import type { $ZodType } from 'zod/v4/core'
 
 export declare const zodvexRegistry: Record<string, { args: $ZodType; returns: $ZodType | undefined }>
+export declare const zodTableMap: Record<string, { doc: $ZodType; insert: $ZodType }>

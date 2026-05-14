@@ -20,6 +20,10 @@ coverage/
 *~
 .DS_Store
 
+# Claude Code session artifacts
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+
 # Logs
 logs/
 *.log

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> **🚧 Runtime regression — not releasable as-is.** The lazy tableMap
+> thunk this entry introduces uses dynamic `import()` from query and
+> mutation handlers. Convex's Q/M V8 sandbox forbids dynamic imports,
+> so every Q/M call fails at runtime with `dynamic module import
+> unsupported`. Deploys still succeed (the analyzer doesn't follow
+> dynamic imports), but functions don't run. See
+> `examples/stress-test/results/dynamic-import-runtime-finding-2026-05-14.md`.
+> A follow-up branch reverts the tableMap to static imports; the
+> action registry thunk stays (actions run in Node where dynamic
+> imports work). Memory ceilings below describe deploy-time only and
+> will need re-measurement with runtime verification before release.
+
 ### TL;DR
 
 zodvex apps now scale to the same endpoint count as plain Convex apps under
