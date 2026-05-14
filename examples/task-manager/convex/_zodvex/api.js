@@ -162,11 +162,3 @@ export const zodvexRegistry = {
     returns: undefined,
   },
 }
-
-export const zodTableMap = {
-  "activities": { doc: zx.doc(ActivityModel), insert: zx.base(ActivityModel) },
-  "notifications": { doc: zx.doc(NotificationModel), insert: zx.base(NotificationModel) },
-  "comments": { doc: zx.doc(CommentModel), insert: zx.base(CommentModel) },
-  "users": { doc: zx.doc(UserModel), insert: zx.base(UserModel) },
-  "tasks": { doc: zx.doc(TaskModel), insert: zx.base(TaskModel) }
-}

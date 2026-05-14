@@ -737,14 +737,12 @@ export class ZodvexDatabaseWriter<
 }
 
 /**
- * Creates a ZodvexDatabaseReader from a Convex DatabaseReader and a schema.
+ * Creates a ZodvexDatabaseReader from a Convex DatabaseReader and a schema
+ * with __zodTableMap.
  *
  * Accepts either:
- *   - a legacy schema with sync `__zodTableMap` (from `defineZodSchema`) —
- *     returns the reader synchronously
- *   - a new-shape schema with a `__zodTableMap` thunk (from
- *     `_zodvex/server.ts`'s exported `schema`) — returns
- *     `Promise<ZodvexDatabaseReader>`; await it before use
+ *   - a legacy schema from `defineZodSchema(...)`
+ *   - the codec-aware schema re-export from `_zodvex/server.ts`
  *
  * When the schema carries `__decodedDocs`, DD is inferred automatically,
  * providing decoded types on query terminal methods.
@@ -755,44 +753,13 @@ export function createZodDbReader<
 >(
   db: GenericDatabaseReader<DataModel>,
   schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD }
-): ZodvexDatabaseReader<DataModel, DD>
-export function createZodDbReader<
-  DataModel extends GenericDataModel,
-  DD extends Record<string, any> = Record<string, any>
->(
-  db: GenericDatabaseReader<DataModel>,
-  schema: {
-    __zodTableMap: () => ZodTableMap | Promise<ZodTableMap>
-    __decodedDocs?: DD
-  }
-): Promise<ZodvexDatabaseReader<DataModel, DD>>
-export function createZodDbReader<
-  DataModel extends GenericDataModel,
-  DD extends Record<string, any> = Record<string, any>
->(
-  db: GenericDatabaseReader<DataModel>,
-  schema: {
-    __zodTableMap: ZodTableMap | (() => ZodTableMap | Promise<ZodTableMap>)
-    __decodedDocs?: DD
-  }
-): ZodvexDatabaseReader<DataModel, DD> | Promise<ZodvexDatabaseReader<DataModel, DD>> {
-  const tm = schema.__zodTableMap
-  if (typeof tm === 'function') {
-    return Promise.resolve(tm()).then(
-      resolved => new ZodvexDatabaseReader(db, resolved) as ZodvexDatabaseReader<DataModel, DD>
-    )
-  }
-  return new ZodvexDatabaseReader(db, tm) as ZodvexDatabaseReader<DataModel, DD>
+): ZodvexDatabaseReader<DataModel, DD> {
+  return new ZodvexDatabaseReader(db, schema.__zodTableMap) as ZodvexDatabaseReader<DataModel, DD>
 }
 
 /**
- * Creates a ZodvexDatabaseWriter from a Convex DatabaseWriter and a schema.
- *
- * Accepts either:
- *   - a legacy schema with sync `__zodTableMap` — returns the writer
- *     synchronously
- *   - a new-shape schema with a `__zodTableMap` thunk — returns
- *     `Promise<ZodvexDatabaseWriter>`; await it before use
+ * Creates a ZodvexDatabaseWriter from a Convex DatabaseWriter and a schema
+ * with __zodTableMap (legacy or codec-aware re-export).
  */
 export function createZodDbWriter<
   DataModel extends GenericDataModel,
@@ -800,34 +767,8 @@ export function createZodDbWriter<
 >(
   db: GenericDatabaseWriter<DataModel>,
   schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD }
-): ZodvexDatabaseWriter<DataModel, DD>
-export function createZodDbWriter<
-  DataModel extends GenericDataModel,
-  DD extends Record<string, any> = Record<string, any>
->(
-  db: GenericDatabaseWriter<DataModel>,
-  schema: {
-    __zodTableMap: () => ZodTableMap | Promise<ZodTableMap>
-    __decodedDocs?: DD
-  }
-): Promise<ZodvexDatabaseWriter<DataModel, DD>>
-export function createZodDbWriter<
-  DataModel extends GenericDataModel,
-  DD extends Record<string, any> = Record<string, any>
->(
-  db: GenericDatabaseWriter<DataModel>,
-  schema: {
-    __zodTableMap: ZodTableMap | (() => ZodTableMap | Promise<ZodTableMap>)
-    __decodedDocs?: DD
-  }
-): ZodvexDatabaseWriter<DataModel, DD> | Promise<ZodvexDatabaseWriter<DataModel, DD>> {
-  const tm = schema.__zodTableMap
-  if (typeof tm === 'function') {
-    return Promise.resolve(tm()).then(
-      resolved => new ZodvexDatabaseWriter(db, resolved) as ZodvexDatabaseWriter<DataModel, DD>
-    )
-  }
-  return new ZodvexDatabaseWriter(db, tm) as ZodvexDatabaseWriter<DataModel, DD>
+): ZodvexDatabaseWriter<DataModel, DD> {
+  return new ZodvexDatabaseWriter(db, schema.__zodTableMap) as ZodvexDatabaseWriter<DataModel, DD>
 }
 
 // Wire rules.ts subclasses now that base classes above are fully declared.

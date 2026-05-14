@@ -8,9 +8,6 @@
  * @module
  */
 
-import type * as _zodvex_api from "../_zodvex/api.js";
-import type * as _zodvex_client from "../_zodvex/client.js";
-import type * as _zodvex_server from "../_zodvex/server.js";
 import type * as actions from "../actions.js";
 import type * as activities from "../activities.js";
 import type * as api_reports from "../api/reports.js";
@@ -38,9 +35,6 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "_zodvex/api": typeof _zodvex_api;
-  "_zodvex/client": typeof _zodvex_client;
-  "_zodvex/server": typeof _zodvex_server;
   actions: typeof actions;
   activities: typeof activities;
   "api/reports": typeof api_reports;

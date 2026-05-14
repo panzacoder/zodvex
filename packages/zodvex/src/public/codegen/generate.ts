@@ -556,42 +556,18 @@ export function generateApiFile(
   const codecVarSection = allCodecVars.length > 0 ? `${allCodecVars.join('\n')}\n\n` : ''
 
   const registryEntries = entries.length > 0 ? `${entries},\n` : ''
-
-  // Build zodTableMap from already-imported models. Lives in api.js (not
-  // server.ts) because Convex's runtime forbids dynamic imports that cross
-  // out of the marker-defined `_zodvex/` boundary — same-directory dynamic
-  // imports (server.ts → api.js) work, but `_zodvex/server.ts` ↦
-  // `../models/foo.js` fails at runtime with "dynamic module import
-  // unsupported". Keeping the runtime tableMap construction inside this
-  // file (which already statically imports every model) avoids that.
-  const tableMapEntries: string[] = []
-  for (const model of models) {
-    if (!model._liveModel) continue
-    const live = model._liveModel as { name: string; fields?: unknown; indexes?: unknown }
-    if (live.fields === undefined || live.indexes === undefined) continue
-    tableMapEntries.push(
-      `  ${JSON.stringify(live.name)}: { doc: zx.doc(${model.exportName}), insert: zx.base(${model.exportName}) }`
-    )
-  }
-  const tableMapSection =
-    tableMapEntries.length > 0
-      ? `\nexport const zodTableMap = {\n${tableMapEntries.join(',\n')}\n}\n`
-      : '\nexport const zodTableMap = {}\n'
-
-  const js = `${HEADER}\n${importSection}${codecVarSection}export const zodvexRegistry = {\n${registryEntries}}\n${tableMapSection}`
+  const js = `${HEADER}\n${importSection}${codecVarSection}export const zodvexRegistry = {\n${registryEntries}}\n`
 
   const dts = options?.mini
     ? `${HEADER}
 import type { $ZodType } from 'zod/v4/core'
 
 export declare const zodvexRegistry: Record<string, { args: $ZodType; returns: $ZodType | undefined }>
-export declare const zodTableMap: Record<string, { doc: $ZodType; insert: $ZodType }>
 `
     : `${HEADER}
 import type { ZodTypeAny } from 'zod'
 
 export declare const zodvexRegistry: Record<string, { args: ZodTypeAny; returns: ZodTypeAny | undefined }>
-export declare const zodTableMap: Record<string, { doc: ZodTypeAny; insert: ZodTypeAny }>
 `
 
   return { js, dts }
@@ -625,12 +601,36 @@ export declare const zodTableMap: Record<string, { doc: ZodTypeAny; insert: ZodT
  * of in multiple side-by-side files.
  */
 export function generateServerFile(
-  _models: DiscoveredModel[],
+  models: DiscoveredModel[],
   options?: { mini?: boolean }
 ): GeneratedFile {
   const serverImport = options?.mini ? 'zodvex/mini/server' : 'zodvex/server'
+  const zxImport = options?.mini ? 'zodvex/mini' : 'zodvex'
+
+  // Static model imports + sync tableMap construction. Convex's Q/M V8
+  // sandbox forbids dynamic `import()`, so the runtime tableMap (used by
+  // every codec-wrapped query/mutation) must be statically reachable from
+  // this file. The cost: any entrypoint that imports this module pulls
+  // every model file into its analyzer isolate at deploy time. We accept
+  // that — runtime correctness beats analyzer-memory headroom.
+  const modelImports: string[] = []
+  const tableMapEntries: string[] = []
+  for (const m of models) {
+    if (!m._liveModel) continue
+    const live = m._liveModel as { name: string; fields?: unknown; indexes?: unknown }
+    if (live.fields === undefined || live.indexes === undefined) continue
+    const importPath = `../${m.sourceFile.replace(/\.ts$/, '.js')}`
+    modelImports.push(`import { ${m.exportName} } from '${importPath}'`)
+    tableMapEntries.push(
+      `  ${JSON.stringify(live.name)}: { doc: zx.doc(${m.exportName}), insert: zx.base(${m.exportName}) }`
+    )
+  }
+  const modelImportSection = modelImports.length > 0 ? modelImports.join('\n') + '\n' : ''
+  const tableMapBody =
+    tableMapEntries.length > 0 ? tableMapEntries.join(',\n') + '\n' : ''
 
   const ts = `${HEADER}
+import { zx } from '${zxImport}'
 import { initZodvex as _libInitZodvex } from '${serverImport}'
 import type {
   ZodvexActionCtx,
@@ -648,6 +648,7 @@ import type {
 } from 'convex/server'
 import type { DataModel } from '../_generated/dataModel.js'
 import _baseSchema from '../schema.js'
+${modelImportSection}
 
 // --- Context types ---
 
@@ -666,22 +667,24 @@ export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>
 /** Action context (no db, but runQuery/runMutation may be codec-wrapped). */
 export type ActionCtx = ZodvexActionCtx<DataModel>
 
-// --- Lazy registry ---
-// Dynamic import keeps the registry's transitive schema graph out of any
-// entrypoint that statically imports this file. esbuild hoists the target
-// into a chunk under \`_deps/\`.
+// --- Lazy registry (actions only) ---
+// Dynamic import is safe here because the registry is only consumed by
+// \`za\`/\`zia\` action handlers. Convex actions run in Node, where dynamic
+// \`import()\` works. Q/M handlers run in a V8 sandbox that forbids
+// dynamic imports — see ../tableMap below for that constraint.
 
 let _cachedRegistry: Promise<typeof import('./api.js').zodvexRegistry> | undefined
 const _registry = () => (_cachedRegistry ??= import('./api.js').then(m => m.zodvexRegistry))
 
-// --- Lazy table map ---
-// Sourced from \`./api.js\` (same dynamic import as the registry) because
-// Convex's runtime forbids dynamic imports that cross out of the
-// marker-defined \`_zodvex/\` boundary. Same-directory \`import('./api.js')\`
-// works; \`import('../models/foo.js')\` does not.
+// --- Static table map (Q/M-safe) ---
+// Built sync from statically-imported models. Convex's Q/M V8 sandbox
+// forbids dynamic \`import()\` with "dynamic module import unsupported",
+// so the runtime tableMap can't be loaded lazily. Userland \`functions.ts\`
+// imports this module → pulls every model into its analyzer isolate at
+// deploy time.
 
-let _cachedTableMap: Promise<typeof import('./api.js').zodTableMap> | undefined
-const _tableMap = () => (_cachedTableMap ??= import('./api.js').then(m => m.zodTableMap))
+const _tableMap = {
+${tableMapBody}}
 
 // --- Pre-wired initZodvex ---
 // Calls the library's initZodvex with schema + lazy registry/tableMap
@@ -709,7 +712,7 @@ type Bundle = {
 export function initZodvex(server: Server, options: {
   wrapDb?: boolean
   registry?: () => any
-  tableMap?: () => any
+  tableMap?: any
 } = {}): Bundle {
   return (_libInitZodvex as any)(_baseSchema, server, {
     ...options,
@@ -721,10 +724,8 @@ export function initZodvex(server: Server, options: {
 // --- Codec-aware schema re-export ---
 // Userland code that wants \`createZodDbReader\`/\`createZodDbWriter\` outside
 // a zq/zm handler imports \`schema\` from here (not from \`../schema\`). This
-// object is the base schema with the lazy tableMap thunk attached as
-// \`__zodTableMap\` plus a type-only \`__decodedDocs\` token. Both helpers
-// detect the thunk and return a \`Promise<...DatabaseReader/Writer>\` — await
-// once at the call site.
+// object is the base schema with the sync tableMap attached as
+// \`__zodTableMap\` plus a type-only \`__decodedDocs\` token.
 
 type ZodvexSchema = typeof _baseSchema & {
   __zodTableMap: typeof _tableMap

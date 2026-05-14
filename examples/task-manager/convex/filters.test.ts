@@ -31,7 +31,7 @@ describe("filter codec encoding", () => {
     const names = await t.run(async (ctx) => {
       const { createZodDbReader } = await import("zodvex/server");
       const { schema: codecSchema } = await import("./_zodvex/server");
-      const db = await createZodDbReader(ctx.db, codecSchema);
+      const db = createZodDbReader(ctx.db, codecSchema);
 
       const results = await db
         .query("users")
@@ -63,7 +63,7 @@ describe("filter codec encoding", () => {
     const names = await t.run(async (ctx) => {
       const { createZodDbReader } = await import("zodvex/server");
       const { schema: codecSchema } = await import("./_zodvex/server");
-      const db = await createZodDbReader(ctx.db, codecSchema);
+      const db = createZodDbReader(ctx.db, codecSchema);
 
       const results = await db
         .query("users")
@@ -101,7 +101,7 @@ describe("filter codec encoding", () => {
     const names = await t.run(async (ctx) => {
       const { createZodDbReader } = await import("zodvex/server");
       const { schema: codecSchema } = await import("./_zodvex/server");
-      const db = await createZodDbReader(ctx.db, codecSchema);
+      const db = createZodDbReader(ctx.db, codecSchema);
 
       const results = await db
         .query("users")
