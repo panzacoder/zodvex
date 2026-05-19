@@ -4,6 +4,9 @@ This guide helps you upgrade between zodvex versions with breaking changes.
 
 ## Table of Contents
 
+- [Upgrading to v0.7.2](#upgrading-to-v072)
+  - [One-time codegen regeneration](#one-time-codegen-regeneration)
+  - [Codec fingerprint ambiguity warnings](#codec-fingerprint-ambiguity-warnings)
 - [Upgrading to v0.7.0](#upgrading-to-v070)
   - [zodvex/transform Removed](#zodvextransform-removed)
   - [Using zodvex with zod/mini](#using-zodvex-with-zodmini)
@@ -19,6 +22,55 @@ This guide helps you upgrade between zodvex versions with breaking changes.
   - [zid() Implementation Change](#zid-implementation-change)
   - [zCrud Removal](#zcrud-removal)
   - [skipConvexValidation Behavior Change](#skipconvexvalidation-behavior-change)
+
+---
+
+## Upgrading to v0.7.2
+
+No source code changes are required to upgrade. Two behavioral changes in codegen are worth knowing about:
+
+### One-time codegen regeneration
+
+**What changed:**
+
+`zodvex generate` now sorts every discovered model, function, and codec by stable keys before writing output. The result is byte-stable across operating systems and filesystem traversal orders, but the first regen after upgrading will produce a diff in `convex/_zodvex/*.{js,d.ts}` for any project whose pre-upgrade output happened to be in a non-alphabetical order.
+
+**Action:**
+
+Run `zodvex generate` (or `bun run dev` once) to absorb the diff, then commit. Subsequent regenerations will be stable.
+
+### Codec fingerprint ambiguity warnings
+
+**What changed:**
+
+When `zodvex generate` walks function args and finds an embedded `ZodCodec`, it tries to match the codec to a model-embedded or exported codec with the same structural fingerprint so the generated `_zodvex/api.js` references the canonical alias instead of inlining the codec. Previously, when multiple codecs shared a fingerprint, "last write wins" picked one essentially at random (the same source could pick different codecs on different machines — see [Hotpot MR 206](https://gitlab.com/doxyme/cooks/hotpot/-/merge_requests/206)). Now codegen detects the ambiguity and either:
+
+- Picks the candidate whose source file matches the function's source file (if exactly one matches), or
+- Emits the codec inline with a `/* codec: transforms lost */` annotation and a console warning.
+
+**Action if you see the warning:**
+
+```
+[zodvex] Warning: Codec in someFn() (.shape.someField) matches 3 candidates with the same fingerprint (...).
+Cannot pick a canonical reference — emitting inline. Export the codec standalone to disambiguate.
+```
+
+Export a shared codec instance and reuse it across model + function sites:
+
+```ts
+// codecs/tagged.ts
+export const taggedEmail = tagged(z.string())
+
+// models/user.ts
+import { taggedEmail } from '../codecs/tagged'
+export const userFields = { email: taggedEmail, ... }
+
+// users.ts
+import { taggedEmail } from './codecs/tagged'
+export const getByEmail = zq({ args: { email: taggedEmail }, ... })
+```
+
+With identity-matched references, codegen reuses the same `taggedEmail` import everywhere — no fingerprint round-trip, no ambiguity, no warning. `examples/task-manager` was updated to demonstrate this pattern.
 
 ---
 

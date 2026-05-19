@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { zx, defineZodModel } from 'zodvex'
-import { tagged } from '../tagged'
+import { taggedEmail } from '../tagged'
 
 /** Shared field shape — used by both defineZodModel and zodTable in schema.ts */
 export const userFields = {
   name: z.string(),
-  email: z.optional(tagged(z.string())),  // factory-created codec — new instance per call
+  email: z.optional(taggedEmail),  // shared codec instance — codegen identity-matches across files
   avatarUrl: z.string().optional(),
   createdAt: zx.date(),
 }
