@@ -208,15 +208,17 @@ export function customFnBuilder<
     }
 
     if (args) {
-      const { argsValidator, argsSchema } = normalizeCustomArgsValidator(args)
+      const { argsValidator, argsSchema: userArgsSchema } = normalizeCustomArgsValidator(args)
 
       // Only generate Convex args validator when not skipping Convex validation
       const convexArgs = skipConvexValidation
         ? inputArgs
         : { ...zodToConvexFields(argsValidator), ...inputArgs }
 
-      // Check for z.date() usage at construction time (once), not on every invocation
-      assertNoNativeZodDate(argsSchema, 'args')
+      // Check for z.date() usage at construction time (once), not on every invocation.
+      // If the user didn't pass a ZodObject we build one just for the guard and let
+      // it GC — never retained in the closure.
+      assertNoNativeZodDate(userArgsSchema ?? z.object(argsValidator), 'args')
 
       const registered = builder({
         args: convexArgs,
@@ -231,14 +233,20 @@ export function customFnBuilder<
           )
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
-          const baseArgs = parseObjectArgsOrThrow(argsSchema, rawArgs)
+          // Build the ZodObject per request when the user passed a raw shape, so
+          // we don't retain a wrapper in the push-time isolate. When the user
+          // passed their own ZodObject, reuse it (no new allocation).
+          const parseSchema = userArgsSchema ?? z.object(argsValidator)
+          const baseArgs = parseObjectArgsOrThrow(parseSchema, rawArgs)
           const { finalCtx, finalArgs } = applyCustomizationResult(ctx as any, baseArgs, added)
 
           const ret = await handler(finalCtx, finalArgs)
           return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
         }
       })
-      attachFunctionMeta(registered, argsSchema, returns)
+      // Pass the user's ZodObject if they gave one, otherwise the raw shape.
+      // attachFunctionMeta builds the wrapper lazily for codegen consumers.
+      attachFunctionMeta(registered, userArgsSchema ?? argsValidator, returns)
       return registered
     }
     const registered = builder({
