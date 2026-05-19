@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-05-19
+
+Memory-focused release. Roughly **3.7×** more endpoints fit in Convex's 64 MB push-time isolate when combining the new slim-model option with `zod/mini` (stress-test ceiling: 135 → 500 endpoints).
+
+### Added
+
+- **`defineZodModel(name, fields, { schemaHelpers: false })`** — slim models. Object-slim carries zero pre-built schemas; union-slim retains only the user-supplied schema. All derived schemas come from cached `zx.*` helpers on demand. Headline of the ceiling gain.
+- **`zx.base(model)`** — base (no system fields) schema helper. Replaces direct `__zodTableMap[name].base` access.
+- **`zx.paginationOpts`** / **`zx.paginationResult(schema)`** — Convex pagination helpers. WeakMap-cached on the underlying schema, so they don't allocate per call site.
+- Per-model `zx` caches (`zx.doc` / `zx.base` / `zx.update` / `zx.docArray`) keyed on stable identity (fields or user schema) and survive `.index()`-chain methods. Caches live on `globalThis` via `Symbol.for`, so every tsup-bundled copy of `zx.ts` in a process shares state — eliminates duplicate schemas across bundle boundaries.
+- WeakMap memoization on the internal `zodToConvex` validator builder, keyed on Zod schema instance identity.
+- **`examples/stress-test/`** — black-box harness for measuring real-Convex-deploy memory ceilings across flavors (`convex`, `convex-helpers/zod3`, `convex-helpers/zod4`, `zodvex`, `zodvex-mini`) and N values. Used to verify ceiling claims in this release.
+
+### Changed
+
+- **Lazy `__zodTableMap`** — shrunk from 6 fields (`doc/base/insert/update/docArray/paginatedDoc`) to 2 (`doc/insert`). Only what the DB wrapper reads at runtime. Codegen and user code derive the rest from `zx.*`. Reduces retained schema graph per table.
+- **`.withRules()` / `.audit()`** — replaced the dynamic-import workaround in `db.ts` with a synchronous install pattern (`installRulesSubclasses`). No public API change; calls made as the first statement after import now resolve cleanly instead of intermittently throwing *"zodvex rules module not yet loaded"*. Fixes the race that previously forced consumers (e.g. Hotpot) into Proxy workarounds.
+
+### Removed
+
+- **BREAKING**: `ZodTableSchemas` (exported type) shrunk to `{ doc, insert }`. External code that read `__zodTableMap[name].{docArray, paginatedDoc, base, update}` must migrate to the matching `zx.*` helper — e.g. `zx.docArray(model)` instead of `__zodTableMap.foo.docArray`.
+- **BREAKING**: Slim object models no longer expose `.schema` or `.doc` on the model itself. Use `zx.base(model)` / `zx.doc(model)`. Union-slim models keep `.schema` (unchanged). Non-slim models (the default) are unaffected.
+
+### Stress-test ceiling gains (64 MB budget)
+
+| Variant     | Pre-0.7.1 | 0.7.1   | Δ    |
+|-------------|-----------|---------|------|
+| zod         | 135       | **166** | +23% |
+| zod + slim  | 110       | **219** | +99% |
+| mini        | 316       | **372** | +18% |
+| mini + slim | 263       | **500** | +90% |
+
 ## [0.7.0] - 2026-04-02
 
 ### Added
@@ -75,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for complex nested structures (arrays, objects, records)
 - Integration with convex-helpers for ID handling
 
+[0.7.1]: https://github.com/panzacoder/zodvex/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/panzacoder/zodvex/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/panzacoder/zodvex/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/panzacoder/zodvex/compare/v0.1.0...v0.5.1
