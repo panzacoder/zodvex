@@ -80,7 +80,7 @@ describe('transform performance', () => {
     console.log(`[perf] zodvex tests (no types): ${files.length} files, ${changed} changed, ${elapsed.toFixed(0)}ms (${(elapsed / files.length).toFixed(1)}ms/file)`)
   })
 
-  it('benchmarks zodvex test suite WITH type checker', () => {
+  it('benchmarks zodvex test suite WITH type checker', { timeout: 30_000 }, () => {
     const tsconfig = resolve(__dirname, '../../../packages/zodvex/tsconfig.json')
     const project = new Project({
       tsConfigFilePath: tsconfig,

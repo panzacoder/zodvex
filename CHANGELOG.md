@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`zodvex dev` regeneration ignored file edits.** Watcher fired and printed `Regenerating...`, but `_zodvex/api.js` was unchanged because the dynamic `import()` returned the previously-cached module. Cold-restarting the dev process picked up changes. Now fixed by per-run cache-busting in the watch path.
+- **`zod-to-mini` codemod safety** (`zodvex/labs`, internal `packages/zod-to-mini`) — `transformWrappers` no longer rewrites every `.nullable()` / `.optional()` chain unconditionally. With a type checker available, it confirms the receiver is a Zod schema; without one (string-in `transformCode`) it falls back to the same `z.<ctor>` / `zx.<ctor>` heuristic the rest of the codemod uses (now generalized to strip leading parens and `as <Type>` casts so common idioms work). And the codemod now injects `import { z } from 'zod/mini'` automatically when any transform emits `z.*` and the source didn't already import `z` — closes the runtime `ReferenceError: z is not defined` crash reported in #65.
 
 ## [0.7.1] - 2026-05-19
 
