@@ -2,7 +2,7 @@ import { z } from "zod";
 import { zx } from "zodvex";
 import { zq, zm } from "./functions";
 import { UserModel } from "./models/user";
-import { tagged } from "./tagged";
+import { taggedEmail } from "./tagged";
 
 export const get = zq({
   args: { id: zx.id("users") },
@@ -13,7 +13,7 @@ export const get = zq({
 });
 
 export const getByEmail = zq({
-  args: { email: tagged(z.string()) }, // inline factory codec — NOT the same instance as model
+  args: { email: taggedEmail }, // shared codec instance — codegen reuses the named export
   handler: async (ctx, { email }) => {
     return await ctx.db
       .query("users")

@@ -11,7 +11,10 @@ import {
 /**
  * One-shot codegen. Discovers modules, generates files.
  */
-export async function generate(convexDir?: string, options?: { mini?: boolean }): Promise<void> {
+export async function generate(
+  convexDir?: string,
+  options?: { mini?: boolean; freshImports?: boolean }
+): Promise<void> {
   const resolved = resolveConvexDir(convexDir)
   const zodvexDir = path.join(resolved, '_zodvex')
 
@@ -20,7 +23,7 @@ export async function generate(convexDir?: string, options?: { mini?: boolean })
   // codegen can't discover those modules — a chicken-and-egg problem.
   writeStubApi(zodvexDir)
 
-  const result = await discoverModules(resolved)
+  const result = await discoverModules(resolved, { freshImports: options?.freshImports })
 
   const schemaContent = generateSchemaFile(result.models)
   const apiContent = generateApiFile(
@@ -77,7 +80,11 @@ export async function dev(convexDir?: string, options?: { mini?: boolean }): Pro
     debounceTimer = setTimeout(async () => {
       console.log('[zodvex] Regenerating...')
       try {
-        await generate(resolved, options)
+        // freshImports: bust the ESM module cache so the regen sees the edit
+        // that triggered this tick. Without it, Node/Bun returns the cached
+        // module record from the first generate() call and the output looks
+        // stale even though the watcher fired.
+        await generate(resolved, { ...options, freshImports: true })
       } catch (err) {
         console.error('[zodvex] Generation failed:', (err as Error).message)
       }

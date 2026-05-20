@@ -1,7 +1,7 @@
 import { z } from 'zod/mini'
 import { zx, defineZodModel } from 'zodvex/mini'
 import { zDuration } from '../codecs'
-import { tagged } from '../tagged'
+import { taggedEmail, taggedTag } from '../tagged'
 
 /**
  * Discriminated union payloads — codecs are nested inside variant shapes.
@@ -16,13 +16,13 @@ const TaskCompletedPayload = z.object({
 
 const UserInvitedPayload = z.object({
   type: z.literal('user_invited'),
-  email: tagged(z.string()),  // factory codec nested in union variant
+  email: taggedEmail,  // shared codec instance — same one user.ts uses
 })
 
 export const activityFields = {
   actorId: zx.id('users'),
   payload: z.union([TaskCompletedPayload, UserInvitedPayload]),
-  tags: z.optional(z.array(tagged(z.string()))),  // factory codec inside array element
+  tags: z.optional(z.array(taggedTag)),  // shared codec instance for activity tags
   createdAt: zx.date(),
 }
 

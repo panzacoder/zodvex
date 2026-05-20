@@ -33,3 +33,12 @@ export function tagged<T extends z.ZodMiniType>(inner: T) {
     }),
   })
 }
+
+/**
+ * Stable codec instances for tagged emails and tags. Exported so codegen
+ * can identity-match references across model and function files — avoids
+ * the fingerprint-ambiguity path that fires when multiple `tagged(z.string())`
+ * factory calls compete for the same generated reference.
+ */
+export const taggedEmail = tagged(z.string())
+export const taggedTag = tagged(z.string())

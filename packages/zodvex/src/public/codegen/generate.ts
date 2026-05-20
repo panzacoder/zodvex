@@ -25,10 +25,47 @@ export type GeneratedFile = { js: string; dts: string }
  * wire (in) and runtime (out) schemas. Two factory-created codec instances
  * with the same arguments produce the same fingerprint, enabling dedup
  * even when object identity differs.
+ *
+ * The wire/runtime schemas are serialized via zodToSource, then suffixed
+ * with a stable representation of any checks (`.max(n)`, `.min(n)`, etc.)
+ * so that `sensitive(z.string())` and `sensitive(z.string().max(100))`
+ * land on distinct fingerprints. Without this, codecs that differ only by
+ * a constraint collide and the ambiguity-resolution path can't tell them
+ * apart by structure alone.
  */
 function fingerprintCodec(schema: $ZodType): string {
   if (!(schema instanceof $ZodCodec)) return ''
-  return `${zodToSource(schema._zod.def.in)}|${zodToSource(schema._zod.def.out)}`
+  return `${fingerprintLeaf(schema._zod.def.in)}|${fingerprintLeaf(schema._zod.def.out)}`
+}
+
+function fingerprintLeaf(schema: $ZodType): string {
+  return `${zodToSource(schema)}#${fingerprintChecks(schema)}`
+}
+
+function fingerprintChecks(schema: $ZodType): string {
+  const checks = (schema as any)?._zod?.def?.checks
+  if (!Array.isArray(checks) || checks.length === 0) return ''
+  const parts: string[] = []
+  for (const check of checks) {
+    const def = (check as any)?._zod?.def
+    if (!def) continue
+    const checkType = def.check ?? def.type ?? 'check'
+    // Stringify only the data that distinguishes one check from another —
+    // numeric bounds, regex sources, format names. Skip non-serializable
+    // fields (functions, error contributors) so the fingerprint stays stable.
+    const data: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(def)) {
+      if (k === 'check' || k === 'type' || k === 'error' || k === 'message') continue
+      const t = typeof v
+      if (t === 'string' || t === 'number' || t === 'boolean' || v === null) {
+        data[k] = v
+      } else if (v instanceof RegExp) {
+        data[k] = v.source
+      }
+    }
+    parts.push(`${checkType}(${JSON.stringify(data)})`)
+  }
+  return parts.sort().join('&')
 }
 
 /**
@@ -205,6 +242,44 @@ export function generateApiFile(
   functionCodecs?: FunctionEmbeddedCodec[],
   options?: { mini?: boolean }
 ): GeneratedFile {
+  // Sort every input collection by a stable key BEFORE walking. Discovery
+  // order can vary across platforms (different filesystem traversal); we
+  // need byte-identical output regardless of how the upstream walk ordered
+  // things. See MR 206 in hotpot / zodvex codegen determinism investigation.
+  const sortedModels = [...models].sort((a, b) =>
+    `${a.sourceFile}|${a.exportName}`.localeCompare(`${b.sourceFile}|${b.exportName}`)
+  )
+  const sortedFunctions = [...functions].sort((a, b) =>
+    a.functionPath.localeCompare(b.functionPath)
+  )
+  const sortedCodecs = codecs
+    ? [...codecs].sort((a, b) =>
+        `${a.sourceFile}|${a.exportName}`.localeCompare(`${b.sourceFile}|${b.exportName}`)
+      )
+    : undefined
+  const sortedModelCodecs = modelCodecs
+    ? [...modelCodecs].sort((a, b) =>
+        `${a.modelSourceFile}|${a.modelExportName}|${a.schemaKey}|${a.accessPath}`.localeCompare(
+          `${b.modelSourceFile}|${b.modelExportName}|${b.schemaKey}|${b.accessPath}`
+        )
+      )
+    : undefined
+  const sortedFunctionCodecs = functionCodecs
+    ? [...functionCodecs].sort((a, b) =>
+        `${a.functionSourceFile}|${a.functionExportName}|${a.schemaSource}|${a.accessPath}`.localeCompare(
+          `${b.functionSourceFile}|${b.functionExportName}|${b.schemaSource}|${b.accessPath}`
+        )
+      )
+    : undefined
+
+  // Replace the parameter bindings with sorted views so the rest of the
+  // function operates against deterministic order without further changes.
+  models = sortedModels
+  functions = sortedFunctions
+  codecs = sortedCodecs
+  modelCodecs = sortedModelCodecs
+  functionCodecs = sortedFunctionCodecs
+
   // Build identity map: runtime schema object → model reference string
   const identityMap = new Map<$ZodType, SchemaRef>()
   const neededModelImports = new Set<string>()
@@ -314,25 +389,77 @@ export function generateApiFile(
   // so identity matching fails. Fingerprinting matches by wire+runtime schema structure,
   // allowing us to reference the model/standalone codec instead of importing the function.
   // This avoids circular imports: functions.ts → _zodvex/api.ts → functionFile.ts → functions.ts
+  //
+  // Ambiguity handling: when multiple codecs share a fingerprint, we cannot
+  // pick "the right one" by insertion order — that's how the same source file
+  // produced different output on macOS vs Linux (hotpot MR 206). Instead we
+  // track all candidates, then per function-codec lookup we prefer a
+  // same-source-file candidate when one exists, otherwise we skip the reuse
+  // (the codec falls through to inline serialization).
   if (functionCodecs) {
-    const fingerprintMap = new Map<string, CodecRef>()
+    type FingerprintCandidate = { ref: CodecRef; sourceFile: string | undefined }
+    const fingerprintMap = new Map<string, FingerprintCandidate[]>()
+
+    // Build a lookup from codec schema → source file when we know it. Standalone
+    // exported codecs carry a sourceFile in their CodecRef; model-embedded codecs
+    // do not (their sourceFile is the MODEL_CODEC_SENTINEL).
+    const codecSchemaToSourceFile = new Map<$ZodType, string>()
+    for (const c of codecs ?? []) {
+      codecSchemaToSourceFile.set(c.schema, c.sourceFile)
+    }
+    for (const mc of modelCodecs ?? []) {
+      codecSchemaToSourceFile.set(mc.codec, mc.modelSourceFile)
+    }
+
+    // codecMap iteration: insertion order. With sorted input collections
+    // above, this is already deterministic — but we still need ambiguity
+    // tracking so we don't silently let "last wins" pick a random candidate.
     for (const [codecSchema, ref] of codecMap) {
       const fp = fingerprintCodec(codecSchema)
-      if (fp) fingerprintMap.set(fp, ref)
+      if (!fp) continue
+      const sourceFile = codecSchemaToSourceFile.get(codecSchema)
+      const existing = fingerprintMap.get(fp)
+      if (existing) {
+        existing.push({ ref, sourceFile })
+      } else {
+        fingerprintMap.set(fp, [{ ref, sourceFile }])
+      }
     }
 
     for (const fc of functionCodecs) {
       if (codecMap.has(fc.codec)) continue
 
       const fp = fingerprintCodec(fc.codec)
-      const matchingRef = fp ? fingerprintMap.get(fp) : undefined
-      if (matchingRef) {
-        codecMap.set(fc.codec, matchingRef)
-      } else {
+      const candidates = fp ? fingerprintMap.get(fp) : undefined
+      if (!candidates || candidates.length === 0) {
         console.warn(
           `[zodvex] Warning: Codec in ${fc.functionExportName}() (${fc.accessPath}) has no matching model or exported codec. ` +
             `Export it standalone for full client-side codec support.`
         )
+        continue
+      }
+
+      let chosen: CodecRef | undefined
+      if (candidates.length === 1) {
+        chosen = candidates[0].ref
+      } else {
+        // Multiple candidates — pick one only if exactly one has the same
+        // source file as the function. Otherwise leave it for inline
+        // serialization so we don't gamble on insertion order.
+        const sameFile = candidates.filter(c => c.sourceFile === fc.functionSourceFile)
+        if (sameFile.length === 1) {
+          chosen = sameFile[0].ref
+        } else {
+          console.warn(
+            `[zodvex] Warning: Codec in ${fc.functionExportName}() (${fc.accessPath}) matches ${candidates.length} candidates with the same fingerprint ` +
+              `(${candidates.map(c => c.ref.exportName).join(', ')}). Cannot pick a canonical reference — emitting inline. ` +
+              `Export the codec standalone to disambiguate.`
+          )
+        }
+      }
+
+      if (chosen) {
+        codecMap.set(fc.codec, chosen)
       }
     }
   }
@@ -418,7 +545,7 @@ export function generateApiFile(
     imports.push(`import { ${coreImports.join(', ')} } from '${zodvexImport}'`)
   }
 
-  for (const exportName of neededModelImports) {
+  for (const exportName of [...neededModelImports].sort()) {
     const model = models.find(m => m.exportName === exportName)
     if (model) {
       const importPath = `../${model.sourceFile.replace(/\.ts$/, '.js')}`
@@ -426,9 +553,13 @@ export function generateApiFile(
     }
   }
 
-  // Codec imports (collected by zodToSource via context)
-  for (const [importPath, exportNames] of zodToSourceCtx.neededCodecImports) {
+  // Codec imports (collected by zodToSource via context). Sort the map's
+  // outer keys (import paths) and the inner Set values (export names) so
+  // the final import section is byte-stable across discovery orders.
+  const sortedCodecImportPaths = [...zodToSourceCtx.neededCodecImports.keys()].sort()
+  for (const importPath of sortedCodecImportPaths) {
     if (importPath === MODEL_CODEC_SENTINEL) continue
+    const exportNames = zodToSourceCtx.neededCodecImports.get(importPath) ?? new Set<string>()
     const names = Array.from(exportNames).sort().join(', ')
     imports.push(`import { ${names} } from '${importPath}'`)
   }

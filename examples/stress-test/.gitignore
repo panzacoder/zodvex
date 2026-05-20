@@ -3,5 +3,9 @@ convex/composed/
 convex/compiled/
 node_modules/
 
+# Stress-test runner working dirs
+_deploy/
+tmp/
+
 .env.local
 .measure-result.json

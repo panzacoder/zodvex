@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Codegen determinism guarantees** — `discoverModules` now sorts globbed files, and `generateApiFile` sorts every input collection (models, functions, codecs, model-embedded codecs, function-embedded codecs) by stable keys before emission. Regenerated output is byte-identical regardless of filesystem traversal order. Fixes cross-platform churn in `_zodvex/*.{js,d.ts}` (Hotpot MR 206).
+- **Fingerprint ambiguity handling** — when multiple codecs share a structural fingerprint, codegen no longer silently picks one by insertion order. Instead it tracks all candidates and either chooses one with a matching source file or emits inline with a clear warning. Codec fingerprints are also tightened to include `.max()` / `.min()` / regex / format checks so `sensitive(z.string())` and `sensitive(z.string().max(100))` are no longer treated as interchangeable.
+- **Watch-mode cache busting** (`zodvex dev`) — successive codegen runs in the same process now pick up file edits. Previously the ESM dynamic-import cache returned stale modules on each tick, making it look like the debounce fired without effect. Opt-in via the new `freshImports` option on `discoverModules`/`generate`; the `dev` command opts in automatically.
+
+### Changed
+
+- **Examples updated** — `examples/task-manager` and `examples/task-manager-mini` now export a shared `taggedEmail` / `taggedTag` codec from `tagged.ts` and reference it across models + functions, instead of calling the `tagged()` factory inline at each site. This demonstrates the recommended pattern for the fingerprint-ambiguity rule above and produces a cleaner generated registry.
+
+### Fixed
+
+- **`zodvex dev` regeneration ignored file edits.** Watcher fired and printed `Regenerating...`, but `_zodvex/api.js` was unchanged because the dynamic `import()` returned the previously-cached module. Cold-restarting the dev process picked up changes. Now fixed by per-run cache-busting in the watch path.
+
 ## [0.7.1] - 2026-05-19
 
 Memory-focused release. Roughly **3.7×** more endpoints fit in Convex's 64 MB push-time isolate when combining the new slim-model option with `zod/mini` (stress-test ceiling: 135 → 500 endpoints).
