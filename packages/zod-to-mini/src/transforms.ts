@@ -39,7 +39,7 @@ function getMethodName(call: CallExpression): string | null {
 
 const WRAPPER_METHODS = ['optional', 'nullable'] as const
 
-export function transformWrappers(file: SourceFile): number {
+export function transformWrappers(file: SourceFile, typeChecker?: TypeChecker): number {
   let count = 0
 
   // Process innermost calls first by reversing (deepest nodes last in AST order)
@@ -53,6 +53,28 @@ export function transformWrappers(file: SourceFile): number {
 
     const obj = getCallObject(call)
     if (!obj) continue
+
+    // Skip namespace calls — `z.optional()` is a constructor, not a method chain.
+    if (isNamespaceCall(obj)) continue
+
+    // Receiver gating: only rewrite when we're confident the receiver is a
+    // Zod schema. Without this, generic chains like `someUserHelper().nullable()`
+    // or string `.nullable()` (hypothetical user code) would get rewritten to
+    // `z.nullable(...)` and break at runtime. See #65.
+    let isSchema: boolean
+    if (typeChecker) {
+      const typeResult = isZodSchemaByType(call, typeChecker)
+      // true = confirmed schema, false = confirmed non-schema, null = unknown.
+      // When unknown (typically string-in mode with no project info), fall
+      // back to the syntactic heuristic, then to scope-tracking.
+      isSchema = typeResult === true || (typeResult === null && isLikelySchemaExpr(obj))
+    } else {
+      isSchema = isLikelySchemaExpr(obj)
+    }
+    if (!isSchema && isSchemaVariable(call, obj.trim())) {
+      isSchema = true
+    }
+    if (!isSchema) continue
 
     // Replace `expr.optional()` → `z.optional(expr)`
     call.replaceWithText(`z.${method}(${obj})`)
@@ -119,12 +141,19 @@ const AMBIGUOUS_CHECK_METHODS = [
   'gt', 'gte', 'lt', 'lte',
 ] as const
 
-/** Returns true if the object expression looks like a Zod schema chain */
+/** Returns true if the object expression looks like a Zod schema chain.
+ *  Strips leading parens and `as <Type>` casts before matching so common
+ *  idioms like `(zx.doc(model) as any)` aren't rejected. */
 function isLikelySchemaExpr(obj: string): boolean {
+  const normalized = obj
+    .trim()
+    .replace(/^\(+/, '') // strip leading open parens
+    .replace(/\s+as\s+[\w$<>,\s|&[\]]+\)*\s*$/, '') // strip trailing `as Type` (incl. unions/generics)
+    .trim()
   // z.string(), z.number(), z.object({...}), z.array(...), etc.
-  if (obj.match(/^z\.\w+\(/)) return true
+  if (normalized.match(/^z\.\w+\(/)) return true
   // zx.id(...), zx.date(), etc.
-  if (obj.match(/^zx\.\w+\(/)) return true
+  if (normalized.match(/^zx\.\w+\(/)) return true
   return false
 }
 
@@ -561,6 +590,37 @@ export function findObjectOnlyMethods(file: SourceFile): Array<{ line: number; m
 }
 
 // ---------------------------------------------------------------------------
+// Ensure `z` import is present if the transformed source references it.
+//
+// Other transforms emit `z.optional(...)`, `z.nullable(...)`, `z.check(...)`,
+// `z.pipe(...)`, etc. If the source file didn't already import `z`, the
+// transformed module would crash at load time. We scan for any property
+// access starting with `z.` (excluding strings/comments) and inject
+// `import { z } from 'zod/mini'` if needed.
+// ---------------------------------------------------------------------------
+
+function ensureZImport(file: SourceFile): void {
+  // Cheap text check first — avoid AST work if there's no `z.` at all.
+  const text = file.getFullText()
+  if (!/\bz\./.test(text)) return
+
+  // Is `z` already imported via a named import?
+  const hasZImport = file
+    .getImportDeclarations()
+    .some(imp => imp.getNamedImports().some(n => n.getName() === 'z'))
+  if (hasZImport) return
+
+  // Cheap local-shadow check — only top-level `const z = ...` matters in
+  // practice. Avoids a full AST walk on every transformFile call.
+  if (/^\s*(?:const|let|var)\s+z\s*[=:]/m.test(text)) return
+
+  file.addImportDeclaration({
+    moduleSpecifier: 'zod/mini',
+    namedImports: [{ name: 'z' }]
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Transform: import paths
 // import { z } from 'zod' → import { z } from 'zod/mini'
 // import { ZodError } from 'zod' → import { ZodError } from 'zod/mini'
@@ -825,7 +885,7 @@ export function transformFile(file: SourceFile, typeChecker?: TypeChecker): Tran
     // Constructor replacements FIRST — they change z.object(shape).passthrough()
     // into z.looseObject(shape), which may then have .optional() etc. on the outside
     const cr = transformConstructorReplacements(file)
-    const w = transformWrappers(file)
+    const w = transformWrappers(file, typeChecker)
     const c = transformChecks(file)
     const m = transformMethods(file, typeChecker)
     const pa = transformPropertyAccessors(file, typeChecker)
@@ -840,6 +900,16 @@ export function transformFile(file: SourceFile, typeChecker?: TypeChecker): Tran
   const classRefs = transformClassRefs(file)
   const objectOnlyWarnings = findObjectOnlyMethods(file)
   const propertyAccessWarnings = findInternalPropertyAccess(file, typeChecker)
+
+  // After all transforms, ensure `z` is imported if any transform emitted
+  // `z.<something>` and the source didn't already bring it in. Without this,
+  // a string-in caller (`transformCode`) that didn't already `import { z }`
+  // would produce code that crashes at module load with `ReferenceError: z`.
+  // See #65 for the bug this guards against. We always import from 'zod/mini'
+  // because that's the destination this codemod targets; if a caller skipped
+  // `transformImports` and the file still says `from 'zod'`, that's the
+  // caller's choice to resolve.
+  ensureZImport(file)
 
   // Import transform is done LAST (after all other transforms)
   // so we don't accidentally affect the transform logic

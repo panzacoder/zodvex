@@ -6,7 +6,13 @@ function transform(code: string): string {
   const project = new Project({ useInMemoryFileSystem: true })
   const file = project.createSourceFile('test.ts', code)
   transformFile(file)
-  return file.getFullText().trim()
+  // Strip the auto-injected `import { z } from 'zod/mini'` so these unit
+  // tests can keep asserting against the bare transformed expression.
+  // Real callers WANT the import — the test contract just predates it.
+  return file
+    .getFullText()
+    .replace(/^import\s*\{\s*z\s*\}\s*from\s*"zod\/mini";\s*\n+/, '')
+    .trim()
 }
 
 describe('transformWrappers', () => {
@@ -554,11 +560,18 @@ describe('transformCode', () => {
     expect(result.code).not.toContain('zod/v4/core')
   })
 
-  it('handles fixture-style code with non-z schema expressions', () => {
+  it('rewrites z.-rooted chains and leaves unresolvable receivers alone (#65)', () => {
+    // `taggedEmail.optional()` is a chain whose receiver type can't be
+    // resolved in string-in mode (no project / no type info). Under the
+    // post-#65 safety rule, transformWrappers skips it instead of blindly
+    // rewriting to `z.optional(taggedEmail)` — a false-positive would
+    // produce code that crashes at runtime if `taggedEmail` isn't actually
+    // a Zod schema. The z.string() chain still rewrites because the
+    // receiver clearly matches the `z.<ctor>` heuristic.
     const input = `import { z } from 'zod'\n\nconst taggedEmail = tagged(z.string())\nconst schema = z.object({\n  email: taggedEmail.optional(),\n  notes: z.string().nullable().optional(),\n})\n`
     const result = transformCode(input)
     expect(result.changed).toBe(true)
-    expect(result.code).toContain('z.optional(taggedEmail)')
+    expect(result.code).toContain('taggedEmail.optional()')
     expect(result.code).toContain('z.optional(z.nullable(z.string()))')
   })
 
@@ -578,5 +591,41 @@ describe('transformCode', () => {
     expect(result.code).toContain('new $ZodError(')
     expect(result.code).toContain('instanceof $ZodError')
     expect(result.code).toContain('from "zod/v4/core"')
+  })
+
+  // ----- Regression: #65 import-injection -----
+
+  it('#65: injects `z` import when transforms emit z.* and source has no z import', () => {
+    // zodvex-style source: zx.doc(...).nullable() — the receiver matches
+    // the `zx.<ctor>` heuristic, so transformWrappers rewrites to
+    // `z.nullable(zx.doc(...))`. Before the fix, the resulting code
+    // referenced `z` without importing it and crashed at module load
+    // with `ReferenceError: z is not defined`.
+    const input = `import { zx } from 'zodvex'\n\nexport const r = zx.doc(M).nullable()\n`
+    const result = transformCode(input)
+    expect(result.changed).toBe(true)
+    expect(result.code).toContain('z.nullable(zx.doc(M))')
+    // Must include a `z` import sourced from `zod/mini` (the codemod's target).
+    expect(result.code).toMatch(/import\s*\{[^}]*\bz\b[^}]*\}\s*from\s*["']zod\/mini["']/)
+  })
+
+  it('#65: does not duplicate `z` import when one already exists', () => {
+    const input = `import { z } from 'zod'\n\nexport const s = z.string().nullable()\n`
+    const result = transformCode(input)
+    expect(result.changed).toBe(true)
+    expect(result.code).toContain('z.nullable(z.string())')
+    // Should only have one `z` import — transformImports isn't auto-applied,
+    // so the original `from 'zod'` stays. The fix must not duplicate it.
+    const zImports = result.code.match(/import\s*\{[^}]*\bz\b[^}]*\}\s*from\s*["'][^"']+["']/g) ?? []
+    expect(zImports.length).toBe(1)
+  })
+
+  it('#65: does not inject z when no transform fires (no z. references)', () => {
+    // Code with no zod / no transformation should be left untouched.
+    const input = `export const x = 42\nexport const y = 'hello'\n`
+    const result = transformCode(input)
+    expect(result.changed).toBe(false)
+    expect(result.code).toBe(input)
+    expect(result.code).not.toContain('zod/mini')
   })
 })
