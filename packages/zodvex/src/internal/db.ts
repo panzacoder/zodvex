@@ -563,7 +563,9 @@ export class ZodvexDatabaseReader<
 
 /**
  * Wraps a GenericDatabaseWriter with automatic Zod codec encoding on writes
- * and decoding on reads. Delegates read operations to a ZodvexDatabaseReader.
+ * and decoding on reads. Inherits read methods from ZodvexDatabaseReader so
+ * that `ZodvexDatabaseWriter` narrows to `ZodvexDatabaseReader` at call sites
+ * — the native Convex `MutationCtx → QueryCtx` idiom (#64).
  *
  * Does NOT implement GenericDatabaseWriter<DataModel> because query() returns
  * ZodvexQueryChain (decoded types) instead of QueryInitializer (wire types).
@@ -571,56 +573,31 @@ export class ZodvexDatabaseReader<
 export class ZodvexDatabaseWriter<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any> = Record<string, any>
-> {
-  private reader: ZodvexDatabaseReader<DataModel, DecodedDocs>
-  system: GenericDatabaseWriter<DataModel>['system']
+> extends ZodvexDatabaseReader<DataModel, DecodedDocs> {
+  // Narrows the inherited `protected db` to the writer-typed view without
+  // shadowing the underlying instance. Used by the write methods below.
+  protected get writerDb(): GenericDatabaseWriter<DataModel> {
+    return this.db as GenericDatabaseWriter<DataModel>
+  }
 
-  constructor(
-    private db: GenericDatabaseWriter<DataModel>,
-    private tableMap: ZodTableMap
-  ) {
-    // DecodedDocs is phantom — the cast propagates the type through delegation.
-    this.reader = new ZodvexDatabaseReader(db, tableMap) as ZodvexDatabaseReader<
-      DataModel,
-      DecodedDocs
-    >
+  declare system: GenericDatabaseWriter<DataModel>['system']
+
+  constructor(db: GenericDatabaseWriter<DataModel>, tableMap: ZodTableMap) {
+    super(db, tableMap)
     this.system = db.system
   }
 
-  /** @internal Expose for wrapper construction (rules.ts, audit subclasses) */
-  get _internals(): {
+  /**
+   * @internal Expose writer-typed internals for rules / audit subclasses.
+   * Includes a `reader` field that aliases `this` (writer IS-A reader after
+   * the #64 refactor) so callers expecting `_internals.reader` still work.
+   */
+  override get _internals(): {
     db: GenericDatabaseWriter<DataModel>
     tableMap: ZodTableMap
     reader: ZodvexDatabaseReader<DataModel, DecodedDocs>
   } {
-    return { db: this.db, tableMap: this.tableMap, reader: this.reader }
-  }
-
-  // --- Read methods: delegate to reader ---
-
-  normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
-    tableName: TableName,
-    id: string
-  ): GenericId<TableName> | null {
-    return this.reader.normalizeId(tableName, id)
-  }
-
-  get<TableName extends TableNamesInDataModel<DataModel>>(
-    id: GenericId<TableName>
-  ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
-  /** @internal 2-arg form for table-first lookups */
-  get(idOrTable: any, maybeId?: any): Promise<any>
-  get(idOrTable: any, maybeId?: any): Promise<any> {
-    return this.reader.get(idOrTable, maybeId)
-  }
-
-  query<TableName extends TableNamesInDataModel<DataModel>>(
-    tableName: TableName
-  ): ZodvexQueryChain<
-    NamedTableInfo<DataModel, TableName>,
-    ResolveDecodedDoc<DataModel, DecodedDocs, TableName>
-  > {
-    return this.reader.query(tableName)
+    return { db: this.writerDb, tableMap: this.tableMap, reader: this }
   }
 
   // --- Write methods: encode before delegating ---
@@ -634,7 +611,7 @@ export class ZodvexDatabaseWriter<
   async insert(table: any, value: any): Promise<any> {
     const schemas = this.tableMap[table as string]
     const wireValue = schemas ? encodeDoc(schemas.insert, value) : value
-    return this.db.insert(table, wireValue)
+    return this.writerDb.insert(table, wireValue)
   }
 
   patch<TableName extends TableNamesInDataModel<DataModel>>(
@@ -665,9 +642,9 @@ export class ZodvexDatabaseWriter<
 
     if (maybeValue !== undefined) {
       // 3-arg form (table, id, value) is @internal in Convex types — cast required
-      return (this.db as any).patch(idOrTable, id, wireValue)
+      return (this.writerDb as any).patch(idOrTable, id, wireValue)
     }
-    return this.db.patch(id, wireValue)
+    return this.writerDb.patch(id, wireValue)
   }
 
   replace<TableName extends TableNamesInDataModel<DataModel>>(
@@ -696,9 +673,9 @@ export class ZodvexDatabaseWriter<
 
     if (maybeValue !== undefined) {
       // 3-arg form (table, id, value) is @internal in Convex types — cast required
-      return (this.db as any).replace(idOrTable, id, wireValue)
+      return (this.writerDb as any).replace(idOrTable, id, wireValue)
     }
-    return this.db.replace(id, wireValue)
+    return this.writerDb.replace(id, wireValue)
   }
 
   delete<TableName extends TableNamesInDataModel<DataModel>>(
@@ -709,16 +686,18 @@ export class ZodvexDatabaseWriter<
   async delete(idOrTable: any, maybeId?: any): Promise<void> {
     if (maybeId !== undefined) {
       // 2-arg form (table, id) is @internal in Convex types — cast required
-      return (this.db as any).delete(idOrTable, maybeId)
+      return (this.writerDb as any).delete(idOrTable, maybeId)
     }
-    return this.db.delete(idOrTable)
+    return this.writerDb.delete(idOrTable)
   }
 
   /**
    * Returns a new ZodvexDatabaseWriter that applies per-table read and write rules.
    * The returned writer is also a ZodvexDatabaseWriter, so `.withRules()` can be chained.
+   *
+   * Overrides Reader's signature so a writer chained call returns a writer.
    */
-  withRules<Ctx>(
+  override withRules<Ctx>(
     ctx: Ctx,
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
@@ -730,8 +709,10 @@ export class ZodvexDatabaseWriter<
    * Returns a new ZodvexDatabaseWriter that fires audit callbacks on reads and writes.
    * The returned writer is also a ZodvexDatabaseWriter, so `.audit()` can be chained
    * with `.withRules()`.
+   *
+   * Overrides Reader's signature so a writer chained call returns a writer.
    */
-  audit(config: WriterAuditConfig): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+  override audit(config: WriterAuditConfig): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
     return createAuditDatabaseWriter(this, config)
   }
 }

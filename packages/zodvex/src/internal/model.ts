@@ -19,6 +19,23 @@ import type { AddSystemFieldsToUnion } from './schemaHelpers'
 import { $ZodArray, type $ZodShape, $ZodType, type input as zinput } from './zod-core'
 import type { ZxId } from './zx'
 
+/**
+ * Build the user-facing validator for a model. For raw-shape input we build
+ * `z.object(fields)` lazily on first access; the bundle's `.insert` already
+ * holds an equivalent for full models, but we want a stable identity that's
+ * keyed on the model itself (so chained `.index()` calls don't reallocate).
+ */
+function lazyValidator(fields: $ZodShape, userSchema: $ZodType | null): { get: () => $ZodType } {
+  let cached: $ZodType | undefined
+  return {
+    get: () => {
+      if (cached) return cached
+      cached = userSchema ?? z.object(fields)
+      return cached
+    }
+  }
+}
+
 function createModel<Name extends string>(
   name: Name,
   fields: $ZodShape,
@@ -26,15 +43,23 @@ function createModel<Name extends string>(
   definitionSource: ZodvexModelDefinitionSource,
   indexes: Record<string, readonly string[]> = {},
   searchIndexes: Record<string, SearchIndexConfig> = {},
-  vectorIndexes: Record<string, VectorIndexConfig> = {}
+  vectorIndexes: Record<string, VectorIndexConfig> = {},
+  // The user-supplied schema for overload-2 (definitionSource === 'schema').
+  // Passing it through preserves identity across chained .index() calls; for
+  // shape-input it's null and the lazy getter builds z.object(fields).
+  userSchema: $ZodType | null = null
 ): any {
-  const model = {
+  const validatorCache = lazyValidator(fields, userSchema)
+  const model: any = {
     name,
     fields,
     schema,
     indexes,
     searchIndexes,
     vectorIndexes,
+    get validator() {
+      return validatorCache.get()
+    },
     index(indexName: string, indexFields: readonly string[]) {
       return createModel(
         name,
@@ -43,7 +68,8 @@ function createModel<Name extends string>(
         definitionSource,
         { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
         searchIndexes,
-        vectorIndexes
+        vectorIndexes,
+        userSchema
       )
     },
     searchIndex(indexName: string, config: SearchIndexConfig) {
@@ -54,14 +80,21 @@ function createModel<Name extends string>(
         definitionSource,
         indexes,
         { ...searchIndexes, [indexName]: config },
-        vectorIndexes
+        vectorIndexes,
+        userSchema
       )
     },
     vectorIndex(indexName: string, config: VectorIndexConfig) {
-      return createModel(name, fields, schema, definitionSource, indexes, searchIndexes, {
-        ...vectorIndexes,
-        [indexName]: config
-      })
+      return createModel(
+        name,
+        fields,
+        schema,
+        definitionSource,
+        indexes,
+        searchIndexes,
+        { ...vectorIndexes, [indexName]: config },
+        userSchema
+      )
     }
   }
 
@@ -89,12 +122,16 @@ function createSlimModel<Name extends string>(
   searchIndexes: Record<string, SearchIndexConfig> = {},
   vectorIndexes: Record<string, VectorIndexConfig> = {}
 ): any {
+  const validatorCache = lazyValidator(fields, userSchema)
   const model: any = {
     name,
     fields,
     indexes,
     searchIndexes,
     vectorIndexes,
+    get validator() {
+      return validatorCache.get()
+    },
     index(indexName: string, indexFields: readonly string[]) {
       return createSlimModel(
         name,
@@ -278,6 +315,12 @@ export type ZodModel<
   readonly indexes: Indexes
   readonly searchIndexes: SearchIndexes
   readonly vectorIndexes: VectorIndexes
+  /**
+   * The user-facing, parseable validator for the model — see ZodModelBase
+   * for the contract. Same `InsertSchema` type so refinements survive when
+   * the model was constructed from a pre-built schema (#56).
+   */
+  readonly validator: InsertSchema
 
   index<
     IndexName extends string,
@@ -349,6 +392,21 @@ export type ZodModelBase<
   readonly indexes: Indexes
   readonly searchIndexes: SearchIndexes
   readonly vectorIndexes: VectorIndexes
+  /**
+   * The user-facing, parseable schema for the model — typed as exactly the
+   * input the caller passed to `defineZodModel`:
+   *
+   * - For raw-shape input (overload 1): `z.object(model.fields)`, built
+   *   lazily on first access and cached. Equivalent to calling
+   *   `z.object(model.fields)` yourself, but typed precisely and shared.
+   * - For pre-built schema input (overload 2): the exact schema you passed,
+   *   refinements / checks / wrappers preserved. Avoids the trap of
+   *   round-tripping through `fields` and dropping `.refine()` constraints.
+   *
+   * Designed for client-side validation use cases (TanStack Form, RHF,
+   * standalone `.safeParse(...)`). See #56.
+   */
+  readonly validator: InsertSchema
 
   index<
     IndexName extends string,
@@ -523,7 +581,16 @@ export function defineZodModel<Name extends string>(
     if (slim) {
       return createSlimModel(name, {}, fieldsOrSchema as $ZodType, 'schema')
     }
-    return createModel(name, {}, createSchemaBundle(name, fieldsOrSchema as $ZodType), 'schema')
+    return createModel(
+      name,
+      {},
+      createSchemaBundle(name, fieldsOrSchema as $ZodType),
+      'schema',
+      undefined,
+      undefined,
+      undefined,
+      fieldsOrSchema as $ZodType
+    )
   }
 
   const fields = fieldsOrSchema as $ZodShape

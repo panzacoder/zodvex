@@ -1,8 +1,22 @@
 import { z } from 'zod/mini'
 import { zx } from 'zodvex/mini'
+import type { Id } from './_generated/dataModel'
+import type { QueryCtx } from './_zodvex/server'
 import { zq, zm } from './functions'
 import { TaskModel } from './models/task'
 import { zDuration } from './codecs'
+
+/**
+ * Read-only helper typed as `QueryCtx`. Used by both `get` (a query) and
+ * `complete` (a mutation) below. Demonstrates the native Convex idiom of
+ * narrowing `MutationCtx → QueryCtx` for read-only call sites — works
+ * out of the box as of 0.7.2 (see #64).
+ */
+async function getTaskOrThrow(ctx: QueryCtx, id: Id<'tasks'>) {
+  const task = await ctx.db.get(id)
+  if (!task) throw new Error(`task ${id} not found`)
+  return task
+}
 
 export const get = zq({
   args: { id: zx.id('tasks') },
@@ -87,6 +101,12 @@ export const update = zm({
 export const complete = zm({
   args: { id: zx.id('tasks') },
   handler: async (ctx, { id }) => {
+    // Calls a QueryCtx-typed helper from a mutation handler. Pre-0.7.2 this
+    // would fail typecheck with "Property 'db' is private in type
+    // 'ZodvexDatabaseWriter' but not in type 'ZodvexDatabaseReader'."
+    // (#64). After the writer-extends-reader refactor it's the idiomatic
+    // Convex pattern.
+    await getTaskOrThrow(ctx, id)
     await ctx.db.patch(id, {
       status: 'done' as const,
       completedAt: new Date(),

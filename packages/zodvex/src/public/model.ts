@@ -111,6 +111,12 @@ export type ZodModel<
   readonly indexes: Indexes
   readonly searchIndexes: SearchIndexes
   readonly vectorIndexes: VectorIndexes
+  /**
+   * The user-facing, parseable validator for the model. For raw-shape input
+   * this is `z.object(model.fields)`; for pre-built schema input this is the
+   * exact schema the caller passed, refinements / checks preserved. See #56.
+   */
+  readonly validator: InsertSchema
 
   index<
     IndexName extends string,
