@@ -144,6 +144,10 @@ export const zodvexRegistry = {
     args: z.object({ id: zx.id("tasks"), title: z.string().optional(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), priority: z.enum(["low", "medium", "high"]).nullable().optional(), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), estimate: zDuration.optional() }),
     returns: undefined,
   },
+  'users:countByEmail': {
+    args: z.object({ email: taggedEmail }),
+    returns: z.number(),
+  },
   'users:create': {
     args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.string().optional() }),
     returns: zx.id("users"),

@@ -1,3 +1,4 @@
+import { readCodecBrand } from '../../internal/meta'
 import {
   $ZodCodec,
   $ZodNullable,
@@ -417,8 +418,12 @@ export function generateApiFile(
   // every such case and hard-error after the loop — a loud build-time failure
   // beats silent boundary corruption.
   if (functionCodecs) {
-    type FingerprintCandidate = { ref: CodecRef; sourceFile: string | undefined }
-    const fingerprintMap = new Map<string, FingerprintCandidate[]>()
+    type Candidate = { ref: CodecRef; sourceFile: string | undefined; brand: string | undefined }
+    const fingerprintMap = new Map<string, Candidate[]>()
+    // brand → importable candidates that declared it. Brand is the author's
+    // explicit identity (see docs/decisions/2026-06-08-codec-provenance-brands.md),
+    // matched ahead of the structural fingerprint and namespaced across factories.
+    const brandMap = new Map<string, Candidate[]>()
 
     // Build a lookup from codec schema → source file when we know it. Standalone
     // exported codecs carry a sourceFile in their CodecRef; model-embedded codecs
@@ -432,14 +437,19 @@ export function generateApiFile(
     }
 
     for (const [codecSchema, ref] of codecMap) {
-      const fp = fingerprintCodec(codecSchema)
-      if (!fp) continue
       const sourceFile = codecSchemaToSourceFile.get(codecSchema)
-      const existing = fingerprintMap.get(fp)
-      if (existing) {
-        existing.push({ ref, sourceFile })
-      } else {
-        fingerprintMap.set(fp, [{ ref, sourceFile }])
+      const brand = readCodecBrand(codecSchema)
+      const candidate: Candidate = { ref, sourceFile, brand }
+      const fp = fingerprintCodec(codecSchema)
+      if (fp) {
+        const existing = fingerprintMap.get(fp)
+        if (existing) existing.push(candidate)
+        else fingerprintMap.set(fp, [candidate])
+      }
+      if (brand) {
+        const existing = brandMap.get(brand)
+        if (existing) existing.push(candidate)
+        else brandMap.set(brand, [candidate])
       }
     }
 
@@ -448,8 +458,21 @@ export function generateApiFile(
     for (const fc of functionCodecs) {
       if (codecMap.has(fc.codec)) continue
 
-      const fp = fingerprintCodec(fc.codec)
-      const candidates = fp ? fingerprintMap.get(fp) : undefined
+      // 1. Brand match — declared identity. Collision-free and namespaced: a
+      //    branded codec resolves only against codecs that declared the same brand.
+      const brand = readCodecBrand(fc.codec)
+      let candidates: Candidate[] | undefined = brand ? brandMap.get(brand) : undefined
+
+      // 2. Fingerprint fallback — structural identity. Exclude any candidate that
+      //    declared a *different* brand (a cross-factory match would violate the
+      //    brand's intent); unbranded candidates are always eligible.
+      if (!candidates || candidates.length === 0) {
+        const fp = fingerprintCodec(fc.codec)
+        candidates = (fp ? fingerprintMap.get(fp) : undefined)?.filter(
+          c => c.brand === undefined || c.brand === brand
+        )
+      }
+
       if (!candidates || candidates.length === 0) {
         undiscoverable.push({ fn: fc.functionExportName, path: fc.accessPath })
         continue
@@ -472,11 +495,15 @@ export function generateApiFile(
             )
           )
           chosen = sorted[0].ref
-          console.warn(
-            `[zodvex] Note: Codec in ${fc.functionExportName}() (${fc.accessPath}) matches ${candidates.length} fingerprint-equivalent codecs ` +
-              `(${candidates.map(c => c.ref.exportName).join(', ')}). Referencing '${chosen.exportName}'. ` +
-              `Export the codec standalone if you want the reference to be explicit.`
-          )
+          // Branded cohorts are interchangeable by the author's explicit
+          // declaration — only flag ambiguity for inferred (unbranded) matches.
+          if (!brand) {
+            console.warn(
+              `[zodvex] Note: Codec in ${fc.functionExportName}() (${fc.accessPath}) matches ${candidates.length} fingerprint-equivalent codecs ` +
+                `(${candidates.map(c => c.ref.exportName).join(', ')}). Referencing '${chosen.exportName}'. ` +
+                `Export the codec standalone or give it a brand if you want the reference to be explicit.`
+            )
+          }
         }
       }
 

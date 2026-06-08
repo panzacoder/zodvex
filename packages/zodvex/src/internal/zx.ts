@@ -24,6 +24,7 @@ import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 import { zodvexCodec } from './codec'
 import { registryHelpers } from './ids'
+import { attachCodecBrand } from './meta'
 import { createSchemaUpdateSchema } from './modelSchemaBundle'
 import { addSystemFields } from './schemaHelpers'
 import type { ZodvexCodec } from './types'
@@ -129,6 +130,13 @@ function id<TableName extends string>(tableName: TableName): ZxId<TableName> {
  * @param wire - Zod schema for the wire format (stored in Convex)
  * @param runtime - Zod schema for the runtime format (used in code)
  * @param transforms - Encode/decode functions
+ * @param opts.brand - Optional provenance brand. When set, codegen matches a
+ *   function-embedded instance of this codec to its importable twin (an
+ *   exported const or model field with the same brand) by *declared* identity
+ *   rather than inferring it from structure — collision-free and namespaced
+ *   across factories. Useful for codec factories like `tagged()` / `sensitive()`
+ *   whose every call returns a fresh instance. See
+ *   `docs/decisions/2026-06-08-codec-provenance-brands.md`.
  *
  * @example
  * ```typescript
@@ -141,6 +149,11 @@ function id<TableName extends string>(tableName: TableName): ZxId<TableName> {
  *     encode: (value) => ({ encrypted: encrypt(value) })
  *   }
  * )
+ *
+ * // Branded factory codec — codegen matches inline instances by brand
+ * function tagged(inner, name) {
+ *   return zx.codec(wire(inner), runtime(inner), transforms, { brand: `tagged:${name}` })
+ * }
  * ```
  */
 function codec<W extends $ZodType, R extends $ZodType, WO = zoutput<W>, RI = zoutput<R>>(
@@ -149,9 +162,12 @@ function codec<W extends $ZodType, R extends $ZodType, WO = zoutput<W>, RI = zou
   transforms: {
     decode: (wire: WO) => RI
     encode: (runtime: RI) => WO
-  }
+  },
+  opts?: { brand?: string }
 ): FullZodvexCodec<W, R> {
-  return zodvexCodec(wire, runtime, transforms) as unknown as FullZodvexCodec<W, R>
+  const built = zodvexCodec(wire, runtime, transforms) as unknown as FullZodvexCodec<W, R>
+  if (opts?.brand) attachCodecBrand(built as object, opts.brand)
+  return built
 }
 
 /**
