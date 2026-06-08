@@ -65,7 +65,7 @@ describe("withIndex codec encoding", () => {
     // Encode args the same way a real client would: build the runtime value
     // (which includes displayValue from the codec's decode), then z.encode()
     // strips it back to wire format { value, tag }.
-    const argsSchema = z.object({ email: tagged(z.string()) });
+    const argsSchema = z.object({ email: tagged(z.string(), "email") });
     const wireArgs = z.encode(argsSchema, {
       email: { value: "bob@example.com", tag: "work", displayValue: "[work] bob@example.com" },
     });

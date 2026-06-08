@@ -1,5 +1,4 @@
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { globSync } from 'tinyglobby'
 import { z } from 'zod'
 import { readMeta, type ZodvexFunctionMeta, type ZodvexModelMeta } from '../../internal/meta'
@@ -20,10 +19,6 @@ import {
 import { zx } from '../../internal/zx'
 import { registerDiscoveryHooks, writeGeneratedStubs } from './discovery-hooks'
 import { findCodec } from './extractCodec'
-
-// Per-process counter for cache-busting dynamic imports across successive
-// discoverModules() calls. See the comment at the import call site below.
-let discoveryRunCounter = 0
 
 export type DiscoveredModel = {
   exportName: string
@@ -272,18 +267,15 @@ export function walkFunctionCodecs(functions: DiscoveredFunction[]): FunctionEmb
  * Imports each .ts/.js file, reads __zodvexMeta from exports,
  * and builds a registry of models and functions.
  *
+ * Each file is imported once per process. Watch mode (`zodvex dev`) does NOT
+ * re-import in-process between edits — query-string cache-busting is a
+ * Node-only trick that Bun's loader ignores (Bun caches ESM modules by
+ * resolved path), so the watcher spawns a fresh `generate` subprocess per
+ * change instead. See `regenerate()` in cli/commands.ts.
+ *
  * @param convexDir Absolute path to the convex directory to scan.
- * @param options.freshImports If true, append a per-run query string to each
- *   dynamic import so the ESM cache returns a fresh module record each call.
- *   Required for `zodvex dev` watch mode to pick up edits between regens.
- *   One-shot `generate` doesn't need it (each file is imported once per
- *   process). Default false — opt-in to avoid double-loading under test
- *   runners that intercept dynamic imports (Vitest/Vite SSR).
  */
-export async function discoverModules(
-  convexDir: string,
-  options?: { freshImports?: boolean }
-): Promise<DiscoveryResult> {
+export async function discoverModules(convexDir: string): Promise<DiscoveryResult> {
   const models: DiscoveredModel[] = []
   const functions: DiscoveredFunction[] = []
   const codecs: DiscoveredCodec[] = []
@@ -314,23 +306,13 @@ export async function discoverModules(
     ]
   }).sort()
 
-  // See the freshImports JSDoc. Watch mode opts in; one-shot generate skips
-  // the query string so test runners that intercept dynamic imports (Vitest
-  // / Vite SSR) don't double-load and create cross-instance Zod confusion.
-  let cacheKey: string | null = null
-  if (options?.freshImports) {
-    discoveryRunCounter += 1
-    cacheKey = `${process.pid}-${discoveryRunCounter}`
-  }
-
   try {
     for (const file of files) {
       const absPath = path.resolve(convexDir, file)
-      const importUrl = cacheKey ? `${pathToFileURL(absPath).href}?t=${cacheKey}` : absPath
 
       let moduleExports: Record<string, unknown>
       try {
-        moduleExports = await import(importUrl)
+        moduleExports = await import(absPath)
       } catch (err) {
         console.warn(`[zodvex] Warning: Failed to import ${file}:`, (err as Error).message)
         continue

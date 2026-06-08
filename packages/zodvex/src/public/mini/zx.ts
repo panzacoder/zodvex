@@ -27,9 +27,10 @@ function codec<W extends $ZodType, R extends $ZodType>(
   transforms: {
     decode: (wire: any) => any
     encode: (runtime: any) => any
-  }
+  },
+  opts?: { brand?: string }
 ): ZodvexCodec<W, R> {
-  return _zx.codec(wire, runtime, transforms) as unknown as ZodvexCodec<W, R>
+  return _zx.codec(wire, runtime, transforms, opts) as unknown as ZodvexCodec<W, R>
 }
 
 /** The zx namespace typed for zod-mini compatibility. */

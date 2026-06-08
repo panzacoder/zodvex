@@ -2,7 +2,7 @@ import { z } from "zod/mini";
 import { zx } from "zodvex/mini";
 import { zq, zm } from "./functions";
 import { UserModel } from "./models/user";
-import { taggedEmail } from "./tagged";
+import { tagged, taggedEmail } from "./tagged";
 
 export const get = zq({
   args: { id: zx.id("users") },
@@ -21,6 +21,23 @@ export const getByEmail = zq({
       .unique();
   },
   returns: z.nullable(UserModel.schema.doc),
+});
+
+// Inline factory codec — a fresh `tagged(...)` instance, NOT the shared
+// `taggedEmail` export. Codegen can't identity-match it, but the `tagged:email`
+// brand resolves it to the exported `taggedEmail` by declared identity, so the
+// generated api.js references `taggedEmail` (no inline husk, no fingerprint
+// guessing). See docs/decisions/2026-06-08-codec-provenance-brands.md.
+export const countByEmail = zq({
+  args: { email: tagged(z.string(), "email") },
+  handler: async (ctx, { email }) => {
+    const matches = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email.value", email.value))
+      .collect();
+    return matches.length;
+  },
+  returns: z.number(),
 });
 
 export const create = zm({
