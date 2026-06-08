@@ -32,10 +32,24 @@ export type GeneratedFile = { js: string; dts: string }
  * land on distinct fingerprints. Without this, codecs that differ only by
  * a constraint collide and the ambiguity-resolution path can't tell them
  * apart by structure alone.
+ *
+ * The transform bodies (decode/encode) are folded in too: two codecs with the
+ * same wire+runtime shape but different transform logic must NOT share a
+ * fingerprint, or the ambiguity path could reference a behaviorally-wrong
+ * codec. `.toString()` discriminates transform source (a residual gap remains
+ * for identical source with different captured closure config — documented).
  */
 function fingerprintCodec(schema: $ZodType): string {
   if (!(schema instanceof $ZodCodec)) return ''
-  return `${fingerprintLeaf(schema._zod.def.in)}|${fingerprintLeaf(schema._zod.def.out)}`
+  const def = schema._zod.def as {
+    in: $ZodType
+    out: $ZodType
+    transform?: unknown
+    reverseTransform?: unknown
+  }
+  const transform = typeof def.transform === 'function' ? def.transform.toString() : ''
+  const reverse = typeof def.reverseTransform === 'function' ? def.reverseTransform.toString() : ''
+  return `${fingerprintLeaf(def.in)}|${fingerprintLeaf(def.out)}|${transform}|${reverse}`
 }
 
 function fingerprintLeaf(schema: $ZodType): string {
@@ -386,16 +400,22 @@ export function generateApiFile(
 
   // Resolve function-embedded codecs against existing codecs by structural fingerprint.
   // Factory-created codecs (like tagged(), encrypted()) produce new instances each call,
-  // so identity matching fails. Fingerprinting matches by wire+runtime schema structure,
+  // so identity matching fails. Fingerprinting matches by wire+runtime+transform,
   // allowing us to reference the model/standalone codec instead of importing the function.
   // This avoids circular imports: functions.ts → _zodvex/api.ts → functionFile.ts → functions.ts
   //
-  // Ambiguity handling: when multiple codecs share a fingerprint, we cannot
-  // pick "the right one" by insertion order — that's how the same source file
-  // produced different output on macOS vs Linux (hotpot MR 206). Instead we
-  // track all candidates, then per function-codec lookup we prefer a
-  // same-source-file candidate when one exists, otherwise we skip the reuse
-  // (the codec falls through to inline serialization).
+  // Ambiguity handling: when multiple codecs share a fingerprint they are, by the
+  // fingerprint contract, behaviorally interchangeable — so any one is a correct
+  // reference. We prefer a same-source-file candidate, otherwise we pick the
+  // stable-sorted-first so output is byte-identical across discovery orders
+  // (hotpot MR 206). We MUST NOT fall through to inline serialization: a codec
+  // inlined via zodToSource loses its transform (emits the wire schema only),
+  // which silently breaks the client encode/decode path with no build signal.
+  //
+  // Zero candidates means the codec exists only inside the function (no model
+  // twin, not exported standalone) and has no importable reference. We collect
+  // every such case and hard-error after the loop — a loud build-time failure
+  // beats silent boundary corruption.
   if (functionCodecs) {
     type FingerprintCandidate = { ref: CodecRef; sourceFile: string | undefined }
     const fingerprintMap = new Map<string, FingerprintCandidate[]>()
@@ -411,9 +431,6 @@ export function generateApiFile(
       codecSchemaToSourceFile.set(mc.codec, mc.modelSourceFile)
     }
 
-    // codecMap iteration: insertion order. With sorted input collections
-    // above, this is already deterministic — but we still need ambiguity
-    // tracking so we don't silently let "last wins" pick a random candidate.
     for (const [codecSchema, ref] of codecMap) {
       const fp = fingerprintCodec(codecSchema)
       if (!fp) continue
@@ -426,41 +443,54 @@ export function generateApiFile(
       }
     }
 
+    const undiscoverable: { fn: string; path: string }[] = []
+
     for (const fc of functionCodecs) {
       if (codecMap.has(fc.codec)) continue
 
       const fp = fingerprintCodec(fc.codec)
       const candidates = fp ? fingerprintMap.get(fp) : undefined
       if (!candidates || candidates.length === 0) {
-        console.warn(
-          `[zodvex] Warning: Codec in ${fc.functionExportName}() (${fc.accessPath}) has no matching model or exported codec. ` +
-            `Export it standalone for full client-side codec support.`
-        )
+        undiscoverable.push({ fn: fc.functionExportName, path: fc.accessPath })
         continue
       }
 
-      let chosen: CodecRef | undefined
+      let chosen: CodecRef
       if (candidates.length === 1) {
         chosen = candidates[0].ref
       } else {
-        // Multiple candidates — pick one only if exactly one has the same
-        // source file as the function. Otherwise leave it for inline
-        // serialization so we don't gamble on insertion order.
+        // Prefer a unique same-source-file candidate; otherwise pick the
+        // stable-sorted-first. Either way we reference a real codec — never
+        // inline a transform-less husk.
         const sameFile = candidates.filter(c => c.sourceFile === fc.functionSourceFile)
         if (sameFile.length === 1) {
           chosen = sameFile[0].ref
         } else {
+          const sorted = [...candidates].sort((a, b) =>
+            `${a.sourceFile ?? ''}|${a.ref.exportName}`.localeCompare(
+              `${b.sourceFile ?? ''}|${b.ref.exportName}`
+            )
+          )
+          chosen = sorted[0].ref
           console.warn(
-            `[zodvex] Warning: Codec in ${fc.functionExportName}() (${fc.accessPath}) matches ${candidates.length} candidates with the same fingerprint ` +
-              `(${candidates.map(c => c.ref.exportName).join(', ')}). Cannot pick a canonical reference — emitting inline. ` +
-              `Export the codec standalone to disambiguate.`
+            `[zodvex] Note: Codec in ${fc.functionExportName}() (${fc.accessPath}) matches ${candidates.length} fingerprint-equivalent codecs ` +
+              `(${candidates.map(c => c.ref.exportName).join(', ')}). Referencing '${chosen.exportName}'. ` +
+              `Export the codec standalone if you want the reference to be explicit.`
           )
         }
       }
 
-      if (chosen) {
-        codecMap.set(fc.codec, chosen)
-      }
+      codecMap.set(fc.codec, chosen)
+    }
+
+    if (undiscoverable.length > 0) {
+      const list = undiscoverable.map(u => `  - ${u.fn}() at ${u.path}`).join('\n')
+      throw new Error(
+        `[zodvex] ${undiscoverable.length} codec(s) in function args/returns have no importable reference ` +
+          `(not exported standalone, not embedded in a model). The generated client cannot encode or decode ` +
+          `them, which silently breaks the codec boundary. Export each codec standalone (or add it to a model) ` +
+          `so codegen can import it:\n${list}`
+      )
     }
   }
 

@@ -182,7 +182,7 @@ describe('codegen determinism', () => {
     expect(out1.js).not.toMatch(/bravo/)
   })
 
-  it('shared-fingerprint function codec without same-source-file candidate is left inline', () => {
+  it('shared-fingerprint function codec without same-source-file candidate picks a deterministic reference', () => {
     const codecAlpha = sensitive(z.string())
     const codecBravo = sensitive(z.string())
     const fnCodec = sensitive(z.string())
@@ -212,12 +212,67 @@ describe('codegen determinism', () => {
     ]
 
     const result = generateApiFile(functions, [], codecs, [], functionCodecs)
-    // Neither alpha nor bravo should be picked — the codec falls through to
-    // inline serialization (which produces `z.string()` with a "transforms
-    // lost" annotation from zodToSource).
-    expect(result.js).toMatch(/transforms lost/)
-    expect(result.js).not.toMatch(/alpha/)
+    // The candidates are fingerprint-equivalent (same wire+runtime+transform),
+    // so any one is a behaviorally-correct reference. We must NEVER inline a
+    // transform-less husk (that silently breaks the client codec path with no
+    // build signal). Pick the stable-sorted-first candidate so output stays
+    // deterministic across discovery order (hotpot MR 206).
+    expect(result.js).not.toMatch(/transforms lost/)
+    expect(result.js).toMatch(/alpha/)
     expect(result.js).not.toMatch(/bravo/)
+
+    // Deterministic regardless of input order.
+    const reversed = generateApiFile(functions, [], [...codecs].reverse(), [], functionCodecs)
+    expect(reversed.js).toBe(result.js)
+  })
+
+  it('codecs with the same shape but different transforms get distinct fingerprints', () => {
+    // Same wire+runtime types, different transform bodies. Structure-only
+    // fingerprinting conflated these; transform-aware fingerprinting must keep
+    // them distinct so the matching-transform codec is the only candidate.
+    const upper = zx.codec(z.string(), z.string(), {
+      decode: (w: any) => w.toUpperCase(),
+      encode: (r: any) => r.toLowerCase()
+    })
+    const lower = zx.codec(z.string(), z.string(), {
+      decode: (w: any) => w.toLowerCase(),
+      encode: (r: any) => r.toUpperCase()
+    })
+    // fnCodec shares `upper`'s transform bodies exactly.
+    const fnCodec = zx.codec(z.string(), z.string(), {
+      decode: (w: any) => w.toUpperCase(),
+      encode: (r: any) => r.toLowerCase()
+    })
+
+    // Place the WRONG-transform candidate so it sorts first — proving the
+    // transform, not sort order, is what disambiguates.
+    const codecs: CodecForGeneration[] = [
+      { exportName: 'lowerCodec', sourceFile: 'codecs/aaa.ts', schema: lower },
+      { exportName: 'upperCodec', sourceFile: 'codecs/zzz.ts', schema: upper }
+    ]
+    const functions: DiscoveredFunction[] = [
+      {
+        functionPath: 'mod:run',
+        exportName: 'run',
+        sourceFile: 'mod.ts',
+        zodArgs: z.object({ payload: fnCodec }),
+        zodReturns: undefined
+      }
+    ]
+    const functionCodecs: FunctionEmbeddedCodec[] = [
+      {
+        codec: fnCodec,
+        functionExportName: 'run',
+        functionSourceFile: 'mod.ts',
+        schemaSource: 'zodArgs',
+        accessPath: '.shape.payload'
+      }
+    ]
+
+    const result = generateApiFile(functions, [], codecs, [], functionCodecs)
+    expect(result.js).toMatch(/upperCodec/)
+    expect(result.js).not.toMatch(/lowerCodec/)
+    expect(result.js).not.toMatch(/transforms lost/)
   })
 
   it('codecs with same wire/runtime types but different checks get distinct fingerprints', () => {

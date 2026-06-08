@@ -610,7 +610,7 @@ describe('function-embedded codec resolution', () => {
     encode: (r: string) => r.toLowerCase()
   })
 
-  it('warns and falls back when function codec has no model/standalone match', () => {
+  it('hard-errors when a function codec has no importable reference', () => {
     const funcs: DiscoveredFunction[] = [
       {
         functionPath: 'users:search',
@@ -629,13 +629,15 @@ describe('function-embedded codec resolution', () => {
         accessPath: '.shape.query'
       }
     ]
-    const { js: output } = generateApiFile(funcs, [], [], [], fnCodecs)
 
-    // No function imports — avoids circular dependency
-    expect(output).not.toContain('import { search }')
-    expect(output).not.toContain('readFnArgs')
-    // Codec falls through to wire schema
-    expect(output).toContain('transforms lost')
+    // The codec exists only inside the function args — no model twin, not
+    // exported standalone — so the generated client has nothing to import.
+    // Emitting a transform-less wire husk silently breaks the codec boundary
+    // with no build/type signal, so codegen must hard-error with an actionable
+    // message instead. See #66 follow-up (hotpot smoke-test blocker 2).
+    expect(() => generateApiFile(funcs, [], [], [], fnCodecs)).toThrow(
+      /no importable reference|export .*standalone/i
+    )
   })
 
   it('fingerprint-matches function codec to structurally equivalent model codec', () => {

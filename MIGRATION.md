@@ -39,23 +39,25 @@ No source code changes are required to upgrade. Two behavioral changes in codege
 
 Run `zodvex generate` (or `bun run dev` once) to absorb the diff, then commit. Subsequent regenerations will be stable.
 
-### Codec fingerprint ambiguity warnings
+### Codec fingerprint matching (and a new hard error)
 
 **What changed:**
 
-When `zodvex generate` walks function args and finds an embedded `ZodCodec`, it tries to match the codec to a model-embedded or exported codec with the same structural fingerprint so the generated `_zodvex/api.js` references the canonical alias instead of inlining the codec. Previously, when multiple codecs shared a fingerprint, "last write wins" picked one essentially at random (the same source could pick different codecs on different machines — see [Hotpot MR 206](https://gitlab.com/doxyme/cooks/hotpot/-/merge_requests/206)). Now codegen detects the ambiguity and either:
+When `zodvex generate` walks function args/returns and finds an embedded `ZodCodec`, it matches the codec to a model-embedded or exported codec with the same structural fingerprint so the generated `_zodvex/api.js` references the canonical alias. It must never inline a codec — inlining emits the wire schema only and drops the encode/decode transform, which silently breaks the client boundary with no build or type signal. Two changes:
 
-- Picks the candidate whose source file matches the function's source file (if exactly one matches), or
-- Emits the codec inline with a `/* codec: transforms lost */` annotation and a console warning.
+1. **Ambiguous matches resolve deterministically.** When multiple codecs share a fingerprint they are, by the fingerprint contract, behaviorally interchangeable, so codegen references one deterministically (prefers a same-source-file candidate, otherwise the stable-sorted-first) instead of "last write wins" (the source of the cross-machine drift in [Hotpot MR 206](https://gitlab.com/doxyme/cooks/hotpot/-/merge_requests/206)). Fingerprints now also fold in the codec's decode/encode transform bodies plus `.max()` / `.min()` / regex / format checks, so codecs that genuinely differ aren't conflated.
 
-**Action if you see the warning:**
+2. **A codec with no importable reference is now a hard error.** If a function defines a `ZodCodec` inline in its args/returns and that codec is neither exported standalone nor embedded in a model, codegen has nothing for the generated client to import — so it now fails the build rather than emitting a broken `/* codec: transforms lost */` husk.
+
+**Action if `zodvex generate` errors:**
 
 ```
-[zodvex] Warning: Codec in someFn() (.shape.someField) matches 3 candidates with the same fingerprint (...).
-Cannot pick a canonical reference — emitting inline. Export the codec standalone to disambiguate.
+[zodvex] 1 codec(s) in function args/returns have no importable reference
+(not exported standalone, not embedded in a model). ...
+  - someFn() at .shape.someField
 ```
 
-Export a shared codec instance and reuse it across model + function sites:
+Export the codec as a shared instance and reuse it across model + function sites:
 
 ```ts
 // codecs/tagged.ts
@@ -70,7 +72,7 @@ import { taggedEmail } from './codecs/tagged'
 export const getByEmail = zq({ args: { email: taggedEmail }, ... })
 ```
 
-With identity-matched references, codegen reuses the same `taggedEmail` import everywhere — no fingerprint round-trip, no ambiguity, no warning. `examples/task-manager` was updated to demonstrate this pattern.
+With a shared exported codec, codegen has a stable reference to import everywhere — no fingerprint round-trip, no ambiguity, no hard error. `examples/task-manager` demonstrates this pattern.
 
 ---
 

@@ -1,5 +1,7 @@
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { discoverModules } from '../codegen/discover'
 import {
   generateApiFile,
@@ -11,10 +13,7 @@ import {
 /**
  * One-shot codegen. Discovers modules, generates files.
  */
-export async function generate(
-  convexDir?: string,
-  options?: { mini?: boolean; freshImports?: boolean }
-): Promise<void> {
+export async function generate(convexDir?: string, options?: { mini?: boolean }): Promise<void> {
   const resolved = resolveConvexDir(convexDir)
   const zodvexDir = path.join(resolved, '_zodvex')
 
@@ -23,7 +22,7 @@ export async function generate(
   // codegen can't discover those modules — a chicken-and-egg problem.
   writeStubApi(zodvexDir)
 
-  const result = await discoverModules(resolved, { freshImports: options?.freshImports })
+  const result = await discoverModules(resolved)
 
   const schemaContent = generateSchemaFile(result.models)
   const apiContent = generateApiFile(
@@ -77,17 +76,14 @@ export async function dev(convexDir?: string, options?: { mini?: boolean }): Pro
     }
 
     if (debounceTimer) clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(async () => {
+    debounceTimer = setTimeout(() => {
       console.log('[zodvex] Regenerating...')
-      try {
-        // freshImports: bust the ESM module cache so the regen sees the edit
-        // that triggered this tick. Without it, Node/Bun returns the cached
-        // module record from the first generate() call and the output looks
-        // stale even though the watcher fired.
-        await generate(resolved, { ...options, freshImports: true })
-      } catch (err) {
-        console.error('[zodvex] Generation failed:', (err as Error).message)
-      }
+      // Spawn a fresh `generate` subprocess rather than regenerating in-process.
+      // A long-lived watcher can't reliably re-import edited modules: Bun's
+      // loader caches ESM by resolved path and ignores query-string busting, so
+      // an in-process regen emits stale output. A fresh process starts with an
+      // empty module cache and always sees the latest source.
+      void regenerate(resolved, options)
     }, 300)
   })
 
@@ -96,6 +92,32 @@ export async function dev(convexDir?: string, options?: { mini?: boolean }): Pro
     if (debounceTimer) clearTimeout(debounceTimer)
     watcher.close()
     process.exit(0)
+  })
+}
+
+/**
+ * Regenerate in a fresh subprocess. The dev watcher cannot re-import edited
+ * modules in-process under Bun (it caches ESM by resolved path and ignores
+ * query-string cache-busting), so each change spawns a one-shot `zodvex
+ * generate`, which starts with an empty module cache and always sees the
+ * latest source. Runtime-agnostic by construction.
+ *
+ * @internal Exported for tests; not part of the public API.
+ */
+export function regenerate(resolved: string, options?: { mini?: boolean }): Promise<void> {
+  const cliEntry = fileURLToPath(new URL('./index.js', import.meta.url))
+  const args = [cliEntry, 'generate', resolved]
+  if (options?.mini) args.push('--mini')
+  return new Promise(resolve => {
+    const child = spawn(process.execPath, args, { stdio: 'inherit' })
+    child.on('exit', code => {
+      if (code !== 0) console.error(`[zodvex] Regeneration exited with code ${code}`)
+      resolve()
+    })
+    child.on('error', err => {
+      console.error('[zodvex] Failed to spawn regeneration:', err.message)
+      resolve()
+    })
   })
 }
 
