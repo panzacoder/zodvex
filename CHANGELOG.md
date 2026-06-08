@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`.withContext()` customization args now go through the zod pipeline (#72).** A customization's declared `args` (e.g. a codec-typed `token`) were passed to Convex registration raw — no zod→Convex conversion — and handed to `input` **undecoded**; only per-function (consumer) args were handled. Now customization args are converted to Convex validators for registration and codec-**decoded** before `input` runs, symmetric with consumer args. The fix lives in the shared `customFnBuilder`, so it also covers direct `zCustomQuery` / `zCustomMutation` / `zCustomAction({ args: <zod>, input })`, not just `.withContext`. Pre-built Convex-validator customization args still pass through unchanged.
+
+### Changed
+
+- **`.withContext()` is now typed for zod args.** The customization's `args` are typed as a zod validator and `input` receives the **decoded runtime** values (`z.output`), matching the runtime behavior above. `CustomBuilder`'s custom-args slot became a resolved object type to express this. (#72)
+
 ## [0.7.2] - 2026-06-08
 
 ### Added

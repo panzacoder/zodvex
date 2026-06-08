@@ -8,8 +8,6 @@ import type {
   MutationBuilder,
   QueryBuilder
 } from 'convex/server'
-import type { PropertyValidators } from 'convex/values'
-import type { Customization } from 'convex-helpers/server/customFunctions'
 import { NoOp } from 'convex-helpers/server/customFunctions'
 import type { z } from 'zod'
 import { createZodvexActionCtx } from './actionCtx'
@@ -17,8 +15,10 @@ import type { CustomBuilder } from './custom'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
 import { createZodvexCustomization } from './customization'
 import type { ZodvexDatabaseReader, ZodvexDatabaseWriter } from './db'
+import type { ZodValidator } from './mapping'
 import type { ZodTableMap } from './schema'
 import type { AnyRegistry, Overwrite } from './types'
+import type { $ZodObject } from './zod-core'
 
 /**
  * The context type received by query handlers when wrapDb: true.
@@ -71,6 +71,34 @@ type InitServerBuilders = {
   internalAction: ActionBuilder<any, 'internal'>
 }
 
+type MaybePromise<T> = T | Promise<T>
+
+/**
+ * A `.withContext()` customization for zodvex builders. Unlike convex-helpers'
+ * `Customization` (which types `args` as Convex `PropertyValidators`), the
+ * declared `args` are **zod** — they run through the same zod→Convex + codec
+ * pipeline as consumer args, so `input` receives the **decoded runtime** values
+ * (`z.output`), and the resulting function registers the wire validator. See #72.
+ */
+type ZodWithContextCustomization<
+  InputCtx,
+  ZArgs extends ZodValidator,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  ExtraArgs extends Record<string, any>
+> = {
+  args?: ZArgs
+  input?: (
+    ctx: InputCtx,
+    args: z.output<$ZodObject<ZArgs>>,
+    extra?: ExtraArgs
+  ) => MaybePromise<{
+    ctx: CustomCtx
+    args?: CustomMadeArgs
+    onSuccess?: (params: { ctx: unknown; args: unknown; result: unknown }) => unknown
+  }>
+}
+
 /**
  * A zodvex builder: callable CustomBuilder + .withContext() for composing
  * user customizations on top of the codec layer.
@@ -93,21 +121,21 @@ export type ZodvexBuilder<
   Record<string, any>
 > & {
   withContext: <
-    CustomArgsValidator extends PropertyValidators,
-    CustomCtx extends Record<string, any>,
-    CustomMadeArgs extends Record<string, any>,
+    ZArgs extends ZodValidator = Record<string, never>,
+    CustomCtx extends Record<string, any> = Record<string, never>,
+    CustomMadeArgs extends Record<string, any> = Record<string, never>,
     ExtraArgs extends Record<string, any> = Record<string, any>
   >(
-    customization: Customization<
+    customization: ZodWithContextCustomization<
       Overwrite<InputCtx, CodecCtx>,
-      CustomArgsValidator,
+      ZArgs,
       CustomCtx,
       CustomMadeArgs,
       ExtraArgs
     >
   ) => CustomBuilder<
     FuncType,
-    CustomArgsValidator,
+    z.output<$ZodObject<ZArgs>>,
     Overwrite<CodecCtx, CustomCtx>,
     CustomMadeArgs,
     InputCtx,

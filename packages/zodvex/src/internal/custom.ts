@@ -118,7 +118,11 @@ type Registration<
  */
 export type CustomBuilder<
   FuncType extends 'query' | 'mutation' | 'action',
-  CustomArgsValidator extends PropertyValidators,
+  // The customization's caller-facing args as a resolved object type (the args
+  // the caller must supply so the customization's `input` can consume them).
+  // Resolved rather than a `PropertyValidators` slot so zodvex customizations
+  // (`.withContext({ args: <zod> })`) can express decoded-runtime arg types. #72
+  CustomArgs extends Record<string, any>,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
   InputCtx,
@@ -170,11 +174,11 @@ export type CustomBuilder<
     FuncType,
     Visibility,
     ArgsArrayToObject<
-      CustomArgsValidator extends Record<string, never>
+      CustomArgs extends Record<string, never>
         ? ArgsInput<ArgsValidator>
         : ArgsInput<ArgsValidator> extends [infer A]
-          ? [Expand<A & import('convex/values').ObjectType<CustomArgsValidator>>]
-          : [import('convex/values').ObjectType<CustomArgsValidator>]
+          ? [Expand<A & CustomArgs>]
+          : [CustomArgs]
     >,
     ReturnsZodValidator extends void ? ReturnValue : ReturnValueOutput<ReturnsZodValidator>
   >
@@ -192,7 +196,22 @@ export function customFnBuilder<
   customization: Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
   const customInput = customization.input ?? NoOp.input
-  const inputArgs = customization.args ?? NoOp.args
+  const rawInputArgs = customization.args ?? NoOp.args
+
+  // #72: a customization may declare its args as zod (e.g. a codec-typed arg in
+  // `.withContext({ args: { token: myCodec } })`). Those must enter the same
+  // pipeline as consumer args — converted to Convex validators for registration
+  // and codec-decoded before `input` runs. Pre-built Convex validators (the
+  // legacy shape) are passed through unchanged for back-compat.
+  const customArgEntries = Object.entries(rawInputArgs)
+  const customArgsAreZod =
+    customArgEntries.length > 0 && customArgEntries.every(([, v]) => v instanceof $ZodType)
+  const inputArgs = customArgsAreZod
+    ? zodToConvexFields(rawInputArgs as unknown as ZodValidator)
+    : rawInputArgs
+  const customArgsSchema = customArgsAreZod
+    ? (z.object(rawInputArgs as any) as unknown as $ZodObject)
+    : undefined
 
   return function customBuilder(fn: any): any {
     const { args, handler = fn, returns: maybeObject, ...extra } = fn
@@ -227,7 +246,8 @@ export function customFnBuilder<
             ctx,
             allArgs,
             inputArgs,
-            extra
+            extra,
+            customArgsSchema
           )
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
@@ -251,7 +271,8 @@ export function customFnBuilder<
           ctx,
           allArgs,
           inputArgs,
-          extra
+          extra,
+          customArgsSchema
         )
         const { finalCtx, finalArgs } = applyCustomizationResult(ctx as any, baseArgs, added)
 
@@ -293,7 +314,7 @@ export function zCustomQuery<
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ): CustomBuilder<
   'query',
-  CustomArgsValidator,
+  import('convex/values').ObjectType<CustomArgsValidator>,
   CustomCtx,
   CustomMadeArgs,
   GenericQueryCtx<DataModel>,
@@ -313,7 +334,7 @@ export function zCustomQuery<
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ): CustomBuilder<
   'query',
-  CustomArgsValidator,
+  import('convex/values').ObjectType<CustomArgsValidator>,
   CustomCtx,
   CustomMadeArgs,
   any,
@@ -358,7 +379,7 @@ export function zCustomMutation<
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ): CustomBuilder<
   'mutation',
-  CustomArgsValidator,
+  import('convex/values').ObjectType<CustomArgsValidator>,
   CustomCtx,
   CustomMadeArgs,
   ExtractCtx<Builder>,
@@ -396,7 +417,7 @@ export function zCustomAction<
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ): CustomBuilder<
   'action',
-  CustomArgsValidator,
+  import('convex/values').ObjectType<CustomArgsValidator>,
   CustomCtx,
   CustomMadeArgs,
   ExtractCtx<Builder>,

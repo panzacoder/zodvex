@@ -174,16 +174,18 @@ export async function runCustomizationInput(
   ctx: unknown,
   allArgs: Record<string, unknown>,
   inputArgs: Record<string, unknown>,
-  extra: Record<string, unknown>
+  extra: Record<string, unknown>,
+  argsSchema?: $ZodObject
 ): Promise<CustomInputResult | undefined> {
-  return (await customInput(
-    ctx,
-    // Cast justification: customInput expects ObjectType<CustomArgsValidator>, but pick()
-    // returns Partial<T>. The cast is safe because inputArgs keys are derived from
-    // CustomArgsValidator at the type level.
-    pick(allArgs, Object.keys(inputArgs)) as any,
-    extra
-  )) as CustomInputResult | undefined
+  // Cast justification: customInput expects ObjectType<CustomArgsValidator>, but pick()
+  // returns Partial<T>. The cast is safe because inputArgs keys are derived from
+  // CustomArgsValidator at the type level.
+  const picked = pick(allArgs, Object.keys(inputArgs)) as Record<string, unknown>
+  // #72: when the customization declared its args as zod, decode them (codec
+  // transforms applied) before the customization's `input` runs — symmetric
+  // with how consumer args are decoded via parseObjectArgsOrThrow.
+  const customArgs = argsSchema ? parseObjectArgsOrThrow(argsSchema, picked) : picked
+  return (await customInput(ctx, customArgs as any, extra)) as CustomInputResult | undefined
 }
 
 export function applyCustomizationResult(
