@@ -40,6 +40,14 @@ export const zodvexRegistry = {
     args: z.object({ id: zx.id("tasks") }),
     returns: TaskModel.schema.doc.nullable(),
   },
+  'audited:internalTouch': {
+    args: z.object({  }),
+    returns: z.string(),
+  },
+  'audited:touch': {
+    args: z.object({ note: z.string() }),
+    returns: z.string(),
+  },
   'cleanup:deleteOldDocs': {
     args: z.object({ table: z.string(), cutoffTimestamp: z.number() }),
     returns: z.number(),

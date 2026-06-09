@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`.withContext()` empty-args type regression (#72 fallout).** With `args: {}` (or no `args`), `input`'s args parameter widened to `{ [x: string]: unknown }` instead of `Record<string, never>` — breaking **standalone** (shared) customizations whose `input` params were hand-annotated narrower than that wide index signature (`TS2345` at `zm.withContext` / `zim.withContext`). Empty/absent args now resolve to `Record<string, never>`. Surfaced in hotpot's shared secure-mutation wrappers; only triggers when `input`'s args param is explicitly annotated (inline customizations get contextual inference), which is why it slipped the test suite.
+
+### Added
+
+- **`defineContext(builder, customization)`** (`zodvex/server`) — author a reusable `.withContext()` customization with full type inference and zero hand-annotations. An identity at runtime; the `builder` argument pins the input ctx (so `input`'s `ctx`/`args` are inferred) and the output generics are inferred from your `input`'s return. The result carries no visibility, so **one** customization feeds both same-kind builders — `zm`+`zim`, `za`+`zia`, `zq`+`ziq`. This is the blessed way to share a customization across the public + internal builder of a kind. See `docs/guide/custom-context.md`.
+- **`ZodvexCustomization<typeof builder>`** and **`ZodWithContextCustomization`** exported from `zodvex/server` — type aliases for annotating a `.withContext()` customization. They pin the input ctx but cannot infer the output generics from the value, so prefer `defineContext` when the customization adds ctx the handler reads.
+
 ## [0.7.3] - 2026-06-08
 
 ### Fixed

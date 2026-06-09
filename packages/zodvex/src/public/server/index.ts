@@ -49,11 +49,14 @@ export {
 } from '../../internal/db'
 // One-time setup + types
 export {
+  defineContext,
   initZodvex,
   type ZodvexActionCtx,
   type ZodvexBuilder,
+  type ZodvexCustomization,
   type ZodvexMutationCtx,
-  type ZodvexQueryCtx
+  type ZodvexQueryCtx,
+  type ZodWithContextCustomization
 } from '../../internal/init'
 // Rule and audit types for .withRules() and .audit()
 //
