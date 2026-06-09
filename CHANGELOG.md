@@ -5,10 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.3] - 2026-06-08
 
 ### Fixed
 
+- **`za.withContext()` reliably narrows the action `ctx` to `ActionCtx`.** A side effect of the #72 retype: when a customization's `input` declares an `extra?` parameter, the action `ctx` previously collapsed to `Record<string, never>`, forcing an explicit `ActionCtx` annotation. It now infers cleanly — `ctx.auth` / `ctx.runQuery` / `ctx.scheduler` are accessible with no annotation. Guarded by the `examples/task-manager` action; verified against hotpot.
 - **`.withContext()` customization args now go through the zod pipeline (#72).** A customization's declared `args` (e.g. a codec-typed `token`) were passed to Convex registration raw — no zod→Convex conversion — and handed to `input` **undecoded**; only per-function (consumer) args were handled. Now customization args are converted to Convex validators for registration and codec-**decoded** before `input` runs, symmetric with consumer args. The fix lives in the shared `customFnBuilder`, so it also covers direct `zCustomQuery` / `zCustomMutation` / `zCustomAction({ args: <zod>, input })`, not just `.withContext`. Pre-built Convex-validator customization args still pass through unchanged.
 
 ### Changed

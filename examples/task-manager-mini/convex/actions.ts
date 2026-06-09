@@ -1,12 +1,16 @@
 import { z } from 'zod/mini'
 import { za } from './functions'
 
-// Simple action with .withContext() to verify action context types work.
-// If za.withContext() collapsed ctx to { [k: string]: never }, this would
-// fail type-checking because ctx.auth would not be accessible.
+// Action .withContext() must narrow ctx to a real ActionCtx. Guards the action
+// context-collapse regression (#72 side effect): with an `extra?` param present,
+// the input ctx previously collapsed to `Record<string, never>`, forcing an
+// explicit `ActionCtx` annotation. It now infers cleanly — ctx.auth, ctx.runQuery,
+// and ctx.scheduler are all accessible with no annotation.
 const authedAction = za.withContext({
   args: {},
-  input: async (ctx) => {
+  input: async (ctx, _args, _extra?: { required?: string[] }) => {
+    void ctx.runQuery
+    void ctx.scheduler
     const identity = await ctx.auth.getUserIdentity()
     return {
       ctx: { userId: identity?.subject ?? 'anonymous' },
