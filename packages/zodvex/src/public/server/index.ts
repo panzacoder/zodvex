@@ -54,7 +54,6 @@ export {
   type ZodvexActionCtx,
   type ZodvexBuilder,
   type ZodvexCustomization,
-  type ZodvexCustomizationFor,
   type ZodvexMutationCtx,
   type ZodvexQueryCtx
 } from '../../internal/init'

@@ -74,28 +74,11 @@ Inline customizations (`zm.withContext({ … })`) get **contextual typing** — 
 
 Pass either builder of the pair (`zm` or `zim`) — the result is identical and carries no visibility, so both `.withContext()` calls accept it.
 
-### `ZodvexCustomizationFor<typeof builder>` (type-only alternative)
+### Why not a type annotation instead of the function?
 
-If you'd rather not wrap, `ZodvexCustomizationFor` is the matching type — but use it with **`satisfies`**, not a type annotation or an `as` cast:
+`defineContext` is the **single** way to author a shared customization — there is no type-only equivalent, and that's deliberate. Typing `input`'s `ctx` from the builder is something a type *can* do, but typing `input`'s `args` parameter from your declared `args`, and propagating the output ctx your `input` adds, both require inferring **from the value** — and only a generic function does that. A standalone type annotation (`const c: SomeType = { … }`) silently drops the output ctx, and a type that pins the builder can't adapt its `args` parameter to declared args. `defineContext` sidesteps all of it: it's an identity at runtime, so the only cost is the wrapper call.
 
-```ts
-import type { ZodvexCustomizationFor } from 'zodvex/server'
-
-const authed = {
-  args: {},
-  input: async (ctx, _args) => {
-    const identity = await resolveIdentity(ctx) // ctx contextually typed — no annotation
-    return { ctx: { ...ctx, identity }, args: {} }
-  },
-} satisfies ZodvexCustomizationFor<typeof zm>
-```
-
-`satisfies` is doing two jobs here:
-
-- It **checks** the object against `ZodvexCustomizationFor<typeof zm>`, which pins the input ctx — so `input`'s `ctx`/`args` are contextually typed and need no hand-annotations (no `noImplicitAny` errors).
-- It **keeps the inferred type of the value**, so the ctx your `input` adds (e.g. `ctx.identity`) survives into the handler.
-
-Do **not** use a type annotation (`const authed: ZodvexCustomizationFor<typeof zm> = { … }`) or an `as` cast (`{ … } as ZodvexCustomizationFor<typeof zm>`) here. Both *replace* the value's type with the generic-default target type, which silently **drops the output ctx** — handlers would no longer see the fields your `input` adds. `defineContext` and `satisfies` are the two forms that preserve it; prefer `defineContext` for readability, reach for `satisfies` when you want the type without the function wrapper.
+> If you genuinely need the customization type as a value-free type (e.g. to constrain a higher-order helper), `ZodvexCustomization<InputCtx, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs>` is exported as the raw structural shape (parallel to convex-helpers' `Customization`). You supply every generic explicitly — it does no inference. For authoring a customization, reach for `defineContext`, not this.
 
 > **Empty-args note (v0.7.4):** with `args: {}` (or no `args`), `input`'s args parameter types as `Record<string, never>`. v0.7.3 widened it to `{ [x: string]: unknown }`, which broke standalone customizations whose `input` params were hand-annotated `Record<string, never>`. v0.7.4 fixes that resolution whether or not you adopt `defineContext`.
 

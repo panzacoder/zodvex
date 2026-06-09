@@ -94,9 +94,9 @@ type ResolvedCustomArgs<ZArgs extends ZodValidator> =
  * and the resulting function registers the wire validator. See #72.
  *
  * For a reusable, standalone customization, author it with {@link defineContext}
- * (full inference, zero annotations) or annotate it with {@link ZodvexCustomizationFor}
- * — a bare object literal has no contextual type, so its `input` params would
- * otherwise need hand-annotations that drift from this type.
+ * (full inference, zero annotations) — a bare object literal has no contextual
+ * type, so its `input` params would otherwise need hand-annotations that drift
+ * from this type.
  */
 export type ZodvexCustomization<
   InputCtx,
@@ -175,25 +175,6 @@ type InputCtxOf<B extends AnyZodvexBuilder> =
     : never
 
 /**
- * The shape of a `.withContext()` customization for a builder, as a **type** to
- * annotate with: `const c: ZodvexCustomizationFor<typeof zm> = { … }`.
- *
- * It pins the builder's input ctx so `input`'s `ctx`/`args` are contextually typed
- * (no hand-annotation). A type annotation can't *infer* the output generics
- * (`CustomCtx` etc.) from the value, so they default permissively here — meaning a
- * customization that adds ctx fields the handler later reads should use
- * {@link defineContext} (which infers them) rather than this alias. Reach for this
- * when the customization adds no ctx, or re-types what it adds explicitly.
- */
-export type ZodvexCustomizationFor<
-  B extends AnyZodvexBuilder,
-  ZArgs extends ZodValidator = Record<string, never>,
-  CustomCtx extends Record<string, any> = Record<string, any>,
-  CustomMadeArgs extends Record<string, any> = Record<string, never>,
-  ExtraArgs extends Record<string, any> = Record<string, any>
-> = ZodvexCustomization<InputCtxOf<B>, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs>
-
-/**
  * Author a reusable `.withContext()` customization with full type inference.
  *
  * A standalone customization object has no contextual type, so its `input` params
@@ -206,7 +187,8 @@ export type ZodvexCustomizationFor<
  *   inferred (zero annotations);
  * - the output generics (`CustomCtx` / `CustomMadeArgs` / `ExtraArgs`) are inferred
  *   from your `input`'s return, so the handler downstream still sees the precise
- *   merged ctx (which a {@link ZodvexCustomizationFor} type annotation cannot do).
+ *   merged ctx (which a standalone type annotation cannot do — only inference from
+ *   the value, via this function, preserves it).
  *
  * The result carries no visibility, so it feeds **both** same-kind builders — pass
  * either (`zm`/`zim`, `za`/`zia`, `zq`/`ziq` share the input ctx):
