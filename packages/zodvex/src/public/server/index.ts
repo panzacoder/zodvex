@@ -49,9 +49,11 @@ export {
 } from '../../internal/db'
 // One-time setup + types
 export {
+  defineContext,
   initZodvex,
   type ZodvexActionCtx,
   type ZodvexBuilder,
+  type ZodvexCustomization,
   type ZodvexMutationCtx,
   type ZodvexQueryCtx
 } from '../../internal/init'

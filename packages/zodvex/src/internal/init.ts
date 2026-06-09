@@ -74,13 +74,31 @@ type InitServerBuilders = {
 type MaybePromise<T> = T | Promise<T>
 
 /**
+ * The runtime type of a customization's declared args (`z.output`), with one
+ * correction for the **empty** case: `z.output<$ZodObject<{}>>` widens to
+ * `{ [x: string]: unknown }`, which is wrong (an args-less customization receives
+ * no args) and breaks standalone customizations whose `input` params are
+ * hand-annotated narrower than that wide index signature (the #72-fallout
+ * regression). `{} extends ZArgs` catches both `{}` and the `Record<string, never>`
+ * default while staying false for real declared args.
+ */
+type ResolvedCustomArgs<ZArgs extends ZodValidator> =
+  // biome-ignore lint/complexity/noBannedTypes: {} is the empty-object probe, intentional
+  {} extends ZArgs ? Record<string, never> : z.output<$ZodObject<ZArgs>>
+
+/**
  * A `.withContext()` customization for zodvex builders. Unlike convex-helpers'
  * `Customization` (which types `args` as Convex `PropertyValidators`), the
  * declared `args` are **zod** — they run through the same zod→Convex + codec
  * pipeline as consumer args, so `input` receives the **decoded runtime** values
- * (`z.output`), and the resulting function registers the wire validator. See #72.
+ * and the resulting function registers the wire validator. See #72.
+ *
+ * For a reusable, standalone customization, author it with {@link defineContext}
+ * (full inference, zero annotations) — a bare object literal has no contextual
+ * type, so its `input` params would otherwise need hand-annotations that drift
+ * from this type.
  */
-type ZodWithContextCustomization<
+export type ZodvexCustomization<
   InputCtx,
   ZArgs extends ZodValidator,
   CustomCtx extends Record<string, any>,
@@ -90,7 +108,7 @@ type ZodWithContextCustomization<
   args?: ZArgs
   input?: (
     ctx: InputCtx,
-    args: z.output<$ZodObject<ZArgs>>,
+    args: ResolvedCustomArgs<ZArgs>,
     extra?: ExtraArgs
   ) => MaybePromise<{
     ctx: CustomCtx
@@ -126,7 +144,7 @@ export type ZodvexBuilder<
     CustomMadeArgs extends Record<string, any> = Record<string, never>,
     ExtraArgs extends Record<string, any> = Record<string, any>
   >(
-    customization: ZodWithContextCustomization<
+    customization: ZodvexCustomization<
       Overwrite<InputCtx, CodecCtx>,
       ZArgs,
       CustomCtx,
@@ -135,13 +153,69 @@ export type ZodvexBuilder<
     >
   ) => CustomBuilder<
     FuncType,
-    z.output<$ZodObject<ZArgs>>,
+    ResolvedCustomArgs<ZArgs>,
     Overwrite<CodecCtx, CustomCtx>,
     CustomMadeArgs,
     InputCtx,
     Visibility,
     ExtraArgs
   >
+}
+
+type AnyZodvexBuilder = ZodvexBuilder<any, any, any, any>
+
+/**
+ * The input ctx a builder's `.withContext()` expects (the codec-wrapped ctx).
+ * Same-kind builders share it — `zm`/`zim`, `za`/`zia`, `zq`/`ziq` differ only in
+ * visibility — so a customization typed against it is reusable across both.
+ */
+type InputCtxOf<B extends AnyZodvexBuilder> =
+  B extends ZodvexBuilder<any, infer CodecCtx, infer InputCtx, any>
+    ? Overwrite<InputCtx, CodecCtx>
+    : never
+
+/**
+ * Author a reusable `.withContext()` customization with full type inference.
+ *
+ * A standalone customization object has no contextual type, so its `input` params
+ * trip `noImplicitAny` and must be hand-annotated — and that hand annotation drifts
+ * from zodvex's internal type (the #72-fallout break). `defineContext` is an
+ * **identity at runtime** (`(_builder, c) => c`); its sole purpose is to be an
+ * inference site:
+ *
+ * - the `builder` argument pins the input ctx, so `input`'s `ctx` and `args` are
+ *   inferred (zero annotations);
+ * - the output generics (`CustomCtx` / `CustomMadeArgs` / `ExtraArgs`) are inferred
+ *   from your `input`'s return, so the handler downstream still sees the precise
+ *   merged ctx (which a standalone type annotation cannot do — only inference from
+ *   the value, via this function, preserves it).
+ *
+ * The result carries no visibility, so it feeds **both** same-kind builders — pass
+ * either (`zm`/`zim`, `za`/`zia`, `zq`/`ziq` share the input ctx):
+ *
+ * ```ts
+ * const authed = defineContext(zm, {
+ *   args: {},
+ *   input: async (ctx, _args, extra?: { required?: Entitlement[] }) => ({
+ *     ctx: { ...ctx, identity: await resolveIdentity(ctx) },
+ *     args: {},
+ *   }),
+ * })
+ * export const appMutation         = zm.withContext(authed)
+ * export const appInternalMutation = zim.withContext(authed)
+ * ```
+ */
+export function defineContext<
+  B extends AnyZodvexBuilder,
+  ZArgs extends ZodValidator = Record<string, never>,
+  CustomCtx extends Record<string, any> = Record<string, never>,
+  CustomMadeArgs extends Record<string, any> = Record<string, never>,
+  ExtraArgs extends Record<string, any> = Record<string, any>
+>(
+  _builder: B,
+  customization: ZodvexCustomization<InputCtxOf<B>, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs>
+): ZodvexCustomization<InputCtxOf<B>, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs> {
+  return customization
 }
 
 // Overload 1: wrapDb: false — no codec DB wrapping

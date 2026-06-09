@@ -44,6 +44,44 @@ export const updateProfile = authedMutation({
 })
 ```
 
+## Shared customizations across builders (`defineContext`)
+
+Public and internal builders of the same kind share the **same input ctx** — `zm`/`zim`, `za`/`zia`, and `zq`/`ziq` differ only in function visibility. A common pattern is to author **one** customization and apply it to both, so the public and internal variants can't drift:
+
+```ts
+import { defineContext } from 'zodvex/server'
+
+const authed = defineContext(zm, {
+  args: {},
+  input: async (ctx, _args, extra?: { required?: Entitlement[] }) => {
+    const identity = await resolveIdentity(ctx) // ctx is fully typed — no annotation
+    return { ctx: { ...ctx, identity }, args: {} }
+  },
+})
+
+export const appMutation         = zm.withContext(authed)
+export const appInternalMutation = zim.withContext(authed)
+```
+
+### Why `defineContext` (not a bare object or a type annotation)
+
+Inline customizations (`zm.withContext({ … })`) get **contextual typing** — `input`'s `ctx`/`args` are inferred with no annotations. But a **standalone** customization object (extracted so two builders can share it) has no contextual type, so under `noImplicitAny` you'd be forced to hand-annotate `input`'s parameters — and those hand annotations drift from zodvex's internal types (the cause of the 0.7.3→0.7.4 break).
+
+`defineContext(builder, customization)` solves this. It is an **identity function at runtime** (it returns the customization unchanged); its only job is to be a type inference site:
+
+- The `builder` argument **pins the input ctx**, so `input`'s `ctx` and `args` are inferred — zero annotations.
+- The output generics (the ctx your `input` adds, the `extra` shape, any `onSuccess`) are **inferred from your `input`'s return**, so handlers downstream still see the precise merged ctx.
+
+Pass either builder of the pair (`zm` or `zim`) — the result is identical and carries no visibility, so both `.withContext()` calls accept it.
+
+### Why not a type annotation instead of the function?
+
+`defineContext` is the **single** way to author a shared customization — there is no type-only equivalent, and that's deliberate. Typing `input`'s `ctx` from the builder is something a type *can* do, but typing `input`'s `args` parameter from your declared `args`, and propagating the output ctx your `input` adds, both require inferring **from the value** — and only a generic function does that. A standalone type annotation (`const c: SomeType = { … }`) silently drops the output ctx, and a type that pins the builder can't adapt its `args` parameter to declared args. `defineContext` sidesteps all of it: it's an identity at runtime, so the only cost is the wrapper call.
+
+> If you genuinely need the customization type as a value-free type (e.g. to constrain a higher-order helper), `ZodvexCustomization<InputCtx, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs>` is exported as the raw structural shape (parallel to convex-helpers' `Customization`). You supply every generic explicitly — it does no inference. For authoring a customization, reach for `defineContext`, not this.
+
+> **Empty-args note (v0.7.4):** with `args: {}` (or no `args`), `input`'s args parameter types as `Record<string, never>`. v0.7.3 widened it to `{ [x: string]: unknown }`, which broke standalone customizations whose `input` params were hand-annotated `Record<string, never>`. v0.7.4 fixes that resolution whether or not you adopt `defineContext`.
+
 ## Legacy: `zCustomQueryBuilder` / `zCustomMutationBuilder`
 
 For projects not using `initZodvex`, the standalone builders remain available:

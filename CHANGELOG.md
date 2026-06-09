@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.4] - 2026-06-09
+
+### Fixed
+
+- **`.withContext()` empty-args type regression (#72 fallout).** With `args: {}` (or no `args`), `input`'s args parameter widened to `{ [x: string]: unknown }` instead of `Record<string, never>` — breaking **standalone** (shared) customizations whose `input` params were hand-annotated narrower than that wide index signature (`TS2345` at `zm.withContext` / `zim.withContext`). Empty/absent args now resolve to `Record<string, never>`. Surfaced in hotpot's shared secure-mutation wrappers; only triggers when `input`'s args param is explicitly annotated (inline customizations get contextual inference), which is why it slipped the test suite.
+
+### Added
+
+- **`defineContext(builder, customization)`** (`zodvex/server`) — author a reusable `.withContext()` customization with full type inference and zero hand-annotations. An identity at runtime; the `builder` argument pins the input ctx (so `input`'s `ctx`/`args` are inferred) and the output generics are inferred from your `input`'s return. The result carries no visibility, so **one** customization feeds both same-kind builders — `zm`+`zim`, `za`+`zia`, `zq`+`ziq`. This is the blessed way to share a customization across the public + internal builder of a kind. See `docs/guide/custom-context.md`.
+- **`ZodvexCustomization<InputCtx, …>`** exported from `zodvex/server` — the raw structural shape of a `.withContext()` customization (parallel to convex-helpers' `Customization`). You supply every generic explicitly; it does no inference. For **authoring** a customization, use `defineContext` — `ZodvexCustomization` is only for the rare case of constraining a higher-order helper without a value. (There is intentionally no type-only "customization for builder B" alias: typing `input`'s `args` from declared args and propagating the output ctx both require inference from the value, which only a function can do — so `defineContext` is the single blessed path.)
+
 ## [0.7.3] - 2026-06-08
 
 ### Fixed
@@ -139,6 +150,7 @@ Memory-focused release. Roughly **3.7×** more endpoints fit in Convex's 64 MB p
 - Support for complex nested structures (arrays, objects, records)
 - Integration with convex-helpers for ID handling
 
+[0.7.4]: https://github.com/panzacoder/zodvex/compare/v0.7.3...v0.7.4
 [0.7.1]: https://github.com/panzacoder/zodvex/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/panzacoder/zodvex/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/panzacoder/zodvex/compare/v0.5.1...v0.6.0

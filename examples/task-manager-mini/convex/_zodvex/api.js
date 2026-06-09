@@ -40,6 +40,14 @@ export const zodvexRegistry = {
     args: z.object({ id: zx.id("tasks") }),
     returns: z.nullable(TaskModel.schema.doc),
   },
+  'audited:internalTouch': {
+    args: z.object({  }),
+    returns: z.string(),
+  },
+  'audited:touch': {
+    args: z.object({ note: z.string() }),
+    returns: z.string(),
+  },
   'comments:create': {
     args: z.object({ taskId: zx.id("tasks"), authorId: zx.id("users"), body: z.string() }),
     returns: zx.id("comments"),
