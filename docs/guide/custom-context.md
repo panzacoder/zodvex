@@ -76,18 +76,26 @@ Pass either builder of the pair (`zm` or `zim`) — the result is identical and 
 
 ### `ZodvexCustomizationFor<typeof builder>` (type-only alternative)
 
-If you'd rather annotate than wrap, `ZodvexCustomizationFor` is the matching type:
+If you'd rather not wrap, `ZodvexCustomizationFor` is the matching type — but use it with **`satisfies`**, not a type annotation or an `as` cast:
 
 ```ts
 import type { ZodvexCustomizationFor } from 'zodvex/server'
 
-const authed: ZodvexCustomizationFor<typeof zm> = {
+const authed = {
   args: {},
-  input: async (ctx, _args) => ({ ctx, args: {} }), // ctx/args contextually typed
-}
+  input: async (ctx, _args) => {
+    const identity = await resolveIdentity(ctx) // ctx contextually typed — no annotation
+    return { ctx: { ...ctx, identity }, args: {} }
+  },
+} satisfies ZodvexCustomizationFor<typeof zm>
 ```
 
-It pins the input ctx (so `input` needs no annotations), but a **type annotation cannot infer the output generics from your value** — `CustomCtx` and friends fall back to permissive types. So if your `input` adds ctx fields the handler reads (e.g. `ctx.identity`), prefer `defineContext`, which infers them. Use `ZodvexCustomizationFor` for customizations that add no ctx, or that re-type what they add explicitly.
+`satisfies` is doing two jobs here:
+
+- It **checks** the object against `ZodvexCustomizationFor<typeof zm>`, which pins the input ctx — so `input`'s `ctx`/`args` are contextually typed and need no hand-annotations (no `noImplicitAny` errors).
+- It **keeps the inferred type of the value**, so the ctx your `input` adds (e.g. `ctx.identity`) survives into the handler.
+
+Do **not** use a type annotation (`const authed: ZodvexCustomizationFor<typeof zm> = { … }`) or an `as` cast (`{ … } as ZodvexCustomizationFor<typeof zm>`) here. Both *replace* the value's type with the generic-default target type, which silently **drops the output ctx** — handlers would no longer see the fields your `input` adds. `defineContext` and `satisfies` are the two forms that preserve it; prefer `defineContext` for readability, reach for `satisfies` when you want the type without the function wrapper.
 
 > **Empty-args note (v0.7.4):** with `args: {}` (or no `args`), `input`'s args parameter types as `Record<string, never>`. v0.7.3 widened it to `{ [x: string]: unknown }`, which broke standalone customizations whose `input` params were hand-annotated `Record<string, never>`. v0.7.4 fixes that resolution whether or not you adopt `defineContext`.
 
