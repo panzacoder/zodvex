@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`defineContext(builder, customization)`** (`zodvex/server`) — author a reusable `.withContext()` customization with full type inference and zero hand-annotations. An identity at runtime; the `builder` argument pins the input ctx (so `input`'s `ctx`/`args` are inferred) and the output generics are inferred from your `input`'s return. The result carries no visibility, so **one** customization feeds both same-kind builders — `zm`+`zim`, `za`+`zia`, `zq`+`ziq`. This is the blessed way to share a customization across the public + internal builder of a kind. See `docs/guide/custom-context.md`.
-- **`ZodvexCustomization<typeof builder>`** and **`ZodWithContextCustomization`** exported from `zodvex/server` — type aliases for annotating a `.withContext()` customization. They pin the input ctx but cannot infer the output generics from the value, so prefer `defineContext` when the customization adds ctx the handler reads.
+- **`ZodvexCustomization`** and **`ZodvexCustomizationFor<typeof builder>`** exported from `zodvex/server` — type aliases for a `.withContext()` customization. `ZodvexCustomization<InputCtx, …>` is the direct shape (parallel to convex-helpers' `Customization`); `ZodvexCustomizationFor<typeof zm>` is the builder-shortcut for annotating without spelling the ctx. Both pin the input ctx but can't infer the output generics from the value, so prefer `defineContext` when the customization adds ctx the handler reads.
 
 ## [0.7.3] - 2026-06-08
 

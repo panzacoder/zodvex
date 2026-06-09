@@ -74,20 +74,20 @@ Inline customizations (`zm.withContext({ … })`) get **contextual typing** — 
 
 Pass either builder of the pair (`zm` or `zim`) — the result is identical and carries no visibility, so both `.withContext()` calls accept it.
 
-### `ZodvexCustomization<typeof builder>` (type-only alternative)
+### `ZodvexCustomizationFor<typeof builder>` (type-only alternative)
 
-If you'd rather annotate than wrap, `ZodvexCustomization` is the matching type:
+If you'd rather annotate than wrap, `ZodvexCustomizationFor` is the matching type:
 
 ```ts
-import type { ZodvexCustomization } from 'zodvex/server'
+import type { ZodvexCustomizationFor } from 'zodvex/server'
 
-const authed: ZodvexCustomization<typeof zm> = {
+const authed: ZodvexCustomizationFor<typeof zm> = {
   args: {},
   input: async (ctx, _args) => ({ ctx, args: {} }), // ctx/args contextually typed
 }
 ```
 
-It pins the input ctx (so `input` needs no annotations), but a **type annotation cannot infer the output generics from your value** — `CustomCtx` and friends fall back to permissive types. So if your `input` adds ctx fields the handler reads (e.g. `ctx.identity`), prefer `defineContext`, which infers them. Use `ZodvexCustomization` for customizations that add no ctx, or that re-type what they add explicitly.
+It pins the input ctx (so `input` needs no annotations), but a **type annotation cannot infer the output generics from your value** — `CustomCtx` and friends fall back to permissive types. So if your `input` adds ctx fields the handler reads (e.g. `ctx.identity`), prefer `defineContext`, which infers them. Use `ZodvexCustomizationFor` for customizations that add no ctx, or that re-type what they add explicitly.
 
 > **Empty-args note (v0.7.4):** with `args: {}` (or no `args`), `input`'s args parameter types as `Record<string, never>`. v0.7.3 widened it to `{ [x: string]: unknown }`, which broke standalone customizations whose `input` params were hand-annotated `Record<string, never>`. v0.7.4 fixes that resolution whether or not you adopt `defineContext`.
 
