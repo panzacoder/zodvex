@@ -10,7 +10,7 @@ import type {
 } from 'convex/server'
 import { NoOp } from 'convex-helpers/server/customFunctions'
 import type { z } from 'zod'
-import { createZodvexActionCtx } from './actionCtx'
+import { createCodecCallOverrides } from './actionCtx'
 import type { CustomBuilder } from './custom'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
 import { createZodvexCustomization } from './customization'
@@ -285,10 +285,11 @@ export function initZodvex(
   const noOp = createNoOpCustomization()
   const wrap = options?.wrapDb !== false
 
-  const actionCust = createActionCustomization(options?.registry, noOp)
+  const registryThunk = options?.registry
+  const actionCust = createActionCustomization(registryThunk, noOp)
   const customizations = {
     query: wrap ? codec.query : noOp,
-    mutation: wrap ? codec.mutation : noOp,
+    mutation: createMutationCustomization(wrap ? codec.mutation : noOp, registryThunk),
     action: actionCust
   }
 
@@ -309,10 +310,38 @@ function createActionCustomization(
 
   return {
     args: {} as Record<string, never>,
-    input: async (ctx: any) => {
-      const wrapped = createZodvexActionCtx(registryThunk(), ctx)
+    input: async (ctx: any) => ({
+      // Auto-encode codec args at outbound call sites: runQuery/runMutation
+      // (encode args, decode result) and scheduler.runAfter/runAt (encode args).
+      ctx: createCodecCallOverrides(registryThunk(), ctx),
+      args: {}
+    })
+  }
+}
+
+/**
+ * Composes the codec DB customization with outbound codec-arg encoding for the
+ * mutation builders. Mutations expose `ctx.scheduler` (runAfter/runAt), so when
+ * a registry is provided those calls auto-encode decoded codec args to wire —
+ * symmetric with the inbound decode the receiving function already performs.
+ *
+ * Without a registry, the DB customization is returned unchanged.
+ */
+function createMutationCustomization(
+  dbCust: InternalCustomization,
+  registryThunk: (() => AnyRegistry) | undefined
+): InternalCustomization {
+  if (!registryThunk) {
+    return dbCust
+  }
+
+  return {
+    args: {} as Record<string, never>,
+    input: async (ctx: any, _args: any, extra?: any) => {
+      const dbResult = await dbCust.input(ctx, {}, extra)
+      const callOverrides = createCodecCallOverrides(registryThunk(), ctx)
       return {
-        ctx: { runQuery: wrapped.runQuery, runMutation: wrapped.runMutation },
+        ctx: { ...dbResult.ctx, ...callOverrides },
         args: {}
       }
     }

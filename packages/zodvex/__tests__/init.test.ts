@@ -549,6 +549,116 @@ describe('initZodvex with registry', () => {
     // User customization works
     expect(result.user).toBe('AuthUser')
   })
+
+  // --- Mutation scheduler: auto-encode codec args (issue #76) ---
+
+  const schedulerRegistry = {
+    'tasks:reminder': { args: z.object({ taskId: z.string(), dueAt: zx.date() }) }
+  }
+
+  it('zm handler scheduler.runAfter encodes codec args (Date -> number)', async () => {
+    const { zm } = initZodvex(mockSchema, mockServer as any, {
+      registry: () => schedulerRegistry
+    })
+
+    let captured: any[] = []
+    const dueAt = new Date('2030-01-01T00:00:00Z')
+
+    const fn = zm({
+      handler: async (ctx: any) => {
+        await ctx.scheduler.runAfter(1000, fakeRef('tasks:reminder'), {
+          taskId: 't1',
+          dueAt
+        })
+      }
+    })
+
+    const rawCtx = {
+      db: createMockDbWriter(userTableData).db,
+      scheduler: {
+        runAfter: async (...a: any[]) => {
+          captured = a
+          return 'job-1'
+        },
+        runAt: async () => 'job',
+        cancel: async () => undefined
+      }
+    }
+
+    await fn.handler(rawCtx, {})
+
+    expect(captured[0]).toBe(1000)
+    expect(captured[2]).toEqual({ taskId: 't1', dueAt: dueAt.getTime() })
+  })
+
+  it('zim handler scheduler.runAt encodes codec args (Date -> number)', async () => {
+    const { zim } = initZodvex(mockSchema, mockServer as any, {
+      registry: () => schedulerRegistry
+    })
+
+    let captured: any[] = []
+    const dueAt = new Date('2030-06-01T00:00:00Z')
+    const when = new Date('2030-05-01T00:00:00Z')
+
+    const fn = zim({
+      handler: async (ctx: any) => {
+        await ctx.scheduler.runAt(when, fakeRef('tasks:reminder'), {
+          taskId: 't2',
+          dueAt
+        })
+      }
+    })
+
+    const rawCtx = {
+      db: createMockDbWriter(userTableData).db,
+      scheduler: {
+        runAfter: async () => 'job',
+        runAt: async (...a: any[]) => {
+          captured = a
+          return 'job-2'
+        },
+        cancel: async () => undefined
+      }
+    }
+
+    await fn.handler(rawCtx, {})
+
+    expect(captured[0]).toBe(when)
+    expect(captured[2]).toEqual({ taskId: 't2', dueAt: dueAt.getTime() })
+  })
+
+  it('zm without registry does not wrap scheduler', async () => {
+    const { zm } = initZodvex(mockSchema, mockServer as any)
+
+    let captured: any[] = []
+    const dueAt = new Date('2030-01-01T00:00:00Z')
+    const schedulerObj = {
+      runAfter: async (...a: any[]) => {
+        captured = a
+        return 'job'
+      },
+      runAt: async () => 'job',
+      cancel: async () => undefined
+    }
+
+    const fn = zm({
+      handler: async (ctx: any) => {
+        // Scheduler must be the original, untouched object.
+        expect(ctx.scheduler).toBe(schedulerObj)
+        await ctx.scheduler.runAfter(0, fakeRef('tasks:reminder'), { taskId: 't', dueAt })
+      }
+    })
+
+    const rawCtx = {
+      db: createMockDbWriter(userTableData).db,
+      scheduler: schedulerObj
+    }
+
+    await fn.handler(rawCtx, {})
+
+    // No registry -> no encoding -> Date passes through unchanged
+    expect(captured[2].dueAt).toBeInstanceOf(Date)
+  })
 })
 
 // ---------------------------------------------------------------------------

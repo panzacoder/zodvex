@@ -170,7 +170,7 @@ zodvex includes an optional CLI that generates typed client code:
 
 - **Typed hooks** — `useZodQuery`, `useZodMutation` with automatic codec decode
 - **Boundary helpers** — `encodeArgs`, `decodeResult` for custom client integrations
-- **Action auto-decode** — `ctx.runQuery` / `ctx.runMutation` decode via registry
+- **Cross-function auto-codec** — `ctx.runQuery` / `ctx.runMutation` encode args + decode results, and `ctx.scheduler.runAfter` / `ctx.scheduler.runAt` encode args, via the registry. Pass natural decoded values; zodvex encodes them to wire at the call site.
 
 ```bash
 zodvex generate   # one-shot generation
