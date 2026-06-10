@@ -175,6 +175,15 @@ function TaskDetail({ id }: { id: string }) {
 
 `encodeArgs` and `decodeResult` are lower-level helpers for non-hook use cases (e.g. form submit handlers, non-React clients).
 
+### `ZodvexClient` / `ZodvexReactClient` — codec-aware drop-in clients
+
+`createZodvexClient` (vanilla JS) and `createZodvexReactClient` (React) wrap Convex's `ConvexClient` / `ConvexReactClient` and apply registry codecs on every call — args are encoded to wire on the way out, results decoded to runtime on the way in. They aim to be **near drop-in replacements** for the Convex clients, exposing the same surface:
+
+- **`ZodvexClient`** (↔ `ConvexClient`): `query`, `mutate` (alias `mutation`), `action`, `subscribe` (alias `onUpdate`), `onPaginatedUpdate_experimental`, `getAuth`, `setAuth` (accepts a token string *or* an `AuthTokenFetcher` + `onChange`), `connectionState`, `subscribeToConnectionState`, `closed` / `disabled`, `close`. The inner client is reachable via the `convex` getter.
+- **`ZodvexReactClient`** (↔ `ConvexReactClient`): `query`, `mutation`, `action`, `watchQuery`, `prewarmQuery`, `setAuth`, `clearAuth`, `connectionState`, `subscribeToConnectionState`, `url`, `logger`, `close`.
+
+The data methods (`query` / `mutate` / `action` / `subscribe` / `watchQuery` / paginated) are codec-wrapped; the auth, connection, and lifecycle methods are thin pass-throughs to the underlying Convex client.
+
 ## Bootstrapping note
 
 The first time you run `zodvex generate`, your `functions.ts` likely already imports from `_zodvex/api.js` (to wire the registry). The CLI handles this chicken-and-egg problem by writing a minimal stub `api.js` before discovery runs, then overwriting it with the real generated output.
