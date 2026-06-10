@@ -54,6 +54,28 @@ const { mocks, MockConvexClient } = vi.hoisted(() => {
       state.setAuthFetchers.push(fetchToken)
     }
 
+    getAuth() {
+      return undefined
+    }
+
+    get closed() {
+      return false
+    }
+
+    get disabled() {
+      return false
+    }
+
+    connectionState() {
+      return { isWebSocketConnected: true } as any
+    }
+
+    subscribeToConnectionState(_cb: any) {
+      return () => {
+        /* no-op */
+      }
+    }
+
     async close() {
       state.closeCalled = true
     }
@@ -419,6 +441,35 @@ describe('ZodvexClient', () => {
     it('delegates close to inner ConvexClient', async () => {
       await client.close()
       expect(mocks.closeCalled).toBe(true)
+    })
+  })
+
+  // ---- connection & lifecycle parity --------------------------------------
+
+  describe('connection & lifecycle pass-throughs', () => {
+    it('exposes connectionState() from the inner client', () => {
+      const state = client.connectionState()
+      expect(state).toEqual({ isWebSocketConnected: true })
+    })
+
+    it('subscribeToConnectionState returns an unsubscribe function', () => {
+      const unsub = client.subscribeToConnectionState(() => {
+        /* no-op */
+      })
+      expect(typeof unsub).toBe('function')
+    })
+
+    it('getAuth() delegates to the inner client', () => {
+      expect(client.getAuth()).toBeUndefined()
+    })
+
+    it('closed/disabled are false before the inner client is created', () => {
+      // Fresh client — inner ConvexClient not yet instantiated.
+      const fresh = createZodvexClient(registry as any, { url: 'https://test.convex.cloud' })
+      expect(fresh.closed).toBe(false)
+      expect(fresh.disabled).toBe(false)
+      // Accessing the getters must NOT have forced the inner client into existence.
+      expect(mocks.instancesCreated).toBe(0)
     })
   })
 

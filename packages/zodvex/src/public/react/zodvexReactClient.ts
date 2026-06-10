@@ -139,6 +139,10 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
     return this.getUrl()
   }
 
+  get logger(): ConvexReactClient['logger'] {
+    return this.getConvex().logger
+  }
+
   connectionState() {
     return this.getConvex().connectionState()
   }
