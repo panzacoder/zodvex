@@ -627,6 +627,57 @@ describe('initZodvex with registry', () => {
     expect(captured[2]).toEqual({ taskId: 't2', dueAt: dueAt.getTime() })
   })
 
+  it('zm scheduler encodes a non-serializable Symbol codec arg (Symbol -> wire string)', async () => {
+    // A sentinel codec whose runtime form is a JS Symbol — it cannot be
+    // serialized across the scheduler boundary, so it MUST be encoded to a wire
+    // primitive. This is the mutation-path analogue of the action-ctx test.
+    const WILDCARD = Symbol('WILDCARD')
+    const sentinelCodec = z.codec(
+      z.string(),
+      z.custom<symbol | string>(() => true),
+      {
+        decode: (wire: string) => (wire === '*' ? WILDCARD : wire),
+        encode: (runtime: symbol | string) => (runtime === WILDCARD ? '*' : (runtime as string))
+      }
+    )
+    const sentinelRegistry = {
+      'tasks:scoped': { args: z.object({ taskId: z.string(), scope: sentinelCodec }) }
+    }
+
+    const { zm } = initZodvex(mockSchema, mockServer as any, {
+      registry: () => sentinelRegistry
+    })
+
+    let captured: any[] = []
+
+    const fn = zm({
+      handler: async (ctx: any) => {
+        await ctx.scheduler.runAfter(0, fakeRef('tasks:scoped'), {
+          taskId: 't3',
+          scope: WILDCARD
+        })
+      }
+    })
+
+    const rawCtx = {
+      db: createMockDbWriter(userTableData).db,
+      scheduler: {
+        runAfter: async (...a: any[]) => {
+          captured = a
+          return 'job-3'
+        },
+        runAt: async () => 'job',
+        cancel: async () => undefined
+      }
+    }
+
+    await fn.handler(rawCtx, {})
+
+    expect(captured[2]).toEqual({ taskId: 't3', scope: '*' })
+    // The encoded value is a plain serializable string, not the Symbol.
+    expect(typeof captured[2].scope).toBe('string')
+  })
+
   it('zm without registry does not wrap scheduler', async () => {
     const { zm } = initZodvex(mockSchema, mockServer as any)
 
