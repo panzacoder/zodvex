@@ -367,54 +367,61 @@ describe('createZodvexActionCtx', () => {
 // Cross-function call path: auto-encode codec args (issue #76)
 //
 // Covers calling INTO another wrapped function via runMutation / scheduler with
-// *decoded* args, including:
-//  - a Symbol-valued codec whose runtime form (a JS Symbol) cannot cross the
-//    Convex boundary at all and must be encoded to a wire string.
-//  - a SensitiveField-style codec (runtime class instance <-> wire object).
+// *decoded* args. Two codec shapes are exercised because they fail differently
+// without auto-encoding:
+//  - a sentinel codec whose runtime form is a JS Symbol — non-serializable, so
+//    it cannot cross the Convex boundary at all and MUST be encoded to a wire
+//    primitive.
+//  - a boxed-value codec whose runtime form is a class instance (serializable
+//    but the wrong shape) <-> a plain wire object.
+// Both are generic library concepts; consumers map their own domain codecs
+// (Symbol-valued enums, branded ids, encrypted fields, ...) onto the same two
+// shapes.
 // ---------------------------------------------------------------------------
 
-// Symbol-valued codec: runtime NO_CONSTRAINT Symbol <-> wire '*'
-const NO_CONSTRAINT = Symbol('NO_CONSTRAINT')
-const scopeCodec = z.codec(
+// Sentinel codec: runtime Symbol <-> wire string. A Symbol can't be serialized,
+// so without encoding the scheduled/run call would throw at the boundary.
+const WILDCARD = Symbol('WILDCARD')
+const sentinelCodec = z.codec(
   z.string(),
   z.custom<symbol | string>(() => true),
   {
-    decode: (wire: string) => (wire === '*' ? NO_CONSTRAINT : wire),
-    encode: (runtime: symbol | string) => (runtime === NO_CONSTRAINT ? '*' : (runtime as string))
+    decode: (wire: string) => (wire === '*' ? WILDCARD : wire),
+    encode: (runtime: symbol | string) => (runtime === WILDCARD ? '*' : (runtime as string))
   }
 )
 
-// SensitiveField-style codec: runtime class instance <-> wire { value: string }
-class SensitiveField {
+// Boxed-value codec: runtime class instance <-> wire { value: string }.
+class Boxed {
   constructor(readonly value: string) {}
 }
-const sensitiveCodec = z.codec(
+const boxedCodec = z.codec(
   z.object({ value: z.string() }),
-  z.custom<SensitiveField>(() => true),
+  z.custom<Boxed>(() => true),
   {
-    decode: (wire: { value: string }) => new SensitiveField(wire.value),
-    encode: (runtime: SensitiveField) => ({ value: runtime.value })
+    decode: (wire: { value: string }) => new Boxed(wire.value),
+    encode: (runtime: Boxed) => ({ value: runtime.value })
   }
 )
 
 const crossCallRegistry = {
-  'presence:timeoutDisconnect': {
+  'fns:withSentinel': {
     args: z.object({
-      presenceSessionId: z.string(),
-      _actor: z.object({ scope: scopeCodec })
+      id: z.string(),
+      flag: z.object({ scope: sentinelCodec })
     })
   },
-  'visits:activate': {
+  'fns:withBoxed': {
     args: z.object({
-      visitId: z.string(),
-      name: sensitiveCodec
+      id: z.string(),
+      secret: boxedCodec
     })
   }
 } as const
 
 describe('createZodvexActionCtx — cross-function codec args (#76)', () => {
   describe('runMutation', () => {
-    it('encodes a SensitiveField codec arg (class instance -> wire object)', async () => {
+    it('encodes a boxed-value codec arg (class instance -> wire object)', async () => {
       let captured: any = null
       const mockCtx = {
         runQuery: noop,
@@ -427,12 +434,12 @@ describe('createZodvexActionCtx — cross-function codec args (#76)', () => {
       }
 
       const wrappedCtx = createZodvexActionCtx(crossCallRegistry as any, mockCtx as any)
-      await wrappedCtx.runMutation(fakeRef('visits:activate'), {
-        visitId: 'v1',
-        name: new SensitiveField('top-secret')
+      await wrappedCtx.runMutation(fakeRef('fns:withBoxed'), {
+        id: 'a1',
+        secret: new Boxed('top-secret')
       })
 
-      expect(captured).toEqual({ visitId: 'v1', name: { value: 'top-secret' } })
+      expect(captured).toEqual({ id: 'a1', secret: { value: 'top-secret' } })
     })
   })
 
@@ -455,13 +462,13 @@ describe('createZodvexActionCtx — cross-function codec args (#76)', () => {
       }
 
       const wrappedCtx = createZodvexActionCtx(crossCallRegistry as any, mockCtx as any)
-      await (wrappedCtx.scheduler as any).runAfter(5000, fakeRef('presence:timeoutDisconnect'), {
-        presenceSessionId: 'sess-1',
-        _actor: { scope: NO_CONSTRAINT }
+      await (wrappedCtx.scheduler as any).runAfter(5000, fakeRef('fns:withSentinel'), {
+        id: 's1',
+        flag: { scope: WILDCARD }
       })
 
       expect(captured[0]).toBe(5000)
-      expect(captured[2]).toEqual({ presenceSessionId: 'sess-1', _actor: { scope: '*' } })
+      expect(captured[2]).toEqual({ id: 's1', flag: { scope: '*' } })
     })
 
     it('passes through scheduling a function with no args', async () => {
@@ -491,7 +498,7 @@ describe('createZodvexActionCtx — cross-function codec args (#76)', () => {
   })
 
   describe('scheduler.runAt', () => {
-    it('encodes a SensitiveField codec arg (class instance -> wire object)', async () => {
+    it('encodes a boxed-value codec arg (class instance -> wire object)', async () => {
       let captured: any[] = []
       const mockCtx = {
         runQuery: noop,
@@ -510,13 +517,13 @@ describe('createZodvexActionCtx — cross-function codec args (#76)', () => {
 
       const when = new Date('2030-01-01T00:00:00Z')
       const wrappedCtx = createZodvexActionCtx(crossCallRegistry as any, mockCtx as any)
-      await (wrappedCtx.scheduler as any).runAt(when, fakeRef('visits:activate'), {
-        visitId: 'v2',
-        name: new SensitiveField('hush')
+      await (wrappedCtx.scheduler as any).runAt(when, fakeRef('fns:withBoxed'), {
+        id: 'a2',
+        secret: new Boxed('hush')
       })
 
       expect(captured[0]).toBe(when)
-      expect(captured[2]).toEqual({ visitId: 'v2', name: { value: 'hush' } })
+      expect(captured[2]).toEqual({ id: 'a2', secret: { value: 'hush' } })
     })
   })
 })
