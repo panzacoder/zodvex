@@ -13,6 +13,7 @@ const { mocks, MockConvexClient } = vi.hoisted(() => {
     instancesCreated: 0,
     queryImpl: undefined as ((ref: any, args: any) => any) | undefined,
     mutationImpl: undefined as ((ref: any, args: any) => any) | undefined,
+    actionImpl: undefined as ((ref: any, args: any) => any) | undefined,
     onUpdateImpl: undefined as ((ref: any, args: any, cb: any) => () => void) | undefined,
     // setAuth receives an AuthTokenFetcher (async function), not a raw string.
     // We capture the fetchers so tests can resolve them.
@@ -34,6 +35,11 @@ const { mocks, MockConvexClient } = vi.hoisted(() => {
 
     async mutation(ref: any, args: any) {
       if (state.mutationImpl) return state.mutationImpl(ref, args)
+      return args
+    }
+
+    async action(ref: any, args: any) {
+      if (state.actionImpl) return state.actionImpl(ref, args)
       return args
     }
 
@@ -119,6 +125,7 @@ describe('ZodvexClient', () => {
   beforeEach(() => {
     mocks.queryImpl = undefined
     mocks.mutationImpl = undefined
+    mocks.actionImpl = undefined
     mocks.onUpdateImpl = undefined
     mocks.setAuthFetchers = []
     mocks.closeCalled = false
@@ -252,6 +259,50 @@ describe('ZodvexClient', () => {
       expect(capturedArgs).toBeDefined()
       expect(capturedArgs.title).toBe('Hello')
       expect('description' in capturedArgs).toBe(false)
+    })
+  })
+
+  // ---- action -------------------------------------------------------------
+
+  describe('action', () => {
+    it('encodes args and decodes results', async () => {
+      const dueDate = new Date('2026-06-15T00:00:00Z')
+      const ts = 1700000000000
+      let capturedArgs: any = null
+
+      mocks.actionImpl = (_ref: any, args: any) => {
+        capturedArgs = args
+        return { _id: 'act1', title: 'Ran', createdAt: ts }
+      }
+
+      const result = await client.action(fakeRef('tasks:create'), {
+        title: 'Ran',
+        dueAt: dueDate
+      })
+
+      // Args should be encoded: Date -> timestamp number
+      expect(capturedArgs.title).toBe('Ran')
+      expect(typeof capturedArgs.dueAt).toBe('number')
+      expect(capturedArgs.dueAt).toBe(dueDate.getTime())
+
+      // Return should be decoded: number -> Date
+      expect(result.createdAt).toBeInstanceOf(Date)
+      expect(result.createdAt.getTime()).toBe(ts)
+    })
+
+    it('passes through when function has no schemas', async () => {
+      const raw = { result: 'unchanged' }
+      let capturedArgs: any = null
+
+      mocks.actionImpl = (_ref: any, args: any) => {
+        capturedArgs = args
+        return raw
+      }
+
+      const result = await client.action(fakeRef('plain:noCodec'), { raw: 'data' })
+
+      expect(capturedArgs).toEqual({ raw: 'data' })
+      expect(result).toEqual(raw)
     })
   })
 

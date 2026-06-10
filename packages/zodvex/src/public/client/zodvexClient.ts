@@ -74,6 +74,17 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
     return this.codec.decodeResult(ref, wireResult)
   }
 
+  async action<A extends FunctionReference<'action', any, any, any>>(
+    ref: A,
+    args: A['_args']
+  ): Promise<A['_returnType']> {
+    const wireResult = await this.getConvex().action(
+      ref,
+      this.codec.encodeArgs(ref, args) as FunctionArgs<A>
+    )
+    return this.codec.decodeResult(ref, wireResult)
+  }
+
   subscribe<Q extends FunctionReference<'query', any, any, any>>(
     ref: Q,
     args: Q['_args'],
