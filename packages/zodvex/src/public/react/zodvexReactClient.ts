@@ -84,6 +84,19 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
     return this.codec.decodeResult(ref, wireResult)
   }
 
+  /**
+   * Indicates likely future interest in a query subscription. Encodes args to
+   * wire before delegating, mirroring {@link watchQuery}.
+   */
+  prewarmQuery<Q extends FunctionReference<'query', any, any, any>>(queryOptions: {
+    query: Q
+    args: Q['_args']
+    extendSubscriptionFor?: number
+  }): void {
+    const wireArgs = this.codec.encodeArgs(queryOptions.query, queryOptions.args) as FunctionArgs<Q>
+    this.getConvex().prewarmQuery({ ...queryOptions, args: wireArgs })
+  }
+
   watchQuery<Q extends FunctionReference<'query', any, any, any>>(
     ref: Q,
     args: Q['_args'],

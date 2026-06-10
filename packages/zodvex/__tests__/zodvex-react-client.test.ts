@@ -17,6 +17,7 @@ const { mocks, MockConvexReactClient } = vi.hoisted(() => {
     watchQueryImpl: undefined as
       | ((ref: any, args: any, opts: any) => { onUpdate: any; localQueryResult: any; journal: any })
       | undefined,
+    prewarmQueryImpl: undefined as ((queryOptions: any) => void) | undefined,
     setAuthCalls: [] as { fetchToken: any; onChange: any }[],
     clearAuthCalled: false,
     closeCalled: false,
@@ -59,6 +60,14 @@ const { mocks, MockConvexReactClient } = vi.hoisted(() => {
         localQueryResult: () => undefined,
         journal: () => undefined
       }
+    }
+
+    prewarmQuery(queryOptions: any) {
+      if (state.prewarmQueryImpl) state.prewarmQueryImpl(queryOptions)
+    }
+
+    get logger() {
+      return { logVerbose: () => undefined }
     }
 
     setAuth(fetchToken: any, onChange?: any) {
@@ -153,6 +162,7 @@ describe('ZodvexReactClient', () => {
     mocks.mutationImpl = undefined
     mocks.actionImpl = undefined
     mocks.watchQueryImpl = undefined
+    mocks.prewarmQueryImpl = undefined
     mocks.setAuthCalls = []
     mocks.clearAuthCalled = false
     mocks.closeCalled = false
@@ -323,6 +333,30 @@ describe('ZodvexReactClient', () => {
 
       expect(capturedArgs).toEqual({ raw: 'data' })
       expect(result).toEqual(raw)
+    })
+  })
+
+  // ---- prewarmQuery -------------------------------------------------------
+
+  describe('prewarmQuery', () => {
+    it('encodes args before delegating', () => {
+      const dueDate = new Date('2026-06-15T00:00:00Z')
+      let captured: any = null
+      mocks.prewarmQueryImpl = (queryOptions: any) => {
+        captured = queryOptions
+      }
+
+      client.prewarmQuery({
+        query: fakeRef('tasks:create'),
+        args: { title: 'Warm', dueAt: dueDate },
+        extendSubscriptionFor: 5000
+      })
+
+      expect(captured).toBeDefined()
+      expect(typeof captured.args.dueAt).toBe('number')
+      expect(captured.args.dueAt).toBe(dueDate.getTime())
+      // Non-arg fields pass through untouched.
+      expect(captured.extendSubscriptionFor).toBe(5000)
     })
   })
 
