@@ -282,6 +282,7 @@ npx zodvex migrate ./convex --dry-run  # preview changes
 - [Return Type Helpers](./docs/guide/return-type-helpers.md) — `returnsAs`
 - [Large Schemas](./docs/guide/large-schemas.md) — `pickShape`, `safePick`
 - [Polymorphic Tables](./docs/guide/polymorphic-tables.md) — Union/discriminated union tables
+- [Streams](./docs/guide/streams.md) — `zodvexStream`, `zodvexMergedStream` for fan-out pagination
 - [AI SDK Compatibility](./docs/guide/ai-sdk.md) — Vercel AI SDK integration
 - [Codegen](./docs/guide/codegen.md) — CLI, registry, typed hooks
 

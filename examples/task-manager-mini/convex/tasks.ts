@@ -1,10 +1,12 @@
 import { z } from 'zod/mini'
 import { zx } from 'zodvex/mini'
+import { zodvexMergedStream, zodvexStream } from 'zodvex/mini/server'
 import type { Id } from './_generated/dataModel'
 import type { QueryCtx } from './_zodvex/server'
 import { zq, zm } from './functions'
 import { TaskModel } from './models/task'
 import { zDuration } from './codecs'
+import schema from './schema'
 
 /**
  * Read-only helper typed as `QueryCtx`. Used by both `get` (a query) and
@@ -57,6 +59,30 @@ export const listByCreated = zq({
       .collect()
   },
   returns: z.array(TaskModel.schema.doc),
+})
+
+/**
+ * Honest pagination over a set-valued predicate (`status IN {...}`) via
+ * zodvexStream / zodvexMergedStream (#78) — mini flavor.
+ */
+export const listByStatuses = zq({
+  args: {
+    statuses: z.array(z.enum(['todo', 'in_progress', 'done'])),
+    paginationOpts: z.object({
+      numItems: z.number(),
+      cursor: z.nullable(z.string()),
+    }),
+  },
+  handler: async (ctx, { statuses, paginationOpts }) => {
+    const substreams = statuses.map((status) =>
+      zodvexStream(ctx.db, schema)
+        .query('tasks')
+        .withIndex('by_status', (q) => q.eq('status', status))
+        .order('desc')
+    )
+    return await zodvexMergedStream(substreams, ['_creationTime']).paginate(paginationOpts)
+  },
+  returns: TaskModel.schema.paginatedDoc,
 })
 
 export const create = zm({
