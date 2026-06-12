@@ -773,6 +773,78 @@ describe('initZodvex with registry', () => {
     expect(captured[2]).toEqual({ taskId: 't1', dueAt: dueAt.getTime() })
   })
 
+  // --- schedulerRegistry: the V8-safe mutation-path registry ---
+  // Generated server.ts passes the full registry as a lazy (dynamic-import)
+  // thunk for actions and a static args-only registry for mutations. The
+  // mutation path must use schedulerRegistry and must NEVER execute the
+  // (potentially dynamic-import-backed) `registry` thunk.
+
+  it('zm scheduler uses schedulerRegistry and never calls the registry thunk', async () => {
+    let registryCalls = 0
+    const { zm } = initZodvex(mockSchema, mockServer as any, {
+      registry: () => {
+        registryCalls++
+        return schedulerRegistry
+      },
+      schedulerRegistry: () => schedulerRegistry
+    })
+
+    let captured: any[] = []
+    const dueAt = new Date('2030-01-01T00:00:00Z')
+
+    const fn = zm({
+      handler: async (ctx: any) => {
+        await ctx.scheduler.runAfter(1000, fakeRef('tasks:reminder'), {
+          taskId: 't1',
+          dueAt
+        })
+      }
+    })
+
+    const rawCtx = {
+      db: createMockDbWriter(userTableData).db,
+      scheduler: {
+        runAfter: async (...a: any[]) => {
+          captured = a
+          return 'job-1'
+        },
+        runAt: async () => 'job',
+        cancel: async () => undefined
+      }
+    }
+
+    await fn.handler(rawCtx, {})
+
+    // Encoding happened via schedulerRegistry...
+    expect(captured[2]).toEqual({ taskId: 't1', dueAt: dueAt.getTime() })
+    // ...and the full-registry thunk was never executed on the mutation path.
+    expect(registryCalls).toBe(0)
+  })
+
+  it('za still uses the full registry when schedulerRegistry is also provided', async () => {
+    const ts = 1700000000000
+    const { za } = initZodvex(mockSchema, mockServer as any, {
+      registry: async () => registry,
+      schedulerRegistry: () => ({}) // args-only registry has no returns — actions must not use it
+    })
+
+    const fn = za({
+      handler: async (ctx: any) => ctx.runQuery(fakeRef('tasks:get'))
+    })
+
+    const rawCtx = {
+      runQuery: async () => ({ _id: 'abc', title: 'Test', createdAt: ts }),
+      runMutation: async () => undefined,
+      runAction: async () => undefined,
+      auth: { getUserIdentity: async () => null }
+    }
+
+    const result: any = await fn.handler(rawCtx, {})
+
+    // Result decoding requires the FULL registry's returns schema.
+    expect(result.createdAt).toBeInstanceOf(Date)
+  })
+
   it('async registry thunk resolves once and is cached across requests', async () => {
     let calls = 0
     const { za } = initZodvex(mockSchema, mockServer as any, {

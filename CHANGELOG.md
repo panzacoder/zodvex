@@ -9,29 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### TL;DR
 
-zodvex apps now scale to the same endpoint count as plain Convex apps
-both at deploy time *and* runtime. Previously zodvex OOMed at ~155
-endpoints in the schema-eval isolate. With this release, real Convex
-deploys pass cleanly at N=750 and Q/M handlers serve requests
-end-to-end; the wall becomes Convex's own non-memory ceiling
-(TooManyReads at N=800 during `finish_push`). One source migration
-via `bun zodvex migrate` covers schema and functions files. Userland
-surface is smaller — one import, one call.
+The **schema-eval ceiling is gone**: userland `schema.ts` becomes
+pure-Convex (`defineSchema(tables)` over the codegen-emitted
+`_zodvex/tables.ts`), so the schema isolate loads zero zod. Previously
+zodvex OOMed at ~155 endpoints in schema-eval; re-verified after the
+0.7.5 rebase (2026-06-12 sweep), real Convex deploys now pass cleanly
+at N=750 and the wall is Convex's own non-memory ceiling
+(TooManyReads at N=800 during `finish_push`) — same position as
+pure-convex. One source migration via `bun zodvex migrate` covers
+schema and functions files. Userland surface is smaller — one import,
+one call via the pre-wired `initZodvex` in `_zodvex/server.ts`.
 
-> **Runtime path note.** An earlier draft of this entry used lazy
-> dynamic-import thunks for the runtime tableMap and the registry.
-> That deployed cleanly but crashed every Q/M call because Convex's
-> Q/M V8 sandbox forbids dynamic `import()`. The shipped shape uses
-> static imports inside `_zodvex/server.ts` for **both**: the tableMap
-> (codec DB wrapping) and the registry. The registry can no longer be
-> action-only-lazy either — since 0.7.5, mutations consume it for
-> `scheduler.runAfter`/`runAt` codec-arg encoding, and they run in the
-> same V8 sandbox. See
-> `examples/stress-test/results/dynamic-import-runtime-finding-2026-05-14.md`
-> for the finding and
-> `examples/stress-test/results/sweep-static-tablemap-2026-05-14.md`
-> for the runtime-verified ceiling sweep (pre-0.7.5 rebase; a fresh
-> sweep is required to confirm the static-registry cost).
+> **Scale caveat — consolidated `server.ts`.** The sweep ceilings above
+> are measured with the harness function shape, which does not import
+> `_zodvex/server.ts`. The consolidated `server.ts` statically imports
+> EVERY model (required: the Q/M V8 sandbox forbids dynamic `import()`,
+> so the runtime tableMap can't load lazily), and that model-import
+> graph alone costs ~59 MB/endpoint at N=200 full-zod — a real deploy
+> of the consolidated shape OOMs at N=200. It is the right DX for
+> small/medium apps (tens of functions: huge headroom); large apps
+> need a future per-endpoint registration design. See
+> `examples/stress-test/results/server-ts-shape-findings-2026-06-12.md`.
+
+> **Runtime path note.** An earlier draft used lazy dynamic-import
+> thunks for the runtime tableMap and the registry. That deployed
+> cleanly but crashed every Q/M call because Convex's Q/M V8 sandbox
+> forbids dynamic `import()`
+> (`examples/stress-test/results/dynamic-import-runtime-finding-2026-05-14.md`).
+> The shipped shape: the tableMap is static; the registry is SPLIT —
+> lazy full registry for actions (Node), static args-only
+> `api.args.js` for the mutation scheduler path that 0.7.5 added
+> (`schedulerRegistry` option). A static FULL registry is not an
+> option: its returns/model-doc graph alone measured 57.4 MB/endpoint
+> at N=200 (`results/archive/lazy-registry-2026-05-12.md`).
 
 ### Added
 
@@ -82,13 +92,19 @@ surface is smaller — one import, one call.
   caches the resolved table map on first DB call.
   `schema.__zodTableMap` remains the legacy fallback.
 - **`initZodvex` accepts `registry: () => AnyRegistry | Promise<AnyRegistry>`.**
-  The library awaits and caches the resolved registry — one shared resolver
-  feeds both the action customization (runQuery/runMutation + scheduler) and
-  the mutation customization (scheduler), composed with 0.7.5's
-  `createCodecCallOverrides`. Note: a thunk that performs a dynamic
-  `import()` only works in actions (Node runtime); the codegen-emitted
-  `_zodvex/server.ts` passes a statically-backed thunk so the mutation
-  scheduler path works in the Q/M V8 sandbox.
+  The library awaits and caches the resolved registry for the action
+  customization (runQuery/runMutation + scheduler), composed with 0.7.5's
+  `createCodecCallOverrides`.
+- **`initZodvex` accepts `schedulerRegistry: () => AnyRegistry`** — the
+  V8-safe registry for the MUTATION scheduler-encoding path
+  (`scheduler.runAfter`/`runAt` in `zm`/`zim`, added in 0.7.5). Mutations
+  cannot dynamic-import, and the scheduler only consults `args` schemas,
+  so codegen emits an args-only `_zodvex/api.args.js` (no `returns` —
+  the heavy model-doc graph stays out of static bundles) and wires it
+  here. When omitted, mutations fall back to `registry` (compatible with
+  the sync `registry: () => zodvexRegistry` pattern); a dynamic-import
+  backed `registry` thunk is never executed on the mutation path when
+  `schedulerRegistry` is provided.
 - **`Infer*` schema helpers** (`InferDataModel`, `InferTableInfo`,
   `InferDecodedDoc`, `InferFilterBuilder`) now accept any Convex
   `SchemaDefinition`, not just `defineZodSchema` results.
