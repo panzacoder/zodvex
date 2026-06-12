@@ -69,6 +69,22 @@ export interface ComposeConfig {
    * Default false.
    */
   lazyTables?: boolean
+  /**
+   * Which DOCUMENTED consumer shape the zodvex flavors compose
+   * (no-op for parity flavors):
+   *
+   *  - 'harness' (default, legacy): `initZodvex(stubSchema, server,
+   *    { wrapDb: false })` — no codec db wrapping, no registry, no
+   *    `_zodvex/server.ts` import. Measures the zod-validation floor
+   *    only. NO USER IS TOLD TO WRITE THIS SHAPE — it exists for
+   *    baseline continuity with the May 2026 sweeps.
+   *  - 'consolidated': `import { initZodvex } from './_zodvex/server'` —
+   *    the codegen-recommended shape (wrapDb on, split registry, static
+   *    tableMap). This is the shape that OOMs at N≈200 full-zod
+   *    (results/server-ts-shape-findings-2026-06-12.md); composing it
+   *    here is what lets the sweep track that cliff. Implies lazyTables.
+   */
+  shape?: 'harness' | 'consolidated'
 }
 
 interface SeedInfo {
@@ -363,8 +379,12 @@ export function compose(config: ComposeConfig): ComposeResult {
     fanIn = 0,
     registry = false,
     registryMode = 'static',
-    lazyTables = false,
+    shape = 'harness',
   } = config
+  const isZodvex = flavor === 'zodvex' || flavor === 'zodvex-mini'
+  // The consolidated shape's generated server.ts requires the codegen
+  // pipeline (tables.ts, api.args.js) — lazyTables is implied.
+  const lazyTables = (config.lazyTables ?? false) || (isZodvex && shape === 'consolidated')
   const modelsDir = join(outputDir, 'models')
   const endpointsDir = join(outputDir, 'endpoints')
 
@@ -458,6 +478,22 @@ export function compose(config: ComposeConfig): ComposeResult {
     })
   }
 
+  // Healthcheck: one fixed (non-scaled) model + endpoint pair per tree.
+  // The endpoint is the sweep's runtime smoke target — it round-trips a
+  // write+read (and, for zodvex, asserts the codec semantics the composed
+  // shape promises), throwing on any violation so `convex run` fails loudly.
+  writeFileSync(join(modelsDir, 'healthcheck.ts'), healthcheckModelSource(flavor))
+  writeFileSync(
+    join(endpointsDir, 'healthcheck.ts'),
+    healthcheckEndpointSource(flavor, isZodvex ? shape : 'harness'),
+  )
+  tables.push({
+    fileName: 'healthcheck',
+    symbol: isZodvex ? 'HealthcheckModel' : 'HealthcheckTable',
+    alias: 'T_hc',
+    tableName: 'healthchecks',
+  })
+
   writeFileSync(
     join(outputDir, 'functions.ts'),
     functionsSource(flavor, registry && registryMode === 'invisible'),
@@ -465,14 +501,173 @@ export function compose(config: ComposeConfig): ComposeResult {
   writeFileSync(join(outputDir, 'schema.ts'), schemaSource(flavor, tables, lazyTables))
   writeFileSync(
     join(outputDir, 'summary.json'),
-    JSON.stringify({ flavor, count, fanIn, registry, registryMode, lazyTables, seeds: seeds.length }, null, 2),
+    JSON.stringify(
+      { flavor, count, fanIn, registry, registryMode, lazyTables, shape, seeds: seeds.length },
+      null,
+      2,
+    ),
   )
 
-  if (lazyTables && (flavor === 'zodvex' || flavor === 'zodvex-mini')) {
+  if (lazyTables && isZodvex) {
     runZodvexGenerate(outputDir, flavor === 'zodvex-mini')
   }
 
+  // Consolidated shape: codegen above ran against the harness-form
+  // functions.ts (discovery needs the zodvex wrapper meta, and the
+  // registry content is identical either way) — NOW swap functions.ts to
+  // the documented one-import shape so the deployed bundles carry
+  // _zodvex/server.ts exactly as a real consumer's would.
+  if (isZodvex && shape === 'consolidated') {
+    writeFileSync(join(outputDir, 'functions.ts'), consolidatedFunctionsSource())
+  }
+
   return { flavor, outputDir, modelsDir, endpointsDir, endpointFiles }
+}
+
+function consolidatedFunctionsSource(): string {
+  return `import {
+  queryGeneric as query,
+  mutationGeneric as mutation,
+  actionGeneric as action,
+  internalQueryGeneric as internalQuery,
+  internalMutationGeneric as internalMutation,
+  internalActionGeneric as internalAction,
+} from 'convex/server'
+import { initZodvex } from './_zodvex/server'
+
+export const { zq, zm } = initZodvex({
+  query, mutation, action, internalQuery, internalMutation, internalAction,
+} as any)
+`
+}
+
+/** Single fixed healthcheck model (table `healthchecks`). */
+function healthcheckModelSource(flavor: Flavor): string {
+  if (flavor === 'zodvex' || flavor === 'zodvex-mini') {
+    const src = `import { z } from 'zod'
+import { defineZodModel, zx } from 'zodvex'
+
+export const HealthcheckModel = defineZodModel('healthchecks', {
+  label: z.string(),
+  at: zx.date(),
+})
+`
+    return applyFlavorImportRewrites(flavor, src, 'models/healthcheck.ts')
+  }
+  return `import { defineTable } from 'convex/server'
+import { v } from 'convex/values'
+
+export const HealthcheckTable = defineTable({
+  label: v.string(),
+  at: v.float64(),
+})
+`
+}
+
+/**
+ * Healthcheck endpoint. Assertions match what the composed shape promises:
+ *  - zodvex 'consolidated': wrapped db must DECODE (`at` is a Date), and
+ *    `healthcheckScheduler` exercises scheduler codec-arg encoding
+ *    (a raw Date arg only crosses the boundary if the schedulerRegistry
+ *    encoded it to the target's float64 wire validator).
+ *  - zodvex 'harness' (wrapDb:false): db is raw — `at` must stay a number.
+ *  - parity flavors: plain write+read round-trip, same table shape.
+ */
+function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'consolidated'): string {
+  if (flavor === 'zodvex' || flavor === 'zodvex-mini') {
+    const src =
+      shape === 'consolidated'
+        ? `import { z } from 'zod'
+import { makeFunctionReference } from 'convex/server'
+import { zx } from 'zodvex'
+import { zm } from '../functions'
+
+const AT = 1700000000000
+
+export const healthcheck = zm({
+  args: {},
+  returns: z.object({ ok: z.boolean() }),
+  handler: async (ctx: any) => {
+    const at = new Date(AT)
+    const id = await ctx.db.insert('healthchecks', { label: 'hc', at })
+    const doc = await ctx.db.get(id)
+    if (!doc) throw new Error('healthcheck: doc missing after insert')
+    if (!(doc.at instanceof Date)) throw new Error('healthcheck: codec decode failed — at is ' + typeof doc.at)
+    if (doc.at.getTime() !== AT) throw new Error('healthcheck: decode value mismatch')
+    return { ok: true }
+  },
+})
+
+export const onSchedule = zm({
+  args: { at: zx.date() },
+  returns: z.null(),
+  handler: async () => null,
+})
+
+export const healthcheckScheduler = zm({
+  args: {},
+  returns: z.object({ ok: z.boolean() }),
+  handler: async (ctx: any) => {
+    const ref = makeFunctionReference<'mutation'>('endpoints/healthcheck:onSchedule')
+    await ctx.scheduler.runAfter(0, ref, { at: new Date(AT) })
+    return { ok: true }
+  },
+})
+`
+        : `import { z } from 'zod'
+import { zm } from '../functions'
+
+const AT = 1700000000000
+
+export const healthcheck = zm({
+  args: {},
+  returns: z.object({ ok: z.boolean() }),
+  handler: async (ctx: any) => {
+    const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
+    const doc = await ctx.db.get(id)
+    if (!doc) throw new Error('healthcheck: doc missing after insert')
+    if (typeof doc.at !== 'number' || doc.at !== AT) throw new Error('healthcheck: raw round-trip failed')
+    return { ok: true }
+  },
+})
+`
+    return applyFlavorImportRewrites(flavor, src, 'endpoints/healthcheck.ts')
+  }
+
+  if (flavor === 'convex') {
+    return `import { v } from 'convex/values'
+import { mutation } from '../functions'
+
+const AT = 1700000000000
+
+export const healthcheck = mutation({
+  args: {},
+  returns: v.object({ ok: v.boolean() }),
+  handler: async (ctx) => {
+    const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
+    const doc = await ctx.db.get(id)
+    if (!doc || doc.at !== AT) throw new Error('healthcheck: round-trip failed')
+    return { ok: true }
+  },
+})
+`
+  }
+
+  // convex-helpers (zod4 + zod3) share the zQuery/zMutation builder surface.
+  return `import { zMutation } from '../functions'
+
+const AT = 1700000000000
+
+export const healthcheck = zMutation({
+  args: {},
+  handler: async (ctx: any) => {
+    const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
+    const doc = await ctx.db.get(id)
+    if (!doc || doc.at !== AT) throw new Error('healthcheck: round-trip failed')
+    return { ok: true }
+  },
+})
+`
 }
 
 /**

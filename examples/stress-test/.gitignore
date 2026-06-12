@@ -14,3 +14,6 @@ results/*.log
 convex/generated/
 convex/composed/
 convex/compiled/
+
+# Sweep fingerprint cache (machine-local)
+results/.cell-cache.json

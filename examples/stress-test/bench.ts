@@ -38,6 +38,7 @@ interface BenchResult {
   registry: boolean
   registryMode: 'static' | 'lazy' | 'invisible'
   lazyTables: boolean
+  shape: 'harness' | 'consolidated'
   endpointsBenched: number
   endpointsOk: number
   endpointsFailed: number
@@ -77,6 +78,8 @@ export interface BenchOptions {
   fanIn?: number
   /** Each endpoint imports a registry.ts referencing every model. Default false. */
   registry?: boolean
+  /** zodvex consumer shape to compose — see ComposeConfig.shape. Default 'harness'. */
+  shape?: 'harness' | 'consolidated'
   /** Registry consumer pattern. Default 'static'. */
   registryMode?: 'static' | 'lazy' | 'invisible'
   /**
@@ -106,6 +109,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     registry = false,
     registryMode = 'static',
     lazyTables = false,
+    shape = 'harness',
     sample,
     concurrency = 4,
     capMB,
@@ -121,9 +125,9 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
   if (existsSync(workDir)) rmSync(workDir, { recursive: true })
   mkdirSync(workDir, { recursive: true })
 
-  const variantLabel = `${flavor}${fanIn ? ` fanin=${fanIn}` : ''}${registry ? ` registry/${registryMode}` : ''}${lazyTables ? ' lazy-tables' : ''}`
+  const variantLabel = `${flavor}${fanIn ? ` fanin=${fanIn}` : ''}${registry ? ` registry/${registryMode}` : ''}${lazyTables ? ' lazy-tables' : ''}${shape !== 'harness' ? ` shape=${shape}` : ''}`
   if (verbose) console.error(`[${variantLabel}] composing ${count} endpoints…`)
-  const composed = compose({ flavor, count, fanIn, registry, registryMode, lazyTables, outputDir: composedDir })
+  const composed = compose({ flavor, count, fanIn, registry, registryMode, lazyTables, shape, outputDir: composedDir })
 
   let entries = composed.endpointFiles
   if (sample && sample < entries.length) entries = entries.slice(0, sample)
@@ -229,6 +233,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     registry,
     registryMode,
     lazyTables,
+    shape,
     endpointsBenched: metrics.length,
     endpointsOk: ok.length,
     endpointsFailed: failed.length,
@@ -290,6 +295,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     : (regArg === 'invisible' || has('invisible-registry')) ? 'invisible'
     : 'static'
   const lazyTables = has('lazy-tables')
+  const shape = (get('shape') ?? 'harness') as 'harness' | 'consolidated'
   const sample = get('sample') ? parseInt(get('sample')!) : undefined
   const cap = get('cap') ? parseInt(get('cap')!) : undefined
   const concurrency = get('concurrency') ? parseInt(get('concurrency')!) : 4
@@ -298,7 +304,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const results: BenchResult[] = []
   for (const flavor of flavors) {
-    const r = await bench({ flavor, count, fanIn, registry, registryMode, lazyTables, sample, capMB: cap, concurrency, keep })
+    const r = await bench({ flavor, count, fanIn, registry, registryMode, lazyTables, shape, sample, capMB: cap, concurrency, keep })
     printSummary(r)
     results.push(r)
   }

@@ -15,6 +15,13 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { bench } from './bench.js'
 import { type Flavor } from './compose.js'
+import {
+  collectMeta,
+  fingerprintCell,
+  loadCellCache,
+  saveCellCache,
+  type CachedCell,
+} from './harnessMeta.js'
 import { deploy, resetDeployment } from './realDeploy.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -22,21 +29,29 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 interface CellResult {
   flavor: Flavor
   n: number
+  /** zodvex consumer shape composed for this cell ('n/a' for parity flavors). */
+  shape: string
   outcome: string // 'ok' | 'oom' | 'function-limit' | 'bundle-limit' | 'schema-error' | 'timeout' | 'too-many-reads' | 'other'
   durationMs: number
   endpointHeapMaxMB: number
   schemaHeapMB: number | null
   errorTail: string | null
+  /** True when reused from the fingerprint cache instead of re-running. */
+  cached?: boolean
 }
 
 interface SweepConfig {
   flavors?: Flavor[]
   ns?: number[]
+  /** zodvex consumer shape to compose (parity flavors unaffected). Default 'harness'. */
+  shape?: 'harness' | 'consolidated'
   /** Skip flavor at higher N once it's already failed at a lower N for the same flavor. Default true. */
   skipAfterFailure?: boolean
   outFile?: string
   /** Push an empty schema between each test. Default true. */
   reset?: boolean
+  /** Re-run cells even when their fingerprint matches the cache. Default false. */
+  force?: boolean
 }
 
 /** Friendly outcome label that disambiguates the various 'other' Convex errors. */
@@ -58,9 +73,13 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
     'zodvex-mini',
   ]
   const ns = config.ns ?? [200, 500, 800, 1000, 1500, 2000]
+  const shape = config.shape ?? 'harness'
   const skipAfterFailure = config.skipAfterFailure ?? true
   const doReset = config.reset ?? true
+  const force = config.force ?? false
 
+  const meta = collectMeta()
+  const cache = loadCellCache()
   const results: CellResult[] = []
 
   for (const flavor of flavors) {
@@ -70,6 +89,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         results.push({
           flavor,
           n,
+          shape: flavor === 'zodvex' || flavor === 'zodvex-mini' ? shape : 'n/a',
           outcome: 'skipped',
           durationMs: 0,
           endpointHeapMaxMB: 0,
@@ -77,6 +97,32 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
           errorTail: 'skipped after earlier failure for this flavor',
         })
         console.error(`[${flavor} N=${n}] skipped (earlier flavor failure)`)
+        continue
+      }
+
+      const isZodvex = flavor === 'zodvex' || flavor === 'zodvex-mini'
+      const cellShape = isZodvex ? shape : 'n/a'
+
+      // Fingerprint cache: a cell whose inputs (seeds, harness logic,
+      // package versions, relevant dists, deployment) are unchanged reuses
+      // its prior outcome. Parity flavors' fingerprints exclude the zodvex
+      // dist, so zodvex development never invalidates their baselines.
+      const fp = fingerprintCell({ flavor, shape: cellShape, n }, meta)
+      const hit = cache[fp]
+      if (hit && !force) {
+        console.error(`[${flavor} N=${n}] ↩ cached ${hit.outcome} (from ${hit.cachedAt.slice(0, 10)})`)
+        results.push({
+          flavor,
+          n,
+          shape: cellShape,
+          outcome: hit.outcome,
+          durationMs: hit.durationMs,
+          endpointHeapMaxMB: hit.endpointHeapMaxMB,
+          schemaHeapMB: hit.schemaHeapMB,
+          errorTail: hit.errorTail,
+          cached: true,
+        })
+        if (hit.outcome !== 'ok') failed.add(flavor)
         continue
       }
 
@@ -89,7 +135,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
       }
 
       console.error(`[${flavor} N=${n}] composing…`)
-      const lazyTables = flavor === 'zodvex' || flavor === 'zodvex-mini'
+      const lazyTables = isZodvex
       let measured
       try {
         measured = await bench({
@@ -97,6 +143,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
           count: n,
           sample: 1,
           lazyTables,
+          shape: isZodvex ? shape : 'harness',
           keep: true,
           verbose: false,
         })
@@ -105,6 +152,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         results.push({
           flavor,
           n,
+          shape: cellShape,
           outcome: 'compose-failed',
           durationMs: 0,
           endpointHeapMaxMB: 0,
@@ -116,29 +164,45 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
       }
 
       console.error(`[${flavor} N=${n}] deploying…`)
-      // Smoke-check the codec-wrapped db path on the first (smallest) N
-      // per flavor — that's enough to catch runtime regressions like the
-      // dynamic-import-unsupported bug. Higher Ns share the same codepath
-      // so a single runtime verification per flavor covers them all.
-      const isFirstN = n === ns[0]
+      // Smoke EVERY passing cell, not just the first N: the runtime Q/M
+      // isolate has the same 64 MB cap as analysis, so runtime failures
+      // are N-dependent — "same codepath" does not mean "same memory".
+      // The healthcheck endpoint asserts the semantics the composed shape
+      // promises (codec decode for consolidated zodvex, raw round-trip
+      // otherwise); the consolidated shape additionally exercises
+      // scheduler codec-arg encoding via the args-only registry.
+      const smokeFns = ['endpoints/healthcheck:healthcheck']
+      if (isZodvex && shape === 'consolidated') {
+        smokeFns.push('endpoints/healthcheck:healthcheckScheduler')
+      }
       const outcome = await deploy({
         source: join(__dirname, 'tmp', flavor, 'composed'),
         timeoutMs: 5 * 60 * 1000,
         verbose: false,
-        smokeFunction: isFirstN
-          ? 'endpoints/activity_0000:listActivities'
-          : undefined,
+        smokeFunction: smokeFns,
       })
       const kind = classifyOutcome(outcome)
-      results.push({
+      const cell: CellResult = {
         flavor,
         n,
+        shape: cellShape,
         outcome: kind,
         durationMs: outcome.durationMs,
         endpointHeapMaxMB: measured.heapDeltaMB.max,
         schemaHeapMB: measured.schemaHeapDeltaMB,
         errorTail: 'stderrSnippet' in outcome ? (outcome.stderrSnippet ?? '').slice(-300) : null,
-      })
+      }
+      results.push(cell)
+      cache[fp] = {
+        outcome: cell.outcome,
+        durationMs: cell.durationMs,
+        endpointHeapMaxMB: cell.endpointHeapMaxMB,
+        schemaHeapMB: cell.schemaHeapMB,
+        errorTail: cell.errorTail,
+        cachedAt: new Date().toISOString(),
+        key: { flavor, shape: cellShape, n },
+      } satisfies CachedCell
+      saveCellCache(cache)
       const icon = kind === 'ok' ? '✓' : '✗'
       console.error(`[${flavor} N=${n}] ${icon} ${kind} (${(outcome.durationMs / 1000).toFixed(1)}s)`)
       if (kind !== 'ok') failed.add(flavor)
@@ -146,7 +210,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
   }
 
   if (config.outFile) {
-    const out = { timestamp: new Date().toISOString(), config: { flavors, ns, skipAfterFailure, doReset }, results }
+    const out = { meta, config: { flavors, ns, shape, skipAfterFailure, doReset, force }, results }
     mkdirSync(dirname(config.outFile), { recursive: true })
     writeFileSync(config.outFile, JSON.stringify(out, null, 2))
   }
@@ -166,8 +230,9 @@ function formatTable(results: CellResult[]): string {
       ...ns.map(n => {
         const r = results.find(x => x.flavor === f && x.n === n)
         if (!r) return '—'
-        if (r.outcome === 'ok') return `✓ ${(r.durationMs / 1000).toFixed(0)}s`
-        return `✗ ${r.outcome}`
+        const c = r.cached ? ' (c)' : ''
+        if (r.outcome === 'ok') return `✓ ${(r.durationMs / 1000).toFixed(0)}s${c}`
+        return `✗ ${r.outcome}${c}`
       }),
     ]),
   ]
@@ -188,8 +253,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const results = await sweep({
     flavors,
     ns,
+    shape: (get('shape') ?? 'harness') as 'harness' | 'consolidated',
     outFile,
     skipAfterFailure: !has('continue'),
+    force: has('force'),
   })
 
   console.log()

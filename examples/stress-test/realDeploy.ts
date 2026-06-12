@@ -71,7 +71,8 @@ export interface DeployOptions {
    * deploy passes analyzer checks but Q/M handlers crash at runtime
    * (e.g. the "dynamic module import unsupported" regression).
    */
-  smokeFunction?: string
+  /** One or more no-arg function paths to `convex run` after a successful push. */
+  smokeFunction?: string | string[]
 }
 
 function classify(stdout: string, stderr: string): DeployOutcome['kind'] {
@@ -236,23 +237,33 @@ export function deploy(opts: DeployOptions): Promise<DeployOutcome> {
       }
 
       if (code === 0) {
-        if (smokeFunction) {
-          // Deploy succeeded — verify Q/M handlers actually run.
-          smokeCall(smokeFunction, slug!, 30_000).then((err) => {
-            if (err) {
-              resolve({
-                kind: 'runtime-error',
-                durationMs: Date.now() - startedAt,
-                stderrSnippet: err,
-              })
-            } else {
-              resolve({
-                kind: 'ok',
-                durationMs: Date.now() - startedAt,
-                stdoutTail: lastLines(stdout, 5),
-              })
+        const smokeFns =
+          smokeFunction === undefined
+            ? []
+            : Array.isArray(smokeFunction)
+              ? smokeFunction
+              : [smokeFunction]
+        if (smokeFns.length > 0) {
+          // Deploy succeeded — verify Q/M handlers actually run. Each smoke
+          // function runs sequentially; the first failure wins.
+          ;(async () => {
+            for (const fn of smokeFns) {
+              const err = await smokeCall(fn, slug!, 30_000)
+              if (err) {
+                resolve({
+                  kind: 'runtime-error',
+                  durationMs: Date.now() - startedAt,
+                  stderrSnippet: `[smoke ${fn}] ${err}`,
+                })
+                return
+              }
             }
-          })
+            resolve({
+              kind: 'ok',
+              durationMs: Date.now() - startedAt,
+              stdoutTail: lastLines(stdout, 5),
+            })
+          })()
           return
         }
         resolve({ kind: 'ok', durationMs, stdoutTail: lastLines(stdout, 5) })
