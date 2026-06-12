@@ -23,7 +23,7 @@ const ROOT = __dirname
 const REPO_ROOT = join(ROOT, '..', '..')
 
 /** Bump when the fingerprint structure itself changes. */
-const FINGERPRINT_SCHEMA = 'v1'
+const FINGERPRINT_SCHEMA = 'v2'
 
 // ---------------------------------------------------------------------------
 // Metadata
@@ -108,7 +108,10 @@ function hashPath(p: string, h: Hash): void {
 export interface CellKey {
   flavor: string
   shape: string
+  /** Endpoint-file count. */
   n: number
+  /** Model (table) count — equals n in the legacy 1:1 sweep. */
+  models: number
 }
 
 /**

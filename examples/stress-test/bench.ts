@@ -38,7 +38,8 @@ interface BenchResult {
   registry: boolean
   registryMode: 'static' | 'lazy' | 'invisible'
   lazyTables: boolean
-  shape: 'harness' | 'consolidated'
+  shape: 'harness' | 'explicit' | 'consolidated'
+  models: number
   endpointsBenched: number
   endpointsOk: number
   endpointsFailed: number
@@ -79,7 +80,9 @@ export interface BenchOptions {
   /** Each endpoint imports a registry.ts referencing every model. Default false. */
   registry?: boolean
   /** zodvex consumer shape to compose — see ComposeConfig.shape. Default 'harness'. */
-  shape?: 'harness' | 'consolidated'
+  shape?: 'harness' | 'explicit' | 'consolidated'
+  /** Model (table) count, decoupled from endpoint count — see ComposeConfig.models. */
+  models?: number
   /** Registry consumer pattern. Default 'static'. */
   registryMode?: 'static' | 'lazy' | 'invisible'
   /**
@@ -110,6 +113,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     registryMode = 'static',
     lazyTables = false,
     shape = 'harness',
+    models,
     sample,
     concurrency = 4,
     capMB,
@@ -125,9 +129,9 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
   if (existsSync(workDir)) rmSync(workDir, { recursive: true })
   mkdirSync(workDir, { recursive: true })
 
-  const variantLabel = `${flavor}${fanIn ? ` fanin=${fanIn}` : ''}${registry ? ` registry/${registryMode}` : ''}${lazyTables ? ' lazy-tables' : ''}${shape !== 'harness' ? ` shape=${shape}` : ''}`
+  const variantLabel = `${flavor}${fanIn ? ` fanin=${fanIn}` : ''}${registry ? ` registry/${registryMode}` : ''}${lazyTables ? ' lazy-tables' : ''}${shape !== 'harness' ? ` shape=${shape}` : ''}${models !== undefined && models !== count ? ` models=${models}` : ''}`
   if (verbose) console.error(`[${variantLabel}] composing ${count} endpoints…`)
-  const composed = compose({ flavor, count, fanIn, registry, registryMode, lazyTables, shape, outputDir: composedDir })
+  const composed = compose({ flavor, count, models, fanIn, registry, registryMode, lazyTables, shape, outputDir: composedDir })
 
   let entries = composed.endpointFiles
   if (sample && sample < entries.length) entries = entries.slice(0, sample)
@@ -234,6 +238,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     registryMode,
     lazyTables,
     shape,
+    models: models ?? count,
     endpointsBenched: metrics.length,
     endpointsOk: ok.length,
     endpointsFailed: failed.length,
@@ -262,7 +267,7 @@ function printSummary(r: BenchResult) {
   const status = `${r.endpointsOk}/${r.endpointsBenched} ok` +
     (r.endpointsFailed ? ` · ${r.endpointsFailed} fail` : '') +
     (r.endpointsOOM ? ` · ${r.endpointsOOM} OOM` : '')
-  const tags = `${r.fanIn ? ` fanin=${r.fanIn}` : ''}${r.registry ? ` registry/${r.registryMode}` : ''}${r.lazyTables ? ' lazy-tables' : ''}`
+  const tags = `${r.fanIn ? ` fanin=${r.fanIn}` : ''}${r.registry ? ` registry/${r.registryMode}` : ''}${r.lazyTables ? ' lazy-tables' : ''}${r.shape !== 'harness' ? ` shape=${r.shape}` : ''}${r.models !== r.count ? ` models=${r.models}` : ''}`
   console.log(`\n=== ${r.flavor}${tags} @ count=${r.count} (${status}) ===`)
   console.log(`endpoints  bundle min/p50/p95/max:  ${fmtBytes(r.bundleBytes.min)} / ${fmtBytes(r.bundleBytes.p50)} / ${fmtBytes(r.bundleBytes.p95)} / ${fmtBytes(r.bundleBytes.max)}`)
   console.log(`endpoints  heap   min/p50/p95/max:  ${r.heapDeltaMB.min.toFixed(2)} / ${r.heapDeltaMB.p50.toFixed(2)} / ${r.heapDeltaMB.p95.toFixed(2)} / ${r.heapDeltaMB.max.toFixed(2)} MB`)
@@ -295,7 +300,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     : (regArg === 'invisible' || has('invisible-registry')) ? 'invisible'
     : 'static'
   const lazyTables = has('lazy-tables')
-  const shape = (get('shape') ?? 'harness') as 'harness' | 'consolidated'
+  const shape = (get('shape') ?? 'harness') as 'harness' | 'explicit' | 'consolidated'
+  const models = get('models') ? parseInt(get('models')!, 10) : undefined
   const sample = get('sample') ? parseInt(get('sample')!) : undefined
   const cap = get('cap') ? parseInt(get('cap')!) : undefined
   const concurrency = get('concurrency') ? parseInt(get('concurrency')!) : 4
@@ -304,7 +310,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const results: BenchResult[] = []
   for (const flavor of flavors) {
-    const r = await bench({ flavor, count, fanIn, registry, registryMode, lazyTables, shape, sample, capMB: cap, concurrency, keep })
+    const r = await bench({ flavor, count, models, fanIn, registry, registryMode, lazyTables, shape, sample, capMB: cap, concurrency, keep })
     printSummary(r)
     results.push(r)
   }

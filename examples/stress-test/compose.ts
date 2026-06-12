@@ -78,13 +78,30 @@ export interface ComposeConfig {
    *    `_zodvex/server.ts` import. Measures the zod-validation floor
    *    only. NO USER IS TOLD TO WRITE THIS SHAPE — it exists for
    *    baseline continuity with the May 2026 sweeps.
+   *  - 'explicit': the 0.7.5-main documented shape — schema.ts is
+   *    `defineZodSchema({ ...allModels })`, functions.ts statically
+   *    imports the generated registry and passes
+   *    `registry: () => zodvexRegistry`. Works against zodvex MAIN
+   *    (no tables.ts/server.ts required), so the same harness can
+   *    baseline main vs this branch. Forces lazyTables OFF.
    *  - 'consolidated': `import { initZodvex } from './_zodvex/server'` —
    *    the codegen-recommended shape (wrapDb on, split registry, static
    *    tableMap). This is the shape that OOMs at N≈200 full-zod
    *    (results/server-ts-shape-findings-2026-06-12.md); composing it
    *    here is what lets the sweep track that cliff. Implies lazyTables.
    */
-  shape?: 'harness' | 'consolidated'
+  shape?: 'harness' | 'explicit' | 'consolidated'
+  /**
+   * Decouple the MODEL axis from the ENDPOINT axis. When set, exactly
+   * `models` model files (tables) are composed and the `count` endpoint
+   * files reference them round-robin (endpoint i uses model i % models).
+   * Default: `count` (legacy 1:1 — each endpoint gets its own model).
+   *
+   * Why: the cost terms scale on different axes — the consolidated
+   * shape's static model graph binds on MODEL count, the registry terms
+   * on FUNCTION count, so a 1:1 sweep cannot attribute a cliff.
+   */
+  models?: number
 }
 
 interface SeedInfo {
@@ -383,8 +400,13 @@ export function compose(config: ComposeConfig): ComposeResult {
   } = config
   const isZodvex = flavor === 'zodvex' || flavor === 'zodvex-mini'
   // The consolidated shape's generated server.ts requires the codegen
-  // pipeline (tables.ts, api.args.js) — lazyTables is implied.
-  const lazyTables = (config.lazyTables ?? false) || (isZodvex && shape === 'consolidated')
+  // pipeline (tables.ts, api.args.js) — lazyTables is implied. The
+  // explicit shape is the main-compatible defineZodSchema form — thin
+  // schema does not exist there, so lazyTables is forced off.
+  const lazyTables =
+    isZodvex && shape === 'explicit'
+      ? false
+      : (config.lazyTables ?? false) || (isZodvex && shape === 'consolidated')
   const modelsDir = join(outputDir, 'models')
   const endpointsDir = join(outputDir, 'endpoints')
 
@@ -395,17 +417,19 @@ export function compose(config: ComposeConfig): ComposeResult {
   const seeds = loadSeeds(flavor)
   if (seeds.length === 0) throw new Error(`No seed files found for flavor: ${flavor}`)
 
-  if (fanIn > count - 1) {
-    throw new Error(`fanIn ${fanIn} exceeds count-1 (${count - 1})`)
+  const modelCount = config.models ?? count
+  if (fanIn > modelCount - 1) {
+    throw new Error(`fanIn ${fanIn} exceeds models-1 (${modelCount - 1})`)
   }
 
   // First pass: write models and collect their identity (fileName + cross-import symbol).
   const allRefs: ModelRef[] = []
-  const endpointPlans: { seed: SeedInfo; suffix: string; newTable: string; newPascal: string; fileName: string }[] = []
+  const modelPlans: { seed: SeedInfo; suffix: string; newTable: string; newPascal: string; fileName: string }[] = []
+  const tables: TableSpec[] = []
 
-  for (let i = 0; i < count; i++) {
-    const seed = seeds[i % seeds.length]
-    const suffix = String(i).padStart(4, '0')
+  for (let m = 0; m < modelCount; m++) {
+    const seed = seeds[m % seeds.length]
+    const suffix = String(m).padStart(4, '0')
     const newTable = `${seed.tableName}_${suffix}`
     const newPascal = `${seed.pascal}${suffix}`
     const fileName = `${seed.name}_${suffix}`
@@ -416,9 +440,15 @@ export function compose(config: ComposeConfig): ComposeResult {
     allRefs.push({
       fileName,
       symbol: crossImportSymbol(flavor, seed, suffix),
-      alias: `M_${i}`,
+      alias: `M_${m}`,
     })
-    endpointPlans.push({ seed, suffix, newTable, newPascal, fileName })
+    modelPlans.push({ seed, suffix, newTable, newPascal, fileName })
+    tables.push({
+      fileName,
+      symbol: crossImportSymbol(flavor, seed, suffix),
+      alias: `T_${m}`,
+      tableName: newTable,
+    })
   }
 
   if (registry) {
@@ -429,22 +459,27 @@ export function compose(config: ComposeConfig): ComposeResult {
   }
 
   // Second pass: write endpoints with optional fan-in + registry imports.
+  // Endpoint i references model i % modelCount; in the legacy 1:1 case
+  // the endpoint file reuses the model's name (cache/baseline continuity),
+  // otherwise it gets a unique `_eNNNN` suffix.
   const endpointFiles: string[] = []
-  const tables: TableSpec[] = []
 
   for (let i = 0; i < count; i++) {
-    const plan = endpointPlans[i]
-    const { seed, suffix, newTable, newPascal, fileName } = plan
+    const m = i % modelCount
+    const plan = modelPlans[m]
+    const { seed, suffix, newTable, newPascal } = plan
     if (!seed.endpointSource) continue
+    const fileName =
+      modelCount === count ? plan.fileName : `${plan.fileName}_e${String(i).padStart(4, '0')}`
 
     let endpointOut = renameSeed(seed.endpointSource, seed, suffix, newTable, newPascal, flavor)
 
     if (fanIn > 0) {
-      // Pick fanIn other models round-robin, skipping self.
+      // Pick fanIn other models round-robin, skipping the endpoint's own.
       const picks: ModelRef[] = []
-      for (let k = 1; picks.length < fanIn && k < count; k++) {
-        const j = (i + k) % count
-        if (j === i) continue
+      for (let k = 1; picks.length < fanIn && k < modelCount; k++) {
+        const j = (m + k) % modelCount
+        if (j === m) continue
         picks.push(allRefs[j])
       }
       endpointOut += '\n' + buildFanInBlock(picks)
@@ -469,13 +504,6 @@ export function compose(config: ComposeConfig): ComposeResult {
     const endpointPath = join(endpointsDir, `${fileName}.ts`)
     writeFileSync(endpointPath, endpointOut)
     endpointFiles.push(endpointPath)
-
-    tables.push({
-      fileName,
-      symbol: crossImportSymbol(flavor, seed, suffix),
-      alias: `T_${i}`,
-      tableName: newTable,
-    })
   }
 
   // Healthcheck: one fixed (non-scaled) model + endpoint pair per tree.
@@ -502,13 +530,15 @@ export function compose(config: ComposeConfig): ComposeResult {
   writeFileSync(
     join(outputDir, 'summary.json'),
     JSON.stringify(
-      { flavor, count, fanIn, registry, registryMode, lazyTables, shape, seeds: seeds.length },
+      { flavor, count, models: modelCount, fanIn, registry, registryMode, lazyTables, shape, seeds: seeds.length },
       null,
       2,
     ),
   )
 
-  if (lazyTables && isZodvex) {
+  // lazyTables needs codegen for tables.ts; the explicit shape needs it
+  // for _zodvex/api.js (the statically-imported registry).
+  if (isZodvex && (lazyTables || shape === 'explicit')) {
     runZodvexGenerate(outputDir, flavor === 'zodvex-mini')
   }
 
@@ -519,9 +549,38 @@ export function compose(config: ComposeConfig): ComposeResult {
   // _zodvex/server.ts exactly as a real consumer's would.
   if (isZodvex && shape === 'consolidated') {
     writeFileSync(join(outputDir, 'functions.ts'), consolidatedFunctionsSource())
+  } else if (isZodvex && shape === 'explicit') {
+    writeFileSync(join(outputDir, 'functions.ts'), explicitFunctionsSource(flavor))
   }
 
   return { flavor, outputDir, modelsDir, endpointsDir, endpointFiles }
+}
+
+/**
+ * The 0.7.5-main documented shape: real schema import (defineZodSchema —
+ * drags every model into this module and thus into every endpoint), static
+ * registry import from the generated api.js, sync registry thunk.
+ */
+function explicitFunctionsSource(flavor: Flavor): string {
+  const serverImport = flavor === 'zodvex-mini' ? 'zodvex/mini/server' : 'zodvex/server'
+  return `import { initZodvex } from '${serverImport}'
+import {
+  queryGeneric as query,
+  mutationGeneric as mutation,
+  actionGeneric as action,
+  internalQueryGeneric as internalQuery,
+  internalMutationGeneric as internalMutation,
+  internalActionGeneric as internalAction,
+} from 'convex/server'
+import schema from './schema'
+import { zodvexRegistry } from './_zodvex/api.js'
+
+export const { zq, zm } = initZodvex(schema as any, {
+  query, mutation, action, internalQuery, internalMutation, internalAction,
+} as any, {
+  registry: () => zodvexRegistry,
+})
+`
 }
 
 function consolidatedFunctionsSource(): string {
@@ -573,10 +632,10 @@ export const HealthcheckTable = defineTable({
  *  - zodvex 'harness' (wrapDb:false): db is raw — `at` must stay a number.
  *  - parity flavors: plain write+read round-trip, same table shape.
  */
-function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'consolidated'): string {
+function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'explicit' | 'consolidated'): string {
   if (flavor === 'zodvex' || flavor === 'zodvex-mini') {
     const src =
-      shape === 'consolidated'
+      shape !== 'harness'
         ? `import { z } from 'zod'
 import { makeFunctionReference } from 'convex/server'
 import { zx } from 'zodvex'

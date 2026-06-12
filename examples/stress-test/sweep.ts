@@ -44,7 +44,7 @@ interface SweepConfig {
   flavors?: Flavor[]
   ns?: number[]
   /** zodvex consumer shape to compose (parity flavors unaffected). Default 'harness'. */
-  shape?: 'harness' | 'consolidated'
+  shape?: 'harness' | 'explicit' | 'consolidated'
   /** Skip flavor at higher N once it's already failed at a lower N for the same flavor. Default true. */
   skipAfterFailure?: boolean
   outFile?: string
@@ -52,6 +52,13 @@ interface SweepConfig {
   reset?: boolean
   /** Re-run cells even when their fingerprint matches the cache. Default false. */
   force?: boolean
+  /**
+   * Axis control (mutually exclusive; default neither = legacy 1:1):
+   *  - `models`: fix the model count; `ns` sweeps the ENDPOINT axis.
+   *  - `endpoints`: fix the endpoint count; `ns` sweeps the MODEL axis.
+   */
+  models?: number
+  endpoints?: number
 }
 
 /** Friendly outcome label that disambiguates the various 'other' Convex errors. */
@@ -78,6 +85,9 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
   const doReset = config.reset ?? true
   const force = config.force ?? false
 
+  if (config.models !== undefined && config.endpoints !== undefined) {
+    throw new Error('--models and --endpoints are mutually exclusive')
+  }
   const meta = collectMeta()
   const cache = loadCellCache()
   const results: CellResult[] = []
@@ -102,12 +112,15 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
 
       const isZodvex = flavor === 'zodvex' || flavor === 'zodvex-mini'
       const cellShape = isZodvex ? shape : 'n/a'
+      // Resolve the two axes for this cell.
+      const cellEndpoints = config.endpoints ?? n
+      const cellModels = config.models ?? (config.endpoints !== undefined ? n : n)
 
       // Fingerprint cache: a cell whose inputs (seeds, harness logic,
       // package versions, relevant dists, deployment) are unchanged reuses
       // its prior outcome. Parity flavors' fingerprints exclude the zodvex
       // dist, so zodvex development never invalidates their baselines.
-      const fp = fingerprintCell({ flavor, shape: cellShape, n }, meta)
+      const fp = fingerprintCell({ flavor, shape: cellShape, n: cellEndpoints, models: cellModels }, meta)
       const hit = cache[fp]
       if (hit && !force) {
         console.error(`[${flavor} N=${n}] ↩ cached ${hit.outcome} (from ${hit.cachedAt.slice(0, 10)})`)
@@ -135,12 +148,14 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
       }
 
       console.error(`[${flavor} N=${n}] composing…`)
-      const lazyTables = isZodvex
+      // explicit = the main-compatible defineZodSchema shape: no tables.ts.
+      const lazyTables = isZodvex && shape !== 'explicit'
       let measured
       try {
         measured = await bench({
           flavor,
-          count: n,
+          count: cellEndpoints,
+          models: cellModels,
           sample: 1,
           lazyTables,
           shape: isZodvex ? shape : 'harness',
@@ -200,7 +215,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         schemaHeapMB: cell.schemaHeapMB,
         errorTail: cell.errorTail,
         cachedAt: new Date().toISOString(),
-        key: { flavor, shape: cellShape, n },
+        key: { flavor, shape: cellShape, n: cellEndpoints, models: cellModels },
       } satisfies CachedCell
       saveCellCache(cache)
       const icon = kind === 'ok' ? '✓' : '✗'
@@ -210,7 +225,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
   }
 
   if (config.outFile) {
-    const out = { meta, config: { flavors, ns, shape, skipAfterFailure, doReset, force }, results }
+    const out = { meta, config: { flavors, ns, shape, models: config.models ?? null, endpoints: config.endpoints ?? null, skipAfterFailure, doReset, force }, results }
     mkdirSync(dirname(config.outFile), { recursive: true })
     writeFileSync(config.outFile, JSON.stringify(out, null, 2))
   }
@@ -253,7 +268,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const results = await sweep({
     flavors,
     ns,
-    shape: (get('shape') ?? 'harness') as 'harness' | 'consolidated',
+    shape: (get('shape') ?? 'harness') as 'harness' | 'explicit' | 'consolidated',
+    models: get('models') ? parseInt(get('models')!, 10) : undefined,
+    endpoints: get('endpoints') ? parseInt(get('endpoints')!, 10) : undefined,
     outFile,
     skipAfterFailure: !has('continue'),
     force: has('force'),
