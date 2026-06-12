@@ -27,6 +27,8 @@ export type DiscoveredModel = {
   schemas: ZodvexModelMeta['schemas']
   /** @internal For slim models — used to reconstruct schemas at codegen time. */
   _modelRef?: unknown
+  /** @internal Live model object — used by codegen to build Convex TableDefinitions. */
+  _liveModel?: unknown
 }
 
 export type DiscoveredFunction = {
@@ -302,7 +304,13 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
       'convex.config.ts',
       'convex.config.js',
       'crons.ts',
-      'crons.js'
+      'crons.js',
+      // schema.{ts,js} never exports queries/mutations/codecs — and under
+      // the lazy-tables shape it imports from `_zodvex/tables`, which is
+      // generated DURING this same codegen pass. Importing it during
+      // discovery would create an ordering loop on first run; ignore it.
+      'schema.ts',
+      'schema.js'
     ]
   }).sort()
 
@@ -340,7 +348,8 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
                   tableName: meta.tableName,
                   sourceFile: file,
                   schemas: meta.schemas,
-                  _modelRef: meta.schemas ? undefined : value
+                  _modelRef: meta.schemas ? undefined : value,
+                  _liveModel: value
                 }
               }
               // If existing is direct and new is barrel, skip
@@ -350,7 +359,8 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
                 tableName: meta.tableName,
                 sourceFile: file,
                 schemas: meta.schemas,
-                _modelRef: meta.schemas ? undefined : value
+                _modelRef: meta.schemas ? undefined : value,
+                _liveModel: value
               })
             }
           } else if (meta.type === 'function') {

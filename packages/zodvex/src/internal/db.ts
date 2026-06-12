@@ -719,10 +719,14 @@ export class ZodvexDatabaseWriter<
 
 /**
  * Creates a ZodvexDatabaseReader from a Convex DatabaseReader and a schema
- * with __zodTableMap (as returned by defineZodSchema).
+ * with __zodTableMap.
  *
- * When the schema carries __decodedDocs (from defineZodSchema), DD is inferred
- * automatically, providing decoded types on query terminal methods.
+ * Accepts either:
+ *   - a legacy schema from `defineZodSchema(...)`
+ *   - the codec-aware schema re-export from `_zodvex/server.ts`
+ *
+ * When the schema carries `__decodedDocs`, DD is inferred automatically,
+ * providing decoded types on query terminal methods.
  */
 export function createZodDbReader<
   DataModel extends GenericDataModel,
@@ -736,10 +740,7 @@ export function createZodDbReader<
 
 /**
  * Creates a ZodvexDatabaseWriter from a Convex DatabaseWriter and a schema
- * with __zodTableMap (as returned by defineZodSchema).
- *
- * When the schema carries __decodedDocs (from defineZodSchema), DD is inferred
- * automatically, providing decoded types on query terminal methods.
+ * with __zodTableMap (legacy or codec-aware re-export).
  */
 export function createZodDbWriter<
   DataModel extends GenericDataModel,

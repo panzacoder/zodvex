@@ -191,7 +191,13 @@ export type DecodedDocFor<T extends Record<string, ZodSchemaEntry>> = {
 /**
  * Creates a Convex table definition from a ZodModel's fields and index metadata.
  */
-function tableFromModel(model: ZodModelEntry) {
+/**
+ * Build a Convex TableDefinition from a ZodModel.
+ * Exposed for codegen — needs the live model to walk validators + indexes
+ * so it can emit a pure Convex `_zodvex/tables.ts` that keeps zod out of
+ * schema-eval. Same path defineZodSchema uses internally.
+ */
+export function tableFromModel(model: ZodModelEntry) {
   const meta = getZodModelMeta(model)
   const usesBaseSchema =
     meta.definitionSource === 'schema' ||
@@ -259,6 +265,39 @@ function tableFromModel(model: ZodModelEntry) {
  * })
  * ```
  */
+/**
+ * Lazy-tables companion to `defineZodSchema`. Takes the codegen-emitted
+ * `_zodvex/tables.ts` default export (pure Convex `TableDefinition`s) plus
+ * the decoded-doc type and produces a Convex schema with the same
+ * `__decodedDocs` / `__zodTableMap` shape that `defineZodSchema` returns.
+ *
+ * Runtime: just `defineSchema(tables)` — no zod loaded. Use this in
+ * `convex/schema.ts` to keep the schema-eval isolate thin while still
+ * getting decoded `ctx.db` return types in queries/mutations:
+ *
+ *     import { defineZodvexSchema } from 'zodvex/server'
+ *     import tables, { type DecodedDocs } from './_zodvex/tables'
+ *     export default defineZodvexSchema<typeof tables, DecodedDocs>(tables)
+ *
+ * `__zodTableMap` is left empty at module init; the lazy variant is
+ * provided to `initZodvex` via `_zodvex/tableMap.lazy.js`.
+ */
+export function defineZodvexSchema<
+  T extends Record<string, any>,
+  DD extends Record<string, any> = Record<string, any>
+>(
+  tables: T
+): ReturnType<typeof defineSchema<T>> & {
+  __zodTableMap: ZodTableMap
+  __decodedDocs: DD
+} {
+  const schema = defineSchema(tables)
+  return Object.assign(schema, {
+    __zodTableMap: {} as ZodTableMap,
+    __decodedDocs: undefined as unknown as DD
+  }) as any
+}
+
 export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables: T) {
   const convexTables: Record<string, any> = {}
   const zodTableMap: ZodTableMap = {}
@@ -312,28 +351,45 @@ export function defineZodSchema<T extends Record<string, ZodSchemaEntry>>(tables
 // Schema-derived helper types
 // ============================================================================
 
-/** Extract the DataModel from a defineZodSchema result */
-export type InferDataModel<Schema extends ReturnType<typeof defineZodSchema>> =
-  DataModelFromSchemaDefinition<Schema>
+// Schema constraint accepts either of:
+//   - a plain Convex `defineSchema(tables)` result, OR
+//   - a `defineZodvexSchema(tables)` result (which adds `__decodedDocs`).
+// The Infer* helpers below take an optional `DD` type param so callers
+// using the pure-Convex shape can still get decoded-doc-typed filter
+// builders by passing `DecodedDocs` from `_zodvex/tables` explicitly.
+type AnySchema = { tables: any; strictTableNameTypes: any }
 
-/** Extract TableInfo for a specific table */
+/** Extract the DataModel from a schema (plain Convex or defineZodvexSchema). */
+export type InferDataModel<Schema extends AnySchema> = DataModelFromSchemaDefinition<
+  Schema extends import('convex/server').SchemaDefinition<any, any> ? Schema : never
+>
+
+/** Extract TableInfo for a specific table. */
 export type InferTableInfo<
-  Schema extends ReturnType<typeof defineZodSchema>,
+  Schema extends AnySchema,
   TableName extends TableNamesInDataModel<InferDataModel<Schema>>
 > = NamedTableInfo<InferDataModel<Schema>, TableName>
 
-/** Extract the decoded document type for a specific table */
+/**
+ * Extract the decoded document type for a specific table.
+ * Resolution order:
+ *   1. explicit `DD` type param (recommended for `defineSchema(tables)` users —
+ *      pass `import('./_zodvex/tables').DecodedDocs`)
+ *   2. `Schema['__decodedDocs']` (set by `defineZodvexSchema`)
+ *   3. fallback to `any`
+ */
 export type InferDecodedDoc<
-  Schema extends ReturnType<typeof defineZodSchema>,
-  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
-> = Schema extends { __decodedDocs: infer DD }
-  ? TableName extends keyof DD
-    ? DD[TableName]
-    : never
-  : never
+  Schema extends AnySchema,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>,
+  DD = Schema extends { __decodedDocs: infer X } ? X : never
+> = TableName extends keyof DD ? DD[TableName] : any
 
-/** A ZodvexFilterBuilder typed for a specific table */
+/** A ZodvexFilterBuilder typed for a specific table. */
 export type InferFilterBuilder<
-  Schema extends ReturnType<typeof defineZodSchema>,
-  TableName extends TableNamesInDataModel<InferDataModel<Schema>>
-> = ZodvexFilterBuilder<InferTableInfo<Schema, TableName>, InferDecodedDoc<Schema, TableName>>
+  Schema extends AnySchema,
+  TableName extends TableNamesInDataModel<InferDataModel<Schema>>,
+  DD = Schema extends { __decodedDocs: infer X } ? X : never
+> = ZodvexFilterBuilder<
+  InferTableInfo<Schema, TableName>,
+  TableName extends keyof DD ? DD[TableName] : any
+>

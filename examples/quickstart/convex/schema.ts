@@ -1,6 +1,4 @@
-import { defineZodSchema } from 'zodvex/server'
-import { EventModel } from './models'
+import { defineSchema } from 'convex/server'
+import tables from './_zodvex/tables'
 
-export default defineZodSchema({
-  events: EventModel,
-})
+export default defineSchema(tables)
