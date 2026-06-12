@@ -52,6 +52,8 @@ interface FlavorPlan {
   flavor: Flavor
   /** Use lazy-tables shape (zodvex flavors only). */
   lazyTables: boolean
+  /** Consumer shape for zodvex flavors — see ComposeConfig.shape. */
+  shape?: 'harness' | 'explicit' | 'consolidated'
   /** What we expect at the target — used to decide pass/fail. */
   expectedDeploy: 'ok' | 'oom'
   note: string
@@ -77,6 +79,9 @@ const DEFAULT_PLAN: FlavorPlan[] = [
 export interface RegressionOptions {
   target?: number
   outFile?: string
+  /** Force a consumer shape onto the plan's zodvex flavors (e.g. 'explicit'
+   *  when gating against zodvex MAIN, which has no tables.ts/server.ts). */
+  shape?: 'harness' | 'explicit' | 'consolidated'
   /** Override the default plan (mainly for testing). */
   plan?: FlavorPlan[]
   /** Push an empty schema before each flavor's test. Default true — without
@@ -89,7 +94,14 @@ export async function regression(opts: RegressionOptions = {}): Promise<{
   outcomes: FlavorOutcome[]
 }> {
   const target = opts.target ?? 600
-  const plan = opts.plan ?? DEFAULT_PLAN
+  let plan = opts.plan ?? DEFAULT_PLAN
+  if (opts.shape) {
+    plan = plan.map(e =>
+      e.flavor === 'zodvex' || e.flavor === 'zodvex-mini'
+        ? { ...e, shape: opts.shape, lazyTables: opts.shape !== 'explicit' }
+        : e
+    )
+  }
   const doReset = opts.reset ?? true
   const outcomes: FlavorOutcome[] = []
 
@@ -107,6 +119,7 @@ export async function regression(opts: RegressionOptions = {}): Promise<{
       count: target,
       sample: 1,
       lazyTables: entry.lazyTables,
+      shape: entry.shape ?? 'harness',
       keep: true,
       verbose: false,
     })
@@ -123,7 +136,7 @@ export async function regression(opts: RegressionOptions = {}): Promise<{
       timeoutMs: 5 * 60 * 1000,
       verbose: false,
       smokeFunction:
-        entry.expectedDeploy === 'ok' ? 'endpoints/activity_0000:listActivities' : undefined,
+        entry.expectedDeploy === 'ok' ? 'endpoints/healthcheck:healthcheck' : undefined,
     })
 
     const ok = outcome.kind === entry.expectedDeploy
@@ -187,7 +200,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 
   console.error(`zodvex regression suite — target N=${target}${plan ? ` (flavors: ${plan.map(p => p.flavor).join(', ')})` : ''}`)
-  const { ok, outcomes } = await regression({ target, outFile, plan })
+  const shape = get('shape') as 'harness' | 'explicit' | 'consolidated' | undefined
+  const { ok, outcomes } = await regression({ target, outFile, plan, shape })
 
   console.log()
   console.log(fmtTable(target, outcomes))
