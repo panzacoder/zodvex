@@ -20,7 +20,7 @@ zodvex includes a code generator that introspects your Convex directory at build
 
 **You DO need codegen for:**
 - Typed React hooks that encode args and decode results automatically
-- `ctx.runQuery` / `ctx.runMutation` in actions that decode results via the registry
+- `ctx.runQuery` / `ctx.runMutation` and `ctx.scheduler.runAfter` / `runAt` that auto-encode codec args (and decode results) via the registry
 - Sharing Zod schemas between server and client without importing server-only modules
 
 ## Setup
@@ -58,7 +58,7 @@ convex/_zodvex/
 
 ## Registry wiring
 
-The generated `_zodvex/api.js` exports a `zodvexRegistry` — a plain object mapping every public function path to its `args` and `returns` Zod schemas. Wire it into `initZodvex` via the `registry` option so actions can auto-decode `runQuery` / `runMutation` results:
+The generated `_zodvex/api.js` exports a `zodvexRegistry` — a plain object mapping every public function path to its `args` and `returns` Zod schemas. Wire it into `initZodvex` via the `registry` option so `runQuery` / `runMutation` / `scheduler.runAfter` / `scheduler.runAt` auto-encode codec args (and decode results):
 
 ```typescript
 // convex/functions.ts
@@ -81,7 +81,7 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
 
 The `registry` option is a thunk (`() => zodvexRegistry`) to avoid a circular-import issue: `functions.ts` is itself discovered during codegen, so it imports from `_zodvex/api.js` at runtime rather than at module evaluation time.
 
-When the registry is provided, `za` and `zia` replace `ctx.runQuery` and `ctx.runMutation` with codec-aware versions that automatically decode results using the registry's `returns` schema.
+When the registry is provided, `za` and `zia` replace `ctx.runQuery` and `ctx.runMutation` with codec-aware versions that **encode args** (decoded → wire) before the call and **decode results** (wire → runtime) after, using the registry's `args` / `returns` schemas. The mutation builders (`zm` / `zim`) likewise wrap `ctx.scheduler.runAfter` / `ctx.scheduler.runAt` to encode args. This means you can pass natural decoded values when calling into another wrapped function — including codecs whose runtime form can't cross the Convex boundary as-is (e.g. a Symbol-valued field) — and zodvex encodes them to wire at the call site, symmetric with the inbound decode the receiver already performs.
 
 ## Generated files
 
@@ -174,6 +174,15 @@ function TaskDetail({ id }: { id: string }) {
 ```
 
 `encodeArgs` and `decodeResult` are lower-level helpers for non-hook use cases (e.g. form submit handlers, non-React clients).
+
+### `ZodvexClient` / `ZodvexReactClient` — codec-aware drop-in clients
+
+`createZodvexClient` (vanilla JS) and `createZodvexReactClient` (React) wrap Convex's `ConvexClient` / `ConvexReactClient` and apply registry codecs on every call — args are encoded to wire on the way out, results decoded to runtime on the way in. They aim to be **near drop-in replacements** for the Convex clients, exposing the same surface:
+
+- **`ZodvexClient`** (↔ `ConvexClient`): `query`, `mutate` (alias `mutation`), `action`, `subscribe` (alias `onUpdate`), `onPaginatedUpdate_experimental`, `getAuth`, `setAuth` (accepts a token string *or* an `AuthTokenFetcher` + `onChange`), `connectionState`, `subscribeToConnectionState`, `closed` / `disabled`, `close`. The inner client is reachable via the `convex` getter.
+- **`ZodvexReactClient`** (↔ `ConvexReactClient`): `query`, `mutation`, `action`, `watchQuery`, `prewarmQuery`, `setAuth`, `clearAuth`, `connectionState`, `subscribeToConnectionState`, `url`, `logger`, `close`.
+
+The data methods (`query` / `mutate` / `action` / `subscribe` / `watchQuery` / paginated) are codec-wrapped; the auth, connection, and lifecycle methods are thin pass-throughs to the underlying Convex client.
 
 ## Bootstrapping note
 

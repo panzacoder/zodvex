@@ -315,9 +315,10 @@ describe('createZodvexActionCtx', () => {
   // ---- Preserves other ctx properties ------------------------------------
 
   describe('ctx preservation', () => {
-    it('preserves other ctx properties (runAction, auth, scheduler, storage)', () => {
+    it('preserves other ctx properties (runAction, auth, storage) and wraps scheduler', () => {
       const authObj = { getUserIdentity: async () => ({ subject: 'user123' }) }
-      const schedulerObj = { runAfter: noop }
+      const cancelFn = async () => undefined
+      const schedulerObj = { runAfter: noop, runAt: noop, cancel: cancelFn }
       const storageObj = { getUrl: async () => 'https://example.com/file' }
       const runActionFn = async () => 'action result'
 
@@ -334,10 +335,13 @@ describe('createZodvexActionCtx', () => {
 
       // runAction should be the original (not wrapped)
       expect(wrappedCtx.runAction).toBe(runActionFn)
-      // auth, scheduler, storage should be preserved
+      // auth, storage should be preserved
       expect((wrappedCtx as any).auth).toBe(authObj)
-      expect((wrappedCtx as any).scheduler).toBe(schedulerObj)
       expect((wrappedCtx as any).storage).toBe(storageObj)
+      // scheduler is wrapped (auto-encodes codec args), but unwrapped members
+      // (e.g. cancel) pass through unchanged
+      expect((wrappedCtx as any).scheduler).not.toBe(schedulerObj)
+      expect((wrappedCtx as any).scheduler.cancel).toBe(cancelFn)
     })
 
     it('runQuery and runMutation are replaced (not the originals)', () => {
@@ -355,6 +359,171 @@ describe('createZodvexActionCtx', () => {
 
       expect(wrappedCtx.runQuery).not.toBe(originalRunQuery)
       expect(wrappedCtx.runMutation).not.toBe(originalRunMutation)
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Cross-function call path: auto-encode codec args (issue #76)
+//
+// Covers calling INTO another wrapped function via runMutation / scheduler with
+// *decoded* args. Two codec shapes are exercised because they fail differently
+// without auto-encoding:
+//  - a sentinel codec whose runtime form is a JS Symbol — non-serializable, so
+//    it cannot cross the Convex boundary at all and MUST be encoded to a wire
+//    primitive.
+//  - a boxed-value codec whose runtime form is a class instance (serializable
+//    but the wrong shape) <-> a plain wire object.
+// Both are generic library concepts; consumers map their own domain codecs
+// (Symbol-valued enums, branded ids, encrypted fields, ...) onto the same two
+// shapes.
+// ---------------------------------------------------------------------------
+
+// Sentinel codec: runtime Symbol <-> wire string. A Symbol can't be serialized,
+// so without encoding the scheduled/run call would throw at the boundary.
+const WILDCARD = Symbol('WILDCARD')
+const sentinelCodec = z.codec(
+  z.string(),
+  z.custom<symbol | string>(() => true),
+  {
+    decode: (wire: string) => (wire === '*' ? WILDCARD : wire),
+    encode: (runtime: symbol | string) => (runtime === WILDCARD ? '*' : (runtime as string))
+  }
+)
+
+// Boxed-value codec: runtime class instance <-> wire { value: string }.
+class Boxed {
+  constructor(readonly value: string) {}
+}
+const boxedCodec = z.codec(
+  z.object({ value: z.string() }),
+  z.custom<Boxed>(() => true),
+  {
+    decode: (wire: { value: string }) => new Boxed(wire.value),
+    encode: (runtime: Boxed) => ({ value: runtime.value })
+  }
+)
+
+const crossCallRegistry = {
+  'fns:withSentinel': {
+    args: z.object({
+      id: z.string(),
+      flag: z.object({ scope: sentinelCodec })
+    })
+  },
+  'fns:withBoxed': {
+    args: z.object({
+      id: z.string(),
+      secret: boxedCodec
+    })
+  }
+} as const
+
+describe('createZodvexActionCtx — cross-function codec args (#76)', () => {
+  describe('runMutation', () => {
+    it('encodes a boxed-value codec arg (class instance -> wire object)', async () => {
+      let captured: any = null
+      const mockCtx = {
+        runQuery: noop,
+        runMutation: async (_ref: any, args: any) => {
+          captured = args
+          return undefined
+        },
+        runAction: noop,
+        auth: { getUserIdentity: async () => null }
+      }
+
+      const wrappedCtx = createZodvexActionCtx(crossCallRegistry as any, mockCtx as any)
+      await wrappedCtx.runMutation(fakeRef('fns:withBoxed'), {
+        id: 'a1',
+        secret: new Boxed('top-secret')
+      })
+
+      expect(captured).toEqual({ id: 'a1', secret: { value: 'top-secret' } })
+    })
+  })
+
+  describe('scheduler.runAfter', () => {
+    it('encodes a Symbol-valued codec arg (Symbol -> wire string)', async () => {
+      let captured: any[] = []
+      const mockCtx = {
+        runQuery: noop,
+        runMutation: noop,
+        runAction: noop,
+        scheduler: {
+          runAfter: async (...a: any[]) => {
+            captured = a
+            return 'job-1' as any
+          },
+          runAt: noop,
+          cancel: noop
+        },
+        auth: { getUserIdentity: async () => null }
+      }
+
+      const wrappedCtx = createZodvexActionCtx(crossCallRegistry as any, mockCtx as any)
+      await (wrappedCtx.scheduler as any).runAfter(5000, fakeRef('fns:withSentinel'), {
+        id: 's1',
+        flag: { scope: WILDCARD }
+      })
+
+      expect(captured[0]).toBe(5000)
+      expect(captured[2]).toEqual({ id: 's1', flag: { scope: '*' } })
+    })
+
+    it('passes through scheduling a function with no args', async () => {
+      let captured: any[] = []
+      const mockCtx = {
+        runQuery: noop,
+        runMutation: noop,
+        runAction: noop,
+        scheduler: {
+          runAfter: async (...a: any[]) => {
+            captured = a
+            return 'job-2' as any
+          },
+          runAt: noop,
+          cancel: noop
+        },
+        auth: { getUserIdentity: async () => null }
+      }
+
+      const wrappedCtx = createZodvexActionCtx(crossCallRegistry as any, mockCtx as any)
+      await (wrappedCtx.scheduler as any).runAfter(0, fakeRef('unknown:noArgs'))
+
+      // No args supplied -> only (delayMs, ref) forwarded, no trailing undefined
+      expect(captured).toHaveLength(2)
+      expect(captured[0]).toBe(0)
+    })
+  })
+
+  describe('scheduler.runAt', () => {
+    it('encodes a boxed-value codec arg (class instance -> wire object)', async () => {
+      let captured: any[] = []
+      const mockCtx = {
+        runQuery: noop,
+        runMutation: noop,
+        runAction: noop,
+        scheduler: {
+          runAfter: noop,
+          runAt: async (...a: any[]) => {
+            captured = a
+            return 'job-3' as any
+          },
+          cancel: noop
+        },
+        auth: { getUserIdentity: async () => null }
+      }
+
+      const when = new Date('2030-01-01T00:00:00Z')
+      const wrappedCtx = createZodvexActionCtx(crossCallRegistry as any, mockCtx as any)
+      await (wrappedCtx.scheduler as any).runAt(when, fakeRef('fns:withBoxed'), {
+        id: 'a2',
+        secret: new Boxed('hush')
+      })
+
+      expect(captured[0]).toBe(when)
+      expect(captured[2]).toEqual({ id: 'a2', secret: { value: 'hush' } })
     })
   })
 })

@@ -13,10 +13,15 @@ const { mocks, MockConvexClient } = vi.hoisted(() => {
     instancesCreated: 0,
     queryImpl: undefined as ((ref: any, args: any) => any) | undefined,
     mutationImpl: undefined as ((ref: any, args: any) => any) | undefined,
+    actionImpl: undefined as ((ref: any, args: any) => any) | undefined,
     onUpdateImpl: undefined as ((ref: any, args: any, cb: any) => () => void) | undefined,
+    paginatedImpl: undefined as
+      | ((ref: any, args: any, options: any, cb: any) => () => void)
+      | undefined,
     // setAuth receives an AuthTokenFetcher (async function), not a raw string.
     // We capture the fetchers so tests can resolve them.
     setAuthFetchers: [] as any[],
+    setAuthOnChanges: [] as any[],
     closeCalled: false
   }
 
@@ -37,6 +42,11 @@ const { mocks, MockConvexClient } = vi.hoisted(() => {
       return args
     }
 
+    async action(ref: any, args: any) {
+      if (state.actionImpl) return state.actionImpl(ref, args)
+      return args
+    }
+
     onUpdate(ref: any, args: any, callback: (result: any) => void): () => void {
       if (state.onUpdateImpl) return state.onUpdateImpl(ref, args, callback)
       return () => {
@@ -44,8 +54,43 @@ const { mocks, MockConvexClient } = vi.hoisted(() => {
       }
     }
 
-    setAuth(fetchToken: any) {
+    onPaginatedUpdate_experimental(
+      ref: any,
+      args: any,
+      options: any,
+      callback: (result: any) => void
+    ): () => void {
+      if (state.paginatedImpl) return state.paginatedImpl(ref, args, options, callback)
+      return () => {
+        /* no-op unsubscribe */
+      }
+    }
+
+    setAuth(fetchToken: any, onChange?: any) {
       state.setAuthFetchers.push(fetchToken)
+      state.setAuthOnChanges.push(onChange)
+    }
+
+    getAuth() {
+      return undefined
+    }
+
+    get closed() {
+      return false
+    }
+
+    get disabled() {
+      return false
+    }
+
+    connectionState() {
+      return { isWebSocketConnected: true } as any
+    }
+
+    subscribeToConnectionState(_cb: any) {
+      return () => {
+        /* no-op */
+      }
     }
 
     async close() {
@@ -119,8 +164,11 @@ describe('ZodvexClient', () => {
   beforeEach(() => {
     mocks.queryImpl = undefined
     mocks.mutationImpl = undefined
+    mocks.actionImpl = undefined
     mocks.onUpdateImpl = undefined
+    mocks.paginatedImpl = undefined
     mocks.setAuthFetchers = []
+    mocks.setAuthOnChanges = []
     mocks.closeCalled = false
     mocks.instancesCreated = 0
     client = createZodvexClient(registry as any, { url: 'https://test.convex.cloud' })
@@ -255,6 +303,136 @@ describe('ZodvexClient', () => {
     })
   })
 
+  // ---- action -------------------------------------------------------------
+
+  describe('action', () => {
+    it('encodes args and decodes results', async () => {
+      const dueDate = new Date('2026-06-15T00:00:00Z')
+      const ts = 1700000000000
+      let capturedArgs: any = null
+
+      mocks.actionImpl = (_ref: any, args: any) => {
+        capturedArgs = args
+        return { _id: 'act1', title: 'Ran', createdAt: ts }
+      }
+
+      const result = await client.action(fakeRef('tasks:create'), {
+        title: 'Ran',
+        dueAt: dueDate
+      })
+
+      // Args should be encoded: Date -> timestamp number
+      expect(capturedArgs.title).toBe('Ran')
+      expect(typeof capturedArgs.dueAt).toBe('number')
+      expect(capturedArgs.dueAt).toBe(dueDate.getTime())
+
+      // Return should be decoded: number -> Date
+      expect(result.createdAt).toBeInstanceOf(Date)
+      expect(result.createdAt.getTime()).toBe(ts)
+    })
+
+    it('passes through when function has no schemas', async () => {
+      const raw = { result: 'unchanged' }
+      let capturedArgs: any = null
+
+      mocks.actionImpl = (_ref: any, args: any) => {
+        capturedArgs = args
+        return raw
+      }
+
+      const result = await client.action(fakeRef('plain:noCodec'), { raw: 'data' })
+
+      expect(capturedArgs).toEqual({ raw: 'data' })
+      expect(result).toEqual(raw)
+    })
+  })
+
+  // ---- Convex-name aliases (mutation / onUpdate) --------------------------
+
+  describe('name aliases', () => {
+    it('mutation() is an alias for mutate() (encodes args, decodes result)', async () => {
+      const dueDate = new Date('2026-06-15T00:00:00Z')
+      const ts = 1700000000000
+      let capturedArgs: any = null
+
+      mocks.mutationImpl = (_ref: any, args: any) => {
+        capturedArgs = args
+        return { _id: 'm1', title: 'Via alias', createdAt: ts }
+      }
+
+      const result = await client.mutation(fakeRef('tasks:create'), {
+        title: 'Via alias',
+        dueAt: dueDate
+      })
+
+      expect(typeof capturedArgs.dueAt).toBe('number')
+      expect(capturedArgs.dueAt).toBe(dueDate.getTime())
+      expect(result.createdAt).toBeInstanceOf(Date)
+      expect(result.createdAt.getTime()).toBe(ts)
+    })
+
+    it('onUpdate() is an alias for subscribe() (encodes args, decodes result)', () => {
+      const ts = 1700000000000
+      let decoded: any = null
+      let capturedArgs: any = null
+
+      mocks.onUpdateImpl = (_ref: any, args: any, callback: any) => {
+        capturedArgs = args
+        callback({ _id: 'u1', title: 'Sub', createdAt: ts })
+        return () => {
+          /* no-op */
+        }
+      }
+
+      const dueDate = new Date('2026-06-15T00:00:00Z')
+      client.onUpdate(fakeRef('tasks:create'), { title: 'x', dueAt: dueDate }, (r: any) => {
+        decoded = r
+      })
+
+      expect(typeof capturedArgs.dueAt).toBe('number')
+      expect(decoded.createdAt).toBeInstanceOf(Date)
+    })
+  })
+
+  // ---- onPaginatedUpdate_experimental -------------------------------------
+
+  describe('onPaginatedUpdate_experimental', () => {
+    it('encodes args and decodes each page item', () => {
+      const ts = 1700000000000
+      const dueDate = new Date('2026-06-15T00:00:00Z')
+      let capturedArgs: any = null
+      let decoded: any = null
+
+      mocks.paginatedImpl = (_ref: any, args: any, _options: any, callback: any) => {
+        capturedArgs = args
+        callback({
+          page: [{ _id: 'p1', title: 'Paged', createdAt: ts }],
+          isDone: true,
+          continueCursor: ''
+        })
+        return () => {
+          /* no-op */
+        }
+      }
+
+      client.onPaginatedUpdate_experimental(
+        fakeRef('tasks:create'),
+        { title: 'x', dueAt: dueDate },
+        { initialNumItems: 10 },
+        (r: any) => {
+          decoded = r
+        }
+      )
+
+      // Args encoded: Date -> number
+      expect(typeof capturedArgs.dueAt).toBe('number')
+      // Each page item decoded: number -> Date
+      expect(decoded.page[0].createdAt).toBeInstanceOf(Date)
+      expect(decoded.page[0].createdAt.getTime()).toBe(ts)
+      expect(decoded.isDone).toBe(true)
+    })
+  })
+
   // ---- subscribe ----------------------------------------------------------
 
   describe('subscribe', () => {
@@ -365,9 +543,57 @@ describe('ZodvexClient', () => {
       expect(token).toBe(null)
     })
 
+    it('accepts an AuthTokenFetcher + onChange (ConvexClient parity overload)', async () => {
+      const fetcher = async () => 'fetched-token'
+      const onChange = () => {
+        /* no-op */
+      }
+      client.setAuth(fetcher, onChange)
+
+      // Lazy until the inner client is created.
+      expect(mocks.setAuthFetchers).toHaveLength(0)
+      void client.convex
+
+      expect(mocks.setAuthFetchers).toHaveLength(1)
+      // The fetcher is forwarded as-is (not re-wrapped).
+      expect(mocks.setAuthFetchers[0]).toBe(fetcher)
+      expect(mocks.setAuthOnChanges[0]).toBe(onChange)
+      const token = await lastTokenValue()
+      expect(token).toBe('fetched-token')
+    })
+
     it('delegates close to inner ConvexClient', async () => {
       await client.close()
       expect(mocks.closeCalled).toBe(true)
+    })
+  })
+
+  // ---- connection & lifecycle parity --------------------------------------
+
+  describe('connection & lifecycle pass-throughs', () => {
+    it('exposes connectionState() from the inner client', () => {
+      const state = client.connectionState()
+      expect(state).toEqual({ isWebSocketConnected: true })
+    })
+
+    it('subscribeToConnectionState returns an unsubscribe function', () => {
+      const unsub = client.subscribeToConnectionState(() => {
+        /* no-op */
+      })
+      expect(typeof unsub).toBe('function')
+    })
+
+    it('getAuth() delegates to the inner client', () => {
+      expect(client.getAuth()).toBeUndefined()
+    })
+
+    it('closed/disabled are false before the inner client is created', () => {
+      // Fresh client — inner ConvexClient not yet instantiated.
+      const fresh = createZodvexClient(registry as any, { url: 'https://test.convex.cloud' })
+      expect(fresh.closed).toBe(false)
+      expect(fresh.disabled).toBe(false)
+      // Accessing the getters must NOT have forced the inner client into existence.
+      expect(mocks.instancesCreated).toBe(0)
     })
   })
 
