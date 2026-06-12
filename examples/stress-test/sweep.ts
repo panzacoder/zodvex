@@ -187,7 +187,9 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
       // otherwise); the consolidated shape additionally exercises
       // scheduler codec-arg encoding via the args-only registry.
       const smokeFns = ['endpoints/healthcheck:healthcheck']
-      if (isZodvex && shape === 'consolidated') {
+      if (isZodvex && shape !== 'harness') {
+        // Registry-wired shapes (explicit since 0.7.5, consolidated) also
+        // encode scheduler codec args — exercise that path too.
         smokeFns.push('endpoints/healthcheck:healthcheckScheduler')
       }
       const outcome = await deploy({
