@@ -408,7 +408,7 @@ export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = Document
  * If the table has a decoded type in DecodedDocs, use it.
  * Otherwise fall back to DocumentByInfo (wire types = runtime types for tables without codecs).
  */
-type ResolveDecodedDoc<
+export type ResolveDecodedDoc<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>

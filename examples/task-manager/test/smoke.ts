@@ -135,6 +135,32 @@ async function main() {
   assert(taskPage.page !== undefined, 'paginated result has page')
   assert(taskPage.page.length >= 1, 'at least one task in page')
 
+  // Merged-stream pagination across statuses (zodvexStream/zodvexMergedStream, #78)
+  const streamTaskId = await client.mutation(api.tasks.create, {
+    title: 'Smoke Stream Task',
+    ownerId: userId,
+    status: 'in_progress',
+  })
+  assert(typeof streamTaskId === 'string', `stream task created: ${streamTaskId}`)
+
+  const streamArgs = { statuses: ['in_progress', 'done'] as ('in_progress' | 'done')[] }
+  const streamPage1 = await client.query(api.tasks.listByStatuses, {
+    ...streamArgs,
+    paginationOpts: { numItems: 1, cursor: null },
+  })
+  assert(streamPage1.page.length === 1, 'merged stream first page has exactly 1 item')
+  assert(streamPage1.isDone === false, 'merged stream reports more pages')
+
+  const streamPage2 = await client.query(api.tasks.listByStatuses, {
+    ...streamArgs,
+    paginationOpts: { numItems: 100, cursor: streamPage1.continueCursor },
+  })
+  assert(streamPage2.page.length >= 1, 'merged stream cursor page has items')
+  const streamIds = [...streamPage1.page, ...streamPage2.page].map((t) => t._id)
+  assert(streamIds.includes(streamTaskId), 'merged stream includes in_progress task')
+  assert(streamIds.includes(taskId), 'merged stream includes done task')
+  assert(new Set(streamIds).size === streamIds.length, 'merged stream pages do not overlap')
+
   // --- Summary ---
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
   process.exit(failed > 0 ? 1 : 0)

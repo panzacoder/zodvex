@@ -140,6 +140,10 @@ export const zodvexRegistry = {
     args: z.object({ after: zx.date() }),
     returns: z.array(z.object({ title: z.string(), description: z.optional(z.string()), status: z.enum(["todo", "in_progress", "done"]), priority: z.nullable(z.enum(["low", "medium", "high"])), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), completedAt: z.optional(zx.date()), estimate: z.optional(zDuration), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
   },
+  'tasks:listByStatuses': {
+    args: z.object({ statuses: z.array(z.enum(["todo", "in_progress", "done"])), paginationOpts: z.object({ numItems: z.number(), cursor: z.nullable(z.string()) }) }),
+    returns: TaskModel.schema.paginatedDoc,
+  },
   'tasks:update': {
     args: z.object({ id: zx.id("tasks"), title: z.optional(z.string()), description: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), priority: z.optional(z.nullable(z.enum(["low", "medium", "high"]))), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration) }),
     returns: undefined,

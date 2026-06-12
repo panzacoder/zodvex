@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.6] - 2026-06-12
+
+### Added
+
+- **`zodvexStream` / `zodvexMergedStream`** (`zodvex/server`) — typed `convex-helpers/server/stream` interop for the secure `ctx.db` (#78). Enables honest pagination over set-valued equality predicates (`roomId IN {a, b, c}`): fan out one substream per value, k-way merge with `zodvexMergedStream(substreams, orderByIndexFields).paginate(opts)`. No more double-casting the secure reader at call sites — the unavoidable cast lives in one audited place inside zodvex, pinned by tests that exercise the duck-typed surface `stream()` relies on. Streamed item/page types are the **decoded** doc types (codec outputs applied), matching what the zodvex chain actually yields. Streams are rules-preserving: each row flows through decode + read rules mid-stream; denied rows never enter the cursor space (no holes, no stuck cursors). Codec-backed fields are rejected in `orderByIndexFields` (the merge comparator would compare decoded values against a wire-ordered index) — the throw is fail-fast at `zodvexMergedStream()` construction, before any database access, and protects substreams created via `zodvexStream` (raw convex-helpers streams pass through unchecked as the incremental-migration path). See `docs/guide/streams.md`. Verified downstream against hotpot (drop-in migration + live cursor smokes, then codec-bearing-table coverage of decoded typing and the merge-key rejection).
+
 ## [0.7.4] - 2026-06-09
 
 ### Fixed

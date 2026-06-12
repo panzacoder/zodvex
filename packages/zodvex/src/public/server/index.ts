@@ -77,5 +77,16 @@ export type {
 export * from '../../internal/schema'
 // Schema helpers (pure Zod, no server deps)
 export { addSystemFields } from '../../internal/schemaHelpers'
+// Typed convex-helpers stream interop for the secure reader (#78)
+export {
+  type ZodvexOrderedStreamQuery,
+  type ZodvexQueryStream,
+  type ZodvexStreamableSchema,
+  type ZodvexStreamDatabaseReader,
+  type ZodvexStreamQuery,
+  type ZodvexStreamQueryInitializer,
+  zodvexMergedStream,
+  zodvexStream
+} from '../../internal/stream'
 // Table creation and helpers (named — hide union internals)
 export { zodDoc, zodDocOrNull, zodTable } from '../../legacy/tables'
