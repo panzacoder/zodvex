@@ -1,11 +1,19 @@
+node_modules/
+tmp/
+
+# Convex deploy secrets (per-developer)
+.env.local
+_deploy/.env.local
+
+# Transient harness output
+.measure-result.json
+results/*.log
+
+# Stale output dirs from the legacy compose/measure harness (removed
+# in fbbcebb). Kept ignored in case anyone has them locally.
 convex/generated/
 convex/composed/
 convex/compiled/
-node_modules/
 
-# Stress-test runner working dirs
-_deploy/
-tmp/
-
-.env.local
-.measure-result.json
+# Sweep fingerprint cache (machine-local)
+results/.cell-cache.json

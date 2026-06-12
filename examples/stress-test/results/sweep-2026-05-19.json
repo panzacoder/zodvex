@@ -1,0 +1,148 @@
+{
+  "timestamp": "2026-05-19T21:32:54.665Z",
+  "config": {
+    "flavors": [
+      "zodvex",
+      "zodvex-mini"
+    ],
+    "ns": [
+      200,
+      400,
+      500,
+      600,
+      700,
+      750,
+      800
+    ],
+    "skipAfterFailure": true,
+    "doReset": true
+  },
+  "results": [
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 14799,
+      "endpointHeapMaxMB": 2.67,
+      "schemaHeapMB": 3.25,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 400,
+      "outcome": "ok",
+      "durationMs": 22894,
+      "endpointHeapMaxMB": 2.67,
+      "schemaHeapMB": 4.89,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 27402,
+      "endpointHeapMaxMB": 2.67,
+      "schemaHeapMB": 5.71,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 600,
+      "outcome": "ok",
+      "durationMs": 31711,
+      "endpointHeapMaxMB": 2.67,
+      "schemaHeapMB": 6.48,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 700,
+      "outcome": "ok",
+      "durationMs": 40351,
+      "endpointHeapMaxMB": 2.68,
+      "schemaHeapMB": 7.28,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 750,
+      "outcome": "ok",
+      "durationMs": 39409,
+      "endpointHeapMaxMB": 2.67,
+      "schemaHeapMB": 7.69,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 39261,
+      "endpointHeapMaxMB": 2.66,
+      "schemaHeapMB": 8.09,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 13153,
+      "endpointHeapMaxMB": 2.08,
+      "schemaHeapMB": 3.02,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 400,
+      "outcome": "ok",
+      "durationMs": 22357,
+      "endpointHeapMaxMB": 2.08,
+      "schemaHeapMB": 4.67,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 26649,
+      "endpointHeapMaxMB": 2.08,
+      "schemaHeapMB": 5.48,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 600,
+      "outcome": "ok",
+      "durationMs": 32037,
+      "endpointHeapMaxMB": 2.08,
+      "schemaHeapMB": 6.26,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 700,
+      "outcome": "ok",
+      "durationMs": 35872,
+      "endpointHeapMaxMB": 2.08,
+      "schemaHeapMB": 7.05,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 750,
+      "outcome": "ok",
+      "durationMs": 38496,
+      "endpointHeapMaxMB": 2.08,
+      "schemaHeapMB": 7.47,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 36687,
+      "endpointHeapMaxMB": 2.08,
+      "schemaHeapMB": 7.87,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 # Stress Test Harness
 
-Measures zodvex memory footprint at scale to find the OOM ceiling on Convex's 64 MB V8 isolate.
+Measures zodvex memory footprint at scale and validates the runtime
+codepath on real Convex deploys. Backs the "zodvex matches pure-Convex
+deploy headroom" claim.
 
 ## Quick Start
 
@@ -8,35 +10,65 @@ Measures zodvex memory footprint at scale to find the OOM ceiling on Convex's 64
 # Build zodvex first (harness imports from built dist)
 cd ../.. && bun run build && cd examples/stress-test
 
-# Find OOM ceiling for all 4 variants (zod, zod+slim, mini, mini+slim)
-bun run stress-test
+# Single-N regression gate (used by `bun run validate` at the repo root)
+bun run regression -- --target=600 --flavors=zodvex,zodvex-mini
 
-# Find ceiling for a specific variant
-bun run stress-test -- --slim --mini
+# Full ceiling sweep across all flavors and N values
+bun run sweep -- --ns=200,400,500,600,700,750,800 --continue
 
-# Single measurement at a specific count (for debugging)
-bun run stress-test -- --count=200 --slim
+# Bench a single flavor at a single N (heap proxy + per-endpoint bundle KB)
+bun run bench -- --flavor=zodvex --count=200
 ```
 
 ## How It Works
 
-1. **Seeds** (`seeds/`) — hand-written zodvex models and endpoints covering small/medium/large complexity
-2. **Composer** (`compose.ts`) — scales seeds to N models via file copy + table name replacement
-3. **Compiler** — runs zod-to-mini on composed output for the mini variant
-4. **Measurer** (`measure.ts`) — black-box: imports a directory, reports V8 heap delta
-5. **Runner** (`stress-test.ts`) — orchestrates ceiling search across all variants
+1. **Seeds** (`seeds/<flavor>/`) — hand-written models and endpoints
+   per flavor (zodvex, convex, convex-helpers, convex-helpers-zod3).
+   The zodvex seeds are reused for zodvex-mini via the zod-to-mini
+   codemod at compose time.
+2. **Composer** (`compose.ts`) — scales seeds to N models +
+   endpoints per flavor via file copy with table-name + symbol
+   replacement. Outputs to `tmp/<flavor>/composed/`.
+3. **Bundler** (`bundle.ts`) — esbuild per entrypoint, config copied
+   from Convex's `innerEsbuild`. Used by `bench.ts` for the heap
+   proxy.
+4. **Bench** (`bench.ts`) — compose → bundle → measure (node
+   `--max-old-space-size=64`) → distribution. Heap proxy only; not a
+   real Convex deploy.
+5. **Real deploy** (`realDeploy.ts`) — pushes a composed tree to a
+   configured Convex dev instance via `bunx convex dev --once`.
+   Optionally fires a `bunx convex run` smoke call after deploy to
+   verify Q/M handlers actually run at runtime (catches the
+   dynamic-import-unsupported regression class).
+6. **Regression** (`regression.ts`) — fixed-N pass/fail run across
+   the 5 flavors with expected outcomes. Used by `validate`.
+7. **Sweep** (`sweep.ts`) — full flavor × N grid for ceiling
+   discovery. Each cell does `resetDeployment()` first so the
+   `finish_push` diff is "0 → N" (the true fresh-diff ceiling). The
+   first N per flavor runs a runtime smoke check.
 
 ## Flags
 
+### regression / sweep
 | Flag | Description |
 |------|-------------|
-| `--count=N` | Single measurement at N endpoints (skips ceiling search) |
-| `--slim` | Enable `{ schemaHelpers: false }` via ZODVEX_SLIM env var |
-| `--mini` | Compile zod → zod/mini before measuring |
-| `--budget=N` | MB budget for ceiling search (default: 64) |
+| `--target=N` (regression) | Endpoints per flavor (default 600) |
+| `--ns=200,400,500,...` (sweep) | Comma-separated N values |
+| `--flavors=zodvex,zodvex-mini` | Subset of flavors to run |
+| `--continue` (sweep) | Don't skip a flavor after its first failure |
+| `--out=path` | Write JSON results to this path |
 
-## Architecture
+### bench
+| Flag | Description |
+|------|-------------|
+| `--flavor=zodvex` | Which flavor to compose (zodvex / zodvex-mini / convex / convex-helpers / convex-helpers-zod3) |
+| `--count=200` | Endpoints to compose |
+| `--lazyTables` | Use the codegen-emitted `_zodvex/tables.ts` shape |
+| `--keep` | Don't delete `tmp/<flavor>/composed/` after measure |
 
-Seeds are real zodvex code — not templates. When the library API changes, the seeds may need updating, but the measurement harness (compose/measure/runner) stays stable.
+## Results
 
-The `ZODVEX_SLIM` env var controls whether seeds pass `{ schemaHelpers: false }` to `defineZodModel`. The compiler handles the zod → mini transform. All configuration is via flags to the runner.
+Authoritative ceiling snapshots live in `results/`. See
+[`results/README.md`](results/README.md) for an index. Journey-of-the-PR
+snapshots (early registry experiments, deploy-only sweeps,
+spike-validation notes) live in `results/archive/`.
