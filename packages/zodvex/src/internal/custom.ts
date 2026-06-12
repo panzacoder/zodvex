@@ -227,15 +227,17 @@ export function customFnBuilder<
     }
 
     if (args) {
-      const { argsValidator, argsSchema } = normalizeCustomArgsValidator(args)
+      const { argsValidator, argsSchema: userArgsSchema } = normalizeCustomArgsValidator(args)
 
       // Only generate Convex args validator when not skipping Convex validation
       const convexArgs = skipConvexValidation
         ? inputArgs
         : { ...zodToConvexFields(argsValidator), ...inputArgs }
 
-      // Check for z.date() usage at construction time (once), not on every invocation
-      assertNoNativeZodDate(argsSchema, 'args')
+      // Check for z.date() usage at construction time (once), not on every invocation.
+      // If the user didn't pass a ZodObject we build one just for the guard and let
+      // it GC — never retained in the closure.
+      assertNoNativeZodDate(userArgsSchema ?? z.object(argsValidator), 'args')
 
       const registered = builder({
         args: convexArgs,
@@ -251,23 +253,30 @@ export function customFnBuilder<
           )
           const argKeys = Object.keys(argsValidator)
           const rawArgs = pick(allArgs, argKeys)
-          const baseArgs = parseObjectArgsOrThrow(argsSchema, rawArgs)
+          // Build the ZodObject per request when the user passed a raw shape, so
+          // we don't retain a wrapper in the push-time isolate. When the user
+          // passed their own ZodObject, reuse it (no new allocation).
+          const parseSchema = userArgsSchema ?? z.object(argsValidator)
+          const baseArgs = parseObjectArgsOrThrow(parseSchema, rawArgs)
           const { finalCtx, finalArgs } = applyCustomizationResult(ctx as any, baseArgs, added)
 
           const ret = await handler(finalCtx, finalArgs)
           return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
         }
       })
-      // Merge via shape-spread rather than .extend() — `argsSchema` may be a
-      // user-supplied zod/mini object, which has no schema methods. Custom args
-      // win on key conflicts, mirroring the `convexArgs` spread above.
-      const metaArgsSchema = customArgsSchema
-        ? (z.object({
-            ...(argsSchema as any)._zod.def.shape,
+      // Customization args must appear in function meta (#90). Merge via
+      // plain shape-spread rather than .extend() — either side may be a
+      // zod/mini object with no schema methods, and passing the raw merged
+      // shape keeps attachFunctionMeta's lazy contract: no wrapper
+      // ZodObject is built in the push-time isolate. Custom args win on
+      // key conflicts, mirroring the `convexArgs` spread above.
+      const metaArgs = customArgsSchema
+        ? {
+            ...((userArgsSchema as any)?._zod.def.shape ?? argsValidator),
             ...(customArgsSchema as any)._zod.def.shape
-          }) as unknown as $ZodObject)
-        : argsSchema
-      attachFunctionMeta(registered, metaArgsSchema, returns)
+          }
+        : (userArgsSchema ?? argsValidator)
+      attachFunctionMeta(registered, metaArgs, returns)
       return registered
     }
     const registered = builder({

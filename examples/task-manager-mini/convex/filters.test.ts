@@ -30,7 +30,8 @@ describe("filter codec encoding", () => {
     // return only the names to verify the filter selected the right documents.
     const names = await t.run(async (ctx) => {
       const { createZodDbReader } = await import("zodvex/server");
-      const db = createZodDbReader(ctx.db, schema);
+      const { schema: codecSchema } = await import("./_zodvex/server");
+      const db = createZodDbReader(ctx.db, codecSchema);
 
       const results = await db
         .query("users")
@@ -61,7 +62,8 @@ describe("filter codec encoding", () => {
 
     const names = await t.run(async (ctx) => {
       const { createZodDbReader } = await import("zodvex/server");
-      const db = createZodDbReader(ctx.db, schema);
+      const { schema: codecSchema } = await import("./_zodvex/server");
+      const db = createZodDbReader(ctx.db, codecSchema);
 
       const results = await db
         .query("users")
@@ -98,7 +100,8 @@ describe("filter codec encoding", () => {
 
     const names = await t.run(async (ctx) => {
       const { createZodDbReader } = await import("zodvex/server");
-      const db = createZodDbReader(ctx.db, schema);
+      const { schema: codecSchema } = await import("./_zodvex/server");
+      const db = createZodDbReader(ctx.db, codecSchema);
 
       const results = await db
         .query("users")

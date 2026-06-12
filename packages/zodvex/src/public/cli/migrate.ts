@@ -205,6 +205,123 @@ function classifyImport(imported: string): ImportGroup {
  *   import { zid } from 'zodvex/core'
  *   import { type Zid, zid } from 'zodvex'
  */
+/**
+ * Rewrites the codegen-emitted registry consumer pattern so the dynamic
+ * import in `_zodvex/api.lazy` keeps the registry's transitive schema
+ * graph out of the entrypoint's static bundle.
+ *
+ * Two coordinated edits:
+ *   import { zodvexRegistry } from './_zodvex/api'        → './_zodvex/api.lazy'
+ *   registry: () => zodvexRegistry                         → registry: zodvexRegistry
+ *
+ * Only fires when both the import and the registry option are present —
+ * an idempotent no-op on already-migrated files or files that don't use
+ * the registry option.
+ */
+function applyRegistryLazyRewrite(content: string): string {
+  // Quick guard: must mention both the registry option and the api import.
+  if (!/\bregistry\s*:\s*\(\s*\)\s*=>\s*zodvexRegistry\b/.test(content)) {
+    return content
+  }
+  const apiImportRe =
+    /(import\s*\{[^}]*\bzodvexRegistry\b[^}]*\}\s*from\s*['"])([^'"]*\/_zodvex\/api)(\.js)?(['"])/
+  if (!apiImportRe.test(content)) {
+    return content
+  }
+
+  let next = content.replace(
+    apiImportRe,
+    (_m, pre, base, ext, quote) => `${pre}${base}.lazy${ext ?? ''}${quote}`
+  )
+  next = next.replace(/registry\s*:\s*\(\s*\)\s*=>\s*zodvexRegistry\b/, 'registry: zodvexRegistry')
+  return next
+}
+
+/**
+ * Migrates the schema.ts shape from the legacy `defineZodSchema({...models})`
+ * call to the pure-Convex `defineSchema(tables)` call that pulls table
+ * definitions from codegen-emitted `_zodvex/tables.ts`.
+ *
+ * Only rewrites files we recognise as the canonical shape — leaves anything
+ * customised alone (the user will see a deprecation warning from the
+ * separate scanner instead).
+ *
+ * Before:
+ *   import { defineZodSchema } from 'zodvex/server'
+ *   import { UserModel } from './models/user'
+ *   import { TaskModel } from './models/task'
+ *   ...
+ *   export default defineZodSchema({ users: UserModel, tasks: TaskModel })
+ *
+ * After:
+ *   import { defineSchema } from 'convex/server'
+ *   import tables from './_zodvex/tables'
+ *
+ *   export default defineSchema(tables)
+ */
+function applySchemaRewrite(content: string): string {
+  // Skip files that don't match the legacy shape — be permissive about
+  // whitespace and surrounding code but anchor on the defineZodSchema call.
+  if (!/\bdefineZodSchema\s*\(/.test(content)) return content
+  // Don't rewrite if the file looks like it's doing anything beyond the
+  // canonical export default defineZodSchema({...}) pattern.
+  const canonicalRe =
+    /^import\s+\{\s*defineZodSchema\s*\}\s+from\s+['"]zodvex(?:\/mini)?\/server['"]\s*;?\s*\n([\s\S]*?)\nexport default defineZodSchema\(\{[\s\S]*?\}\)\s*;?\s*$/m
+  if (!canonicalRe.test(content)) return content
+  return [
+    "import { defineSchema } from 'convex/server'",
+    "import tables from './_zodvex/tables'",
+    '',
+    'export default defineSchema(tables)',
+    ''
+  ].join('\n')
+}
+
+/**
+ * Migrates the functions.ts shape from the legacy initZodvex call to the
+ * codegen-bundled wrapper. Drops schema/registry/tableMap imports and
+ * options; rewrites the initZodvex import to come from `./_zodvex/server`.
+ *
+ * Recognised legacy shapes (any combination of these option fields):
+ *   - registry: () => zodvexRegistry
+ *   - registry: zodvexRegistry  (post-lazy form)
+ *   - tableMap: zodTableMap     (post-tableMap-lazy form)
+ *
+ * Matches both top-level `initZodvex(schema, server, options)` calls
+ * inside the destructuring assignment commonly used in functions.ts.
+ */
+function applyInitZodvexConsolidation(content: string): string {
+  // Quick guard: must mention initZodvex with the 3-arg form (schema first).
+  if (!/\binitZodvex\s*\(\s*schema\b/.test(content)) return content
+
+  let next = content
+
+  // Drop the now-unused imports.
+  next = next.replace(/import\s+schema\s+from\s+['"]\.\/schema['"]\s*;?\s*\n/, '')
+  next = next.replace(
+    /import\s+\{\s*zodvexRegistry\s*\}\s+from\s+['"]\.\/_zodvex\/api(?:\.lazy)?(?:\.js)?['"]\s*;?\s*\n/,
+    ''
+  )
+  next = next.replace(
+    /import\s+\{\s*zodTableMap\s*\}\s+from\s+['"]\.\/_zodvex\/tableMap\.lazy(?:\.js)?['"]\s*;?\s*\n/,
+    ''
+  )
+  // Rewrite the initZodvex import to point at the codegen-bundled wrapper.
+  next = next.replace(
+    /import\s+\{\s*initZodvex\s*\}\s+from\s+['"]zodvex(?:\/mini)?\/server['"]/,
+    "import { initZodvex } from './_zodvex/server'"
+  )
+
+  // Strip the schema and options args from the call. Be permissive about
+  // the inner argument shape — we only want to keep the `server` arg.
+  next = next.replace(
+    /initZodvex\(\s*schema\s*,\s*(\{[\s\S]*?\})\s*(?:,\s*\{[\s\S]*?\}\s*)?\)/,
+    'initZodvex($1)'
+  )
+
+  return next
+}
+
 function applyImportUpdates(content: string): string {
   const importRe = /import\s*\{([^}]+)\}\s*from\s*(['"]zodvex(?:\/[^'"]*)?['"])/g
 
@@ -310,6 +427,9 @@ export function migrate(dir: string, options: MigrateOptions): MigrateResult {
     content = applyIdentifierRenames(content)
     content = applyZidTransform(content)
     content = applyImportUpdates(content)
+    content = applyRegistryLazyRewrite(content)
+    content = applySchemaRewrite(content)
+    content = applyInitZodvexConsolidation(content)
 
     const changed = content !== original
 
