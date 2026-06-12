@@ -1,0 +1,340 @@
+{
+  "timestamp": "2026-05-13T20:42:59.082Z",
+  "config": {
+    "flavors": [
+      "convex",
+      "convex-helpers-zod3",
+      "convex-helpers",
+      "zodvex",
+      "zodvex-mini"
+    ],
+    "ns": [
+      200,
+      400,
+      500,
+      600,
+      700,
+      750,
+      800
+    ],
+    "skipAfterFailure": false,
+    "doReset": true
+  },
+  "results": [
+    {
+      "flavor": "convex",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 11925,
+      "endpointHeapMaxMB": 0.41,
+      "schemaHeapMB": 2.02,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 400,
+      "outcome": "ok",
+      "durationMs": 21801,
+      "endpointHeapMaxMB": 0.41,
+      "schemaHeapMB": 3.69,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 26285,
+      "endpointHeapMaxMB": 0.4,
+      "schemaHeapMB": 4.5,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 600,
+      "outcome": "ok",
+      "durationMs": 31584,
+      "endpointHeapMaxMB": 0.41,
+      "schemaHeapMB": 5.28,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 700,
+      "outcome": "ok",
+      "durationMs": 36523,
+      "endpointHeapMaxMB": 0.41,
+      "schemaHeapMB": 6.09,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 750,
+      "outcome": "ok",
+      "durationMs": 38729,
+      "endpointHeapMaxMB": 0.41,
+      "schemaHeapMB": 6.5,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 38396,
+      "endpointHeapMaxMB": 0.4,
+      "schemaHeapMB": 6.9,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 12414,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 2.6,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 400,
+      "outcome": "ok",
+      "durationMs": 22390,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 4.12,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 27138,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 4.86,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 600,
+      "outcome": "ok",
+      "durationMs": 32240,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 5.56,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 700,
+      "outcome": "ok",
+      "durationMs": 38499,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 6.3,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 750,
+      "outcome": "ok",
+      "durationMs": 42175,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 6.67,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 41165,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 7.04,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 13621,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 3.66,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 400,
+      "outcome": "ok",
+      "durationMs": 24013,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 5.08,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 500,
+      "outcome": "oom",
+      "durationMs": 8416,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 5.75,
+      "errorTail": "to https://tangible-jellyfish-256.convex.cloud\n✖ Error fetching POST  https://tangible-jellyfish-256.convex.cloud/api/deploy2/start_push 400 Bad Request: Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 600,
+      "outcome": "oom",
+      "durationMs": 9462,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 6.41,
+      "errorTail": "to https://tangible-jellyfish-256.convex.cloud\n✖ Error fetching POST  https://tangible-jellyfish-256.convex.cloud/api/deploy2/start_push 400 Bad Request: Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 700,
+      "outcome": "oom",
+      "durationMs": 8607,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 7.07,
+      "errorTail": "to https://tangible-jellyfish-256.convex.cloud\n✖ Error fetching POST  https://tangible-jellyfish-256.convex.cloud/api/deploy2/start_push 400 Bad Request: Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 750,
+      "outcome": "oom",
+      "durationMs": 9099,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 7.42,
+      "errorTail": "to https://tangible-jellyfish-256.convex.cloud\n✖ Error fetching POST  https://tangible-jellyfish-256.convex.cloud/api/deploy2/start_push 400 Bad Request: Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 800,
+      "outcome": "oom",
+      "durationMs": 9393,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 7.75,
+      "errorTail": "to https://tangible-jellyfish-256.convex.cloud\n✖ Error fetching POST  https://tangible-jellyfish-256.convex.cloud/api/deploy2/start_push 400 Bad Request: Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 13243,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 3.25,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 400,
+      "outcome": "ok",
+      "durationMs": 23625,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 4.89,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 29425,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 5.71,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 600,
+      "outcome": "ok",
+      "durationMs": 36902,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 6.48,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 700,
+      "outcome": "ok",
+      "durationMs": 43896,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 7.28,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 750,
+      "outcome": "ok",
+      "durationMs": 46119,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 7.69,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 44235,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 8.09,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 14406,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 3.02,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 400,
+      "outcome": "ok",
+      "durationMs": 24381,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 4.67,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 31253,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 5.48,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 600,
+      "outcome": "ok",
+      "durationMs": 35257,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 6.26,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 700,
+      "outcome": "ok",
+      "durationMs": 40008,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 7.05,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 750,
+      "outcome": "ok",
+      "durationMs": 43575,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 7.47,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 43088,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 7.87,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    }
+  ]
+}

@@ -1,0 +1,154 @@
+{
+  "meta": {
+    "timestamp": "2026-06-12T18:27:50.078Z",
+    "gitSha": "1884a59a3bf80eba18731962f4d024a4bd189d68",
+    "gitDirty": true,
+    "zodvexVersion": "0.7.5",
+    "convexVersion": "1.32.0",
+    "convexHelpersVersion": "0.1.113",
+    "zodVersion": "4.3.6",
+    "bunVersion": "1.3.8",
+    "deployment": "dev:first-skunk-786"
+  },
+  "config": {
+    "flavors": [
+      "convex",
+      "convex-helpers-zod3",
+      "convex-helpers"
+    ],
+    "ns": [
+      200,
+      600,
+      750,
+      800
+    ],
+    "shape": "harness",
+    "models": null,
+    "endpoints": null,
+    "skipAfterFailure": false,
+    "doReset": true,
+    "force": false
+  },
+  "results": [
+    {
+      "flavor": "convex",
+      "n": 200,
+      "shape": "n/a",
+      "outcome": "ok",
+      "durationMs": 22446,
+      "endpointHeapMaxMB": 0.41,
+      "schemaHeapMB": 2.02,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 600,
+      "shape": "n/a",
+      "outcome": "ok",
+      "durationMs": 50222,
+      "endpointHeapMaxMB": 0.4,
+      "schemaHeapMB": 5.28,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 750,
+      "shape": "n/a",
+      "outcome": "ok",
+      "durationMs": 71012,
+      "endpointHeapMaxMB": 0.4,
+      "schemaHeapMB": 6.5,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 800,
+      "shape": "n/a",
+      "outcome": "too-many-reads",
+      "durationMs": 75414,
+      "endpointHeapMaxMB": 0.4,
+      "schemaHeapMB": 6.91,
+      "errorTail": "first-skunk-786.convex.cloud/api/deploy2/finish_push 400 : TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 200,
+      "shape": "n/a",
+      "outcome": "ok",
+      "durationMs": 20654,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 2.6,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 600,
+      "shape": "n/a",
+      "outcome": "ok",
+      "durationMs": 54145,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 5.57,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 750,
+      "shape": "n/a",
+      "outcome": "ok",
+      "durationMs": 87148,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 6.68,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 800,
+      "shape": "n/a",
+      "outcome": "too-many-reads",
+      "durationMs": 66246,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 7.04,
+      "errorTail": "first-skunk-786.convex.cloud/api/deploy2/finish_push 400 : TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 200,
+      "shape": "n/a",
+      "outcome": "ok",
+      "durationMs": 20193,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 3.67,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 600,
+      "shape": "n/a",
+      "outcome": "oom",
+      "durationMs": 7427,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 6.41,
+      "errorTail": "or: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/start_push 400 : Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 750,
+      "shape": "n/a",
+      "outcome": "oom",
+      "durationMs": 8387,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 7.42,
+      "errorTail": "or: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/start_push 400 : Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 800,
+      "shape": "n/a",
+      "outcome": "oom",
+      "durationMs": 8555,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 7.75,
+      "errorTail": "or: Unable to start push to https://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/start_push 400 : Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    }
+  ]
+}
