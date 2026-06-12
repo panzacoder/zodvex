@@ -60,6 +60,10 @@ zodvexMergedStream(substreams, ['_creationTime'])
 
 The merge comparator reads index-key values off the *yielded* (decoded) documents, while the underlying Convex index is ordered by *wire* values — decoded comparisons can mis-order the merge, and decoded values (like `Date`) are not serializable into pagination cursors.
 
+The guard is **fail-fast**: stream construction is lazy, so the throw fires synchronously at `zodvexMergedStream()` call time, before anything touches the database — a query-build-time error, not a mid-pagination surprise after N pages.
+
+**Guard scope:** the codec merge-key guard only protects substreams created via `zodvexStream` — it works by reflecting the table's zodvex schema off each stream. Substreams built with raw convex-helpers `stream()` (e.g. legacy cast-based call sites mid-migration), or derived streams that don't reflect (`filterWith`, `map`), still merge fine but get no codec check. This is intentional — raw streams are the incremental-migration path — but mixed raw/zodvex stream arrays get no protection on the raw members.
+
 The same caution applies to paginating a single stream whose index range is *bounded* (not `.eq()`-pinned) on a codec field: cursors serialize index-key values from decoded docs. Prefer indexes whose ordering tail is non-codec (`_creationTime` is always safe).
 
 ## API
