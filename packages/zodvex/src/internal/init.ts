@@ -218,9 +218,42 @@ export function defineContext<
   return customization
 }
 
+type ZodTableMapThunk = () => ZodTableMap | Promise<ZodTableMap>
+
+/**
+ * Registry thunk for cross-function codec auto-encoding. May return the
+ * registry directly (the `registry: () => zodvexRegistry` pattern) or a
+ * Promise of it (the codegen-emitted lazy loader); both are resolved and
+ * cached on first use.
+ */
+type RegistryThunk = () => AnyRegistry | Promise<AnyRegistry>
+
+interface InitZodvexOptionsBase {
+  /**
+   * Lazy tableMap loader — provided by the codegen-emitted `_zodvex/server.ts`.
+   * When provided, schema does NOT need to carry `__zodTableMap`; the
+   * runtime codec wrappers resolve the map on first DB call and cache it.
+   * Required for the schema-only-thin pattern (schema.ts uses plain
+   * `defineSchema(tables)`).
+   */
+  tableMap?: ZodTableMapThunk
+  /**
+   * Enables cross-function codec auto-encoding: `ctx.runQuery` /
+   * `ctx.runMutation` encode codec args and decode results (actions), and
+   * `ctx.scheduler.runAfter` / `ctx.scheduler.runAt` encode codec args
+   * (actions and mutations).
+   *
+   * A thunk backed by dynamic `import()` only works in actions (Node runtime).
+   * Mutations run in Convex's V8 sandbox, which forbids dynamic import — the
+   * scheduler-encoding path there needs a statically-backed thunk, which the
+   * codegen-emitted `_zodvex/server.ts` provides.
+   */
+  registry?: RegistryThunk
+}
+
 // Overload 1: wrapDb: false — no codec DB wrapping
 export function initZodvex<DM extends GenericDataModel>(
-  schema: { __zodTableMap: ZodTableMap },
+  schema: { __zodTableMap?: ZodTableMap },
   server: {
     query: QueryBuilder<DM, 'public'>
     mutation: MutationBuilder<DM, 'public'>
@@ -229,7 +262,7 @@ export function initZodvex<DM extends GenericDataModel>(
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options: { wrapDb: false; registry?: () => AnyRegistry }
+  options: InitZodvexOptionsBase & { wrapDb: false }
 ): {
   zq: ZodvexBuilder<'query', NoCodecCtx, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<'mutation', NoCodecCtx, GenericMutationCtx<DM>, 'public'>
@@ -246,7 +279,7 @@ export function initZodvex<
   DM extends GenericDataModel,
   DD extends Record<string, any> = Record<string, any>
 >(
-  schema: { __zodTableMap: ZodTableMap; __decodedDocs: DD },
+  schema: { __zodTableMap?: ZodTableMap; __decodedDocs?: DD },
   server: {
     query: QueryBuilder<DM, 'public'>
     mutation: MutationBuilder<DM, 'public'>
@@ -255,7 +288,7 @@ export function initZodvex<
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options?: { wrapDb?: true; registry?: () => AnyRegistry }
+  options?: InitZodvexOptionsBase & { wrapDb?: true }
 ): {
   zq: ZodvexBuilder<'query', { db: ZodvexDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<
@@ -277,19 +310,27 @@ export function initZodvex<
 
 // Implementation
 export function initZodvex(
-  schema: { __zodTableMap: ZodTableMap },
+  schema: { __zodTableMap?: ZodTableMap },
   server: InitServerBuilders,
-  options?: { wrapDb?: boolean; registry?: () => AnyRegistry }
+  options?: InitZodvexOptionsBase & { wrapDb?: boolean }
 ) {
-  const codec = createZodvexCustomization(schema.__zodTableMap)
+  // Source-of-truth for the codec tableMap, in priority order:
+  //   1. options.tableMap (lazy thunk from _zodvex/tableMap.lazy.js)
+  //   2. schema.__zodTableMap (legacy defineZodSchema-driven shape)
+  //   3. {} — no-op (wrapDb pages still work but produce no codec transforms)
+  const tableMapSource: ZodTableMap | ZodTableMapThunk =
+    options?.tableMap ?? schema.__zodTableMap ?? {}
+  const codec = createZodvexCustomization(tableMapSource)
   const noOp = createNoOpCustomization()
   const wrap = options?.wrapDb !== false
 
-  const registryThunk = options?.registry
-  const actionCust = createActionCustomization(registryThunk, noOp)
+  // One shared caching resolver feeds both the action and mutation
+  // customizations, so an async thunk is awaited once per init bundle.
+  const resolveRegistry = options?.registry ? createRegistryResolver(options.registry) : undefined
+  const actionCust = createActionCustomization(resolveRegistry, noOp)
   const customizations = {
     query: wrap ? codec.query : noOp,
-    mutation: createMutationCustomization(wrap ? codec.mutation : noOp, registryThunk),
+    mutation: createMutationCustomization(wrap ? codec.mutation : noOp, resolveRegistry),
     action: actionCust
   }
 
@@ -300,11 +341,26 @@ function createNoOpCustomization(): InternalCustomization {
   return { args: {} as Record<string, never>, input: NoOp.input }
 }
 
+/**
+ * Wraps a registry thunk in a caching async resolver. The thunk may return
+ * either an `AnyRegistry` (the sync `registry: () => zodvexRegistry` pattern)
+ * or a `Promise<AnyRegistry>` (a codegen-emitted lazy loader). Both shapes
+ * are awaited transparently and cached after the first resolution.
+ */
+function createRegistryResolver(thunk: RegistryThunk): () => Promise<AnyRegistry> {
+  let cached: AnyRegistry | undefined
+  return async () => {
+    if (cached !== undefined) return cached
+    cached = await thunk()
+    return cached
+  }
+}
+
 function createActionCustomization(
-  registryThunk: (() => AnyRegistry) | undefined,
+  resolveRegistry: (() => Promise<AnyRegistry>) | undefined,
   noOp: InternalCustomization
 ): InternalCustomization {
-  if (!registryThunk) {
+  if (!resolveRegistry) {
     return noOp
   }
 
@@ -313,7 +369,7 @@ function createActionCustomization(
     input: async (ctx: any) => ({
       // Auto-encode codec args at outbound call sites: runQuery/runMutation
       // (encode args, decode result) and scheduler.runAfter/runAt (encode args).
-      ctx: createCodecCallOverrides(registryThunk(), ctx),
+      ctx: createCodecCallOverrides(await resolveRegistry(), ctx),
       args: {}
     })
   }
@@ -326,12 +382,17 @@ function createActionCustomization(
  * symmetric with the inbound decode the receiving function already performs.
  *
  * Without a registry, the DB customization is returned unchanged.
+ *
+ * Note: mutations run in Convex's V8 sandbox, which forbids dynamic `import()`.
+ * Awaiting an already-resolved promise is fine there — but a registry thunk
+ * that performs a dynamic import will throw in this path. The codegen-emitted
+ * `_zodvex/server.ts` passes a statically-backed thunk for exactly this reason.
  */
 function createMutationCustomization(
   dbCust: InternalCustomization,
-  registryThunk: (() => AnyRegistry) | undefined
+  resolveRegistry: (() => Promise<AnyRegistry>) | undefined
 ): InternalCustomization {
-  if (!registryThunk) {
+  if (!resolveRegistry) {
     return dbCust
   }
 
@@ -339,7 +400,7 @@ function createMutationCustomization(
     args: {} as Record<string, never>,
     input: async (ctx: any, _args: any, extra?: any) => {
       const dbResult = await dbCust.input(ctx, {}, extra)
-      const callOverrides = createCodecCallOverrides(registryThunk(), ctx)
+      const callOverrides = createCodecCallOverrides(await resolveRegistry(), ctx)
       return {
         ctx: { ...dbResult.ctx, ...callOverrides },
         args: {}

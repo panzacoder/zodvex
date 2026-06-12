@@ -1,14 +1,4 @@
-import { defineZodSchema } from 'zodvex/server'
-import { UserModel } from './models/user'
-import { TaskModel } from './models/task'
-import { CommentModel } from './models/comment'
-import { ActivityModel } from './models/activity'
-import { NotificationModel } from './models/notification'
+import { defineSchema } from 'convex/server'
+import tables from './_zodvex/tables'
 
-export default defineZodSchema({
-  users: UserModel,
-  tasks: TaskModel,
-  comments: CommentModel,
-  activities: ActivityModel,
-  notifications: NotificationModel,
-})
+export default defineSchema(tables)

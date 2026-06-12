@@ -5,6 +5,166 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### TL;DR
+
+zodvex apps now scale to the same endpoint count as plain Convex apps
+both at deploy time *and* runtime. Previously zodvex OOMed at ~155
+endpoints in the schema-eval isolate. With this release, real Convex
+deploys pass cleanly at N=750 and Q/M handlers serve requests
+end-to-end; the wall becomes Convex's own non-memory ceiling
+(TooManyReads at N=800 during `finish_push`). One source migration
+via `bun zodvex migrate` covers schema and functions files. Userland
+surface is smaller — one import, one call.
+
+> **Runtime path note.** An earlier draft of this entry used lazy
+> dynamic-import thunks for the runtime tableMap and the registry.
+> That deployed cleanly but crashed every Q/M call because Convex's
+> Q/M V8 sandbox forbids dynamic `import()`. The shipped shape uses
+> static imports inside `_zodvex/server.ts` for **both**: the tableMap
+> (codec DB wrapping) and the registry. The registry can no longer be
+> action-only-lazy either — since 0.7.5, mutations consume it for
+> `scheduler.runAfter`/`runAt` codec-arg encoding, and they run in the
+> same V8 sandbox. See
+> `examples/stress-test/results/dynamic-import-runtime-finding-2026-05-14.md`
+> for the finding and
+> `examples/stress-test/results/sweep-static-tablemap-2026-05-14.md`
+> for the runtime-verified ceiling sweep (pre-0.7.5 rebase; a fresh
+> sweep is required to confirm the static-registry cost).
+
+### Added
+
+- **Pure-Convex schema shape.** Userland `convex/schema.ts` now uses
+  Convex's canonical `defineSchema(tables)` directly:
+  ```ts
+  import { defineSchema } from 'convex/server'
+  import tables from './_zodvex/tables'
+  export default defineSchema(tables)
+  ```
+  Codegen emits `_zodvex/tables.ts` containing pure-Convex
+  `defineTable(...)` definitions plus a `DecodedDocs` type. Zero zod
+  runtime in the schema-eval isolate.
+- **Consolidated `_zodvex/server.ts`.** A single codegen-emitted file
+  that exposes a pre-wired `initZodvex(server, options?)` closing over
+  the project's schema, registry thunk, and tableMap thunk. Userland
+  `functions.ts` becomes one import + one call:
+  ```ts
+  import { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
+  import { initZodvex } from './_zodvex/server'
+  export const { zq, zm, za, ziq, zim, zia } = initZodvex({
+    query, mutation, action, internalQuery, internalMutation, internalAction,
+  })
+  ```
+  Replaces the prior `api.lazy.{js,d.ts}` + `tableMap.lazy.{js,d.ts}` +
+  `server.{js,d.ts}` files (four artifacts) with one TS file.
+- **`_zodvex/convex.config.ts` marker.** A NOOP comment file emitted
+  inside `_zodvex/` makes Convex's CLI walker skip the directory during
+  entrypoint discovery (uses the documented nested-component
+  convention). Removes the per-file 64 MB analysis isolate that was
+  hitting the codegen-emitted `api.js` (~158 KB / ~600 inline zod
+  schemas at N=200) once the schema-eval ceiling was cleared.
+- **`defineZodvexSchema`** in `zodvex/server` for users who want the
+  decoded-doc type token attached without writing it explicitly. Pure
+  `defineSchema(tables)` is the recommended path; `defineZodvexSchema`
+  is supported for callers using `InferFilterBuilder<typeof schema, T>`
+  without an explicit `DecodedDocs` third type param.
+- **`zodvex migrate` schema + initZodvex rewrites.** Two new transforms
+  (`applySchemaRewrite`, `applyInitZodvexConsolidation`) automatically
+  convert legacy `defineZodSchema({...models})` schema files and
+  `initZodvex(schema, server, { registry, tableMap })` functions files
+  to the new shape. Idempotent.
+
+### Changed
+
+- **`initZodvex` accepts a `tableMap?` option** (a thunk
+  `() => ZodTableMap | Promise<ZodTableMap>`). `createZodvexCustomization`
+  caches the resolved table map on first DB call.
+  `schema.__zodTableMap` remains the legacy fallback.
+- **`initZodvex` accepts `registry: () => AnyRegistry | Promise<AnyRegistry>`.**
+  The library awaits and caches the resolved registry — one shared resolver
+  feeds both the action customization (runQuery/runMutation + scheduler) and
+  the mutation customization (scheduler), composed with 0.7.5's
+  `createCodecCallOverrides`. Note: a thunk that performs a dynamic
+  `import()` only works in actions (Node runtime); the codegen-emitted
+  `_zodvex/server.ts` passes a statically-backed thunk so the mutation
+  scheduler path works in the Q/M V8 sandbox.
+- **`Infer*` schema helpers** (`InferDataModel`, `InferTableInfo`,
+  `InferDecodedDoc`, `InferFilterBuilder`) now accept any Convex
+  `SchemaDefinition`, not just `defineZodSchema` results.
+  `InferDecodedDoc` and `InferFilterBuilder` take an optional `DD`
+  third type param so callers using pure `defineSchema(tables)` can
+  pass `DecodedDocs` from `_zodvex/tables` explicitly for decoded-aware
+  filter builders.
+- **`defineZodModel`'s slim option exposes a slightly different shape**
+  (covered by the `tableFromModel` function used at codegen time);
+  hand-rolled models without `defineZodModel` are skipped with a
+  warning in `_zodvex/tables.ts` generation.
+- **`zodvex init`** writes the new `_zodvex/tables.ts` and
+  `_zodvex/server.ts` stubs plus the `convex.config.ts` marker. The
+  bootstrap `server.ts` is a no-op passthrough so first-run discovery
+  resolves cleanly before the full content is emitted.
+- **Convex CLI compatibility verified through 1.32.x.** No backend
+  changes required; the marker file mechanism uses Convex's documented
+  nested-component skip behavior.
+- **Docs (`docs/guide/codegen.md`)** updated to reflect the new shape.
+
+### Removed
+
+- **`_zodvex/api.lazy.{js,d.ts}`** — superseded. The registry is now a
+  static import inside `_zodvex/server.ts` (required since 0.7.5:
+  mutations consume it for scheduler codec-arg encoding in the Q/M V8
+  sandbox, where dynamic `import()` is forbidden).
+- **`_zodvex/tableMap.lazy.{js,d.ts}`** — superseded. The runtime
+  tableMap is built from static model imports inside `_zodvex/server.ts`.
+- **`_zodvex/server.{js,d.ts}` pair** — replaced by single
+  `_zodvex/server.ts`.
+
+### Migration
+
+Existing apps run:
+
+```bash
+bun zodvex migrate ./convex
+bun zodvex generate
+```
+
+The migrate command rewrites `convex/schema.ts` and `convex/functions.ts`
+to the new shape; generate emits the new codegen artifacts and cleans
+up the deprecated files. Both commands are idempotent — safe to re-run.
+
+### Memory ceiling (real Convex deploys, fresh-diff)
+
+  Configuration                    Before          After
+  ───────────────────────────────────────────────────────
+  zodvex (default)                 OOM at N≈155    not OOM-bound
+  zodvex + slim models             OOM at N≈350    not OOM-bound
+  zodvex/mini                      OOM at N≈425    not OOM-bound
+  zodvex/mini + slim               OOM at N≈700    not OOM-bound
+
+After the fix, zodvex isn't OOM-bound at any tested N — the same
+position pure-convex and convex-helpers+zod3 occupy. The wall that
+remains for all memory-OK flavors is **TooManyReads at N≈800**, a
+Convex backend transaction-level limit (`TRANSACTION_MAX_READ_SET_INTERVALS
+= 4096`) hit when finish_push commits the schema+function-handle
+diff in a single transaction. That's architectural to Convex, not
+zodvex-specific.
+
+For comparison: `convex-helpers + zod4` (same Convex adapter, same
+schemas, but no equivalent optimization stack) still OOMs at N≈500.
+zodvex now scales ~50% past that and matches the pure-convex
+function-count headroom.
+
+`bun zodvex migrate` updates legacy schema.ts + functions.ts files in
+place. See
+`examples/stress-test/results/sweep-static-tablemap-2026-05-14.md` for
+the authoritative ceiling data — runtime-verified with a
+`bunx convex run` smoke call per cell — plus methodology and
+reproducibility notes. The earlier `sweep-2026-05-13.md` measured
+deploy outcome only; the numbers happened to be the same, but it
+didn't catch the dynamic-import runtime regression that the
+2026-05-14 sweep is designed to.
+
 ## [0.7.4] - 2026-06-09
 
 ### Fixed

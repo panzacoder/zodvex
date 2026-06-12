@@ -14,13 +14,19 @@ afterEach(() => {
 })
 
 describe('generate()', () => {
-  it('creates _zodvex/*.js and _zodvex/*.d.ts file pairs', async () => {
+  it('creates the expected _zodvex/ artifacts', async () => {
     await generate(fixtureDir)
 
-    for (const name of ['schema', 'api', 'client', 'server']) {
+    // .js + .d.ts pairs (no codegen-time type inference needed)
+    for (const name of ['schema', 'api', 'client']) {
       expect(fs.existsSync(path.join(outputDir, `${name}.js`))).toBe(true)
       expect(fs.existsSync(path.join(outputDir, `${name}.d.ts`))).toBe(true)
     }
+    // Single TS files where literal-type inference flows from runtime
+    expect(fs.existsSync(path.join(outputDir, 'tables.ts'))).toBe(true)
+    expect(fs.existsSync(path.join(outputDir, 'server.ts'))).toBe(true)
+    // Convex-walker skip marker
+    expect(fs.existsSync(path.join(outputDir, 'convex.config.ts'))).toBe(true)
   })
 
   it('generated schema.js contains model re-exports', async () => {
@@ -53,14 +59,19 @@ describe('generate()', () => {
     expect(content).toContain('createClient')
   })
 
-  it('generated server.d.ts contains concrete context types', async () => {
+  it('generated server.ts contains context types + pre-wired initZodvex', async () => {
     await generate(fixtureDir)
 
-    const content = fs.readFileSync(path.join(outputDir, 'server.d.ts'), 'utf-8')
+    const content = fs.readFileSync(path.join(outputDir, 'server.ts'), 'utf-8')
     expect(content).toContain('AUTO-GENERATED')
     expect(content).toContain('export type QueryCtx')
     expect(content).toContain('export type MutationCtx')
     expect(content).toContain('export type ActionCtx')
+    expect(content).toContain('export function initZodvex')
+    // The registry is statically imported (Q/M V8 sandbox forbids dynamic
+    // import; mutations consume the registry for scheduler encoding).
+    expect(content).toContain("import { zodvexRegistry as _staticRegistry } from './api.js'")
+    expect(content).not.toContain("import('./api.js')")
   })
 
   it('throws for non-existent convex directory', async () => {

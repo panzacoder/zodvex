@@ -4,14 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "stress-test": "bun run stress-test.ts",
-    "compose": "bun run compose.ts",
-    "measure": "bun run measure.ts",
+    "regression": "bun run regression.ts",
+    "sweep": "bun run sweep.ts",
+    "bench": "bun run bench.ts",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "convex": "^1.28.0",
     "convex-helpers": ">=0.1.101-alpha.1",
+    "esbuild": "^0.25.0",
     "ts-morph": "^25.0.0",
     "zod": "4.3.6",
     "zod-to-mini": "workspace:*",

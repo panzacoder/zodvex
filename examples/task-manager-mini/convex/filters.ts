@@ -3,6 +3,7 @@ import type { InferFilterBuilder, InferTableInfo } from 'zodvex/server'
 import { zx } from 'zodvex/mini'
 import { zq } from './functions'
 import schema from './schema'
+import type { DecodedDocs } from './_zodvex/tables'
 
 // --- Inline filter — no manual generics ---
 // Users table has createdAt: zx.date() — the filter accepts Date directly
@@ -17,7 +18,7 @@ export const recentUsers = zq({
 })
 
 // --- Reusable helper with schema-derived type ---
-type UsersFilter = InferFilterBuilder<typeof schema, 'users'>
+type UsersFilter = InferFilterBuilder<typeof schema, 'users', DecodedDocs>
 
 const createdAfter = (q: UsersFilter, date: Date) =>
   q.gte(q.field('createdAt'), date)
