@@ -522,6 +522,26 @@ export function compose(config: ComposeConfig): ComposeResult {
   // The endpoint is the sweep's runtime smoke target — it round-trips a
   // write+read (and, for zodvex, asserts the codec semantics the composed
   // shape promises), throwing on any violation so `convex run` fails loudly.
+  // Relational-codec probe: an endpoint that follows a foreign key into a
+  // codec table WITHOUT importing that table's model. Under a centralized
+  // tableMap the child doc decodes; under per-endpoint registration the
+  // lookup silently returns WIRE values. The probe reports (never throws)
+  // so the same function demonstrates both behaviors on real deploys.
+  if (isZodvex && (shape === 'per-endpoint' || shape === 'consolidated')) {
+    let refModel = relationalRefModelSource(flavor)
+    if (shape === 'per-endpoint') {
+      refModel += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('hcRefs', HealthcheckRefModel)\n`
+    }
+    writeFileSync(join(modelsDir, 'healthcheckRef.ts'), refModel)
+    writeFileSync(join(endpointsDir, 'healthcheck_rel.ts'), relationalProbeSource(flavor))
+    tables.push({
+      fileName: 'healthcheckRef',
+      symbol: 'HealthcheckRefModel',
+      alias: 'T_hcref',
+      tableName: 'hcRefs',
+    })
+  }
+
   let hcModel = healthcheckModelSource(flavor)
   if (isZodvex && shape === 'per-endpoint') {
     hcModel += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('healthchecks', HealthcheckModel)\n`
@@ -615,6 +635,57 @@ export const { zq, zm } = initZodvex(schema as any, {
  * on import; the view builds {doc, insert} lazily through zx's WeakMap
  * caches and is handed to initZodvex as the tableMap thunk.
  */
+function relationalRefModelSource(flavor: Flavor): string {
+  const src = `import { defineZodModel, zx } from 'zodvex'
+
+export const HealthcheckRefModel = defineZodModel('hcRefs', {
+  target: zx.id('healthchecks'),
+})
+`
+  return applyFlavorImportRewrites(flavor, src, 'models/healthcheckRef.ts')
+}
+
+/**
+ * The relational lookup under test. Imports ONLY its own model
+ * (HealthcheckRefModel) — the 'healthchecks' codec table is reached purely
+ * through the foreign key, exactly the everyday relation-follow pattern.
+ */
+function relationalProbeSource(flavor: Flavor): string {
+  const src = `import { z } from 'zod'
+import { zm } from '../functions'
+import { HealthcheckRefModel } from '../models/healthcheckRef'
+// Deliberately ABSENT: any import of ../models/healthcheck
+
+export const relationalCodecProbe = zm({
+  args: {},
+  returns: z.object({ decoded: z.boolean(), runtimeType: z.string(), writePath: z.string() }),
+  handler: async (ctx: any) => {
+    // Seed a child row, topology-agnostically. Registered world: the
+    // writer ENCODES, so it expects the runtime value (Date). Unregistered
+    // world: the writer passes through, a raw Date is unserializable, and
+    // we must write wire values directly — the write-path half of the
+    // failure mode.
+    let childId: any
+    let writePath = 'encoded (model registered)'
+    try {
+      childId = await ctx.db.insert('healthchecks', { label: 'rel', at: new Date(1700000000000) })
+    } catch {
+      writePath = 'raw passthrough (model NOT in this isolate)'
+      childId = await ctx.db.insert('healthchecks', { label: 'rel', at: 1700000000000 })
+    }
+    const refId = await ctx.db.insert('hcRefs', { target: childId })
+
+    // The lookup under test: follow the foreign key into the codec table.
+    const ref = await ctx.db.get(refId)
+    const child = await ctx.db.get(ref.target)
+    const decoded = child.at instanceof Date
+    return { decoded, runtimeType: decoded ? 'Date' : typeof child.at, writePath }
+  },
+})
+`
+  return applyFlavorImportRewrites(flavor, src, 'endpoints/healthcheck_rel.ts')
+}
+
 function tableRegistrySource(flavor: Flavor): string {
   const zxImport = flavor === 'zodvex-mini' ? 'zodvex/mini' : 'zodvex'
   return `import { zx } from '${zxImport}'
