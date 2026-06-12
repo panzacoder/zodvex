@@ -540,6 +540,13 @@ export function compose(config: ComposeConfig): ComposeResult {
   // for _zodvex/api.js (the statically-imported registry).
   if (isZodvex && (lazyTables || shape === 'explicit')) {
     runZodvexGenerate(outputDir, flavor === 'zodvex-mini')
+    if (lazyTables && !existsSync(join(outputDir, '_zodvex', 'tables.ts'))) {
+      throw new Error(
+        `the installed zodvex CLI did not emit _zodvex/tables.ts — thin-schema shapes ` +
+          `('harness'/'consolidated' with lazyTables) require the codegen-overhaul codegen. ` +
+          `Against zodvex main, run with --shape=explicit.`
+      )
+    }
   }
 
   // Consolidated shape: codegen above ran against the harness-form
