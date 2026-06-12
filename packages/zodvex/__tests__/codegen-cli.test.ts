@@ -68,10 +68,14 @@ describe('generate()', () => {
     expect(content).toContain('export type MutationCtx')
     expect(content).toContain('export type ActionCtx')
     expect(content).toContain('export function initZodvex')
-    // The registry is statically imported (Q/M V8 sandbox forbids dynamic
-    // import; mutations consume the registry for scheduler encoding).
-    expect(content).toContain("import { zodvexRegistry as _staticRegistry } from './api.js'")
-    expect(content).not.toContain("import('./api.js')")
+    // Split registry: lazy full (actions) + static args-only (mutations).
+    expect(content).toContain("import('./api.js')")
+    expect(content).toContain("import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'")
+
+    // The args-only registry file is emitted alongside api.js.
+    const argsContent = fs.readFileSync(path.join(outputDir, 'api.args.js'), 'utf-8')
+    expect(argsContent).toContain('export const zodvexArgsRegistry')
+    expect(argsContent).not.toContain('returns:')
   })
 
   it('throws for non-existent convex directory', async () => {

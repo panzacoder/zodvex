@@ -61,7 +61,7 @@ export function gitignoreEntry(content: string): string | null {
  *
  * Creates:
  * - _zodvex/api.ts — empty registry stub (the eager data export)
- * - _zodvex/api.lazy.ts — stub exposing a dynamic-import thunk
+ * - _zodvex/api.args.ts — empty args-only registry stub (mutation scheduler)
  * - _zodvex/client.ts — stub that imports from the api stub
  */
 export function generateStubs(convexDir: string): void {
@@ -73,12 +73,10 @@ export const zodvexRegistry = {} as const
 `
   fs.writeFileSync(path.join(zodvexDir, 'api.ts'), apiStub)
 
-  const apiLazyStub = `// Auto-generated stub. Run \`zodvex generate\` to populate.
-let _cached: Promise<typeof import('./api').zodvexRegistry> | undefined
-export const zodvexRegistry = () =>
-  (_cached ??= import('./api').then(m => m.zodvexRegistry))
+  const apiArgsStub = `// Auto-generated stub. Run \`zodvex generate\` to populate.
+export const zodvexArgsRegistry = {} as const
 `
-  fs.writeFileSync(path.join(zodvexDir, 'api.lazy.ts'), apiLazyStub)
+  fs.writeFileSync(path.join(zodvexDir, 'api.args.ts'), apiArgsStub)
 
   const clientStub = `// Auto-generated stub. Run \`zodvex generate\` to populate.
 import { zodvexRegistry } from './api'

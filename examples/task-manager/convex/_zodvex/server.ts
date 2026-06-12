@@ -19,7 +19,7 @@ import type {
 } from 'convex/server'
 import type { DataModel } from '../_generated/dataModel.js'
 import _baseSchema from '../schema.js'
-import { zodvexRegistry as _staticRegistry } from './api.js'
+import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'
 import { ActivityModel } from '../models/activity.js'
 import { CommentModel } from '../models/comment.js'
 import { NotificationModel } from '../models/notification.js'
@@ -44,17 +44,20 @@ export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>
 /** Action context (no db, but runQuery/runMutation may be codec-wrapped). */
 export type ActionCtx = ZodvexActionCtx<DataModel>
 
-// --- Registry (static, Q/M-safe) ---
-// The registry feeds cross-function codec auto-encoding in BOTH actions
-// (runQuery/runMutation arg encode + result decode, scheduler arg encode)
-// and mutations (scheduler.runAfter/runAt arg encode). Mutations run in
-// Convex's Q/M V8 sandbox, which forbids dynamic `import()` — so the
-// registry must be statically imported, the same constraint as the
-// tableMap below. (An earlier draft dynamic-imported ./api.js lazily;
-// that only worked while actions — Node runtime — were the registry's
-// sole consumer.)
+// --- Registry: lazy full (actions) + static args-only (mutations) ---
+// Actions run in Node, where dynamic `import()` works — the FULL registry
+// (args + returns, whose model-doc graph dominates bundle weight) loads
+// lazily, so it never enters any endpoint's static bundle (~20x per-endpoint
+// heap reduction at N=200; see
+// examples/stress-test/results/archive/lazy-registry-2026-05-12.md).
+// Mutations run in Convex's Q/M V8 sandbox (no dynamic import) but only
+// consume ARGS schemas (scheduler.runAfter/runAt encoding) — they get the
+// statically-imported args-only registry from ./api.args.js, which stays
+// light because it carries no `returns` schemas.
 
-const _registry = () => _staticRegistry
+let _cachedRegistry: Promise<typeof import('./api.js').zodvexRegistry> | undefined
+const _registry = () => (_cachedRegistry ??= import('./api.js').then(m => m.zodvexRegistry))
+const _schedulerRegistry = () => _argsRegistry
 
 // --- Static table map (Q/M-safe) ---
 // Built sync from statically-imported models. Convex's Q/M V8 sandbox
@@ -97,11 +100,13 @@ type Bundle = {
 export function initZodvex(server: Server, options: {
   wrapDb?: boolean
   registry?: () => any
+  schedulerRegistry?: () => any
   tableMap?: any
 } = {}): Bundle {
   return (_libInitZodvex as any)(_baseSchema, server, {
     ...options,
     registry: options.registry ?? _registry,
+    schedulerRegistry: options.schedulerRegistry ?? _schedulerRegistry,
     tableMap: options.tableMap ?? _tableMap,
   }) as Bundle
 }

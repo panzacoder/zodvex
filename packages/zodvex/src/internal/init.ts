@@ -241,14 +241,29 @@ interface InitZodvexOptionsBase {
    * Enables cross-function codec auto-encoding: `ctx.runQuery` /
    * `ctx.runMutation` encode codec args and decode results (actions), and
    * `ctx.scheduler.runAfter` / `ctx.scheduler.runAt` encode codec args
-   * (actions and mutations).
+   * (actions; also mutations unless `schedulerRegistry` is provided).
    *
    * A thunk backed by dynamic `import()` only works in actions (Node runtime).
-   * Mutations run in Convex's V8 sandbox, which forbids dynamic import — the
-   * scheduler-encoding path there needs a statically-backed thunk, which the
-   * codegen-emitted `_zodvex/server.ts` provides.
+   * Mutations run in Convex's V8 sandbox, which forbids dynamic import — pass
+   * `schedulerRegistry` (statically backed) for the mutation scheduler path,
+   * as the codegen-emitted `_zodvex/server.ts` does.
    */
   registry?: RegistryThunk
+  /**
+   * Registry used by the MUTATION scheduler-encoding path
+   * (`ctx.scheduler.runAfter` / `ctx.scheduler.runAt` in `zm`/`zim`).
+   * Must be synchronous and must not rely on dynamic `import()` — mutations
+   * run in Convex's Q/M V8 sandbox. Only `args` schemas are consulted
+   * (the scheduler never decodes results), so an args-only registry —
+   * which avoids the heavy model-doc `returns` graph — is sufficient.
+   * The codegen-emitted `_zodvex/server.ts` passes the generated
+   * `api.args.js` registry here while keeping the full registry lazy for
+   * actions.
+   *
+   * When omitted, mutations fall back to `registry` (fine for the
+   * sync `registry: () => zodvexRegistry` pattern).
+   */
+  schedulerRegistry?: () => AnyRegistry
 }
 
 // Overload 1: wrapDb: false — no codec DB wrapping
@@ -324,13 +339,18 @@ export function initZodvex(
   const noOp = createNoOpCustomization()
   const wrap = options?.wrapDb !== false
 
-  // One shared caching resolver feeds both the action and mutation
-  // customizations, so an async thunk is awaited once per init bundle.
+  // One shared caching resolver feeds the action customization (and the
+  // mutation customization when no schedulerRegistry is given), so an async
+  // thunk is awaited once per init bundle.
   const resolveRegistry = options?.registry ? createRegistryResolver(options.registry) : undefined
+  // Mutations prefer the sync, V8-safe schedulerRegistry — a dynamic-import
+  // backed `registry` thunk must never execute in the Q/M sandbox.
+  const schedulerThunk = options?.schedulerRegistry
+  const resolveMutationRegistry = schedulerThunk ? async () => schedulerThunk() : resolveRegistry
   const actionCust = createActionCustomization(resolveRegistry, noOp)
   const customizations = {
     query: wrap ? codec.query : noOp,
-    mutation: createMutationCustomization(wrap ? codec.mutation : noOp, resolveRegistry),
+    mutation: createMutationCustomization(wrap ? codec.mutation : noOp, resolveMutationRegistry),
     action: actionCust
   }
 

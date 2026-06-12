@@ -297,7 +297,7 @@ describe('generateClientFile', () => {
 })
 
 describe('generateServerFile', () => {
-  it('emits a single TS file with context types, static registry/tableMap, and a pre-wired initZodvex', () => {
+  it('emits a single TS file with context types, split registry, and a pre-wired initZodvex', () => {
     const { js, dts } = generateServerFile([])
 
     // Single TS source returned via js slot; dts unused.
@@ -327,12 +327,14 @@ describe('generateServerFile', () => {
     expect(js).toContain('export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>')
     expect(js).toContain('export type ActionCtx = ZodvexActionCtx<DataModel>')
 
-    // Static registry import — since 0.7.5 mutations consume the registry
-    // (scheduler codec-arg encoding) in the Q/M V8 sandbox, where dynamic
-    // import() is forbidden. No dynamic import may appear in this file.
-    expect(js).toContain("import { zodvexRegistry as _staticRegistry } from './api.js'")
-    expect(js).toContain('const _registry = () => _staticRegistry')
-    expect(js).not.toContain("import('./api.js')")
+    // Split registry: lazy full registry for actions (Node — dynamic import
+    // keeps the heavy returns graph out of static bundles), static args-only
+    // registry for the mutation scheduler path (Q/M V8 sandbox forbids
+    // dynamic import; it only consults args schemas).
+    expect(js).toContain("import('./api.js').then(m => m.zodvexRegistry)")
+    expect(js).toContain("import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'")
+    expect(js).toContain('const _schedulerRegistry = () => _argsRegistry')
+    expect(js).toContain('schedulerRegistry: options.schedulerRegistry ?? _schedulerRegistry')
 
     // Static tableMap object — built inline from statically-imported models
     // (no models in this fixture so the object is empty; only the shape).

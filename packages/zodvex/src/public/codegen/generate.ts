@@ -371,7 +371,7 @@ export function generateApiFile(
   codecs?: CodecForGeneration[],
   modelCodecs?: ModelEmbeddedCodec[],
   functionCodecs?: FunctionEmbeddedCodec[],
-  options?: { mini?: boolean }
+  options?: { mini?: boolean; argsOnly?: boolean }
 ): GeneratedFile {
   // Sort every input collection by a stable key BEFORE walking. Discovery
   // order can vary across platforms (different filesystem traversal); we
@@ -680,10 +680,15 @@ export function generateApiFile(
     return source
   }
 
-  // Build registry entries
+  // Build registry entries. argsOnly mode (api.args.js) skips `returns`
+  // entirely — the scheduler-encoding path only consults `args`, and the
+  // `returns` schemas are what drag the heavy model-doc graph into the
+  // bundle (see results/archive/lazy-registry-2026-05-12.md).
+  const argsOnly = options?.argsOnly === true
   const entries = functions
     .map(fn => {
       const args = resolveSchema(fn.zodArgs)
+      if (argsOnly) return `  '${fn.functionPath}': {\n    args: ${args},\n  }`
       const returns = resolveSchema(fn.zodReturns)
       return `  '${fn.functionPath}': {\n    args: ${args},\n    returns: ${returns},\n  }`
     })
@@ -744,18 +749,25 @@ export function generateApiFile(
   const codecVarSection = allCodecVars.length > 0 ? `${allCodecVars.join('\n')}\n\n` : ''
 
   const registryEntries = entries.length > 0 ? `${entries},\n` : ''
-  const js = `${HEADER}\n${importSection}${codecVarSection}export const zodvexRegistry = {\n${registryEntries}}\n`
+  const registryExportName = argsOnly ? 'zodvexArgsRegistry' : 'zodvexRegistry'
+  const js = `${HEADER}\n${importSection}${codecVarSection}export const ${registryExportName} = {\n${registryEntries}}\n`
 
+  const entryType = argsOnly
+    ? { mini: '{ args: $ZodType }', full: '{ args: ZodTypeAny }' }
+    : {
+        mini: '{ args: $ZodType; returns: $ZodType | undefined }',
+        full: '{ args: ZodTypeAny; returns: ZodTypeAny | undefined }'
+      }
   const dts = options?.mini
     ? `${HEADER}
 import type { $ZodType } from 'zod/v4/core'
 
-export declare const zodvexRegistry: Record<string, { args: $ZodType; returns: $ZodType | undefined }>
+export declare const ${registryExportName}: Record<string, ${entryType.mini}>
 `
     : `${HEADER}
 import type { ZodTypeAny } from 'zod'
 
-export declare const zodvexRegistry: Record<string, { args: ZodTypeAny; returns: ZodTypeAny | undefined }>
+export declare const ${registryExportName}: Record<string, ${entryType.full}>
 `
 
   return { js, dts }
@@ -769,14 +781,16 @@ export declare const zodvexRegistry: Record<string, { args: ZodTypeAny; returns:
  *
  *  1. Concrete context types (QueryCtx, MutationCtx, ActionCtx) baked
  *     against the app's schema's `__decodedDocs`.
- *  2. A statically-imported registry and a statically-built table map
- *     (supersedes the `_zodvex/api.lazy.js` / `_zodvex/tableMap.lazy.js`
- *     pair — both consumers now run in the Q/M V8 sandbox where dynamic
- *     `import()` is forbidden).
+ *  2. The registry, split by runtime: a LAZY full registry for actions
+ *     (Node — dynamic import keeps the heavy returns/model-doc graph out
+ *     of every endpoint's static bundle) and a STATIC args-only registry
+ *     (./api.args.js) for the mutation scheduler path, which runs in the
+ *     Q/M V8 sandbox where dynamic `import()` is forbidden. Plus a
+ *     statically-built table map (same V8 constraint).
  *  3. A pre-wired `initZodvex(server, options?)` that calls the
- *     library's initZodvex with `schema`, registry, and tableMap
- *     defaulted from the statics above. Consumers can still pass
- *     `registry` / `tableMap` in `options` to override.
+ *     library's initZodvex with `schema`, `registry`, `schedulerRegistry`,
+ *     and `tableMap` defaulted from the above. Consumers can still pass
+ *     any of them in `options` to override.
  *
  * Result: userland `convex/functions.ts` becomes one import + one call:
  *
@@ -836,7 +850,7 @@ import type {
 } from 'convex/server'
 import type { DataModel } from '../_generated/dataModel.js'
 import _baseSchema from '../schema.js'
-import { zodvexRegistry as _staticRegistry } from './api.js'
+import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'
 ${modelImportSection}
 
 // --- Context types ---
@@ -856,17 +870,20 @@ export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>
 /** Action context (no db, but runQuery/runMutation may be codec-wrapped). */
 export type ActionCtx = ZodvexActionCtx<DataModel>
 
-// --- Registry (static, Q/M-safe) ---
-// The registry feeds cross-function codec auto-encoding in BOTH actions
-// (runQuery/runMutation arg encode + result decode, scheduler arg encode)
-// and mutations (scheduler.runAfter/runAt arg encode). Mutations run in
-// Convex's Q/M V8 sandbox, which forbids dynamic \`import()\` — so the
-// registry must be statically imported, the same constraint as the
-// tableMap below. (An earlier draft dynamic-imported ./api.js lazily;
-// that only worked while actions — Node runtime — were the registry's
-// sole consumer.)
+// --- Registry: lazy full (actions) + static args-only (mutations) ---
+// Actions run in Node, where dynamic \`import()\` works — the FULL registry
+// (args + returns, whose model-doc graph dominates bundle weight) loads
+// lazily, so it never enters any endpoint's static bundle (~20x per-endpoint
+// heap reduction at N=200; see
+// examples/stress-test/results/archive/lazy-registry-2026-05-12.md).
+// Mutations run in Convex's Q/M V8 sandbox (no dynamic import) but only
+// consume ARGS schemas (scheduler.runAfter/runAt encoding) — they get the
+// statically-imported args-only registry from ./api.args.js, which stays
+// light because it carries no \`returns\` schemas.
 
-const _registry = () => _staticRegistry
+let _cachedRegistry: Promise<typeof import('./api.js').zodvexRegistry> | undefined
+const _registry = () => (_cachedRegistry ??= import('./api.js').then(m => m.zodvexRegistry))
+const _schedulerRegistry = () => _argsRegistry
 
 // --- Static table map (Q/M-safe) ---
 // Built sync from statically-imported models. Convex's Q/M V8 sandbox
@@ -904,11 +921,13 @@ type Bundle = {
 export function initZodvex(server: Server, options: {
   wrapDb?: boolean
   registry?: () => any
+  schedulerRegistry?: () => any
   tableMap?: any
 } = {}): Bundle {
   return (_libInitZodvex as any)(_baseSchema, server, {
     ...options,
     registry: options.registry ?? _registry,
+    schedulerRegistry: options.schedulerRegistry ?? _schedulerRegistry,
     tableMap: options.tableMap ?? _tableMap,
   }) as Bundle
 }
