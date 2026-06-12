@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "timestamp": "2026-06-12T20:57:51.855Z",
+    "gitSha": "d7fa9a7dd9a42ed227cc53340df3af4e30d85ddb",
+    "gitDirty": true,
+    "zodvexVersion": "0.7.5",
+    "convexVersion": "1.32.0",
+    "convexHelpersVersion": "0.1.113",
+    "zodVersion": "4.3.6",
+    "bunVersion": "1.3.8",
+    "deployment": "dev:first-skunk-786"
+  },
+  "config": {
+    "flavors": [
+      "zodvex"
+    ],
+    "ns": [
+      200,
+      400,
+      600,
+      750,
+      800
+    ],
+    "shape": "per-endpoint",
+    "models": null,
+    "endpoints": null,
+    "skipAfterFailure": false,
+    "doReset": true,
+    "force": false
+  },
+  "results": [
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "shape": "per-endpoint",
+      "outcome": "ok",
+      "durationMs": 7936,
+      "endpointHeapMaxMB": 2.8,
+      "schemaHeapMB": 1.49,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 400,
+      "shape": "per-endpoint",
+      "outcome": "ok",
+      "durationMs": 9767,
+      "endpointHeapMaxMB": 2.81,
+      "schemaHeapMB": 1.49,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 600,
+      "shape": "per-endpoint",
+      "outcome": "ok",
+      "durationMs": 11903,
+      "endpointHeapMaxMB": 2.8,
+      "schemaHeapMB": 1.49,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 750,
+      "shape": "per-endpoint",
+      "outcome": "ok",
+      "durationMs": 14440,
+      "endpointHeapMaxMB": 2.8,
+      "schemaHeapMB": 1.49,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 800,
+      "shape": "per-endpoint",
+      "outcome": "ok",
+      "durationMs": 14591,
+      "endpointHeapMaxMB": 2.8,
+      "schemaHeapMB": 1.49,
+      "errorTail": null
+    }
+  ]
+}

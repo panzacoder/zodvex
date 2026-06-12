@@ -38,7 +38,7 @@ interface BenchResult {
   registry: boolean
   registryMode: 'static' | 'lazy' | 'invisible'
   lazyTables: boolean
-  shape: 'harness' | 'explicit' | 'consolidated'
+  shape: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'
   models: number
   endpointsBenched: number
   endpointsOk: number
@@ -80,7 +80,7 @@ export interface BenchOptions {
   /** Each endpoint imports a registry.ts referencing every model. Default false. */
   registry?: boolean
   /** zodvex consumer shape to compose — see ComposeConfig.shape. Default 'harness'. */
-  shape?: 'harness' | 'explicit' | 'consolidated'
+  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'
   /** Model (table) count, decoupled from endpoint count — see ComposeConfig.models. */
   models?: number
   /** Registry consumer pattern. Default 'static'. */
@@ -300,7 +300,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     : (regArg === 'invisible' || has('invisible-registry')) ? 'invisible'
     : 'static'
   const lazyTables = has('lazy-tables')
-  const shape = (get('shape') ?? 'harness') as 'harness' | 'explicit' | 'consolidated'
+  const shape = (get('shape') ?? 'harness') as 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'
   const models = get('models') ? parseInt(get('models')!, 10) : undefined
   const sample = get('sample') ? parseInt(get('sample')!) : undefined
   const cap = get('cap') ? parseInt(get('cap')!) : undefined

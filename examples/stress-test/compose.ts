@@ -89,8 +89,17 @@ export interface ComposeConfig {
    *    tableMap). This is the shape that OOMs at N≈200 full-zod
    *    (results/server-ts-shape-findings-2026-06-12.md); composing it
    *    here is what lets the sweep track that cliff. Implies lazyTables.
+   *  - 'per-endpoint': SPIKE for the model-registration design
+   *    (docs/plans/per-endpoint-model-registration.md). Codecs fully ON
+   *    (wrapDb + scheduler registry) but NO centralized model graph:
+   *    each composed model self-registers into a per-isolate global as
+   *    an import side effect, and functions.ts passes a live registry
+   *    view as the tableMap thunk. Built entirely in the harness — no
+   *    library API. Hypothesis to prove: this shape matches the floor's
+   *    ceiling (750 / TooManyReads at 800) with codec assertions
+   *    passing at every cell. Implies lazyTables.
    */
-  shape?: 'harness' | 'explicit' | 'consolidated'
+  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'
   /**
    * Decouple the MODEL axis from the ENDPOINT axis. When set, exactly
    * `models` model files (tables) are composed and the `count` endpoint
@@ -406,7 +415,7 @@ export function compose(config: ComposeConfig): ComposeResult {
   const lazyTables =
     isZodvex && shape === 'explicit'
       ? false
-      : (config.lazyTables ?? false) || (isZodvex && shape === 'consolidated')
+      : (config.lazyTables ?? false) || (isZodvex && (shape === 'consolidated' || shape === 'per-endpoint'))
   const modelsDir = join(outputDir, 'models')
   const endpointsDir = join(outputDir, 'endpoints')
 
@@ -434,7 +443,10 @@ export function compose(config: ComposeConfig): ComposeResult {
     const newPascal = `${seed.pascal}${suffix}`
     const fileName = `${seed.name}_${suffix}`
 
-    const modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, flavor)
+    let modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, flavor)
+    if (isZodvex && shape === 'per-endpoint') {
+      modelOut += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('${newTable}', ${newPascal}Model)\n`
+    }
     writeFileSync(join(modelsDir, `${fileName}.ts`), modelOut)
 
     allRefs.push({
@@ -510,7 +522,11 @@ export function compose(config: ComposeConfig): ComposeResult {
   // The endpoint is the sweep's runtime smoke target — it round-trips a
   // write+read (and, for zodvex, asserts the codec semantics the composed
   // shape promises), throwing on any violation so `convex run` fails loudly.
-  writeFileSync(join(modelsDir, 'healthcheck.ts'), healthcheckModelSource(flavor))
+  let hcModel = healthcheckModelSource(flavor)
+  if (isZodvex && shape === 'per-endpoint') {
+    hcModel += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('healthchecks', HealthcheckModel)\n`
+  }
+  writeFileSync(join(modelsDir, 'healthcheck.ts'), hcModel)
   writeFileSync(
     join(endpointsDir, 'healthcheck.ts'),
     healthcheckEndpointSource(flavor, isZodvex ? shape : 'harness'),
@@ -558,6 +574,9 @@ export function compose(config: ComposeConfig): ComposeResult {
     writeFileSync(join(outputDir, 'functions.ts'), consolidatedFunctionsSource())
   } else if (isZodvex && shape === 'explicit') {
     writeFileSync(join(outputDir, 'functions.ts'), explicitFunctionsSource(flavor))
+  } else if (isZodvex && shape === 'per-endpoint') {
+    writeFileSync(join(outputDir, 'tableRegistry.ts'), tableRegistrySource(flavor))
+    writeFileSync(join(outputDir, 'functions.ts'), perEndpointFunctionsSource(flavor))
   }
 
   return { flavor, outputDir, modelsDir, endpointsDir, endpointFiles }
@@ -588,6 +607,89 @@ export const { zq, zm } = initZodvex(schema as any, {
   registry: () => zodvexRegistry,
 })
 `
+}
+
+/**
+ * SPIKE registry for the per-endpoint shape. A per-isolate global keyed by
+ * Symbol.for (robust across duplicated module instances); models register
+ * on import; the view builds {doc, insert} lazily through zx's WeakMap
+ * caches and is handed to initZodvex as the tableMap thunk.
+ */
+function tableRegistrySource(flavor: Flavor): string {
+  const zxImport = flavor === 'zodvex-mini' ? 'zodvex/mini' : 'zodvex'
+  return `import { zx } from '${zxImport}'
+
+const KEY = Symbol.for('zodvex.spike.tableRegistry')
+const models: Map<string, any> = ((globalThis as any)[KEY] ??= new Map())
+
+export function __registerModel(table: string, model: any): void {
+  models.set(table, model)
+}
+
+const built: Map<string, any> = new Map()
+
+export function __tableMapView(): Record<string, any> {
+  return new Proxy(
+    {},
+    {
+      get(_t, name) {
+        if (typeof name !== 'string') return undefined
+        if (built.has(name)) return built.get(name)
+        const m = models.get(name)
+        if (!m) return undefined
+        const schemas = { doc: zx.doc(m), insert: zx.base(m) }
+        built.set(name, schemas)
+        return schemas
+      },
+      has(_t, name) {
+        return typeof name === 'string' && models.has(name)
+      },
+      ownKeys() {
+        return [...models.keys()]
+      },
+      getOwnPropertyDescriptor() {
+        return { enumerable: true, configurable: true }
+      },
+    },
+  )
+}
+`
+}
+
+/**
+ * SPIKE functions.ts: codecs fully on (wrapDb via the live registry view,
+ * scheduler encoding via a hand-rolled single-entry registry) with NO
+ * centralized model imports. The hand-rolled scheduler registry isolates
+ * the model-graph hypothesis from the args-registry scaling term (a
+ * known, separate ~0.2 MB/endpoint-file cost).
+ */
+function perEndpointFunctionsSource(flavor: Flavor): string {
+  const serverImport = flavor === 'zodvex-mini' ? 'zodvex/mini/server' : 'zodvex/server'
+  const src = `import { z } from 'zod'
+import { initZodvex } from '${serverImport}'
+import {
+  queryGeneric as query,
+  mutationGeneric as mutation,
+  actionGeneric as action,
+  internalQueryGeneric as internalQuery,
+  internalMutationGeneric as internalMutation,
+  internalActionGeneric as internalAction,
+} from 'convex/server'
+import { zx } from 'zodvex'
+import { __tableMapView } from './tableRegistry'
+
+const schedulerRegistry = {
+  'endpoints/healthcheck:onSchedule': { args: z.object({ at: zx.date() }) },
+}
+
+export const { zq, zm } = initZodvex({} as any, {
+  query, mutation, action, internalQuery, internalMutation, internalAction,
+} as any, {
+  tableMap: () => __tableMapView(),
+  schedulerRegistry: () => schedulerRegistry,
+} as any)
+`
+  return applyFlavorImportRewrites(flavor, src, 'functions.ts')
 }
 
 function consolidatedFunctionsSource(): string {
@@ -639,11 +741,17 @@ export const HealthcheckTable = defineTable({
  *  - zodvex 'harness' (wrapDb:false): db is raw — `at` must stay a number.
  *  - parity flavors: plain write+read round-trip, same table shape.
  */
-function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'explicit' | 'consolidated'): string {
+function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'): string {
   if (flavor === 'zodvex' || flavor === 'zodvex-mini') {
+    // per-endpoint shape: the endpoint must VALUE-import the model of any
+    // codec table it touches — that import IS the registration. (The spike
+    // initially omitted this and reproduced the silent-miss hazard: the
+    // unregistered writer passed a raw Date to Convex's serializer.)
+    const modelImport =
+      shape === 'per-endpoint' ? `import '../models/healthcheck'\n` : ''
     const src =
       shape !== 'harness'
-        ? `import { z } from 'zod'
+        ? `${modelImport}import { z } from 'zod'
 import { makeFunctionReference } from 'convex/server'
 import { zx } from 'zodvex'
 import { zm } from '../functions'
