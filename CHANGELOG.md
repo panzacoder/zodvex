@@ -9,16 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### TL;DR
 
-The **schema-eval ceiling is gone**: userland `schema.ts` becomes
-pure-Convex (`defineSchema(tables)` over the codegen-emitted
-`_zodvex/tables.ts`), so the schema isolate loads zero zod. Previously
-zodvex OOMed at ~155 endpoints in schema-eval; re-verified after the
-0.7.5 rebase (2026-06-12 sweep), real Convex deploys now pass cleanly
-at N=750 and the wall is Convex's own non-memory ceiling
-(TooManyReads at N=800 during `finish_push`) — same position as
-pure-convex. One source migration via `bun zodvex migrate` covers
-schema and functions files. Userland surface is smaller — one import,
-one call via the pre-wired `initZodvex` in `_zodvex/server.ts`.
+What this release actually changes, in product terms (all numbers are
+real-deploy, codec-wiring-on, from
+`examples/stress-test/results/where-we-sit-2026-06-12.md`):
+
+- **The full zodvex solution (codecs on) is bounded by MODEL count, on
+  main and on this release alike: ~100–150 models full-zod, ~300 with
+  zod/mini (consolidated shape).** This release does not move the
+  full-zod codec-on ceiling — the all-models import graph binds either
+  way. What it does: no regression vs main's documented shape, a 1.5–2×
+  mini ceiling via the args-only scheduler registry, and a smaller
+  userland surface (one import, one call via the pre-wired `initZodvex`
+  in `_zodvex/server.ts`; `bun zodvex migrate` covers the source
+  migration).
+- **The capacity now exists for codecs to scale to pure-convex parity,
+  but is not yet consumable.** With the schema isolate de-zodded
+  (`defineSchema(tables)` over the codegen-emitted `_zodvex/tables.ts`)
+  and no centralized model graph, zodvex's floor measures clean deploys
+  at N=750 with the wall being Convex's own TooManyReads at N=800 —
+  identical to pure-convex and helpers-zod3 measured the same day. The
+  follow-up that lets the CODEC-ON shape reach this is per-endpoint
+  model registration (each endpoint's isolate evaluates only the models
+  it imports).
 
 > **Scale caveat — consolidated `server.ts`.** The sweep ceilings above
 > are measured with the harness function shape, which does not import
