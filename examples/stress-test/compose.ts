@@ -89,6 +89,14 @@ export interface ComposeConfig {
    *    tableMap). This is the shape that OOMs at N≈200 full-zod
    *    (results/server-ts-shape-findings-2026-06-12.md); composing it
    *    here is what lets the sweep track that cliff. Implies lazyTables.
+   *  - 'codec-paths': SPIKE for "option 3" (per-model codegen folder,
+   *    docs/plans/per-endpoint-model-registration.md addendum). Codegen
+   *    emits `_zodvex/models/<table>.ts` descriptors containing MINIMAL
+   *    loose zod schemas (codec fields only — bytes per table instead of
+   *    the full model graph) plus a statically-imported index, passed to
+   *    initZodvex as the central tableMap. The consumer API is COMPLETELY
+   *    unchanged (db.get(id), relational lookups decode). Hypothesis:
+   *    floor-parity ceilings AND relational probe decoded:true.
    *  - 'per-endpoint': SPIKE for the model-registration design
    *    (docs/plans/per-endpoint-model-registration.md). Codecs fully ON
    *    (wrapDb + scheduler registry) but NO centralized model graph:
@@ -99,7 +107,7 @@ export interface ComposeConfig {
    *    ceiling (750 / TooManyReads at 800) with codec assertions
    *    passing at every cell. Implies lazyTables.
    */
-  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'
+  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths'
   /**
    * Decouple the MODEL axis from the ENDPOINT axis. When set, exactly
    * `models` model files (tables) are composed and the `count` endpoint
@@ -415,7 +423,8 @@ export function compose(config: ComposeConfig): ComposeResult {
   const lazyTables =
     isZodvex && shape === 'explicit'
       ? false
-      : (config.lazyTables ?? false) || (isZodvex && (shape === 'consolidated' || shape === 'per-endpoint'))
+      : (config.lazyTables ?? false) ||
+        (isZodvex && (shape === 'consolidated' || shape === 'per-endpoint' || shape === 'codec-paths'))
   const modelsDir = join(outputDir, 'models')
   const endpointsDir = join(outputDir, 'endpoints')
 
@@ -432,6 +441,7 @@ export function compose(config: ComposeConfig): ComposeResult {
   }
 
   // First pass: write models and collect their identity (fileName + cross-import symbol).
+  const codecPathTables: { tableName: string; fields: { name: string; optional: boolean }[] }[] = []
   const allRefs: ModelRef[] = []
   const modelPlans: { seed: SeedInfo; suffix: string; newTable: string; newPascal: string; fileName: string }[] = []
   const tables: TableSpec[] = []
@@ -444,6 +454,10 @@ export function compose(config: ComposeConfig): ComposeResult {
     const fileName = `${seed.name}_${suffix}`
 
     let modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, flavor)
+    if (isZodvex && shape === 'codec-paths') {
+      const fields = collectDateCodecFields(seed.modelSource)
+      if (fields.length > 0) codecPathTables.push({ tableName: newTable, fields })
+    }
     if (isZodvex && shape === 'per-endpoint') {
       modelOut += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('${newTable}', ${newPascal}Model)\n`
     }
@@ -527,7 +541,7 @@ export function compose(config: ComposeConfig): ComposeResult {
   // tableMap the child doc decodes; under per-endpoint registration the
   // lookup silently returns WIRE values. The probe reports (never throws)
   // so the same function demonstrates both behaviors on real deploys.
-  if (isZodvex && (shape === 'per-endpoint' || shape === 'consolidated')) {
+  if (isZodvex && (shape === 'per-endpoint' || shape === 'consolidated' || shape === 'codec-paths')) {
     let refModel = relationalRefModelSource(flavor)
     if (shape === 'per-endpoint') {
       refModel += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('hcRefs', HealthcheckRefModel)\n`
@@ -543,6 +557,9 @@ export function compose(config: ComposeConfig): ComposeResult {
   }
 
   let hcModel = healthcheckModelSource(flavor)
+  if (isZodvex && shape === 'codec-paths') {
+    codecPathTables.push({ tableName: 'healthchecks', fields: [{ name: 'at', optional: false }] })
+  }
   if (isZodvex && shape === 'per-endpoint') {
     hcModel += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('healthchecks', HealthcheckModel)\n`
   }
@@ -597,6 +614,9 @@ export function compose(config: ComposeConfig): ComposeResult {
   } else if (isZodvex && shape === 'per-endpoint') {
     writeFileSync(join(outputDir, 'tableRegistry.ts'), tableRegistrySource(flavor))
     writeFileSync(join(outputDir, 'functions.ts'), perEndpointFunctionsSource(flavor))
+  } else if (isZodvex && shape === 'codec-paths') {
+    emitCodecPathDescriptors(outputDir, flavor, codecPathTables)
+    writeFileSync(join(outputDir, 'functions.ts'), codecPathsFunctionsSource(flavor))
   }
 
   return { flavor, outputDir, modelsDir, endpointsDir, endpointFiles }
@@ -684,6 +704,91 @@ export const relationalCodecProbe = zm({
 })
 `
   return applyFlavorImportRewrites(flavor, src, 'endpoints/healthcheck_rel.ts')
+}
+
+/** Regex-grade codec discovery for the SPIKE: flat `field: zx.date()` /
+ * `field: zx.date().optional()` entries in seed model sources. The real
+ * implementation uses codegen's modelCodecs walk (full paths, any codec). */
+function collectDateCodecFields(modelSource: string): { name: string; optional: boolean }[] {
+  const out: { name: string; optional: boolean }[] = []
+  for (const m of modelSource.matchAll(/^\s*(\w+):\s*zx\.date\(\)(\.optional\(\))?,?\s*$/gm)) {
+    out.push({ name: m[1], optional: m[2] !== undefined })
+  }
+  return out
+}
+
+/**
+ * SPIKE "option 3": emit `_zodvex/models/<table>.ts` per codec-bearing
+ * table, each a MINIMAL loose zod schema (codec fields only — unknown keys
+ * pass through untouched), plus an index that statically imports them all.
+ * The index is the central tableMap: same global decode contract as today,
+ * at O(codec fields) eval cost instead of O(model graph).
+ */
+function emitCodecPathDescriptors(
+  outputDir: string,
+  flavor: Flavor,
+  tables: { tableName: string; fields: { name: string; optional: boolean }[] }[],
+): void {
+  const dir = join(outputDir, '_zodvex', 'models')
+  mkdirSync(dir, { recursive: true })
+  const importLines: string[] = []
+  const entries: string[] = []
+  for (let i = 0; i < tables.length; i++) {
+    const t = tables[i]
+    const fields = t.fields
+      .map(f => `  ${f.name}: zx.date()${f.optional ? '.optional()' : ''},`)
+      .join('\n')
+    const src = `import { z } from 'zod'
+import { zx } from 'zodvex'
+
+const schema = z.looseObject({
+${fields}
+})
+
+export default { doc: schema, insert: schema }
+`
+    writeFileSync(join(dir, `${t.tableName}.ts`), applyFlavorImportRewrites(flavor, src, `_zodvex/models/${t.tableName}.ts`))
+    importLines.push(`import d_${i} from './${t.tableName}'`)
+    entries.push(`  '${t.tableName}': d_${i},`)
+  }
+  const index = `${importLines.join('\n')}
+
+export const tableMap = {
+${entries.join('\n')}
+}
+`
+  writeFileSync(join(dir, 'index.ts'), index)
+}
+
+/** SPIKE functions.ts for codec-paths: API unchanged, central tableMap
+ * sourced from the descriptor index. */
+function codecPathsFunctionsSource(flavor: Flavor): string {
+  const serverImport = flavor === 'zodvex-mini' ? 'zodvex/mini/server' : 'zodvex/server'
+  const src = `import { z } from 'zod'
+import { initZodvex } from '${serverImport}'
+import {
+  queryGeneric as query,
+  mutationGeneric as mutation,
+  actionGeneric as action,
+  internalQueryGeneric as internalQuery,
+  internalMutationGeneric as internalMutation,
+  internalActionGeneric as internalAction,
+} from 'convex/server'
+import { zx } from 'zodvex'
+import { tableMap } from './_zodvex/models/index'
+
+const schedulerRegistry = {
+  'endpoints/healthcheck:onSchedule': { args: z.object({ at: zx.date() }) },
+}
+
+export const { zq, zm } = initZodvex({} as any, {
+  query, mutation, action, internalQuery, internalMutation, internalAction,
+} as any, {
+  tableMap: () => tableMap as any,
+  schedulerRegistry: () => schedulerRegistry,
+} as any)
+`
+  return applyFlavorImportRewrites(flavor, src, 'functions.ts')
 }
 
 function tableRegistrySource(flavor: Flavor): string {
@@ -812,7 +917,7 @@ export const HealthcheckTable = defineTable({
  *  - zodvex 'harness' (wrapDb:false): db is raw — `at` must stay a number.
  *  - parity flavors: plain write+read round-trip, same table shape.
  */
-function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'): string {
+function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths'): string {
   if (flavor === 'zodvex' || flavor === 'zodvex-mini') {
     // per-endpoint shape: the endpoint must VALUE-import the model of any
     // codec table it touches — that import IS the registration. (The spike

@@ -53,7 +53,7 @@ interface FlavorPlan {
   /** Use lazy-tables shape (zodvex flavors only). */
   lazyTables: boolean
   /** Consumer shape for zodvex flavors — see ComposeConfig.shape. */
-  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'
+  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths'
   /** What we expect at the target — used to decide pass/fail. */
   expectedDeploy: 'ok' | 'oom'
   note: string
@@ -81,7 +81,7 @@ export interface RegressionOptions {
   outFile?: string
   /** Force a consumer shape onto the plan's zodvex flavors (e.g. 'explicit'
    *  when gating against zodvex MAIN, which has no tables.ts/server.ts). */
-  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'
+  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths'
   /** Override the default plan (mainly for testing). */
   plan?: FlavorPlan[]
   /** Push an empty schema before each flavor's test. Default true — without
@@ -200,7 +200,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 
   console.error(`zodvex regression suite — target N=${target}${plan ? ` (flavors: ${plan.map(p => p.flavor).join(', ')})` : ''}`)
-  const shape = get('shape') as 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | undefined
+  const shape = get('shape') as 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths' | undefined
   const { ok, outcomes } = await regression({ target, outFile, plan, shape })
 
   console.log()

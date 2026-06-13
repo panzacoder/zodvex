@@ -44,7 +44,7 @@ interface SweepConfig {
   flavors?: Flavor[]
   ns?: number[]
   /** zodvex consumer shape to compose (parity flavors unaffected). Default 'harness'. */
-  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint'
+  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths'
   /** Skip flavor at higher N once it's already failed at a lower N for the same flavor. Default true. */
   skipAfterFailure?: boolean
   outFile?: string
@@ -270,7 +270,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const results = await sweep({
     flavors,
     ns,
-    shape: (get('shape') ?? 'harness') as 'harness' | 'explicit' | 'consolidated' | 'per-endpoint',
+    shape: (get('shape') ?? 'harness') as 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths',
     models: get('models') ? parseInt(get('models')!, 10) : undefined,
     endpoints: get('endpoints') ? parseInt(get('endpoints')!, 10) : undefined,
     outFile,
