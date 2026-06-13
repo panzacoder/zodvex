@@ -18,4 +18,4 @@ export const zodvexTableMap = {
 }
 
 /** Fingerprint of the codec-path spec this map was generated from. */
-export const zodvexTableMapFingerprint = '6df63a1e03d27761885739235e76f34e724f3207e32a3bf9d760fa0f11d61299'
+export const zodvexTableMapFingerprint = 'cc4ce4563ffeab67c14a21ae2ad9a81cbe48c717d1c9594a245f5432e78b3af6'

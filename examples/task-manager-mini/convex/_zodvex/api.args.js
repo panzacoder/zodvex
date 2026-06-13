@@ -3,124 +3,41 @@
 
 import { z } from 'zod/mini'
 import { zx } from 'zodvex/mini'
-import { ActivityModel } from '../models/activity.js'
-import { UserModel } from '../models/user.js'
 import { zDuration } from '../codecs.js'
-import { taggedEmail } from '../tagged.js'
+import { taggedEmail, taggedTag } from '../tagged.js'
 
 export const zodvexArgsRegistry = {
-  'actions:health': {
-    args: undefined,
-  },
-  'actions:ping': {
-    args: z.object({ message: z.string() }),
-  },
-  'activities:get': {
-    args: z.object({ id: zx.id("activities") }),
-  },
-  'activities:listByActor': {
-    args: z.object({ actorId: zx.id("users") }),
-  },
   'activities:update': {
-    args: ActivityModel.schema.update,
-  },
-  'api/reports:summary': {
-    args: z.object({ ownerId: z.optional(zx.id("users")) }),
-  },
-  'api/reports:taskById': {
-    args: z.object({ id: zx.id("tasks") }),
-  },
-  'audited:internalTouch': {
-    args: z.object({  }),
-  },
-  'audited:touch': {
-    args: z.object({ note: z.string() }),
-  },
-  'comments:create': {
-    args: z.object({ taskId: zx.id("tasks"), authorId: zx.id("users"), body: z.string() }),
-  },
-  'comments:list': {
-    args: z.object({ taskId: zx.id("tasks") }),
-  },
-  'componentFunctions:getTaskById': {
-    args: z.object({ taskId: zx.id("tasks") }),
-  },
-  'componentFunctions:retryableAction': {
-    args: z.object({ taskId: zx.id("tasks"), attempt: z.optional(z.number()) }),
+    args: z.looseObject({ createdAt: z.optional(zx.date()), payload: z.optional(z.union([z.looseObject({ type: z.literal("task_completed"), duration: zDuration, }), z.looseObject({ type: z.literal("user_invited"), email: taggedEmail, }), z.looseObject({})])), tags: z.optional(z.array(taggedTag)), }),
   },
   'filters:namedRecentUsers': {
-    args: z.object({ after: zx.date() }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'filters:recentUsers': {
-    args: z.object({ after: zx.date() }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'filters:recentUsersWithHelper': {
-    args: z.object({ after: zx.date() }),
-  },
-  'notifications:cleanupOld': {
-    args: z.object({  }),
-  },
-  'notifications:createEmail': {
-    args: z.object({ recipientId: zx.id("users"), subject: z.string(), body: z.string() }),
-  },
-  'notifications:createInApp': {
-    args: z.object({ recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()) }),
-  },
-  'notifications:createPush': {
-    args: z.object({ recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()) }),
-  },
-  'notifications:get': {
-    args: z.object({ id: zx.id("notifications") }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'notifications:listByCreated': {
-    args: z.object({ after: zx.date() }),
-  },
-  'notifications:listByKind': {
-    args: z.object({ kind: z.enum(["email", "push", "in_app"]) }),
-  },
-  'notifications:listByRecipient': {
-    args: z.object({ recipientId: zx.id("users") }),
-  },
-  'notifications:listByRecipientAndKind': {
-    args: z.object({ recipientId: zx.id("users"), kind: z.enum(["email", "push", "in_app"]) }),
-  },
-  'securedTasks:listOwnTasks': {
-    args: z.object({ ownerId: zx.id("users") }),
-  },
-  'securedTasks:updateOwnTask': {
-    args: z.object({ taskId: zx.id("tasks"), title: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), actorId: zx.id("users") }),
-  },
-  'tasks:complete': {
-    args: z.object({ id: zx.id("tasks") }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'tasks:create': {
-    args: z.object({ title: z.string(), description: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), priority: z.optional(z.nullable(z.enum(["low", "medium", "high"]))), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration) }),
-  },
-  'tasks:get': {
-    args: z.object({ id: zx.id("tasks") }),
-  },
-  'tasks:list': {
-    args: z.object({ status: z.optional(z.enum(["todo", "in_progress", "done"])), ownerId: z.optional(zx.id("users")), paginationOpts: z.object({ numItems: z.number(), cursor: z.nullable(z.string()) }) }),
+    args: z.looseObject({ dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), }),
   },
   'tasks:listByCreated': {
-    args: z.object({ after: zx.date() }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'tasks:update': {
-    args: z.object({ id: zx.id("tasks"), title: z.optional(z.string()), description: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), priority: z.optional(z.nullable(z.enum(["low", "medium", "high"]))), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration) }),
+    args: z.looseObject({ dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), }),
   },
   'users:countByEmail': {
-    args: z.object({ email: taggedEmail }),
-  },
-  'users:create': {
-    args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.optional(z.string()) }),
-  },
-  'users:get': {
-    args: z.object({ id: zx.id("users") }),
+    args: z.looseObject({ email: taggedEmail, }),
   },
   'users:getByEmail': {
-    args: z.object({ email: taggedEmail }),
+    args: z.looseObject({ email: taggedEmail, }),
   },
   'users:update': {
-    args: UserModel.schema.update,
+    args: z.looseObject({ createdAt: z.optional(zx.date()), email: z.optional(taggedEmail), }),
   },
 }

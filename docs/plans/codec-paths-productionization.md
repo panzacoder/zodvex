@@ -1,6 +1,6 @@
 # Codec-paths productionization — the path forward (#80 rework)
 
-Status: ACTIVE PLAN (2026-06-13). Decisions below are Jake's, made 2026-06-12/13.
+Status: PHASES 0–3 COMPLETE (2026-06-13, acceptance met cell-for-cell — sweep-codec-paths-{production,final}-2026-06-13.json); Phase 4 docs done, MERGE + beta + hotpot trial pending Jake. Decisions below are Jake's, made 2026-06-12/13.
 Supersedes the mechanism in `per-endpoint-model-registration.md` (kept for the
 hazard analysis; its registration mechanism is retired).
 

@@ -9,28 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### TL;DR
 
-What this release actually changes, in product terms (all numbers are
-real-deploy, codec-wiring-on, from
-`examples/stress-test/results/where-we-sit-2026-06-12.md`):
+**Codecs now deploy at pure-convex parity.** The full zodvex solution —
+codec-aware `ctx.db`, scheduler/cross-function encoding, one-import
+userland setup — measures clean real deploys at **N=750 tables (full
+zod AND zod/mini), ending at Convex's own TooManyReads wall at N=800**,
+identical to a pure-`defineTable` baseline measured the same day. The
+documented shape previously OOM'd at ~100–150 models. Receipts:
+`examples/stress-test/results/sweep-codec-paths-production-2026-06-13.json`
+(+ `where-we-sit-2026-06-12.md` for the before picture); every cell is a
+real deploy with codec round-trip and scheduler-encoding smoke checks.
 
-- **The full zodvex solution (codecs on) is bounded by MODEL count, on
-  main and on this release alike: ~100–150 models full-zod, ~300 with
-  zod/mini (consolidated shape).** This release does not move the
-  full-zod codec-on ceiling — the all-models import graph binds either
-  way. What it does: no regression vs main's documented shape, a 1.5–2×
-  mini ceiling via the args-only scheduler registry, and a smaller
-  userland surface (one import, one call via the pre-wired `initZodvex`
-  in `_zodvex/server.ts`; `bun zodvex migrate` covers the source
-  migration).
-- **The capacity now exists for codecs to scale to pure-convex parity,
-  but is not yet consumable.** With the schema isolate de-zodded
-  (`defineSchema(tables)` over the codegen-emitted `_zodvex/tables.ts`)
-  and no centralized model graph, zodvex's floor measures clean deploys
-  at N=750 with the wall being Convex's own TooManyReads at N=800 —
-  identical to pure-convex and helpers-zod3 measured the same day. The
-  follow-up that lets the CODEC-ON shape reach this is per-endpoint
-  model registration (each endpoint's isolate evaluates only the models
-  it imports).
+How: three generated artifacts keep zod out of the hot isolates —
+1. `_zodvex/tables.ts` — userland `schema.ts` becomes pure-Convex
+   `defineSchema(tables)`; zero zod in the schema isolate.
+2. `_zodvex/models/<table>.js` + index — the central tableMap becomes
+   per-table MINIMAL schemas (codec fields only, loose passthrough;
+   discriminated unions supported, discriminators inferred when needed)
+   at ~bytes per table instead of the all-models graph. `db.get(id)`,
+   relational lookups, and rules/audit semantics are unchanged.
+3. `_zodvex/api.args.js` — scheduler encoding reads a codec-args-only
+   minimal registry; the full registry stays a lazy chunk for actions.
+
+Userland is one import + one call (`initZodvex` from
+`_zodvex/server.ts`); `bun zodvex migrate` rewrites existing schema and
+functions files.
 
 > **Scale caveat — consolidated `server.ts`.** The sweep ceilings above
 > are measured with the harness function shape, which does not import
