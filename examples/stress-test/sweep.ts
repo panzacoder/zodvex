@@ -36,6 +36,9 @@ interface CellResult {
   endpointHeapMaxMB: number
   schemaHeapMB: number | null
   errorTail: string | null
+  /** Healthcheck's runtime transaction metrics (its OWN transaction — limit
+   *  constants + usage; NOT deploy-time finish_push proximity). */
+  txnMetrics?: unknown
   /** True when reused from the fingerprint cache instead of re-running. */
   cached?: boolean
 }
@@ -199,6 +202,15 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         smokeFunction: smokeFns,
       })
       const kind = classifyOutcome(outcome)
+      let txnMetrics: unknown
+      if (outcome.kind === 'ok' && outcome.smokeOutputs) {
+        try {
+          const parsed = JSON.parse(outcome.smokeOutputs['endpoints/healthcheck:healthcheck'] ?? 'null')
+          txnMetrics = parsed?.metrics ?? undefined
+        } catch {
+          txnMetrics = undefined
+        }
+      }
       const cell: CellResult = {
         flavor,
         n,
@@ -208,6 +220,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         endpointHeapMaxMB: measured.heapDeltaMB.max,
         schemaHeapMB: measured.schemaHeapDeltaMB,
         errorTail: 'stderrSnippet' in outcome ? (outcome.stderrSnippet ?? '').slice(-300) : null,
+        ...(txnMetrics !== undefined && { txnMetrics }),
       }
       results.push(cell)
       cache[fp] = {

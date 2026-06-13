@@ -936,7 +936,7 @@ const AT = 1700000000000
 
 export const healthcheck = zm({
   args: {},
-  returns: z.object({ ok: z.boolean() }),
+  returns: z.object({ ok: z.boolean(), metrics: z.any() }),
   handler: async (ctx: any) => {
     const at = new Date(AT)
     const id = await ctx.db.insert('healthchecks', { label: 'hc', at })
@@ -944,7 +944,12 @@ export const healthcheck = zm({
     if (!doc) throw new Error('healthcheck: doc missing after insert')
     if (!(doc.at instanceof Date)) throw new Error('healthcheck: codec decode failed — at is ' + typeof doc.at)
     if (doc.at.getTime() !== AT) throw new Error('healthcheck: decode value mismatch')
-    return { ok: true }
+    // Runtime transaction metrics (convex >=1.36). NOTE: describes THIS
+    // transaction, not the deploy-time finish_push transaction where the
+    // TooManyReads wall lives — recorded for platform limit constants and
+    // future runtime sweeps.
+    const metrics = ctx.meta?.getTransactionMetrics ? await ctx.meta.getTransactionMetrics() : null
+    return { ok: true, metrics }
   },
 })
 
@@ -971,13 +976,14 @@ const AT = 1700000000000
 
 export const healthcheck = zm({
   args: {},
-  returns: z.object({ ok: z.boolean() }),
+  returns: z.object({ ok: z.boolean(), metrics: z.any() }),
   handler: async (ctx: any) => {
     const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
     const doc = await ctx.db.get(id)
     if (!doc) throw new Error('healthcheck: doc missing after insert')
     if (typeof doc.at !== 'number' || doc.at !== AT) throw new Error('healthcheck: raw round-trip failed')
-    return { ok: true }
+    const metrics = ctx.meta?.getTransactionMetrics ? await ctx.meta.getTransactionMetrics() : null
+    return { ok: true, metrics }
   },
 })
 `
@@ -992,12 +998,15 @@ const AT = 1700000000000
 
 export const healthcheck = mutation({
   args: {},
-  returns: v.object({ ok: v.boolean() }),
+  returns: v.object({ ok: v.boolean(), metrics: v.any() }),
   handler: async (ctx) => {
     const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
     const doc = await ctx.db.get(id)
     if (!doc || doc.at !== AT) throw new Error('healthcheck: round-trip failed')
-    return { ok: true }
+    const metrics = (ctx as any).meta?.getTransactionMetrics
+      ? await (ctx as any).meta.getTransactionMetrics()
+      : null
+    return { ok: true, metrics }
   },
 })
 `
@@ -1014,7 +1023,8 @@ export const healthcheck = zMutation({
     const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
     const doc = await ctx.db.get(id)
     if (!doc || doc.at !== AT) throw new Error('healthcheck: round-trip failed')
-    return { ok: true }
+    const metrics = ctx.meta?.getTransactionMetrics ? await ctx.meta.getTransactionMetrics() : null
+    return { ok: true, metrics }
   },
 })
 `

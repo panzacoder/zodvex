@@ -527,3 +527,106 @@ describe('createZodvexActionCtx — cross-function codec args (#76)', () => {
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Convex ≥1.41 ArgsAndOptions: the options slot (position 1 after args, e.g.
+// { transactionLimits }) must be forwarded untouched. An earlier wrapper did
+// fn(ref, wireArgs) and silently dropped it. Arity must also be preserved:
+// a no-args call must not grow a synthesized args slot.
+// ---------------------------------------------------------------------------
+
+describe('createZodvexActionCtx — ArgsAndOptions forwarding (convex 1.41)', () => {
+  const ts = 1700000000000
+
+  it('runQuery forwards the options argument after encoding args', async () => {
+    let captured: any[] = []
+    const ctx = createZodvexActionCtx(registry, {
+      runQuery: async (...a: any[]) => {
+        captured = a
+        return { _id: 't1', title: 'x', createdAt: ts }
+      },
+      runMutation: noop,
+      runAction: noop,
+      auth: { getUserIdentity: async () => null }
+    } as any)
+
+    const opts = { transactionLimits: { maximumBytesRead: 1 } }
+    await (ctx.runQuery as any)(fakeRef('tasks:get'), { title: 'x', dueAt: new Date(ts) }, opts)
+
+    expect(captured).toHaveLength(3)
+    expect(captured[1]).toEqual({ title: 'x', dueAt: ts }) // encoded
+    expect(captured[2]).toBe(opts) // forwarded by reference, untouched
+  })
+
+  it('runMutation forwards the options argument after encoding args', async () => {
+    let captured: any[] = []
+    const ctx = createZodvexActionCtx(registry, {
+      runQuery: noop,
+      runMutation: async (...a: any[]) => {
+        captured = a
+        return { _id: 't1', title: 'x', createdAt: ts }
+      },
+      runAction: noop,
+      auth: { getUserIdentity: async () => null }
+    } as any)
+
+    const opts = { transactionLimits: { maximumDocumentsRead: 5 } }
+    await (ctx.runMutation as any)(
+      fakeRef('tasks:create'),
+      { title: 'x', dueAt: new Date(ts) },
+      opts
+    )
+
+    expect(captured).toHaveLength(3)
+    expect(captured[1]).toEqual({ title: 'x', dueAt: ts })
+    expect(captured[2]).toBe(opts)
+  })
+
+  it('runQuery preserves arity for no-args calls', async () => {
+    let captured: any[] = []
+    const ctx = createZodvexActionCtx(registry, {
+      runQuery: async (...a: any[]) => {
+        captured = a
+        return [{ _id: 't1', title: 'x', createdAt: ts }]
+      },
+      runMutation: noop,
+      runAction: noop,
+      auth: { getUserIdentity: async () => null }
+    } as any)
+
+    await (ctx.runQuery as any)(fakeRef('tasks:list'))
+
+    // Only the ref — no synthesized args slot.
+    expect(captured).toHaveLength(1)
+  })
+
+  it('scheduler.runAfter forwards anything beyond the args slot', async () => {
+    let captured: any[] = []
+    const ctx = createZodvexActionCtx(registry, {
+      runQuery: noop,
+      runMutation: noop,
+      runAction: noop,
+      auth: { getUserIdentity: async () => null },
+      scheduler: {
+        runAfter: async (...a: any[]) => {
+          captured = a
+          return 'job-1'
+        },
+        runAt: noop,
+        cancel: noop
+      }
+    } as any)
+
+    const extra = { future: true }
+    await (ctx.scheduler.runAfter as any)(
+      0,
+      fakeRef('partial:argsOnly'),
+      { title: 'x', dueAt: new Date(ts) },
+      extra
+    )
+
+    expect(captured).toHaveLength(4)
+    expect(captured[2]).toEqual({ title: 'x', dueAt: ts }) // encoded
+    expect(captured[3]).toBe(extra) // forwarded
+  })
+})

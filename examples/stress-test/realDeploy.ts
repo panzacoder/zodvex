@@ -45,7 +45,7 @@ const TOO_MANY_READS_PATTERNS = [
 ]
 
 export type DeployOutcome =
-  | { kind: 'ok'; durationMs: number; stdoutTail: string }
+  | { kind: 'ok'; durationMs: number; stdoutTail: string; smokeOutputs?: Record<string, string> }
   | { kind: 'oom'; durationMs: number; stderrSnippet: string }
   | { kind: 'function-limit'; durationMs: number; stderrSnippet: string }
   | { kind: 'bundle-limit'; durationMs: number; stderrSnippet: string }
@@ -96,7 +96,7 @@ function smokeCall(
   fnPath: string,
   slug: string,
   timeoutMs: number,
-): Promise<string | null> {
+): Promise<{ error: string | null; output: string }> {
   return new Promise((resolve) => {
     let stdout = ''
     let stderr = ''
@@ -123,7 +123,7 @@ function smokeCall(
     child.on('close', (code) => {
       clearTimeout(timer)
       if (killed) {
-        resolve(`smoke timeout after ${timeoutMs}ms`)
+        resolve({ error: `smoke timeout after ${timeoutMs}ms`, output: '' })
         return
       }
       // Any non-zero exit or "dynamic module import" / "Server Error" in
@@ -134,10 +134,10 @@ function smokeCall(
         /Server Error/i.test(combined) ||
         /Uncaught/.test(combined)
       if (code !== 0 || failure) {
-        resolve(lastLines(combined, 10))
+        resolve({ error: lastLines(combined, 10), output: '' })
         return
       }
-      resolve(null)
+      resolve({ error: null, output: stdout.trim() })
     })
   })
 }
@@ -245,23 +245,28 @@ export function deploy(opts: DeployOptions): Promise<DeployOutcome> {
               : [smokeFunction]
         if (smokeFns.length > 0) {
           // Deploy succeeded — verify Q/M handlers actually run. Each smoke
-          // function runs sequentially; the first failure wins.
+          // function runs sequentially; the first failure wins. Successful
+          // outputs are captured (the healthcheck returns runtime
+          // transaction metrics for the results record).
           ;(async () => {
+            const smokeOutputs: Record<string, string> = {}
             for (const fn of smokeFns) {
-              const err = await smokeCall(fn, slug!, 30_000)
-              if (err) {
+              const r = await smokeCall(fn, slug!, 30_000)
+              if (r.error) {
                 resolve({
                   kind: 'runtime-error',
                   durationMs: Date.now() - startedAt,
-                  stderrSnippet: `[smoke ${fn}] ${err}`,
+                  stderrSnippet: `[smoke ${fn}] ${r.error}`,
                 })
                 return
               }
+              smokeOutputs[fn] = r.output
             }
             resolve({
               kind: 'ok',
               durationMs: Date.now() - startedAt,
               stdoutTail: lastLines(stdout, 5),
+              smokeOutputs,
             })
           })()
           return
