@@ -1023,7 +1023,37 @@ describe('generateModelDescriptors', () => {
     expect(out.indexJs).not.toContain('plain')
   })
 
-  it('falls back to the full model for codecs inside unions, with a reason', () => {
+  it('supports DISCRIMINATED unions: branch minimal schemas + discriminator + passthrough branch', () => {
+    const duModel: DiscoveredModel = {
+      exportName: 'NoteModel',
+      tableName: 'notes',
+      sourceFile: 'models/note.ts',
+      schemas: {
+        doc: z.discriminatedUnion('kind', [
+          z.object({
+            kind: z.literal('email'),
+            _id: z.string(),
+            sentAt: zx.date(),
+            to: z.string()
+          }),
+          z.object({ kind: z.literal('inapp'), _id: z.string(), body: z.string() })
+        ]),
+        insert: z.object({})
+      } as any
+    }
+    const out = generateModelDescriptors([duModel])
+    expect(out.fallbacks).toHaveLength(0)
+    const js = out.files[0].js
+    expect(js).toContain('z.union([')
+    expect(js).toContain(`kind: z.literal("email")`)
+    expect(js).toContain('sentAt: zx.date(),')
+    // codec-free branch is NOT enumerated; the passthrough branch covers it
+    expect(js).not.toContain('inapp')
+    expect(js).toContain('z.looseObject({})')
+    expect(js).not.toContain('NoteModel')
+  })
+
+  it('falls back to the full model for codecs inside NON-discriminated unions, with a reason', () => {
     const out = generateModelDescriptors([unionModel])
     expect(out.fallbacks).toHaveLength(1)
     expect(out.fallbacks[0]).toMatchObject({ tableName: 'eithers' })

@@ -108,3 +108,52 @@ describe('descriptor (codec-paths) tableMap entries', () => {
     expect(doc.at).toBe(TS) // no descriptor -> wire values, by design
   })
 })
+
+// ---------------------------------------------------------------------------
+// Discriminated-union descriptors (the notification-model shape): each
+// codec-bearing branch is a loose object of codec fields + its discriminator
+// literal; a trailing empty loose object passes codec-free branches through.
+// ---------------------------------------------------------------------------
+
+describe('discriminated-union descriptor entries', () => {
+  const unionDescriptor = z.union([
+    z.looseObject({ kind: z.literal('email'), sentAt: zx.date() }),
+    z.looseObject({ kind: z.literal('sms'), sentAt: zx.date() }),
+    z.looseObject({})
+  ])
+  const entry = { doc: unionDescriptor, insert: unionDescriptor }
+
+  it('decodes the matching branch and passes its other fields through', async () => {
+    const db = new ZodvexDatabaseReader(
+      createMockDbReader({
+        notes: [{ _id: 'notes:1', _creationTime: 1, kind: 'email', sentAt: TS, to: 'a@b.c' }]
+      }) as any,
+      { notes: entry } as any
+    )
+    const doc: any = await db.get('notes:1' as any)
+    expect(doc.sentAt).toBeInstanceOf(Date)
+    expect(doc.to).toBe('a@b.c')
+    expect(doc.kind).toBe('email')
+  })
+
+  it('codec-free branches fall through to passthrough', async () => {
+    const db = new ZodvexDatabaseReader(
+      createMockDbReader({
+        notes: [{ _id: 'notes:2', _creationTime: 1, kind: 'inapp', body: 'hi' }]
+      }) as any,
+      { notes: entry } as any
+    )
+    const doc: any = await db.get('notes:2' as any)
+    expect(doc.body).toBe('hi')
+    expect(doc.kind).toBe('inapp')
+  })
+
+  it('encodes through the matching branch on insert', async () => {
+    const { db: rawDb, calls } = createMockDbWriter({ notes: [] })
+    const db = new ZodvexDatabaseWriter(rawDb as any, { notes: entry } as any)
+    await db.insert('notes' as any, { kind: 'sms', sentAt: new Date(TS), to: '+1555' } as any)
+    const written = calls[0].args[1]
+    expect(written.sentAt).toBe(TS)
+    expect(written.to).toBe('+1555')
+  })
+})
