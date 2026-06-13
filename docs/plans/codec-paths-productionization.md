@@ -118,6 +118,11 @@ Decisions locked:
 
 ## Backlog (explicitly deferred)
 
+- Maintain `docs/platform-asks.md` — the ledger of Convex-side changes that
+  would dissolve our workarounds (dynamic import in V8, bundler plugin
+  surface, zod-as-boundary-validator, shared-module memory tier). Update it
+  whenever a workaround lands; revise + send the Ian draft off it.
+
 - Pure path-walker descriptors (perf optimization; not needed for parity).
 - `getFunctionMetadata()` for richer error messages.
 - AsyncLocalStorage for rules/audit context (doesn't thread run* calls).
