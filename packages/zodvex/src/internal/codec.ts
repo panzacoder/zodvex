@@ -94,7 +94,12 @@ export function encodePartialDoc<S extends $ZodType>(
         ? value
         : new $ZodOptional({ type: 'optional', innerType: value as any })
   }
-  const partialSchema = z.object(partialShape)
+  // LOOSE, not strip: a patch may carry fields outside the schema's shape —
+  // most importantly with minimal codec-paths descriptors, whose shape holds
+  // ONLY codec fields. A strip object silently dropped those fields from
+  // patches; loose forwards them untouched (and lets Convex's own schema
+  // validation judge genuinely-unknown fields instead of us eating them).
+  const partialSchema = z.looseObject(partialShape)
   return stripUndefined(encode(partialSchema, partial)) as Partial<zinput<S>>
 }
 

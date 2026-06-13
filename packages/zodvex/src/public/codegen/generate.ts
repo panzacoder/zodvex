@@ -788,8 +788,11 @@ export declare const ${registryExportName}: Record<string, ${entryType.full}>
  *     (Node — dynamic import keeps the heavy returns/model-doc graph out
  *     of every endpoint's static bundle) and a STATIC args-only registry
  *     (./api.args.js) for the mutation scheduler path, which runs in the
- *     Q/M V8 sandbox where dynamic `import()` is forbidden. Plus a
- *     statically-built table map (same V8 constraint).
+ *     Q/M V8 sandbox where dynamic `import()` is forbidden. Plus the
+ *     codec-paths tableMap from ./models/index.js (same V8 constraint,
+ *     but O(codec fields) per table instead of the all-models graph that
+ *     OOM'd real deploys at ~150 models — see
+ *     results/codec-paths-spike-2026-06-12.md).
  *  3. A pre-wired `initZodvex(server, options?)` that calls the
  *     library's initZodvex with `schema`, `registry`, `schedulerRegistry`,
  *     and `tableMap` defaulted from the above. Consumers can still pass
@@ -811,31 +814,8 @@ export function generateServerFile(
   options?: { mini?: boolean }
 ): GeneratedFile {
   const serverImport = options?.mini ? 'zodvex/mini/server' : 'zodvex/server'
-  const zxImport = options?.mini ? 'zodvex/mini' : 'zodvex'
-
-  // Static model imports + sync tableMap construction. Convex's Q/M V8
-  // sandbox forbids dynamic `import()`, so the runtime tableMap (used by
-  // every codec-wrapped query/mutation) must be statically reachable from
-  // this file. The cost: any entrypoint that imports this module pulls
-  // every model file into its analyzer isolate at deploy time. We accept
-  // that — runtime correctness beats analyzer-memory headroom.
-  const modelImports: string[] = []
-  const tableMapEntries: string[] = []
-  for (const m of models) {
-    if (!m._liveModel) continue
-    const live = m._liveModel as { name: string; fields?: unknown; indexes?: unknown }
-    if (live.fields === undefined || live.indexes === undefined) continue
-    const importPath = `../${m.sourceFile.replace(/\.ts$/, '.js')}`
-    modelImports.push(`import { ${m.exportName} } from '${importPath}'`)
-    tableMapEntries.push(
-      `  ${JSON.stringify(live.name)}: { doc: zx.doc(${m.exportName}), insert: zx.base(${m.exportName}) }`
-    )
-  }
-  const modelImportSection = modelImports.length > 0 ? modelImports.join('\n') + '\n' : ''
-  const tableMapBody = tableMapEntries.length > 0 ? tableMapEntries.join(',\n') + '\n' : ''
 
   const ts = `${HEADER}
-import { zx } from '${zxImport}'
 import { initZodvex as _libInitZodvex } from '${serverImport}'
 import type {
   ZodvexActionCtx,
@@ -854,7 +834,7 @@ import type {
 import type { DataModel } from '../_generated/dataModel.js'
 import _baseSchema from '../schema.js'
 import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'
-${modelImportSection}
+import { zodvexTableMap as _tableMap } from './models/index.js'
 
 // --- Context types ---
 
@@ -888,15 +868,12 @@ let _cachedRegistry: Promise<typeof import('./api.js').zodvexRegistry> | undefin
 const _registry = () => (_cachedRegistry ??= import('./api.js').then(m => m.zodvexRegistry))
 const _schedulerRegistry = () => _argsRegistry
 
-// --- Static table map (Q/M-safe) ---
-// Built sync from statically-imported models. Convex's Q/M V8 sandbox
-// forbids dynamic \`import()\` with "dynamic module import unsupported",
-// so the runtime tableMap can't be loaded lazily. Userland \`functions.ts\`
-// imports this module → pulls every model into its analyzer isolate at
-// deploy time.
-
-const _tableMap = {
-${tableMapBody}}
+// --- Codec-paths table map (Q/M-safe, ~zero weight) ---
+// The Q/M V8 sandbox forbids dynamic \`import()\`, so the runtime tableMap
+// must be statically reachable — but it does NOT need the model graph:
+// ./models/index.js carries one minimal loose schema per codec-bearing
+// table (codec fields only), so this import costs O(codec fields) instead
+// of the all-models graph that OOM'd real deploys at ~150 models.
 
 // --- Pre-wired initZodvex ---
 // Calls the library's initZodvex with schema + registry + tableMap
