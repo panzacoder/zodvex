@@ -17,7 +17,6 @@ import type {
   QueryBuilder,
 } from 'convex/server'
 import type { DataModel } from '../_generated/dataModel.js'
-import _baseSchema from '../schema.js'
 import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'
 import { zodvexTableMap as _tableMap } from './models/index.js'
 
@@ -89,7 +88,7 @@ export function initZodvex(server: Server, options: {
   schedulerRegistry?: () => any
   tableMap?: any
 } = {}): Bundle {
-  return (_libInitZodvex as any)(_baseSchema, server, {
+  return (_libInitZodvex as any)(_schemaToken, server, {
     ...options,
     registry: options.registry ?? _registry,
     schedulerRegistry: options.schedulerRegistry ?? _schedulerRegistry,
@@ -97,18 +96,24 @@ export function initZodvex(server: Server, options: {
   }) as Bundle
 }
 
-// --- Codec-aware schema re-export ---
+// --- Codec-aware schema re-export (tokens only) ---
 // Userland code that wants `createZodDbReader`/`createZodDbWriter` outside
-// a zq/zm handler imports `schema` from here (not from `../schema`). This
-// object is the base schema with the sync tableMap attached as
-// `__zodTableMap` plus a type-only `__decodedDocs` token.
+// a zq/zm handler imports `schema` from here (not from `../schema`).
+// NOTE: deliberately NOT a value-import of ../schema.js — that would pull
+// the table definitions into EVERY endpoint bundle (~8 MB at N=800, the
+// difference between hitting Convex's TooManyReads wall and OOMing just
+// short of it). The TYPE carries the full schema (type-only import,
+// erased); the runtime value carries only the zodvex tokens, which is all
+// the db wrappers read.
 
-type ZodvexSchema = typeof _baseSchema & {
+type ZodvexSchema = typeof import('../schema.js').default & {
   __zodTableMap: typeof _tableMap
   __decodedDocs: DecodedDocs
 }
 
-export const schema: ZodvexSchema = Object.assign(_baseSchema, {
+const _schemaToken = {
   __zodTableMap: _tableMap,
   __decodedDocs: undefined as unknown as DecodedDocs,
-})
+} as unknown as ZodvexSchema
+
+export const schema: ZodvexSchema = _schemaToken

@@ -5,12 +5,7 @@ import { z } from 'zod'
 import { zx } from 'zodvex'
 import { zDuration } from '../../codecs.js'
 
-// Minimal loose schema: codec fields only; unknown keys pass through.
-const schema = z.looseObject({
-  completedAt: z.optional(zx.date()),
-  createdAt: zx.date(),
-  dueDate: z.optional(zx.date()),
-  estimate: z.optional(zDuration),
-})
+// Minimal schema: codec subtrees only; unknown keys pass through (loose).
+const schema = z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), })
 
 export default { doc: schema, insert: schema }
