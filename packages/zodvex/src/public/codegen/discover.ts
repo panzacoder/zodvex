@@ -93,30 +93,40 @@ export type ModelCodecPathsResult =
  * format can't address path-wise (union branch, record value, tuple slot) —
  * the caller falls back to importing the full model for that table.
  */
+/**
+ * Deep probe: does any node of this schema tree contain a $ZodCodec
+ * (including zx.date)? Used to keep generated registries minimal — a
+ * function whose args carry no codecs needs no args-registry entry
+ * (encode is identity), and a container with no codecs needs no
+ * descriptor handling.
+ */
+export function schemaSubtreeHasCodec(schema: $ZodType, seen: Set<$ZodType> = new Set()): boolean {
+  if (seen.has(schema)) return false
+  seen.add(schema)
+  if (schema instanceof $ZodCodec) return true
+  const def = (schema as any)._zod?.def
+  if (!def) return false
+  for (const value of Object.values(def)) {
+    if (value instanceof $ZodType && schemaSubtreeHasCodec(value, seen)) return true
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item instanceof $ZodType && schemaSubtreeHasCodec(item, seen)) return true
+      }
+    } else if (value && typeof value === 'object') {
+      for (const item of Object.values(value)) {
+        if (item instanceof $ZodType && schemaSubtreeHasCodec(item, seen)) return true
+      }
+    }
+  }
+  return false
+}
+
 export function walkModelCodecPaths(doc: $ZodType): ModelCodecPathsResult {
   const paths: ModelCodecPath[] = []
   const visited = new Set<$ZodType>()
 
-  function subtreeHasCodec(schema: $ZodType, seen: Set<$ZodType>): boolean {
-    if (seen.has(schema)) return false
-    seen.add(schema)
-    if (schema instanceof $ZodCodec) return true
-    const def = (schema as any)._zod?.def
-    if (!def) return false
-    for (const value of Object.values(def)) {
-      if (value instanceof $ZodType && subtreeHasCodec(value, seen)) return true
-      if (Array.isArray(value)) {
-        for (const item of value) {
-          if (item instanceof $ZodType && subtreeHasCodec(item, seen)) return true
-        }
-      } else if (value && typeof value === 'object') {
-        for (const item of Object.values(value)) {
-          if (item instanceof $ZodType && subtreeHasCodec(item, seen)) return true
-        }
-      }
-    }
-    return false
-  }
+  const subtreeHasCodec = (schema: $ZodType, seen: Set<$ZodType>) =>
+    schemaSubtreeHasCodec(schema, seen)
 
   function walk(
     schema: $ZodType,

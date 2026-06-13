@@ -9,50 +9,8 @@ import { zDuration } from '../codecs.js'
 import { taggedEmail } from '../tagged.js'
 
 export const zodvexArgsRegistry = {
-  'actions:health': {
-    args: undefined,
-  },
-  'actions:ping': {
-    args: z.object({ message: z.string() }),
-  },
-  'activities:get': {
-    args: z.object({ id: zx.id("activities") }),
-  },
-  'activities:listByActor': {
-    args: z.object({ actorId: zx.id("users") }),
-  },
   'activities:update': {
     args: ActivityModel.schema.update,
-  },
-  'api/reports:summary': {
-    args: z.object({ ownerId: zx.id("users").optional() }),
-  },
-  'api/reports:taskById': {
-    args: z.object({ id: zx.id("tasks") }),
-  },
-  'audited:internalTouch': {
-    args: z.object({  }),
-  },
-  'audited:touch': {
-    args: z.object({ note: z.string() }),
-  },
-  'cleanup:deleteOldDocs': {
-    args: z.object({ table: z.string(), cutoffTimestamp: z.number() }),
-  },
-  'cleanup:queryCompletedTasks': {
-    args: z.object({ after: z.number(), before: z.number() }),
-  },
-  'comments:create': {
-    args: z.object({ taskId: zx.id("tasks"), authorId: zx.id("users"), body: z.string() }),
-  },
-  'comments:list': {
-    args: z.object({ taskId: zx.id("tasks") }),
-  },
-  'componentFunctions:getTaskById': {
-    args: z.object({ taskId: zx.id("tasks") }),
-  },
-  'componentFunctions:retryableAction': {
-    args: z.object({ taskId: zx.id("tasks"), attempt: z.number().optional() }),
   },
   'filters:namedRecentUsers': {
     args: z.object({ after: zx.date() }),
@@ -63,50 +21,11 @@ export const zodvexArgsRegistry = {
   'filters:recentUsersWithHelper': {
     args: z.object({ after: zx.date() }),
   },
-  'notifications:cleanupOld': {
-    args: z.object({  }),
-  },
-  'notifications:createEmail': {
-    args: z.object({ recipientId: zx.id("users"), subject: z.string(), body: z.string() }),
-  },
-  'notifications:createInApp': {
-    args: z.object({ recipientId: zx.id("users"), message: z.string(), linkTo: z.string().optional() }),
-  },
-  'notifications:createPush': {
-    args: z.object({ recipientId: zx.id("users"), title: z.string(), badge: z.number().optional() }),
-  },
-  'notifications:get': {
-    args: z.object({ id: zx.id("notifications") }),
-  },
   'notifications:listByCreated': {
     args: z.object({ after: zx.date() }),
   },
-  'notifications:listByKind': {
-    args: z.object({ kind: z.enum(["email", "push", "in_app"]) }),
-  },
-  'notifications:listByRecipient': {
-    args: z.object({ recipientId: zx.id("users") }),
-  },
-  'notifications:listByRecipientAndKind': {
-    args: z.object({ recipientId: zx.id("users"), kind: z.enum(["email", "push", "in_app"]) }),
-  },
-  'securedTasks:listOwnTasks': {
-    args: z.object({ ownerId: zx.id("users") }),
-  },
-  'securedTasks:updateOwnTask': {
-    args: z.object({ taskId: zx.id("tasks"), title: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), actorId: zx.id("users") }),
-  },
-  'tasks:complete': {
-    args: z.object({ id: zx.id("tasks") }),
-  },
   'tasks:create': {
     args: z.object({ title: z.string(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), priority: z.enum(["low", "medium", "high"]).nullable().optional(), ownerId: zx.id("users"), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), estimate: zDuration.optional() }),
-  },
-  'tasks:get': {
-    args: z.object({ id: zx.id("tasks") }),
-  },
-  'tasks:list': {
-    args: z.object({ status: z.enum(["todo", "in_progress", "done"]).optional(), ownerId: zx.id("users").optional(), paginationOpts: z.object({ numItems: z.number(), cursor: z.string().nullable() }) }),
   },
   'tasks:listByCreated': {
     args: z.object({ after: zx.date() }),
@@ -116,12 +35,6 @@ export const zodvexArgsRegistry = {
   },
   'users:countByEmail': {
     args: z.object({ email: taggedEmail }),
-  },
-  'users:create': {
-    args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.string().optional() }),
-  },
-  'users:get': {
-    args: z.object({ id: zx.id("users") }),
   },
   'users:getByEmail': {
     args: z.object({ email: taggedEmail }),

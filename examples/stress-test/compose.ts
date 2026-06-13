@@ -441,7 +441,6 @@ export function compose(config: ComposeConfig): ComposeResult {
   }
 
   // First pass: write models and collect their identity (fileName + cross-import symbol).
-  const codecPathTables: { tableName: string; fields: { name: string; optional: boolean }[] }[] = []
   const allRefs: ModelRef[] = []
   const modelPlans: { seed: SeedInfo; suffix: string; newTable: string; newPascal: string; fileName: string }[] = []
   const tables: TableSpec[] = []
@@ -454,10 +453,6 @@ export function compose(config: ComposeConfig): ComposeResult {
     const fileName = `${seed.name}_${suffix}`
 
     let modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, flavor)
-    if (isZodvex && shape === 'codec-paths') {
-      const fields = collectDateCodecFields(seed.modelSource)
-      if (fields.length > 0) codecPathTables.push({ tableName: newTable, fields })
-    }
     if (isZodvex && shape === 'per-endpoint') {
       modelOut += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('${newTable}', ${newPascal}Model)\n`
     }
@@ -557,9 +552,6 @@ export function compose(config: ComposeConfig): ComposeResult {
   }
 
   let hcModel = healthcheckModelSource(flavor)
-  if (isZodvex && shape === 'codec-paths') {
-    codecPathTables.push({ tableName: 'healthchecks', fields: [{ name: 'at', optional: false }] })
-  }
   if (isZodvex && shape === 'per-endpoint') {
     hcModel += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('healthchecks', HealthcheckModel)\n`
   }
@@ -615,8 +607,10 @@ export function compose(config: ComposeConfig): ComposeResult {
     writeFileSync(join(outputDir, 'tableRegistry.ts'), tableRegistrySource(flavor))
     writeFileSync(join(outputDir, 'functions.ts'), perEndpointFunctionsSource(flavor))
   } else if (isZodvex && shape === 'codec-paths') {
-    emitCodecPathDescriptors(outputDir, flavor, codecPathTables)
-    writeFileSync(join(outputDir, 'functions.ts'), codecPathsFunctionsSource(flavor))
+    // The REAL v2 consumer shape: server.ts's tableMap IS the generated
+    // descriptor index (codec-paths), its scheduler registry the
+    // codec-args-only api.args.js. Nothing hand-rolled remains.
+    writeFileSync(join(outputDir, 'functions.ts'), consolidatedFunctionsSource())
   }
 
   return { flavor, outputDir, modelsDir, endpointsDir, endpointFiles }
@@ -704,91 +698,6 @@ export const relationalCodecProbe = zm({
 })
 `
   return applyFlavorImportRewrites(flavor, src, 'endpoints/healthcheck_rel.ts')
-}
-
-/** Regex-grade codec discovery for the SPIKE: flat `field: zx.date()` /
- * `field: zx.date().optional()` entries in seed model sources. The real
- * implementation uses codegen's modelCodecs walk (full paths, any codec). */
-function collectDateCodecFields(modelSource: string): { name: string; optional: boolean }[] {
-  const out: { name: string; optional: boolean }[] = []
-  for (const m of modelSource.matchAll(/^\s*(\w+):\s*zx\.date\(\)(\.optional\(\))?,?\s*$/gm)) {
-    out.push({ name: m[1], optional: m[2] !== undefined })
-  }
-  return out
-}
-
-/**
- * SPIKE "option 3": emit `_zodvex/models/<table>.ts` per codec-bearing
- * table, each a MINIMAL loose zod schema (codec fields only — unknown keys
- * pass through untouched), plus an index that statically imports them all.
- * The index is the central tableMap: same global decode contract as today,
- * at O(codec fields) eval cost instead of O(model graph).
- */
-function emitCodecPathDescriptors(
-  outputDir: string,
-  flavor: Flavor,
-  tables: { tableName: string; fields: { name: string; optional: boolean }[] }[],
-): void {
-  const dir = join(outputDir, '_zodvex', 'models')
-  mkdirSync(dir, { recursive: true })
-  const importLines: string[] = []
-  const entries: string[] = []
-  for (let i = 0; i < tables.length; i++) {
-    const t = tables[i]
-    const fields = t.fields
-      .map(f => `  ${f.name}: zx.date()${f.optional ? '.optional()' : ''},`)
-      .join('\n')
-    const src = `import { z } from 'zod'
-import { zx } from 'zodvex'
-
-const schema = z.looseObject({
-${fields}
-})
-
-export default { doc: schema, insert: schema }
-`
-    writeFileSync(join(dir, `${t.tableName}.ts`), applyFlavorImportRewrites(flavor, src, `_zodvex/models/${t.tableName}.ts`))
-    importLines.push(`import d_${i} from './${t.tableName}'`)
-    entries.push(`  '${t.tableName}': d_${i},`)
-  }
-  const index = `${importLines.join('\n')}
-
-export const tableMap = {
-${entries.join('\n')}
-}
-`
-  writeFileSync(join(dir, 'index.ts'), index)
-}
-
-/** SPIKE functions.ts for codec-paths: API unchanged, central tableMap
- * sourced from the descriptor index. */
-function codecPathsFunctionsSource(flavor: Flavor): string {
-  const serverImport = flavor === 'zodvex-mini' ? 'zodvex/mini/server' : 'zodvex/server'
-  const src = `import { z } from 'zod'
-import { initZodvex } from '${serverImport}'
-import {
-  queryGeneric as query,
-  mutationGeneric as mutation,
-  actionGeneric as action,
-  internalQueryGeneric as internalQuery,
-  internalMutationGeneric as internalMutation,
-  internalActionGeneric as internalAction,
-} from 'convex/server'
-import { zx } from 'zodvex'
-import { tableMap } from './_zodvex/models/index'
-
-const schedulerRegistry = {
-  'endpoints/healthcheck:onSchedule': { args: z.object({ at: zx.date() }) },
-}
-
-export const { zq, zm } = initZodvex({} as any, {
-  query, mutation, action, internalQuery, internalMutation, internalAction,
-} as any, {
-  tableMap: () => tableMap as any,
-  schedulerRegistry: () => schedulerRegistry,
-} as any)
-`
-  return applyFlavorImportRewrites(flavor, src, 'functions.ts')
 }
 
 function tableRegistrySource(flavor: Flavor): string {
