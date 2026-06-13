@@ -310,11 +310,14 @@ describe('generateServerFile', () => {
 
     // Type-only imports for context types
     expect(js).toContain("import type { DataModel } from '../_generated/dataModel.js'")
-    expect(js).toContain("import _baseSchema from '../schema.js'")
+    // Schema is TYPE-only — a value import would pull table definitions
+    // into every endpoint bundle (~8 MB at N=800).
+    expect(js).not.toContain("import _baseSchema from '../schema.js'")
+    expect(js).toContain("typeof import('../schema.js').default")
 
     // Codec-aware schema re-export (used by createZodDbReader/Writer outside
     // a zq/zm handler — carries the lazy tableMap thunk + decoded-doc token).
-    expect(js).toContain('export const schema: ZodvexSchema = Object.assign(_baseSchema, {')
+    expect(js).toContain('export const schema: ZodvexSchema = _schemaToken')
 
     // Context type aliases (same names as before — public surface).
     // DecodedDocs comes from the codegen-emitted tables.ts directly so

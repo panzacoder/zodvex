@@ -3,43 +3,41 @@
 
 import { z } from 'zod'
 import { zx } from 'zodvex'
-import { ActivityModel } from '../models/activity.js'
-import { UserModel } from '../models/user.js'
 import { zDuration } from '../codecs.js'
-import { taggedEmail } from '../tagged.js'
+import { taggedEmail, taggedTag } from '../tagged.js'
 
 export const zodvexArgsRegistry = {
   'activities:update': {
-    args: ActivityModel.schema.update,
+    args: z.looseObject({ createdAt: z.optional(zx.date()), payload: z.optional(z.union([z.looseObject({ type: z.literal("task_completed"), duration: zDuration, }), z.looseObject({ type: z.literal("user_invited"), email: taggedEmail, }), z.looseObject({})])), tags: z.optional(z.array(taggedTag)), }),
   },
   'filters:namedRecentUsers': {
-    args: z.object({ after: zx.date() }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'filters:recentUsers': {
-    args: z.object({ after: zx.date() }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'filters:recentUsersWithHelper': {
-    args: z.object({ after: zx.date() }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'notifications:listByCreated': {
-    args: z.object({ after: zx.date() }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'tasks:create': {
-    args: z.object({ title: z.string(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), priority: z.enum(["low", "medium", "high"]).nullable().optional(), ownerId: zx.id("users"), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), estimate: zDuration.optional() }),
+    args: z.looseObject({ dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), }),
   },
   'tasks:listByCreated': {
-    args: z.object({ after: zx.date() }),
+    args: z.looseObject({ after: zx.date(), }),
   },
   'tasks:update': {
-    args: z.object({ id: zx.id("tasks"), title: z.string().optional(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), priority: z.enum(["low", "medium", "high"]).nullable().optional(), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), estimate: zDuration.optional() }),
+    args: z.looseObject({ dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), }),
   },
   'users:countByEmail': {
-    args: z.object({ email: taggedEmail }),
+    args: z.looseObject({ email: taggedEmail, }),
   },
   'users:getByEmail': {
-    args: z.object({ email: taggedEmail }),
+    args: z.looseObject({ email: taggedEmail, }),
   },
   'users:update': {
-    args: UserModel.schema.update,
+    args: z.looseObject({ createdAt: z.optional(zx.date()), email: z.optional(taggedEmail), }),
   },
 }

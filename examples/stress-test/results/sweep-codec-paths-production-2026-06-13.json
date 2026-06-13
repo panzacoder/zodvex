@@ -1,0 +1,374 @@
+{
+  "meta": {
+    "timestamp": "2026-06-13T01:05:47.221Z",
+    "gitSha": "4ac909c2a795e1f68c8f6ff20abccb12e8224770",
+    "gitDirty": true,
+    "zodvexVersion": "0.7.5",
+    "convexVersion": "1.41.0",
+    "convexHelpersVersion": "0.1.119",
+    "zodVersion": "4.3.6",
+    "bunVersion": "1.3.8",
+    "deployment": "dev:first-skunk-786"
+  },
+  "config": {
+    "flavors": [
+      "zodvex",
+      "zodvex-mini"
+    ],
+    "ns": [
+      200,
+      400,
+      600,
+      750,
+      800
+    ],
+    "shape": "codec-paths",
+    "models": null,
+    "endpoints": null,
+    "skipAfterFailure": false,
+    "doReset": true,
+    "force": true
+  },
+  "results": [
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 22378,
+      "endpointHeapMaxMB": 15.6,
+      "schemaHeapMB": 3.25,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex",
+      "n": 400,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 41778,
+      "endpointHeapMaxMB": 27.91,
+      "schemaHeapMB": 4.89,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex",
+      "n": 600,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 69994,
+      "endpointHeapMaxMB": 40.21,
+      "schemaHeapMB": 6.49,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex",
+      "n": 750,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 103102,
+      "endpointHeapMaxMB": 49.41,
+      "schemaHeapMB": 7.7,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex",
+      "n": 800,
+      "shape": "codec-paths",
+      "outcome": "oom",
+      "durationMs": 62097,
+      "endpointHeapMaxMB": 52.4,
+      "schemaHeapMB": 8.1,
+      "errorTail": "tps://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/start_push 400 : InvalidModules: Hit an error while pushing:\nLoading the pushed modules encountered the following\n    error:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 16863,
+      "endpointHeapMaxMB": 9.34,
+      "schemaHeapMB": 3.02,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 400,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 35127,
+      "endpointHeapMaxMB": 16.21,
+      "schemaHeapMB": 4.67,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 600,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 54174,
+      "endpointHeapMaxMB": 22.96,
+      "schemaHeapMB": 6.26,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 750,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 76380,
+      "endpointHeapMaxMB": 28.14,
+      "schemaHeapMB": 7.47,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 800,
+      "shape": "codec-paths",
+      "outcome": "too-many-reads",
+      "durationMs": 73742,
+      "endpointHeapMaxMB": 29.77,
+      "schemaHeapMB": 7.87,
+      "errorTail": "first-skunk-786.convex.cloud/api/deploy2/finish_push 400 : TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    }
+  ]
+}

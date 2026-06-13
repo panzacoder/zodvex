@@ -5,10 +5,7 @@ import { z } from 'zod'
 import { zx } from 'zodvex'
 import { taggedEmail } from '../../tagged.js'
 
-// Minimal loose schema: codec fields only; unknown keys pass through.
-const schema = z.looseObject({
-  createdAt: zx.date(),
-  email: z.optional(taggedEmail),
-})
+// Minimal schema: codec subtrees only; unknown keys pass through (loose).
+const schema = z.looseObject({ createdAt: zx.date(), email: z.optional(taggedEmail), })
 
 export default { doc: schema, insert: schema }

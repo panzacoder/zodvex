@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "timestamp": "2026-06-13T01:17:49.036Z",
+    "gitSha": "91ffd42d1841febdb5b9b4fb17bce0f3657c0322",
+    "gitDirty": true,
+    "zodvexVersion": "0.7.5",
+    "convexVersion": "1.41.0",
+    "convexHelpersVersion": "0.1.119",
+    "zodVersion": "4.3.6",
+    "bunVersion": "1.3.8",
+    "deployment": "dev:first-skunk-786"
+  },
+  "config": {
+    "flavors": [
+      "zodvex"
+    ],
+    "ns": [
+      750,
+      800
+    ],
+    "shape": "codec-paths",
+    "models": null,
+    "endpoints": null,
+    "skipAfterFailure": false,
+    "doReset": true,
+    "force": true
+  },
+  "results": [
+    {
+      "flavor": "zodvex",
+      "n": 750,
+      "shape": "codec-paths",
+      "outcome": "ok",
+      "durationMs": 97582,
+      "endpointHeapMaxMB": 42.57,
+      "schemaHeapMB": 7.7,
+      "errorTail": null,
+      "txnMetrics": {
+        "bytesRead": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "bytesWritten": {
+          "remaining": 16777131,
+          "used": 85
+        },
+        "databaseQueries": {
+          "remaining": 4089,
+          "used": 7
+        },
+        "documentsRead": {
+          "remaining": 31999,
+          "used": 1
+        },
+        "documentsWritten": {
+          "remaining": 15999,
+          "used": 1
+        },
+        "functionsScheduled": {
+          "remaining": 1000,
+          "used": 0
+        },
+        "scheduledFunctionArgsBytes": {
+          "remaining": 16777216,
+          "used": 0
+        }
+      }
+    },
+    {
+      "flavor": "zodvex",
+      "n": 800,
+      "shape": "codec-paths",
+      "outcome": "too-many-reads",
+      "durationMs": 99886,
+      "endpointHeapMaxMB": 45.16,
+      "schemaHeapMB": 8.09,
+      "errorTail": "first-skunk-786.convex.cloud/api/deploy2/finish_push 400 : TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    }
+  ]
+}

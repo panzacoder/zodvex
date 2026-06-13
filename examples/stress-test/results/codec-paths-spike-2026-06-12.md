@@ -1,5 +1,12 @@
 # SPIKE RESULT: codec-paths descriptors ("option 3") — PROVEN, full parity
 
+> **PRODUCTIONIZED 2026-06-13** — real `zodvex generate` output meets this
+> bar cell-for-cell: see `sweep-codec-paths-production-2026-06-13.json` +
+> `sweep-codec-paths-final-2026-06-13.json` (full zod clean ≤750,
+> TooManyReads at 800; mini identical). Required beyond the spike: union
+> descriptor support w/ inferred discriminators, minimal args-registry
+> entries, and a type-only schema import in server.ts.
+
 Date: 2026-06-12. Shape `--shape=codec-paths`, zero library changes. Codegen
 (spike-grade, in compose) emits `_zodvex/models/<table>.ts` — a MINIMAL
 loose zod schema per codec-bearing table (codec fields only; unknown keys
