@@ -54,9 +54,13 @@ Decisions locked:
    our wrapper does `fn(ref, wireArgs)` and drops the rest. Forward
    `...rest`, encode only `rest[0]`. Unit test.
 3. Harness: one calibration cell per shape post-bump (cache invalidates via
-   version stamps automatically). Add `ctx.meta.getTransactionMetrics()` to
-   the healthcheck return so sweep cells report PROXIMITY to the
-   TooManyReads wall, not just pass/fail.
+   version stamps automatically). DONE 2026-06-13: all 5 zodvex shapes +
+   parity clean at N=20 on 1.41. Healthcheck now returns
+   `ctx.meta.getTransactionMetrics()` — CORRECTION vs the original plan:
+   this describes the healthcheck's OWN transaction (limit constants +
+   runtime usage; e.g. databaseQueries limit 4096 = the TooManyReads
+   constant), NOT deploy-time finish_push proximity, which remains
+   unmeasurable from inside (tracked as a platform ask).
 
 ### Phase 1 — codegen: real descriptor emission
 

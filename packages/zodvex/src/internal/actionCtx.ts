@@ -7,11 +7,16 @@ import type { AnyRegistry } from './types'
  * Wraps a `runQuery`/`runMutation` function so it encodes codec args
  * (runtime -> wire) before the call and decodes the result (wire -> runtime)
  * after. Functions not in the registry pass through unchanged.
+ *
+ * Arity-preserving: only the args slot (position 0 after the ref) is
+ * encoded; everything after it is forwarded untouched. Convex ≥1.41 passes
+ * an options object there (`ArgsAndOptions` — e.g. `transactionLimits`),
+ * which an earlier version of this wrapper silently dropped.
  */
 function wrapRun(fn: (ref: any, ...rest: any[]) => Promise<any>, codec: BoundaryHelpers) {
-  return async (ref: any, ...restArgs: any[]) => {
-    const wireArgs = codec.encodeArgs(ref, restArgs[0])
-    const wireResult = await fn(ref, wireArgs)
+  return async (ref: any, ...rest: any[]) => {
+    if (rest.length > 0) rest[0] = codec.encodeArgs(ref, rest[0])
+    const wireResult = await fn(ref, ...rest)
     return codec.decodeResult(ref, wireResult)
   }
 }
@@ -31,13 +36,13 @@ function wrapRun(fn: (ref: any, ...rest: any[]) => Promise<any>, codec: Boundary
  */
 function wrapScheduler(scheduler: Scheduler, codec: BoundaryHelpers): Scheduler {
   const wrapped: any = { ...scheduler }
-  wrapped.runAfter = (delayMs: number, ref: any, ...restArgs: any[]) => {
-    const wireArgs = codec.encodeArgs(ref, restArgs[0])
-    return (scheduler.runAfter as any)(delayMs, ref, ...(restArgs.length ? [wireArgs] : []))
+  wrapped.runAfter = (delayMs: number, ref: any, ...rest: any[]) => {
+    if (rest.length > 0) rest[0] = codec.encodeArgs(ref, rest[0])
+    return (scheduler.runAfter as any)(delayMs, ref, ...rest)
   }
-  wrapped.runAt = (timestamp: number | Date, ref: any, ...restArgs: any[]) => {
-    const wireArgs = codec.encodeArgs(ref, restArgs[0])
-    return (scheduler.runAt as any)(timestamp, ref, ...(restArgs.length ? [wireArgs] : []))
+  wrapped.runAt = (timestamp: number | Date, ref: any, ...rest: any[]) => {
+    if (rest.length > 0) rest[0] = codec.encodeArgs(ref, rest[0])
+    return (scheduler.runAt as any)(timestamp, ref, ...rest)
   }
   return wrapped as Scheduler
 }
