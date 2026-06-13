@@ -1,6 +1,6 @@
 # Per-endpoint model registration — letting codecs scale to the floor
 
-Status: PLAN (2026-06-12). Target: post-#80. Owner decision points marked ⚖️.
+Status: SUPERSEDED (2026-06-13) by `codec-paths-productionization.md` — the registration mechanism is retired (silent-miss class, proven in results/relational-codec-miss-2026-06-12.md); this doc remains for the hazard analysis and constraint derivation.
 
 ## Problem and stakes (measured)
 
