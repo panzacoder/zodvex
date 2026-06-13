@@ -4,9 +4,7 @@
 import { z } from 'zod/mini'
 import { zx } from 'zodvex/mini'
 
-// Minimal loose schema: codec fields only; unknown keys pass through.
-const schema = z.looseObject({
-  createdAt: zx.date(),
-})
+// Minimal schema: codec subtrees only; unknown keys pass through (loose).
+const schema = z.looseObject({ createdAt: zx.date(), })
 
 export default { doc: schema, insert: schema }

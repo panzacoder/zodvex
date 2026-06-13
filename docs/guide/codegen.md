@@ -83,7 +83,7 @@ When the registry is wired, `za` and `zia` replace `ctx.runQuery` and `ctx.runMu
 
 ## Generated files
 
-Running `zodvex generate` writes into `convex/_zodvex/`: four file pairs (`schema`, `api`, `api.args`, `client` as `.js` + `.d.ts`), two TypeScript modules (`tables.ts`, `server.ts`), and a `convex.config.ts` marker (a NOOP file whose presence makes Convex's CLI skip `_zodvex/` during entrypoint discovery):
+Running `zodvex generate` writes into `convex/_zodvex/`: four file pairs (`schema`, `api`, `api.args`, `client` as `.js` + `.d.ts`), two TypeScript modules (`tables.ts`, `server.ts`), a `models/` directory (per-table codec descriptors + index), and a `convex.config.ts` marker (a NOOP file whose presence makes Convex's CLI skip `_zodvex/` during entrypoint discovery):
 
 ### `api.js` — the registry
 
@@ -120,6 +120,21 @@ export default defineSchema(tables)
 
 This is the heart of the memory-ceiling fix: Convex evaluates `schema.ts` in its own 64 MB isolate, and with `tables.ts` that isolate loads zero zod, zodvex, or model code.
 
+### `models/` — per-table codec descriptors
+
+One file per **codec-bearing** table, each a minimal loose zod schema holding only that table's codec fields (unknown keys pass through untouched), plus an `index.js` that statically imports them all. The index is the runtime tableMap behind the codec-aware `ctx.db` — same global semantics as importing every model (`db.get(id)` and relational lookups decode, rules/audit unchanged), at ~bytes per table instead of the full model graph. This is what takes codec-enabled apps to pure-convex deploy parity (measured: clean at 750 tables, ending at Convex's own transaction wall — `examples/stress-test/results/`).
+
+```js
+// _zodvex/models/tasks.js (generated)
+const schema = z.looseObject({
+  createdAt: zx.date(),
+  estimate: z.optional(zDuration),   // custom codecs import their standalone export
+})
+export default { doc: schema, insert: schema }
+```
+
+Discriminated-union models are supported (each codec-bearing branch emits with its discriminator literal; codec-free branches pass through). Tables whose codecs can't be expressed this way (e.g. a codec defined inline inside the model file with no standalone export, or inside a non-discriminable union/record/tuple) **fall back to importing their full model** — a per-table cost flagged at generate time, never a cliff. Tip: define custom codecs in their own module (or with a brand) so descriptors stay minimal.
+
 ### `schema.js` — model re-exports
 
 Re-exports all `defineZodModel` model objects discovered in your convex directory. Lets client code import models from a single stable path rather than hunting through server files:
@@ -135,7 +150,7 @@ export { UserModel } from '../models/user.js'
 
 The single module userland server code imports from. It exports:
 
-- **`initZodvex(server, options?)`** — pre-wired with the schema, the split registry (lazy full for actions, static args-only for mutations), and a statically-built table map (see [Registry wiring](#registry-wiring) above). Pass `registry` / `schedulerRegistry` / `tableMap` / `wrapDb` in `options` to override.
+- **`initZodvex(server, options?)`** — pre-wired with the split registry (lazy full for actions, codec-args-only static for mutations) and the descriptor tableMap from `models/index.js` (see [Registry wiring](#registry-wiring) above). Pass `registry` / `schedulerRegistry` / `tableMap` / `wrapDb` in `options` to override.
 - **`QueryCtx`, `MutationCtx`, `ActionCtx`** — context types with the codec layer already applied (`ctx.db` is `ZodvexDatabaseReader` / `ZodvexDatabaseWriter` with decoded types). Import these instead of the raw types from `_generated/server`.
 - **`schema`** — the base schema with the runtime table map and decoded-doc type token attached, for code that needs codec-aware DB wrappers outside a `zq`/`zm` handler.
 
