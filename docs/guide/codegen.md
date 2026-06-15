@@ -56,6 +56,19 @@ The `_zodvex/` directory is generated output. Add it to `.gitignore`:
 convex/_zodvex/
 ```
 
+### Keeping generated output fresh
+
+The codec descriptors in `_zodvex/models/` are generated from your models. If you edit a model's codec fields and **don't** regenerate, the stale descriptor silently stops decoding the changed fields — there's no runtime signal, because the live models are deliberately not loaded into the deployed isolates (that's the whole point of descriptors). Two guards keep this from biting:
+
+- **At deploy time** — `zodvex init` wires `zodvex generate &&` ahead of `convex deploy`, so a deploy always ships fresh output. (If you didn't use `init`, add it to your deploy script.)
+- **In CI / pre-commit** — run `zodvex generate --check`. It verifies the committed `_zodvex/` matches what `generate` would produce right now and exits non-zero (listing the stale files) if not, without modifying your tree. Drop it into CI so a "forgot to regenerate" PR fails loudly:
+
+  ```yaml
+  - run: npx zodvex generate --check
+  ```
+
+If you `.gitignore` `_zodvex/` (above), the deploy-time guard is what matters; if you commit it, add the `--check` step so reviewers always see fresh output.
+
 ## Registry wiring
 
 The generated `_zodvex/server.ts` exposes a **pre-wired** `initZodvex(server)` that closes over your schema, the registry, and the runtime table map. Userland `convex/functions.ts` is one import + one call — no registry wiring to remember:
