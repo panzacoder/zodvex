@@ -71,7 +71,15 @@ the spike shows it isn't required to reach platform parity.
 ## Verdict
 
 Option 3 delivers everything: codecs at pure-convex parity, zero API
-change, no import discipline, no silent-miss class, relational lookups
-intact. It supersedes the per-endpoint registration design (kept in
-results/per-endpoint-spike-2026-06-12.md as the experiment that proved
-the topology hypothesis and surfaced the silent-miss hazard).
+change, no import discipline, no per-isolate ambiguity at all, relational
+lookups intact. It supersedes the per-endpoint registration design (kept
+in results/per-endpoint-spike-2026-06-12.md as the experiment that proved
+the topology hypothesis).
+
+> Note (2026-06-15): the registration A/B above shows a *silent* miss
+> because the spike used the old `db.get(id)` convention with no manifest.
+> Enforced `db.get(table, id)` + a manifest would make that miss loud, not
+> silent — so the real reason codec-paths wins isn't safety, it's that
+> both designs hit Convex's SAME N≈800 TooManyReads wall, and codec-paths
+> reaches it with no import discipline and no consumer-migration
+> dependency. See the correction in `relational-codec-miss-2026-06-12.md`.

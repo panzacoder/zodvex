@@ -17,8 +17,14 @@ All real-deploy, codecs-on, full zod, measured 2026-06-12 on
   same day). Relational probe `decoded: true` with the API unchanged.
   ~0.04 MB/table (loose-zod descriptors); cliff extrapolates to ~N=1,400,
   past Convex's own wall.
-- Per-endpoint registration spike: proved the topology hypothesis (≥800)
-  but has a silent-miss class on relational lookups → retired.
+- Per-endpoint registration spike: proved the topology hypothesis (≥800).
+  Retired — NOT for the silent-miss it showed (that's specific to the
+  naive old-`db.get(id)` shape; enforced `db.get(table, id)` + a manifest
+  make misses loud, see the 2026-06-15 correction in
+  `per-endpoint-model-registration.md` and `relational-codec-miss-…md`).
+  Retired because it reaches the SAME N≈800 ceiling as codec-paths while
+  costing import discipline + a consumer-migration dependency; codec-paths
+  reaches it as a drop-in central map.
 
 ## Decided design
 

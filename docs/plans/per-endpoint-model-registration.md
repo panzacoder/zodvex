@@ -1,6 +1,21 @@
 # Per-endpoint model registration — letting codecs scale to the floor
 
-Status: SUPERSEDED (2026-06-13) by `codec-paths-productionization.md` — the registration mechanism is retired (silent-miss class, proven in results/relational-codec-miss-2026-06-12.md); this doc remains for the hazard analysis and constraint derivation.
+Status: SUPERSEDED (2026-06-13) by `codec-paths-productionization.md`. This doc remains for the hazard analysis and constraint derivation.
+
+> **Reasoning correction (2026-06-15).** Earlier notes retired this design
+> because of the "silent-miss class" measured in
+> `results/relational-codec-miss-2026-06-12.md`. That overstated the case:
+> the silent miss is a property of the NAIVE shape (old `db.get(id)`
+> convention, no manifest). Convex's `db.get(table, id)` migration puts a
+> table-name literal at every call site, and the manifest this plan already
+> specifies makes a miss against a codec table THROW — so the failure is
+> *loud*, not silent. The real reason codec-paths is preferred is
+> **ceiling-saturation, not safety**: codec-paths already hits Convex's own
+> TooManyReads wall at N≈800, and a per-endpoint design can't push past
+> that deploy-transaction wall either — so it would add import discipline
+> (or a build-analysis step) + a dependency on consumers having migrated
+> their db calls, to reach the identical ceiling. Codec-paths reaches it as
+> a drop-in central map with zero adoption dependency.
 
 ## Problem and stakes (measured)
 
