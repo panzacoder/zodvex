@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { dev, generate } from './commands'
+import { dev, generate, generateCheck } from './commands'
 
 const command = process.argv[2]
 const miniFlag = process.argv.includes('--mini')
@@ -9,6 +9,23 @@ const convexDir = process.argv.slice(3).find(a => !a.startsWith('--'))
 async function main() {
   switch (command) {
     case 'generate':
+      if (process.argv.includes('--check')) {
+        const stale = await generateCheck(convexDir, { mini: miniFlag })
+        if (stale.length > 0) {
+          console.error(
+            '[zodvex] Generated output is STALE. Run `zodvex generate` and commit the result.'
+          )
+          console.error('  Out of date:')
+          for (const f of stale) console.error(`    _zodvex/${f}`)
+          console.error(
+            '\n  A model or schema changed without regenerating — codec fields on the\n' +
+              '  affected table(s) would silently stop decoding at runtime.'
+          )
+          process.exit(1)
+        }
+        console.log('[zodvex] Generated output is up to date.')
+        break
+      }
       await generate(convexDir, { mini: miniFlag })
       break
     case 'dev':
@@ -84,6 +101,7 @@ zodvex - Convex codegen for Zod schemas
 
 Usage:
   zodvex generate [convex-dir] [--mini]  Generate schema and validator files
+  zodvex generate --check [convex-dir]   Verify generated output is up to date (CI; exit 1 if stale)
   zodvex dev [convex-dir] [--mini]       Watch mode — regenerate on changes
   zodvex init                            Set up zodvex in an existing Convex project
   zodvex migrate [dir]                   Migrate pre-0.6 APIs (renames + import fixes)

@@ -15,7 +15,10 @@ import {
 /**
  * One-shot codegen. Discovers modules, generates files.
  */
-export async function generate(convexDir?: string, options?: { mini?: boolean }): Promise<void> {
+export async function generate(
+  convexDir?: string,
+  options?: { mini?: boolean; quiet?: boolean }
+): Promise<void> {
   const resolved = resolveConvexDir(convexDir)
   const zodvexDir = path.join(resolved, '_zodvex')
 
@@ -60,11 +63,13 @@ export async function generate(convexDir?: string, options?: { mini?: boolean })
   const descriptors = generateModelDescriptors(result.models, result.codecs, {
     mini: options?.mini
   })
-  for (const fb of descriptors.fallbacks) {
-    console.warn(
-      `[zodvex] Note: table '${fb.tableName}' descriptor falls back to its full model (${fb.reason}). ` +
-        `That table costs its model graph in every endpoint bundle; the rest stay light.`
-    )
+  if (!options?.quiet) {
+    for (const fb of descriptors.fallbacks) {
+      console.warn(
+        `[zodvex] Note: table '${fb.tableName}' descriptor falls back to its full model (${fb.reason}). ` +
+          `That table costs its model graph in every endpoint bundle; the rest stay light.`
+      )
+    }
   }
 
   fs.mkdirSync(zodvexDir, { recursive: true })
@@ -135,9 +140,86 @@ export async function generate(convexDir?: string, options?: { mini?: boolean })
 
   const totalCodecs =
     result.codecs.length + result.modelCodecs.length + result.functionCodecs.length
-  console.log(
-    `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s), ${totalCodecs} codec(s)`
-  )
+  if (!options?.quiet) {
+    console.log(
+      `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s), ${totalCodecs} codec(s)`
+    )
+  }
+}
+
+/**
+ * Recursively snapshot a directory into a Map of relative-path -> content.
+ * A missing directory yields an empty map.
+ */
+function snapshotDir(dir: string): Map<string, string> {
+  const out = new Map<string, string>()
+  const walk = (d: string, prefix: string): void => {
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(d, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      const rel = prefix ? `${prefix}/${e.name}` : e.name
+      const abs = path.join(d, e.name)
+      if (e.isDirectory()) walk(abs, rel)
+      else out.set(rel, fs.readFileSync(abs, 'utf-8'))
+    }
+  }
+  walk(dir, '')
+  return out
+}
+
+/**
+ * `zodvex generate --check`: verifies the committed `_zodvex/` output matches
+ * what `generate` would produce right now, WITHOUT leaving the tree modified.
+ *
+ * It runs the real `generate` flow (so the check can never drift from the
+ * generator), snapshots `_zodvex/` before and after, diffs, then restores the
+ * prior state. Returns the sorted list of stale relative paths — empty means
+ * up to date.
+ *
+ * The failure this catches: a model/schema edited without re-running
+ * `zodvex generate`. Because the codec descriptors are generated (the live
+ * models are deliberately NOT loaded at runtime), a stale descriptor would
+ * silently stop decoding the changed table's codec fields. Drop
+ * `zodvex generate --check` into CI / a pre-deploy step to make that loud.
+ */
+export async function generateCheck(
+  convexDir?: string,
+  options?: { mini?: boolean }
+): Promise<string[]> {
+  const resolved = resolveConvexDir(convexDir)
+  const zodvexDir = path.join(resolved, '_zodvex')
+
+  const before = snapshotDir(zodvexDir)
+  await generate(resolved, { mini: options?.mini, quiet: true })
+  const after = snapshotDir(zodvexDir)
+
+  const stale: string[] = []
+  for (const rel of new Set([...before.keys(), ...after.keys()])) {
+    if (before.get(rel) !== after.get(rel)) stale.push(rel)
+  }
+  stale.sort()
+
+  // Restore the pre-check state — `--check` must be non-destructive.
+  for (const rel of after.keys()) {
+    if (!before.has(rel)) {
+      try {
+        fs.unlinkSync(path.join(zodvexDir, rel))
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+  for (const [rel, content] of before) {
+    const abs = path.join(zodvexDir, rel)
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, content)
+  }
+
+  return stale
 }
 
 /**

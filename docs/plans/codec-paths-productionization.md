@@ -147,7 +147,11 @@ Decisions locked:
 
 ## Open items needing Jake
 
-- Phase 1.5 staleness guard: how loud (boot-time throw vs warn) once the
-  cheap check is spiked.
+- ~~Phase 1.5 staleness guard~~ DONE 2026-06-15. A runtime check is
+  infeasible by design (live models aren't loaded), so the guard is
+  build-time: `zodvex generate --check` (non-destructive; exits 1 listing
+  stale files) for CI/pre-commit, plus the deploy-time `zodvex generate &&`
+  that `zodvex init` already wires. Documented in codegen guide
+  ("Keeping generated output fresh"). No boot-time throw/warn — N/A.
 - #79 merge order relative to reworked #80.
 - Whether quickstart adopts codegen or stays minimal (`registry: false`).
