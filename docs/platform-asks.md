@@ -29,12 +29,14 @@ measurements attached get acted on.
 ## 2. A build-time transform hook (esbuild plugin / sanctioned source transform)
 
 > **Upgraded 2026-06-15 — this is the biggest ask, not a minor one.** Its
-> headline motivation is **compile-away** (full design sketch:
-> `docs/plans/compile-away-codec-class.md`). Earlier this was tallied as a
-> small "lets tooling do more itself" convenience; that undersold it, because
-> against the *shipped* codec-paths solution a bundle hook buys little (codec-
-> paths is pure codegen + static imports). Against **compile-away** it's the
-> enabling primitive.
+> headline motivation is **compile-away** — the full design sketch lives as a
+> comment on PR #63 (the compile-away PR), kept out of the codec-paths branch
+> to avoid muddying its scope:
+> https://github.com/panzacoder/zodvex/pull/63#issuecomment-4721524273
+> Earlier this was tallied as a small "lets tooling do more itself"
+> convenience; that undersold it, because against the *shipped* codec-paths
+> solution a bundle hook buys little (codec-paths is pure codegen + static
+> imports). Against **compile-away** it's the enabling primitive.
 
 - **Why we want it:** the clean version of compile-away runs zodvex's
   zod→(convex-values + pure-JS codec class) transform *inside Convex's own
