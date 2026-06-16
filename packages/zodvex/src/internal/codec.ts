@@ -73,8 +73,34 @@ export function encodeDoc<S extends $ZodType>(schema: S, runtimeDoc: zoutput<S>)
 }
 
 /**
+ * Strips `undefined` from nested values while preserving top-level `undefined` keys.
+ *
+ * This is the patch-specific counterpart to `stripUndefined`. On a Convex `patch`,
+ * a top-level field set to `undefined` is the documented way to *delete* that field
+ * (Convex serializes it to `{ $undefined: null }` via `patchValueToJson`). A blanket
+ * `stripUndefined` would drop that key before Convex ever sees it, turning an intended
+ * unset into a silent no-op (issue #82).
+ *
+ * So we keep top-level `undefined` keys intact (they reach Convex as deletes) but still
+ * clean `undefined` *inside* nested values — matching how `encodeDoc` treats stored
+ * values, where `undefined` means "absent" rather than "delete".
+ */
+function stripUndefinedPreservingTopLevel(value: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, val] of Object.entries(value)) {
+    // Top-level undefined = intentional field deletion — preserve it for Convex.
+    result[key] = val === undefined ? undefined : stripUndefined(val)
+  }
+  return result
+}
+
+/**
  * Encodes a partial runtime document to wire format (for Convex DB patch operations).
  * Only encodes the fields present in the partial. Uses schema.partial() + z.encode().
+ *
+ * Unlike `encodeDoc`, this preserves top-level `undefined` values so that
+ * `patch(id, { field: undefined })` deletes the field, matching native Convex
+ * `patch` semantics (issue #82). Nested `undefined` is still stripped.
  */
 export function encodePartialDoc<S extends $ZodType>(
   schema: S,
@@ -83,7 +109,13 @@ export function encodePartialDoc<S extends $ZodType>(
   if (!(schema instanceof $ZodObject)) {
     // For non-object schemas (unions, etc.), fall back to full encode
     // Cast needed: Partial<output<S>> is structurally compatible but not assignable to output<S>
-    return stripUndefined(encode(schema, partial as zoutput<S>)) as Partial<zinput<S>>
+    const encoded = encode(schema, partial as zoutput<S>)
+    // Top-level union docs are still objects — preserve top-level undefined for deletes.
+    return (
+      encoded !== null && typeof encoded === 'object' && !Array.isArray(encoded)
+        ? stripUndefinedPreservingTopLevel(encoded as Record<string, unknown>)
+        : stripUndefined(encoded)
+    ) as Partial<zinput<S>>
   }
   // Use manual shape wrapping instead of .partial() — not available on zod/mini
   const shape = (schema as any)._zod.def.shape
@@ -95,7 +127,8 @@ export function encodePartialDoc<S extends $ZodType>(
         : new $ZodOptional({ type: 'optional', innerType: value as any })
   }
   const partialSchema = z.object(partialShape)
-  return stripUndefined(encode(partialSchema, partial)) as Partial<zinput<S>>
+  const encoded = encode(partialSchema, partial) as Record<string, unknown>
+  return stripUndefinedPreservingTopLevel(encoded) as Partial<zinput<S>>
 }
 
 /**

@@ -340,6 +340,27 @@ describe('ZodvexDatabaseWriter', () => {
     expect(calls[0].args[1].createdAt).toBe(1800000000000)
   })
 
+  it('patch(id, { field: undefined }) forwards undefined so Convex deletes the field (issue #82)', async () => {
+    const { db: mockDb, calls } = createMockDbWriter(tableData)
+    // Schema with an optional field that a patch should be able to unset.
+    const tableMapWithOptional = {
+      users: {
+        ...userSchemas,
+        insert: userInsertSchema.extend({ nickname: z.string().optional() })
+      }
+    }
+    const db = new ZodvexDatabaseWriter(mockDb, tableMapWithOptional)
+
+    await db.patch('users:1' as any, { nickname: undefined } as any)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].method).toBe('patch')
+    const wireValue = calls[0].args[1]
+    // The undefined key must survive — Convex's patch turns it into a field delete.
+    expect('nickname' in wireValue).toBe(true)
+    expect(wireValue.nickname).toBe(undefined)
+  })
+
   it('replace(id, value) encodes full runtime document', async () => {
     const { db: mockDb, calls } = createMockDbWriter(tableData)
     const db = new ZodvexDatabaseWriter(mockDb, tableMap)
