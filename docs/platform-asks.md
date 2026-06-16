@@ -26,22 +26,45 @@ measurements attached get acted on.
   (`schedulerRegistry` + args-only `api.args.js`); most of codegen's
   weight-management emission. Descriptors could remain as a perf nicety.
 
-## 2. Custom esbuild config / bundler plugin surface
+## 2. A build-time transform hook (esbuild plugin / sanctioned source transform)
 
-- **Why we want it:** codegen output must enter each endpoint's bundle through
-  the user's own import statements; we can't inject anything at bundle time.
-  Also relevant: zod→zod/mini swapping is a source codemod today instead of a
-  build-time alias.
-- **Convex-side shape:** an esbuild plugin hook or config block in
-  `convex.json` (alias maps, inject-per-entry, define). Even a restricted
-  allowlist (alias + inject) covers us.
-- **Workaround today:** generated files + `functions.ts` wiring conventions +
-  bootstrap stubs (`writeStubApi`) + `zodvex migrate` codemods that rewrite
-  user source.
-- **Dissolves:** stub bootstrapping and its chicken-and-egg dance; parts of
-  `zodvex migrate`; would have made the (rejected) per-endpoint-bundle design
-  viable without writing into user files; zod→mini could become a build alias
-  instead of the `zod-to-mini` codemod.
+> **Upgraded 2026-06-15 — this is the biggest ask, not a minor one.** Its
+> headline motivation is **compile-away** (full design sketch:
+> `docs/plans/compile-away-codec-class.md`). Earlier this was tallied as a
+> small "lets tooling do more itself" convenience; that undersold it, because
+> against the *shipped* codec-paths solution a bundle hook buys little (codec-
+> paths is pure codegen + static imports). Against **compile-away** it's the
+> enabling primitive.
+
+- **Why we want it:** the clean version of compile-away runs zodvex's
+  zod→(convex-values + pure-JS codec class) transform *inside Convex's own
+  bundle step*, so the user keeps authoring normal zodvex code in `convex/`
+  and the deployed output is idiomatic Convex with **zero zod at runtime**.
+  Without a hook, the only way to deploy a transformed tree is to emit a
+  parallel/shadow source tree and point Convex at it — the file-resolution
+  hijack that got PR #63 rejected ("changes what zodvex *is*"). The plugin is
+  precisely what removes that objection: transform, not hijack.
+- **Convex-side shape:** an esbuild plugin hook, or a narrower sanctioned
+  "source transform for files matching X" / "validator-compiler" interface in
+  `convex.json`. (Narrower is likely more palatable — a full esbuild plugin is
+  a bigger API-stability + support-surface + trust commitment for them, and
+  the deployed≠authored divergence shows up on *their* dashboard, so source
+  maps matter.) Secondary uses: zod→zod/mini as a build alias instead of the
+  `zod-to-mini` codemod; injecting codegen output without user import wiring.
+- **Workaround today:** codec-paths runtime layer (`_zodvex/models/*`
+  descriptors + the wrapped `ctx.db`) — already at pure-convex deploy parity,
+  so this is *not* blocking. Plus generated-file wiring conventions,
+  bootstrap stubs, and `zodvex migrate` codemods that rewrite user source.
+- **Dissolves (maximal — more than any other ask):** the entire runtime zod
+  layer. No zod in any isolate ever, double-validation gone (CPU win, not just
+  memory), `ZodvexDatabaseReader/Writer` and the descriptor/registry/tableMap
+  machinery all become build-time artifacts. Note the convergence: the
+  discovery layer (`walkModelCodecPaths`) and the `table → codec` map built
+  for codec-paths are the **front half** of compile-away — the same
+  information, emitted as pure-JS codec classes instead of consumed by a
+  runtime wrapper. Nothing from the codec-paths work is wasted.
+- **Dependency reality:** 100% gated on Convex shipping the hook — not
+  shippable library-side, unlike codec-paths. Endgame bet, not near-term.
 
 ## 3. Replace convex-values validation with zod at runtime
 
