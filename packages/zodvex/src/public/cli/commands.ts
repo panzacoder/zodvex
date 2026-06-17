@@ -86,6 +86,14 @@ export async function generate(
           `That table costs its model graph in every endpoint bundle; the rest stay light.`
       )
     }
+    for (const fb of descriptors.insertFallbacks) {
+      console.warn(
+        `[zodvex] Note: table '${fb.tableName}' has a non-serializable refinement (${fb.reason}), so its ` +
+          `WRITE path (db.insert/patch/replace) imports the full model to enforce it; reads stay light. ` +
+          `Built-in checks (.email/.min/.regex/…) are carried inline without this cost. ` +
+          `See docs/guide/codegen.md (models/ — doc vs insert).`
+      )
+    }
   }
 
   fs.mkdirSync(zodvexDir, { recursive: true })

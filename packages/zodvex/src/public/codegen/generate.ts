@@ -11,7 +11,10 @@ import {
   $ZodNumber,
   $ZodObject,
   $ZodOptional,
+  $ZodPipe,
   $ZodRecord,
+  $ZodString,
+  $ZodTransform,
   $ZodTuple,
   $ZodType,
   $ZodUnion
@@ -1143,8 +1146,15 @@ export interface ModelDescriptorsOutput {
   files: ModelDescriptorFile[]
   indexJs: string
   indexDts: string
-  /** Tables that fell back to a full-model import, with reasons (for logs). */
+  /** Tables whose WHOLE descriptor (doc + insert) imports the full model. */
   fallbacks: { tableName: string; reason: string }[]
+  /**
+   * Tables whose `insert` descriptor falls back to the full model for
+   * write-side refinement enforcement (a non-serializable .refine()/.check(fn)/
+   * .transform()); their `doc` stays codec-only minimal. Surfaced as a
+   * generate-time warning so the cost is loud.
+   */
+  insertFallbacks: { tableName: string; reason: string }[]
 }
 
 /**
@@ -1301,6 +1311,303 @@ function emitMinimalSchema(
   return null
 }
 
+// ---------------------------------------------------------------------------
+// Insert-side refinement enforcement.
+//
+// The `doc` descriptor stays codec-only minimal (permissive reads). The
+// `insert` descriptor ALSO carries every SERIALIZABLE built-in check on
+// non-codec fields, so z.encode (run by the db write path) enforces them on
+// handler-constructed db.insert/patch/replace values. Custom .refine()/
+// .check(fn)/.transform() are arbitrary closures — not expressible as
+// standalone source — so a table carrying one falls its `insert` back to
+// importing the full model (doc stays minimal).
+// ---------------------------------------------------------------------------
+
+// String-format `format` names that map 1:1 to a top-level factory present in
+// BOTH full zod and zod/mini (verified), usable as `.check(z.<name>())`.
+const NAMED_STRING_FORMATS = new Set([
+  'email',
+  'url',
+  'uuid',
+  'guid',
+  'emoji',
+  'nanoid',
+  'cuid',
+  'cuid2',
+  'ulid',
+  'xid',
+  'ksuid',
+  'ipv4',
+  'ipv6',
+  'cidrv4',
+  'cidrv6',
+  'base64',
+  'base64url',
+  'e164',
+  'jwt'
+])
+
+function numericLiteral(v: unknown): string | null {
+  if (typeof v === 'bigint') return `${v}n`
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v)
+  return null
+}
+
+function regexLiteral(pattern: RegExp): string {
+  return pattern.flags
+    ? `new RegExp(${JSON.stringify(pattern.source)}, ${JSON.stringify(pattern.flags)})`
+    : `new RegExp(${JSON.stringify(pattern.source)})`
+}
+
+/**
+ * Serializes ONE zod check to a top-level factory call usable inside
+ * `.check(...)` in both full zod and zod/mini. Returns null for checks that
+ * are arbitrary closures (`.refine()`/`.check(fn)`), mutating (`.trim()`),
+ * or otherwise not expressible as standalone source — the caller treats null
+ * as "this insert subtree must fall back to the full model".
+ */
+function serializeCheck(check: unknown): string | null {
+  const def = (check as any)?._zod?.def
+  if (!def) return null
+  switch (def.check) {
+    case 'greater_than': {
+      const v = numericLiteral(def.value)
+      return v == null ? null : def.inclusive ? `z.gte(${v})` : `z.gt(${v})`
+    }
+    case 'less_than': {
+      const v = numericLiteral(def.value)
+      return v == null ? null : def.inclusive ? `z.lte(${v})` : `z.lt(${v})`
+    }
+    case 'min_length': {
+      const v = numericLiteral(def.minimum)
+      return v == null ? null : `z.minLength(${v})`
+    }
+    case 'max_length': {
+      const v = numericLiteral(def.maximum)
+      return v == null ? null : `z.maxLength(${v})`
+    }
+    case 'length_equals': {
+      const v = numericLiteral(def.length)
+      return v == null ? null : `z.length(${v})`
+    }
+    case 'multiple_of': {
+      const v = numericLiteral(def.value)
+      return v == null ? null : `z.multipleOf(${v})`
+    }
+    case 'number_format':
+      // Only integer formats round-trip as a factory; float formats (and any
+      // future kind) fall back so we never silently drop enforcement.
+      return def.format === 'safeint' || def.format === 'int' ? 'z.int()' : null
+    case 'string_format': {
+      if (typeof def.format === 'string' && NAMED_STRING_FORMATS.has(def.format)) {
+        return `z.${def.format}()`
+      }
+      if (def.pattern instanceof RegExp) return `z.regex(${regexLiteral(def.pattern)})`
+      return null
+    }
+    // 'custom' (refine/superRefine/check(fn)), 'overwrite' (.trim()/.toLowerCase()),
+    // and any unrecognized kind are non-serializable → force fallback.
+    default:
+      return null
+  }
+}
+
+/**
+ * A `zx.id('table')` is a $ZodString carrying a `custom` (id-shape) check, but
+ * it is NOT a value refinement — the read (`doc`) descriptor drops it as a
+ * passthrough field, so the write (`insert`) descriptor must too. Without this
+ * its `custom` check would force every foreign-key-bearing table into a
+ * full-model insert fallback (the weight cliff). Detection mirrors zodToSource.
+ */
+function isZid(schema: $ZodType): boolean {
+  if (!(schema instanceof $ZodString)) return false
+  const s = schema as any
+  if (s._tableName != null) return true
+  return typeof s.description === 'string' && s.description.startsWith('convexId:')
+}
+
+const CHECKS_UNSUPPORTED = Symbol('checks-unsupported')
+
+/**
+ * Builds the `.check(...)` suffix for a schema's OWN checks. Returns '' when
+ * there are none, the suffix when ALL checks serialize, or CHECKS_UNSUPPORTED
+ * when any check is a non-serializable closure/transform.
+ */
+function emitOwnChecks(schema: $ZodType): string | typeof CHECKS_UNSUPPORTED {
+  const checks = (schema as any)?._zod?.def?.checks
+  if (!Array.isArray(checks) || checks.length === 0) return ''
+  const factories: string[] = []
+  for (const check of checks) {
+    const src = serializeCheck(check)
+    if (src == null) return CHECKS_UNSUPPORTED
+    factories.push(src)
+  }
+  return `.check(${factories.join(', ')})`
+}
+
+/**
+ * True when any NON-codec node in the subtree carries a check. Codec nodes are
+ * skipped (emitted by reference; their internal checks are irrelevant), so a
+ * codec-only model reports false and its insert descriptor is byte-identical
+ * to its doc descriptor — the weight win is preserved unchanged.
+ */
+function subtreeHasEnforceableCheck(schema: $ZodType, seen: Set<$ZodType> = new Set()): boolean {
+  if (seen.has(schema)) return false
+  seen.add(schema)
+  if (schema instanceof $ZodCodec) return false
+  if (isZid(schema)) return false
+  const def = (schema as any)?._zod?.def
+  if (!def) return false
+  const checks = def.checks
+  if (Array.isArray(checks) && checks.length > 0) return true
+  for (const key of ['innerType', 'element', 'valueType', 'keyType', 'in', 'out']) {
+    const v = def[key]
+    if (v instanceof $ZodType && subtreeHasEnforceableCheck(v, seen)) return true
+  }
+  if (def.shape) {
+    for (const v of Object.values(def.shape)) {
+      if (v instanceof $ZodType && subtreeHasEnforceableCheck(v, seen)) return true
+    }
+  }
+  for (const list of [def.options, def.items]) {
+    if (Array.isArray(list)) {
+      for (const v of list) {
+        if (v instanceof $ZodType && subtreeHasEnforceableCheck(v, seen)) return true
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * True when the subtree contains a `.transform()`/pipe (NOT a codec, which is a
+ * pipe-like node we emit by reference). Transforms can't round-trip a write, so
+ * a table carrying one must fall its insert back to the full model.
+ */
+function subtreeHasTransform(schema: $ZodType, seen: Set<$ZodType> = new Set()): boolean {
+  if (seen.has(schema)) return false
+  seen.add(schema)
+  if (schema instanceof $ZodCodec) return false
+  if (schema instanceof $ZodPipe || schema instanceof $ZodTransform) return true
+  const def = (schema as any)?._zod?.def
+  if (!def) return false
+  for (const key of ['innerType', 'element', 'valueType', 'keyType', 'in', 'out']) {
+    const v = def[key]
+    if (v instanceof $ZodType && subtreeHasTransform(v, seen)) return true
+  }
+  if (def.shape) {
+    for (const v of Object.values(def.shape)) {
+      if (v instanceof $ZodType && subtreeHasTransform(v, seen)) return true
+    }
+  }
+  for (const list of [def.options, def.items]) {
+    if (Array.isArray(list)) {
+      for (const v of list) {
+        if (v instanceof $ZodType && subtreeHasTransform(v, seen)) return true
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * Emits the MINIMAL `insert` schema source: codec subtrees (as in
+ * emitMinimalSchema) PLUS serializable built-in checks on non-codec fields.
+ * Returns null when the subtree needs no enforcement (no codec, no check),
+ * or { unsupported } when a non-serializable refinement/transform is hit so
+ * the caller routes this table's insert to a full-model fallback.
+ *
+ * Fast path: a subtree with NO enforceable check or transform delegates to
+ * emitMinimalSchema, guaranteeing byte-identical output (and identical weight)
+ * to the codec-only descriptor for refinement-free models.
+ */
+function emitInsertSchema(
+  schema: $ZodType,
+  codecRef: (codec: $ZodType) => string | null,
+  at: string,
+  mini: boolean
+): MinimalEmit {
+  if (!subtreeHasEnforceableCheck(schema) && !subtreeHasTransform(schema)) {
+    return emitMinimalSchema(schema, codecRef, at)
+  }
+
+  // Codecs are emitted by reference (handled identically to the doc path).
+  if (schema instanceof $ZodCodec) return emitMinimalSchema(schema, codecRef, at)
+  // Transforms are one-directional with no inverse — never emit; force fallback.
+  if (schema instanceof $ZodPipe || schema instanceof $ZodTransform) {
+    return { unsupported: `transform at ${at} — insert falls back to full model` }
+  }
+  if (schema instanceof $ZodOptional) {
+    const inner = emitInsertSchema((schema as any)._zod.def.innerType, codecRef, at, mini)
+    if (inner === null || isUnsupported(inner)) return inner
+    return `z.optional(${inner})`
+  }
+  if (schema instanceof $ZodNullable) {
+    const inner = emitInsertSchema((schema as any)._zod.def.innerType, codecRef, at, mini)
+    if (inner === null || isUnsupported(inner)) return inner
+    return `z.nullable(${inner})`
+  }
+  if (schema instanceof $ZodObject) {
+    const own = emitOwnChecks(schema)
+    if (own === CHECKS_UNSUPPORTED) {
+      return {
+        unsupported: `custom refinement on object at ${at} — insert falls back to full model`
+      }
+    }
+    const shape = (schema as any)._zod.def.shape as Record<string, $ZodType>
+    const lines: string[] = []
+    for (const key of Object.keys(shape ?? {}).sort()) {
+      const emitted = emitInsertSchema(shape[key], codecRef, `${at}.${key}`, mini)
+      if (isUnsupported(emitted)) return emitted
+      if (emitted !== null) lines.push(`${key}: ${emitted},`)
+    }
+    if (lines.length === 0 && own === '') return null
+    return `z.looseObject({ ${lines.join(' ')} })${own}`
+  }
+  if (schema instanceof $ZodArray) {
+    const own = emitOwnChecks(schema)
+    if (own === CHECKS_UNSUPPORTED) {
+      return {
+        unsupported: `custom refinement on array at ${at} — insert falls back to full model`
+      }
+    }
+    const inner = emitInsertSchema((schema as any)._zod.def.element, codecRef, `${at}[*]`, mini)
+    if (isUnsupported(inner)) return inner
+    if (inner === null && own === '') return null
+    // Element carries no codec/check but the array has a length check: emit a
+    // permissive element so the length check still enforces.
+    return `z.array(${inner ?? 'z.any()'})${own}`
+  }
+  // Checks inside a union/record/tuple can't be placed in the minimal format —
+  // fall back so enforcement is never silently dropped.
+  if (schema instanceof $ZodUnion || schema instanceof $ZodRecord || schema instanceof $ZodTuple) {
+    const kind =
+      schema instanceof $ZodUnion ? 'union' : schema instanceof $ZodRecord ? 'record' : 'tuple'
+    return { unsupported: `refinement inside ${kind} at ${at} — insert falls back to full model` }
+  }
+  // Single-inner wrappers (default, readonly, prefault, …): descend.
+  const def = (schema as any)._zod?.def
+  if (def?.innerType instanceof $ZodType) {
+    return emitInsertSchema(def.innerType, codecRef, at, mini)
+  }
+  // Leaf (string/number/boolean/enum/literal/…) carrying checks.
+  const own = emitOwnChecks(schema)
+  if (own === CHECKS_UNSUPPORTED) {
+    return { unsupported: `non-serializable check at ${at} — insert falls back to full model` }
+  }
+  if (own === '') {
+    // Reached only if a check lives somewhere we couldn't place — fall back.
+    return { unsupported: `refinement at ${at} — insert falls back to full model` }
+  }
+  const ctx: ZodToSourceContext = {
+    codecMap: new Map(),
+    neededCodecImports: new Map(),
+    undiscoverableCodecs: [],
+    mini
+  }
+  return `${zodToSource(schema, ctx)}${own}`
+}
+
 /**
  * Generates the per-table descriptor files + index for codec-bearing tables.
  *
@@ -1322,6 +1629,7 @@ export function generateModelDescriptors(
   const indexImports: string[] = []
   const indexEntries: string[] = []
   const fallbacks: { tableName: string; reason: string }[] = []
+  const insertFallbacks: { tableName: string; reason: string }[] = []
   const fingerprint = createHash('sha256')
 
   const dtsBody = `${HEADER}
@@ -1332,12 +1640,17 @@ export default _default
 `
 
   for (const m of sorted) {
-    // Resolve the doc schema (full models carry it; slim models build via zx).
+    // Resolve doc + insert source schemas (full models carry them; slim models
+    // build via zx). `doc` drives codec-only reads; `insertSource` is the
+    // writable shape whose refinements the insert descriptor must enforce.
     let doc: $ZodType | undefined
+    let insertSource: $ZodType | undefined
     if (m.schemas?.doc) {
       doc = m.schemas.doc as $ZodType
+      insertSource = (m.schemas.insert as $ZodType | undefined) ?? undefined
     } else if (m._modelRef) {
       doc = zx.doc(m._modelRef as any) as $ZodType
+      insertSource = zx.base(m._modelRef as any) as $ZodType
     }
     if (!doc) continue
 
@@ -1353,36 +1666,26 @@ export default _default
       return hit.exportName
     }
 
-    const emitted = emitMinimalSchema(doc, codecRef, m.tableName)
-    if (emitted === null) continue // codec-free table: no descriptor
+    const docEmitted = emitMinimalSchema(doc, codecRef, m.tableName)
+    // Insert side: codec subtrees PLUS serializable refinements. Falls back to
+    // `doc` when there's no distinct writable schema.
+    const insertEmitted: MinimalEmit = insertSource
+      ? emitInsertSchema(insertSource, codecRef, m.tableName, mini)
+      : docEmitted
 
-    let js: string | null = null
-    if (!isUnsupported(emitted)) {
-      const needsZx = emitted.includes('zx.date()')
-      const importLines = [
-        `import { z } from '${zodImport}'`,
-        ...(needsZx ? [`import { zx } from '${zodvexImport}'`] : []),
-        ...[...neededImports.keys()]
-          .sort()
-          .map(ip => `import { ${[...neededImports.get(ip)!].sort().join(', ')} } from '${ip}'`)
-      ]
-      js = `${HEADER}
-${importLines.join('\n')}
+    // Nothing to decode AND nothing to enforce → no descriptor (passthrough).
+    if (docEmitted === null && insertEmitted === null) continue
 
-// Minimal schema: codec subtrees only; unknown keys pass through (loose).
-const schema = ${emitted}
+    const importPath = `../../${m.sourceFile.replace(/\.ts$/, '.js')}`
+    const isSlim = !m.schemas?.doc && !!m._modelRef
 
-export default { doc: schema, insert: schema }
-`
-      fingerprint.update(`${m.tableName}|${emitted};`)
-    }
+    let js: string
 
-    if (js === null) {
-      // Fallback: this table imports its full model (per-table cost).
-      const reason = isUnsupported(emitted) ? emitted.unsupported : 'unsupported'
+    if (isUnsupported(docEmitted)) {
+      // Codec sits where the minimal format can't address it → the whole table
+      // (doc AND insert) imports the full model. (Pre-existing behavior.)
+      const reason = docEmitted.unsupported
       fallbacks.push({ tableName: m.tableName, reason })
-      const importPath = `../../${m.sourceFile.replace(/\.ts$/, '.js')}`
-      const isSlim = !m.schemas?.doc && !!m._modelRef
       js = isSlim
         ? `${HEADER}
 import { zx } from '${zodvexImport}'
@@ -1398,6 +1701,62 @@ import { ${m.exportName} } from '${importPath}'
 export default { doc: ${m.exportName}.schema.doc, insert: ${m.exportName}.schema.insert }
 `
       fingerprint.update(`${m.tableName}|FALLBACK;`)
+    } else {
+      // doc is a minimal schema (string) or null (codec-free passthrough).
+      const docSrc = docEmitted ?? 'z.looseObject({})'
+
+      // Insert side: a minimal+refinements schema, or a full-model fallback
+      // when a non-serializable refinement/transform was hit. doc stays minimal.
+      const insertFallback = isUnsupported(insertEmitted)
+      if (insertFallback) {
+        insertFallbacks.push({ tableName: m.tableName, reason: insertEmitted.unsupported })
+      }
+      const insertSrc = insertFallback ? '' : (insertEmitted ?? docSrc)
+      const insertExpr = insertFallback
+        ? isSlim
+          ? `zx.base(${m.exportName})`
+          : `${m.exportName}.schema.insert`
+        : null
+
+      const usesZx = /\bzx\./.test(docSrc) || (!insertFallback && /\bzx\./.test(insertSrc))
+      const importLines = [
+        `import { z } from '${zodImport}'`,
+        ...(usesZx || (insertFallback && isSlim) ? [`import { zx } from '${zodvexImport}'`] : []),
+        ...(insertFallback ? [`import { ${m.exportName} } from '${importPath}'`] : []),
+        ...[...neededImports.keys()]
+          .sort()
+          .map(ip => `import { ${[...neededImports.get(ip)!].sort().join(', ')} } from '${ip}'`)
+      ]
+
+      if (!insertFallback && insertSrc === docSrc) {
+        // doc and insert identical → single shared const, byte-identical to the
+        // pre-refinement codec-only descriptor (zero weight change).
+        js = `${HEADER}
+${importLines.join('\n')}
+
+// Minimal schema: codec subtrees only; unknown keys pass through (loose).
+const schema = ${docSrc}
+
+export default { doc: schema, insert: schema }
+`
+        fingerprint.update(`${m.tableName}|${docSrc};`)
+      } else {
+        // doc and insert diverge: insert carries write-side refinements (or a
+        // full-model fallback). doc stays codec-only minimal (permissive reads).
+        const insertDecl = insertFallback ? '' : `const insertSchema = ${insertSrc}\n`
+        const insertRef = insertFallback ? insertExpr : 'insertSchema'
+        js = `${HEADER}
+${importLines.join('\n')}
+
+// doc: codec subtrees only (permissive reads). insert: + write-side refinements.
+const docSchema = ${docSrc}
+${insertDecl}
+export default { doc: docSchema, insert: ${insertRef} }
+`
+        fingerprint.update(
+          `${m.tableName}|${docSrc}|INSERT:${insertFallback ? 'FALLBACK' : insertSrc};`
+        )
+      }
     }
 
     files.push({ name: m.tableName, js, dts: dtsBody })
@@ -1425,5 +1784,5 @@ import type { $ZodType } from 'zod/v4/core'
 export declare const zodvexTableMap: Record<string, { doc: $ZodType; insert: $ZodType }>
 export declare const zodvexTableMapFingerprint: string
 `
-  return { files, indexJs, indexDts, fallbacks }
+  return { files, indexJs, indexDts, fallbacks, insertFallbacks }
 }

@@ -139,6 +139,24 @@ functions files.
   nested-component skip behavior.
 - **Docs (`docs/guide/codegen.md`)** updated to reflect the new shape.
 
+### Fixed
+
+- **Write-side refinement enforcement on the codec-aware `ctx.db`.** The
+  codec-paths rework made each descriptor's `insert` a codec-only minimal
+  schema, which silently stopped enforcing non-codec zod refinements
+  (`.email()`, `.min()`, `.regex()`, …) on `db.insert`/`patch`/`replace` of
+  values **constructed inside a handler** (args-boundary and declared-returns
+  validation were unaffected). Descriptors now emit an asymmetric pair: `doc`
+  stays codec-only (permissive reads — never re-validated against
+  since-tightened constraints), while `insert` additionally carries every
+  **serializable** built-in check, which `z.encode` enforces on the write path.
+  Custom `.refine()`/`.superRefine()`/`.check(fn)` and `.transform()` aren't
+  serializable, so a table using one has its `insert` (only) fall back to
+  importing the full model, with a generate-time note. Refinement-free models
+  emit byte-identical descriptors to before — zero added weight (re-measured
+  at N=200/600, full zod and zod/mini, at codec-only parity). See
+  `docs/guide/codegen.md` (models/ — doc vs insert).
+
 ### Removed
 
 - **`_zodvex/api.lazy.{js,d.ts}`** — superseded. The registry is now a

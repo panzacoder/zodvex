@@ -133,6 +133,15 @@ Decisions locked:
   surface, zod-as-boundary-validator, shared-module memory tier). Update it
   whenever a workaround lands; revise + send the Ian draft off it.
 
+- ~~Refinement-carrying descriptors~~ **DONE** (targeting 0.8.0-beta.1). The
+  minimal codec-only `insert` silently dropped write-side enforcement of
+  non-codec refinements for handler-constructed `db.insert/patch/replace`
+  values. Fixed by emitting an asymmetric descriptor: `doc` stays codec-only
+  (permissive reads); `insert` carries serializable built-in checks (enforced
+  via `z.encode` on the write path), with an insert-only full-model fallback +
+  generate-time warning for non-serializable `.refine()`/`.transform()`.
+  Refinement-free models emit byte-identical descriptors (weight unchanged,
+  re-measured). See `docs/superpowers/specs/2026-06-16-write-side-refinement-enforcement-design.md`.
 - Pure path-walker descriptors (perf optimization; not needed for parity).
 - `getFunctionMetadata()` for richer error messages.
 - AsyncLocalStorage for rules/audit context (doesn't thread run* calls).

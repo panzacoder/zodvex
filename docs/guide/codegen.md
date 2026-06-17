@@ -148,6 +148,25 @@ export default { doc: schema, insert: schema }
 
 Discriminated-union models are supported (each codec-bearing branch emits with its discriminator literal; codec-free branches pass through). Tables whose codecs can't be expressed this way (e.g. a codec defined inline inside the model file with no standalone export, or inside a non-discriminable union/record/tuple) **fall back to importing their full model** — a per-table cost flagged at generate time, never a cliff. Tip: define custom codecs in their own module (or with a brand) so descriptors stay minimal.
 
+#### `doc` vs `insert` — reads stay permissive, writes enforce refinements
+
+The descriptor exports two schemas, and they are deliberately **asymmetric**:
+
+```js
+// a model with a refined non-codec field
+const docSchema = z.looseObject({ createdAt: zx.date() })        // codec-only
+const insertSchema = z.looseObject({                              // + write-side checks
+  createdAt: zx.date(),
+  email: z.string().check(z.email()),
+})
+export default { doc: docSchema, insert: insertSchema }
+```
+
+- **`doc` (reads)** carries codec fields *only*. Reads are never re-validated against your model's refinements — a single legacy row that violates a since-tightened constraint would otherwise make `db.get()`/`.collect()` throw. Reads stay permissive by design.
+- **`insert` (writes)** additionally carries every **serializable** built-in check on non-codec fields (`.email()`, `.min()`, `.max()`, `.regex()`, `.uuid()`, `.int()`, `.gte()`, `.multipleOf()`, …). The codec-aware `ctx.db` runs `z.encode` through `insert` on `insert`/`patch`/`replace`, so refinements on values **constructed in a handler** (not already validated at a `zMutation` args boundary) are enforced on the write path. Refinement-free models emit `insert` identical to `doc` (a single shared `const`), so they cost nothing extra.
+
+**What can't be carried inline falls back, loudly.** Custom `.refine()` / `.superRefine()` / `.check(fn)` are arbitrary closures, and `.transform()` is one-directional — neither serializes to a standalone descriptor file. A table with one of these has its **`insert` import the full model** (its `doc` stays codec-only minimal), and `zodvex generate` prints a note pointing here. Built-in checks never trigger this. Tip: prefer built-in checks where possible, and keep cross-field `.refine()`s in mind — they pull the model graph into that table's write endpoints (a per-table cost, not a cliff).
+
 ### `schema.js` — model re-exports
 
 Re-exports all `defineZodModel` model objects discovered in your convex directory. Lets client code import models from a single stable path rather than hunting through server files:

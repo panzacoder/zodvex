@@ -1,6 +1,6 @@
 # Write-side refinement enforcement for codec-paths descriptors
 
-**Status:** approved (design)
+**Status:** implemented (green + weight-measured)
 **Branch:** `perf/codegen-overhaul` · PR #80 · targets `0.8.0-beta.1`
 **Date:** 2026-06-16
 
