@@ -84,9 +84,18 @@ stamped).
   cost nothing unimported), and
 - the OOM threshold scales with **K** (importing enough models eventually OOMs
   the runtime isolate), not with the deployed N, and
-- the `static` baseline OOMs at a much lower N (eager eval of everything).
+- the `static` baseline cannot deploy past ~the **same** per-isolate eval
+  ceiling that dynamic-K OOMs at (both ~64 MB / ~0.3 MB-per-model). The win is
+  **not** a lower ceiling — it's *when/whether* you pay it: static evaluates all
+  N at deploy (so it cliffs and can't deploy past the ceiling), while dynamic
+  deploys any N and evaluates only the K touched at runtime.
 
 That combination is the evidence Ian asked for: dynamic-import-of-a-subset
-avoids the per-isolate eval ceiling. The remaining zodvex-side work (selecting
-*which* table modules to import on a data-dependent touch) is separate and does
-not affect this memory premise.
+avoids the per-isolate eval ceiling — it shifts the limit from **total tables in
+the schema** (deploy-time) to **tables touched in one transaction** (runtime).
+Real q/m touch a handful of tables, so the gain is large, but it is not
+unbounded: a single transaction evaluating >~150–200 codec modules would OOM the
+same way. The remaining zodvex-side work (selecting *which* table modules to
+import on a data-dependent touch) is separate and does not affect this premise.
+
+See `results/FINDINGS.md` for the first real run (2026-06-18, N=750).
