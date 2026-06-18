@@ -10,6 +10,17 @@
     "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["*.ts", "templates/**/*.ts", "dynamic-import-validation/*.ts"],
-  "exclude": ["convex", "node_modules", "dist", "dynamic-import-validation/.out"]
+  "include": [
+    "*.ts",
+    "templates/**/*.ts",
+    "dynamic-import-validation/*.ts",
+    "dynamic-import-validation/data-dependent/*.ts"
+  ],
+  "exclude": [
+    "convex",
+    "node_modules",
+    "dist",
+    "dynamic-import-validation/.out",
+    "dynamic-import-validation/data-dependent/.out"
+  ]
 }

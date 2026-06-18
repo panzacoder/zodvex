@@ -10,6 +10,8 @@
     "div:proxy": "bun run dynamic-import-validation/proxy.ts",
     "div:dynamic": "bun run dynamic-import-validation/sweep.ts --mode=dynamic",
     "div:static": "bun run dynamic-import-validation/sweep.ts --mode=static",
+    "div:datadep:validate": "bun run dynamic-import-validation/data-dependent/validate.ts",
+    "div:datadep": "bun run dynamic-import-validation/data-dependent/run.ts",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
