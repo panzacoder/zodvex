@@ -7,6 +7,9 @@
     "regression": "bun run regression.ts",
     "sweep": "bun run sweep.ts",
     "bench": "bun run bench.ts",
+    "div:proxy": "bun run dynamic-import-validation/proxy.ts",
+    "div:dynamic": "bun run dynamic-import-validation/sweep.ts --mode=dynamic",
+    "div:static": "bun run dynamic-import-validation/sweep.ts --mode=static",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
