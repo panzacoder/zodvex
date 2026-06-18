@@ -51,3 +51,29 @@ isolate the same way.
 - `bun run div:static` etc. are cwd-sensitive — must run from
   `examples/stress-test/` (a background invocation from repo root fails
   "Script not found").
+
+## Data-dependent variant (2026-06-18, git 79d5a2e)
+
+Validates the codec path, not just memory: select a table module by a **runtime
+table name** (the FK-follow pattern), `import()` only that module, and decode a
+real wire doc through the lazily-imported schema. Corpus stamped from the
+task-manager archetypes. See `data-dependent/`.
+
+**Correctness pass — 5/5 (real deploy, 750 deployed).** Each table selected by
+runtime name, lazily imported, decoded against its wire fixture:
+
+| archetype | codec checks |
+|---|---|
+| task | `createdAt`→Date, `estimate`→{hours,minutes} (zDuration) |
+| user | `createdAt`→Date, `email.displayValue` (taggedEmail) |
+| activity | `createdAt`→Date, `payload.duration`→{hours,minutes} (zDuration nested in union) |
+| comment | `createdAt`→Date (slim model, schemaHelpers:false) |
+| notification | `createdAt`→Date, `sentAt`→Date (top-level union table) |
+
+The lazy, table-name-selected import path is **functionally identical to a
+static import** across all five archetypes — confirmed locally
+(`div:datadep:validate`) and end-to-end through the Convex isolate.
+
+**Memory pass — same ceiling, with a real decode workload.** `passed=K,
+failed=0` at every OK rung; OOM at K=200, max OK K=150 — identical to the
+index-based run despite 750 deployed. Decode adds no surprise cost.
