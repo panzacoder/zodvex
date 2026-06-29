@@ -14,14 +14,10 @@ import { $ZodError, safeParse } from './zod-core'
  */
 const functionNameSymbol = Symbol.for('functionName')
 
-function resolveFunctionPath(ref: FunctionReference<any, any, any, any>): string {
+function resolveFunctionPath(ref: FunctionReference<any, any, any, any>): string | null {
   if (typeof ref === 'string') return ref
   const name = (ref as any)[functionNameSymbol]
-  if (!name) {
-    throw new Error(
-      `Expected a Convex function reference (e.g. api.file.func), but received ${JSON.stringify(ref)}`
-    )
-  }
+  if (!name) return null
   return name
 }
 
@@ -89,6 +85,7 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
   function encodeArgs(ref: FunctionReference<any, any, any, any>, args: any): any {
     if (args == null) return args
     const path = resolveFunctionPath(ref)
+    if (path == null) return args
     const entry = registry[path]
     if (!entry?.args) {
       if (entry === undefined && !warnedPaths.has(path)) {
@@ -116,6 +113,7 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
    */
   function decodeResult(ref: FunctionReference<any, any, any, any>, wireResult: any): any {
     const path = resolveFunctionPath(ref)
+    if (path == null) return wireResult
     const entry = registry[path]
     if (!entry?.returns) return wireResult
 

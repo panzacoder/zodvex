@@ -134,6 +134,12 @@ describe('createBoundaryHelpers', () => {
       const result = encodeArgs(fakeRef('tasks:get'), null)
       expect(result).toBeNull()
     })
+
+    it('passes through when ref is missing functionNameSymbol', () => {
+      const raw = { some: 'data' }
+      const result = encodeArgs({} as any, raw)
+      expect(result).toEqual(raw)
+    })
   })
 
   // ---- decodeResult --------------------------------------------------------
@@ -174,6 +180,12 @@ describe('createBoundaryHelpers', () => {
     it('passes through when function is not in the registry', () => {
       const raw = { foo: 'bar' }
       const result = decodeResult(fakeRef('unknown:fn'), raw)
+      expect(result).toEqual(raw)
+    })
+
+    it('passes through when ref is missing functionNameSymbol', () => {
+      const raw = { foo: 'bar' }
+      const result = decodeResult({} as any, raw)
       expect(result).toEqual(raw)
     })
   })
