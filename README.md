@@ -148,15 +148,17 @@ See the full [quickstart example](./examples/quickstart/) for a runnable project
 
 ## Import Paths
 
-Four entry points:
+Four primary entry points:
 
 - **`zodvex`** — Client-safe full-Zod surface. Use in React components and shared code.
 - **`zodvex/server`** — Server-only. Use in Convex functions and schema definitions.
 - **`zodvex/mini`** — Client-safe zod/mini surface.
 - **`zodvex/mini/server`** — Server-only zod/mini surface.
-- **`zodvex/legacy`** — Deprecated runtime APIs kept only for migration.
 
-> `zodvex/core` remains as a deprecated compatibility alias for `zodvex`.
+Two deprecated paths remain for migration only:
+
+- **`zodvex/legacy`** — Deprecated runtime APIs kept only for migration.
+- **`zodvex/core`** — Deprecated compatibility alias for `zodvex`.
 
 ## Features
 
