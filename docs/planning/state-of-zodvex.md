@@ -214,6 +214,14 @@ shipped; the `getZ`/`setZodFactory` factory it described was **abandoned/absent 
 `archive/plans/`: `codegen-form-resolver-auto-detection` (implemented then reverted),
 `defineZodModel-inline-indexes` (deferred; fold the `fieldPath()` idea into a roadmap note).
 
+*Before deleting these, note three carry deferred-but-unbuilt ideas — now captured under
+[`roadmap.md`](../roadmap.md) "Parked — may be obsolete" so nothing is lost:
+`defineZodModel-inline-indexes` (`fieldPath()`), `type-aware-transforms` (type-aware as the
+mini default), and `hotpot-unwraponce-migration` (traversal-primitive exports). All three are
+likely superseded by later architecture changes, not merely un-started. Correction: the docs
+crawl reported `unwrapOnce` as "shipped/exported" — that was a **false positive** (`grep` finds
+no `unwrapOnce` in `src`; the `transform/` module that held it was removed).*
+
 **Promote OUT of `archive/` into an active roadmap (live, unrealized):**
 `archive/todo/`: `system-field-codecs`, `motiion-inspired-utilities` (trim 1766 → the Phase 1-3
 API sketches), `opt-in-client-library-codegen`, `codegen-static-analysis`,

@@ -91,6 +91,26 @@ See [`MIGRATION.md`](../MIGRATION.md).
 - **Deeper memory wins** (compiling Zod away / lazy Zod for codecs) — parked while the current
   slim-model + mini headroom (~2.4×) holds.
 
+## Parked — may be obsolete
+
+Deferred ideas kept only so they aren't silently lost when the archive is pruned. Each was
+set aside, and the architecture has since moved on — they're likely moot and would need
+re-validation against the current design before anyone acts on them. Not commitments.
+
+- **Generic index field-path helper (`fieldPath()`)** — a proposed blessed escape hatch for
+  `.index([field] as any)` through generics. In practice the example projects haven't hit
+  index type-safety problems, so this may simply be a non-issue. Revisit only if consumers
+  repeatedly trip over the generic cast. → `archive/plans/2026-02-25-defineZodModel-inline-indexes.md`
+- **Type-aware transforms as the zod→mini default** — a benchmark-gated question from the
+  `zod-to-mini` plugin work. Module-size limits have since been addressed by other means
+  (slim models, the explicit `zodvex/mini` entrypoint), so this line is dormant and may no
+  longer be relevant. → `archive/superpowers-plans/2026-04-03-type-aware-transforms.md`
+- **Traversal-primitive exports (`unwrapOnce`/walk helpers)** — an older ask to export schema
+  traversal so consumers stop reimplementing it. The internals were rearchitected since (the
+  `transform/` module was removed), so the original shape no longer applies; if the runtime
+  introspection surface above lands, it would cover this need natively.
+  → `archive/todo/hotpot-unwraponce-migration.md`
+
 ---
 
 *Archive note:* several items above still reference `docs/archive/todo/*`. Those five docs
