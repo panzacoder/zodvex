@@ -7,9 +7,9 @@
  * own entrypoint to keep the core package usable from non-React environments.
  */
 
-import { useMemo } from 'react'
 import { useMutation } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
+import { useMemo } from 'react'
 import { applyPredictionToStore, type LocalStoreLike } from './apply-to-store'
 import type {
   AutoOptimisticDiagnostic,
@@ -35,6 +35,27 @@ export type AutoOptimisticConfig = {
    * Default: logs to console.warn in non-production.
    */
   onDiagnostic?: DiagnosticHandler
+  /**
+   * Optional codec boundary: encode runtime-shaped args to Convex wire shape
+   * before the mutation is sent AND before `predict` runs.
+   *
+   * The optimistic local store holds wire-shaped (Convex JSON) values, so
+   * predictions must be authored in wire terms. Providing `encodeArgs` keeps
+   * call sites in runtime shape: args are encoded once, and `predict`
+   * receives the already-encoded args.
+   *
+   * For zodvex apps, pass the generated helper:
+   * `import { encodeArgs } from './convex/_zodvex/client'`.
+   */
+  encodeArgs?: (mutationRef: unknown, args: unknown) => unknown
+  /**
+   * Optional codec boundary: decode the mutation's wire-shaped return value
+   * back to runtime shape (e.g. timestamps → Date).
+   *
+   * For zodvex apps, pass the generated helper:
+   * `import { decodeResult } from './convex/_zodvex/client'`.
+   */
+  decodeResult?: (mutationRef: unknown, result: unknown) => unknown
 }
 
 export type PredictFn<M extends FunctionReference<'mutation'>> = (
@@ -52,7 +73,6 @@ function defaultDiagnosticHandler(d: AutoOptimisticDiagnostic): void {
   if (isProduction) return
   const scope = d.mutation ? ` [${d.mutation}]` : ''
   const queryScope = d.query ? ` (query: ${d.query})` : ''
-  // biome-ignore lint/suspicious/noConsole: development diagnostic
   console.warn(`[convex-auto-optimistic]${scope}${queryScope} ${d.message}`)
 }
 
@@ -88,13 +108,29 @@ export function createAutoOptimistic(config: AutoOptimisticConfig): {
     const mutationPath = useMemo(() => getPath(mutationRef), [mutationRef])
 
     return useMemo(() => {
+      // The codec boundary applies whether or not optimistic updates are
+      // active — a mutation that falls back to raw behavior still needs its
+      // args encoded and its result decoded.
+      const withCodec = (call: (args: FunctionArgs<M>) => Promise<unknown>) => {
+        if (!config.encodeArgs && !config.decodeResult) {
+          return call as UseAutoMutationResult<M>
+        }
+        return (async (args: FunctionArgs<M>) => {
+          const wireArgs = config.encodeArgs
+            ? (config.encodeArgs(mutationRef, args) as FunctionArgs<M>)
+            : args
+          const wireResult = await call(wireArgs)
+          return config.decodeResult ? config.decodeResult(mutationRef, wireResult) : wireResult
+        }) as UseAutoMutationResult<M>
+      }
+
       if (!mutationPath) {
         onDiagnostic({
           severity: 'warning',
           message:
             'Could not determine mutation path from FunctionReference. Optimistic updates disabled for this mutation.'
         })
-        return rawMutation as UseAutoMutationResult<M>
+        return withCodec(rawMutation)
       }
 
       const info = config.graph.functions[mutationPath]
@@ -104,10 +140,13 @@ export function createAutoOptimistic(config: AutoOptimisticConfig): {
           message: `Mutation path "${mutationPath}" not found in the table graph. Optimistic updates disabled.`,
           mutation: mutationPath
         })
-        return rawMutation as UseAutoMutationResult<M>
+        return withCodec(rawMutation)
       }
 
-      return rawMutation.withOptimisticUpdate((store, args) => {
+      // Note: the optimistic update callback receives the args the mutation
+      // was invoked with — after withCodec's encoding — so `predict` always
+      // sees wire-shaped args, matching the wire-shaped values in the store.
+      const optimistic = rawMutation.withOptimisticUpdate((store, args) => {
         const prediction = predict(args)
         if (!prediction) return
         applyPredictionToStore(store as unknown as LocalStoreLike, prediction, {
@@ -116,8 +155,10 @@ export function createAutoOptimistic(config: AutoOptimisticConfig): {
           mutationPath,
           onDiagnostic
         })
-      }) as UseAutoMutationResult<M>
-    }, [rawMutation, mutationPath, predict])
+      })
+
+      return withCodec(optimistic)
+    }, [rawMutation, mutationPath, predict, mutationRef])
   }
 
   return { useAutoMutation }
