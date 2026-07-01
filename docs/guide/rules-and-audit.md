@@ -12,8 +12,7 @@ that same wrapped db: they see the decoded representation, and they compose with
 > documented here is the current (0.7.x) API. A future release (targeted 0.8) is expected to
 > move these to *applied* free functions — `audit(withRules(ctx.db, ctx, rules), { … })` — to
 > match Convex's own `wrapDatabaseReader` shape. The behavior and rule/audit shapes below
-> stay the same; only the call form changes. Track
-> [`docs/issues/free-function-db-wrappers.md`](../issues/free-function-db-wrappers.md).
+> stay the same; only the call form changes.
 
 ## Row-level rules — `.withRules()`
 

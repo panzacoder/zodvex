@@ -28,8 +28,7 @@ framework. Validator mapping (Zod → Convex) is the foundation it stands on, de
 `.extend()` surface: the "middleware" is the ambient codec-aware db, wired once via
 `initZodvex`. If you want composable handler middleware, that is a different kind of
 library (e.g. [fluent-convex](https://github.com/mikecann/fluent-convex)); the two live
-at different layers and can compose (see
-[`planning/fluent-convex-integration.md`](./planning/fluent-convex-integration.md)).
+at different layers and can compose.
 
 ---
 
