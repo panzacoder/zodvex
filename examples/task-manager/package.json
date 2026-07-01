@@ -12,7 +12,8 @@
     "typecheck": "bunx tsc --noEmit --declaration false",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:smoke": "bun run test/smoke.ts"
+    "test:smoke": "bun run test/smoke.ts",
+    "test:optimistic": "bun run test/optimistic-smoke.ts"
   },
   "dependencies": {
     "@convex-dev/action-retrier": "^0.3.0",

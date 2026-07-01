@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from 'convex/react'
 import { createAutoOptimistic } from 'convex-auto-optimistic/react'
 import { api } from '../convex/_generated/api'
-import { useZodMutation, encodeArgs, decodeResult } from '../convex/_zodvex/client.js'
+import { useZodMutation, useZodQuery, encodeArgs, decodeResult } from '../convex/_zodvex/client.js'
 import { tableGraph } from './table-graph.generated'
 import { ZodError } from 'zod'
 
@@ -107,10 +107,10 @@ function TaskPanel() {
     id: args.id as string,
   }))
 
-  // Need a user ID to create tasks — for demo, use the first user
-  // NOTE: Convex's useQuery sees runtime types for codec args (ArgsInput uses z.output).
-  // This is a known zodvex type gap — callers should ideally pass wire format { value, tag }.
-  const userByEmail = useQuery(api.users.getByEmail, {
+  // Need a user ID to create tasks — for demo, use the first user.
+  // useZodQuery encodes runtime-shaped codec args to wire shape (the raw
+  // useQuery would send displayValue, which the server validator rejects).
+  const userByEmail = useZodQuery(api.users.getByEmail, {
     email: { value: 'demo@example.com', tag: 'email', displayValue: '[email] demo@example.com' },
   })
   const ownerId = userByEmail?._id
