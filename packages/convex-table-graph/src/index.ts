@@ -1,6 +1,5 @@
 export { analyze } from './analyze'
 export { discoverEntryFiles, functionPath, moduleNameFromPath } from './discovery'
-export { DEFAULT_BUILDERS } from './types'
 export type {
   AnalyzeOptions,
   BuilderConfig,
@@ -13,3 +12,4 @@ export type {
   TableGraph,
   Visibility
 } from './types'
+export { DEFAULT_BUILDERS } from './types'

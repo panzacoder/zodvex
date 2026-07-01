@@ -1,5 +1,5 @@
-import path from 'node:path'
 import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { analyze } from '../src/analyze'
 

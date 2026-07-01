@@ -1,10 +1,10 @@
 import {
-  Node,
   type ArrowFunction,
   type CallExpression,
   type Expression,
   type FunctionDeclaration,
   type FunctionExpression,
+  Node,
   type Type
 } from 'ts-morph'
 

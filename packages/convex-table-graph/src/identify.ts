@@ -1,10 +1,10 @@
 import {
-  Node,
   type ArrowFunction,
   type CallExpression,
   type FunctionDeclaration,
   type FunctionExpression,
   type Identifier,
+  Node,
   type SourceFile
 } from 'ts-morph'
 import type { BuilderConfig, FunctionKind, Visibility } from './types'

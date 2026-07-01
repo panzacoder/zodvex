@@ -1,5 +1,5 @@
-import { mutation } from '../../_convex-stubs'
 import type { Id } from '../../_convex-stubs'
+import { mutation } from '../../_convex-stubs'
 
 export const archive = mutation({
   handler: async (ctx, args: { taskId: Id<'tasks'> }) => {

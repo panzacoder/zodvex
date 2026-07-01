@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import path from 'node:path'
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { discoverEntryFiles, moduleNameFromPath, functionPath } from '../src/discovery'
+import path from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { discoverEntryFiles, functionPath, moduleNameFromPath } from '../src/discovery'
 
 function setupFixtureDir(): string {
   const dir = path.join(

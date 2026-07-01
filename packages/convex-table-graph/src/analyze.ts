@@ -4,9 +4,9 @@ import { analyzeHandler } from './analyze-handler'
 import { discoverEntryFiles, functionPath, moduleNameFromPath } from './discovery'
 import { getNodeLocation, identifyFunctions } from './identify'
 import {
-  DEFAULT_BUILDERS,
   type AnalyzeOptions,
   type BuilderConfig,
+  DEFAULT_BUILDERS,
   type FunctionInfo,
   type TableGraph
 } from './types'

@@ -1,5 +1,5 @@
-import { mutation } from '../../_convex-stubs'
 import type { DatabaseWriter } from '../../_convex-stubs'
+import { mutation } from '../../_convex-stubs'
 
 // Chain of helpers to exercise depth-limit behavior.
 async function level1(db: DatabaseWriter, title: string): Promise<void> {
