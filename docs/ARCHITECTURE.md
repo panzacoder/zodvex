@@ -5,12 +5,13 @@ full/mini refactor completed on April 7, 2026.
 
 ## What zodvex is
 
-**zodvex is a codec-aware data layer for Convex, built on Zod v4.** Its defining
-capability is a codec-aware `ctx.db` (automatic `Date`/id/codec encode-decode at the
-database boundary, plus `.withRules()` and `.audit()`), wired once via `initZodvex`. It
-is *not* a function-composition or middleware framework, and validator mapping is the
-foundation it stands on, not the product. The architecture below exists to serve that
-data layer. See [`positioning.md`](./positioning.md) for the canonical statement.
+**zodvex lets you use Zod v4 as your schema language for Convex** — define your tables,
+args, and return types once and use them end to end. Its standout differentiator is
+automatic validation plus a codec-aware `ctx.db` (`Date`/id/custom encode-decode at the
+database boundary, with `.withRules()` and `.audit()`), all wired once via `initZodvex`.
+It is *not* a validator-mapper (that foundation is delegated to `convex-helpers`) and
+*not* a middleware/function-composition framework. The architecture below exists to serve
+that data layer. See [`positioning.md`](./positioning.md) for the canonical statement.
 
 ## Overview
 

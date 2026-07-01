@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**zodvex is a codec-aware data layer for Convex, built on Zod v4.** It preserves Convex's exact optional/nullable validator semantics, and its defining capability is a codec-aware `ctx.db` — `Date`, typed IDs, and custom codecs encode/decode automatically at the database boundary, with row-level rules (`.withRules()`) and audit hooks (`.audit()`) on the same wrapped db. You configure it once with `initZodvex` and get correct builders back.
+**zodvex lets you use Zod v4 as your schema language for Convex.** You define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation: function I/O is validated automatically, `ctx.db` is codec-aware (`Date`/typed-id/custom encode-decode at the database boundary, with `.withRules()` and `.audit()` on the same wrapped db), and an optional codegen CLI shares client-safe schemas and inferred query validators.
 
-**What it is not:** a function-composition or middleware framework. There is no builder chain to assemble — the "middleware" is the ambient codec-aware db, wired once via `initZodvex`. Validator *mapping* (Zod → Convex) is the foundation it stands on (via `convex-helpers`), not the product.
+The codec-aware data layer is the standout *differentiator*, but the *identity* is "Zod as your source of truth across a Convex app." zodvex is not a validator-mapper (validator mapping via `convex-helpers` is the foundation it stands on, not the product) and not a middleware/function-composition framework (its "middleware" is the codec-aware db, wired once via `initZodvex`).
 
 See [`docs/positioning.md`](docs/positioning.md) for the canonical positioning statement — lead with this framing in any comparison or summary.
 
