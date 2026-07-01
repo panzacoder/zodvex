@@ -205,7 +205,10 @@ but **blocked on Convex exposing a pre-build hook**.
 - Several guides lead validation-first in their intros; align intros to the identity-first
   framing (codec-aware DB as the differentiator, per the `readme-and-docs-restructure` spec).
 
-### Archive verdicts
+### Archive verdicts — EXECUTED 2026-07-01
+`docs/archive/` no longer exists: the docs below were deleted (git history is the archive) and
+the five live TODOs were moved to `docs/planning/`. Verdicts kept for the record:
+
 **Safe to delete (shipped or abandoned):**
 `archive/superpowers-plans/`: `migrate-to-zod-v4-core`, `full-mini-mode` (build-time alias
 shipped; the `getZ`/`setZodFactory` factory it described was **abandoned/absent from source**),

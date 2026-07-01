@@ -34,7 +34,10 @@ prune them once the work lands.
 | [`superpowers/specs/`](./superpowers/) | Design specs for the same. Ephemeral. |
 | [`planning/`](./planning/) | Cross-cutting synthesis and proposals (e.g. `state-of-zodvex.md`, integration sketches). Longer-lived than superpowers plans, but still internal. |
 | [`issues/`](./issues/) | Tracked-but-not-in-flight design issues (feed the roadmap). |
-| [`archive/`](./archive/) | Historical plans/todos. Being pruned — anything with live intent is promoted to `roadmap.md` + `planning/` first. |
+
+There is deliberately no `archive/` — shipped or abandoned plans are deleted (git history is
+the archive). Anything with live intent gets promoted to `roadmap.md` (public summary) +
+`planning/` (detail) before its source doc is removed.
 
 ## Working rule
 
