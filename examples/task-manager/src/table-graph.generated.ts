@@ -248,6 +248,13 @@ export const tableGraph = {
       writes: [] as const,
       confidence: "full"
     },
+    "tasks:remove": {
+      kind: "mutation",
+      visibility: "public",
+      reads: [] as const,
+      writes: ["tasks"] as const,
+      confidence: "full"
+    },
     "tasks:update": {
       kind: "mutation",
       visibility: "public",

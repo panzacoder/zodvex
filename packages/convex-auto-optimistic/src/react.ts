@@ -47,7 +47,8 @@ export type AutoOptimisticConfig = {
    * For zodvex apps, pass the generated helper:
    * `import { encodeArgs } from './convex/_zodvex/client'`.
    */
-  encodeArgs?: (mutationRef: unknown, args: unknown) => unknown
+  // biome-ignore lint/suspicious/noExplicitAny: matches codec helpers typed over FunctionReference<any, ...> (e.g. zodvex's generated encodeArgs)
+  encodeArgs?: (mutationRef: FunctionReference<'mutation', any, any, any>, args: any) => unknown
   /**
    * Optional codec boundary: decode the mutation's wire-shaped return value
    * back to runtime shape (e.g. timestamps → Date).
@@ -55,7 +56,8 @@ export type AutoOptimisticConfig = {
    * For zodvex apps, pass the generated helper:
    * `import { decodeResult } from './convex/_zodvex/client'`.
    */
-  decodeResult?: (mutationRef: unknown, result: unknown) => unknown
+  // biome-ignore lint/suspicious/noExplicitAny: matches codec helpers typed over FunctionReference<any, ...> (e.g. zodvex's generated decodeResult)
+  decodeResult?: (mutationRef: FunctionReference<'mutation', any, any, any>, result: any) => unknown
 }
 
 export type PredictFn<M extends FunctionReference<'mutation'>> = (

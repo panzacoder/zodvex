@@ -1,8 +1,20 @@
 import { useState } from 'react'
 import { useQuery } from 'convex/react'
+import { createAutoOptimistic } from 'convex-auto-optimistic/react'
 import { api } from '../convex/_generated/api'
-import { useZodMutation } from '../convex/_zodvex/client.js'
+import { useZodMutation, encodeArgs, decodeResult } from '../convex/_zodvex/client.js'
+import { tableGraph } from './table-graph.generated'
 import { ZodError } from 'zod'
+
+// Auto-optimistic hooks: the table graph knows which queries each mutation
+// affects; the zodvex boundary helpers encode runtime args (Date, {hours,
+// minutes} durations) to the wire shape the local store holds.
+const { useAutoMutation } = createAutoOptimistic({
+  graph: tableGraph,
+  api,
+  encodeArgs,
+  decodeResult,
+})
 
 export default function App() {
   return (
@@ -69,8 +81,31 @@ function TaskPanel() {
   const [title, setTitle] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
-  const createTask = useZodMutation(api.tasks.create)
-  const completeTask = useZodMutation(api.tasks.complete)
+  // Predictions are authored in WIRE shape: encodeArgs already ran, so
+  // `args` here is Convex-shaped (estimate in minutes, dates as numbers) —
+  // matching the values in the optimistic local store. tasks:list is ordered
+  // desc, so new docs go at the start of the first page.
+  const createTask = useAutoMutation(api.tasks.create, (args) => ({
+    kind: 'insert',
+    at: 'start',
+    doc: {
+      _id: `optimistic:${Date.now()}`,
+      _creationTime: Date.now(),
+      status: 'todo',
+      priority: null,
+      createdAt: Date.now(),
+      ...(args as Record<string, unknown>),
+    },
+  }))
+  const completeTask = useAutoMutation(api.tasks.complete, (args) => ({
+    kind: 'patch',
+    id: args.id as string,
+    changes: { status: 'done', completedAt: Date.now() },
+  }))
+  const deleteTask = useAutoMutation(api.tasks.remove, (args) => ({
+    kind: 'delete',
+    id: args.id as string,
+  }))
 
   // Need a user ID to create tasks — for demo, use the first user
   // NOTE: Convex's useQuery sees runtime types for codec args (ArgsInput uses z.output).
@@ -128,6 +163,9 @@ function TaskPanel() {
                 Complete
               </button>
             )}
+            <button onClick={() => deleteTask({ id: task._id })} style={{ marginLeft: '0.5rem' }}>
+              Delete
+            </button>
           </li>
         ))}
       </ul>

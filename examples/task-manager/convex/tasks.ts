@@ -127,6 +127,13 @@ export const update = zm({
   },
 })
 
+export const remove = zm({
+  args: { id: zx.id('tasks') },
+  handler: async (ctx, { id }) => {
+    await ctx.db.delete(id)
+  },
+})
+
 export const complete = zm({
   args: { id: zx.id('tasks') },
   handler: async (ctx, { id }) => {

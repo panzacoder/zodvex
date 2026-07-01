@@ -152,6 +152,10 @@ export const zodvexRegistry = {
     args: z.object({ statuses: z.array(z.enum(["todo", "in_progress", "done"])), paginationOpts: z.object({ numItems: z.number(), cursor: z.string().nullable() }) }),
     returns: TaskModel.schema.paginatedDoc,
   },
+  'tasks:remove': {
+    args: z.object({ id: zx.id("tasks") }),
+    returns: undefined,
+  },
   'tasks:update': {
     args: z.object({ id: zx.id("tasks"), title: z.string().optional(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), priority: z.enum(["low", "medium", "high"]).nullable().optional(), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), estimate: zDuration.optional() }),
     returns: undefined,
