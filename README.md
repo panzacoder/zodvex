@@ -274,6 +274,7 @@ npx zodvex migrate ./convex --dry-run  # preview changes
 - [The zx Namespace](./docs/guide/zx-namespace.md) — `zx.id()`, `zx.date()`, `zx.codec()`
 - [Builders](./docs/guide/builders.md) — `initZodvex` and legacy builders
 - [Custom Context](./docs/guide/custom-context.md) — `.withContext()`, `onSuccess`
+- [Rules & Audit](./docs/guide/rules-and-audit.md) — `.withRules()`, `.audit()` on `ctx.db`
 - [Custom Codecs](./docs/guide/custom-codecs.md) — `zx.codec()`, `decodeDoc`/`encodeDoc`
 - [Date Handling](./docs/guide/date-handling.md) — `zx.date()` deep dive
 - [Form Validation](./docs/guide/form-validation.md) — react-hook-form integration
