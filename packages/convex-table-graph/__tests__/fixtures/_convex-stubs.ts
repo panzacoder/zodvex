@@ -15,7 +15,10 @@ export type DatabaseReader = {
     unique: () => Promise<any>
     withIndex: (name: string, fn: (q: any) => any) => any
   }
-  get: <T extends string>(id: Id<T>) => Promise<any>
+  get: {
+    <T extends string>(id: Id<T>): Promise<any>
+    <T extends string>(tableName: T, id: Id<T>): Promise<any>
+  }
   normalizeId: (tableName: string, id: string) => string | null
   system: {
     query: (tableName: string) => any
@@ -24,9 +27,18 @@ export type DatabaseReader = {
 
 export type DatabaseWriter = DatabaseReader & {
   insert: (tableName: string, doc: any) => Promise<Id<string>>
-  patch: <T extends string>(id: Id<T>, fields: Record<string, any>) => Promise<void>
-  replace: <T extends string>(id: Id<T>, doc: any) => Promise<void>
-  delete: <T extends string>(id: Id<T>) => Promise<void>
+  patch: {
+    <T extends string>(id: Id<T>, fields: Record<string, any>): Promise<void>
+    <T extends string>(tableName: T, id: Id<T>, fields: Record<string, any>): Promise<void>
+  }
+  replace: {
+    <T extends string>(id: Id<T>, doc: any): Promise<void>
+    <T extends string>(tableName: T, id: Id<T>, doc: any): Promise<void>
+  }
+  delete: {
+    <T extends string>(id: Id<T>): Promise<void>
+    <T extends string>(tableName: T, id: Id<T>): Promise<void>
+  }
 }
 
 export type QueryCtx = {

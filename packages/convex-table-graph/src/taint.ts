@@ -1,11 +1,11 @@
 import {
-  Node,
   type ArrowFunction,
   type CallExpression,
   type FunctionDeclaration,
   type FunctionExpression,
-  type ParameterDeclaration,
-  type Symbol as MorphSymbol
+  type Symbol as MorphSymbol,
+  Node,
+  type ParameterDeclaration
 } from 'ts-morph'
 
 export type TaintKind = 'ctx' | 'db'
@@ -270,6 +270,9 @@ export function processBodyDeclarations(
  */
 export function getCallExpressions(body: Node): CallExpression[] {
   const calls: CallExpression[] = []
+  // An expression-bodied arrow (`=> ctx.db.get(id)`) has the call AS the body,
+  // and forEachDescendant never visits the node itself.
+  if (Node.isCallExpression(body)) calls.push(body)
   body.forEachDescendant((node) => {
     if (Node.isCallExpression(node)) calls.push(node)
   })

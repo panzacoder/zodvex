@@ -1,9 +1,9 @@
 import {
-  Node,
   type ArrowFunction,
   type CallExpression,
   type FunctionDeclaration,
-  type FunctionExpression
+  type FunctionExpression,
+  Node
 } from 'ts-morph'
 import { DB_METHODS, DB_METHODS_IGNORED } from './db-methods'
 import {
@@ -230,14 +230,26 @@ function extractTableName(
   argIndex: number,
   source: 'string' | 'idType'
 ): string | null {
+  const args = call.getArguments()
+
   if (source === 'string') {
-    const args = call.getArguments()
     const arg = args[argIndex]
     if (!arg) return null
     return resolveStringLiteral(arg as Node)
   }
 
-  // idType: inspect the TypeScript type of the argument for Id<"table">
+  // idType methods accept two overloads:
+  //   db.patch(id, fields)            — vanilla, table encoded in Id<"table"> type
+  //   db.patch('tasks', id, fields)   — table-name-first (zodvex codec db / newer convex)
+  // A string literal in the id slot with more arguments following it is the
+  // table-first form; every table-first variant has at least one arg after the name.
+  const arg = args[argIndex]
+  if (arg && args.length > argIndex + 1) {
+    const literal = resolveStringLiteral(arg as Node)
+    if (literal) return literal
+  }
+
+  // Vanilla form: inspect the TypeScript type of the argument for Id<"table">
   const type = getArgumentType(call, argIndex)
   if (!type) return null
   return extractTableFromIdType(type)

@@ -235,6 +235,62 @@ describe('analyze — db wrapper methods (e.g. withRules)', () => {
   })
 })
 
+describe('analyze — expression-bodied arrow handlers', () => {
+  const graph = analyze({ convexDir: fixture('expression-body') })
+
+  it('records read when the db call IS the concise body', () => {
+    const fn = graph.functions['tasks:fetchById']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:fetchById')
+  })
+
+  it('records read when the concise body is a method chain', () => {
+    const fn = graph.functions['tasks:list']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:list')
+  })
+
+  it('records write when the insert call IS the concise body', () => {
+    const fn = graph.functions['tasks:create']!
+    expect(fn.writes).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:create')
+  })
+})
+
+describe('analyze — table-name-first overloads', () => {
+  const graph = analyze({ convexDir: fixture('table-first') })
+
+  it('resolves get from a table-first string literal', () => {
+    const fn = graph.functions['tasks:getTask']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:getTask')
+  })
+
+  it('resolves patch from a table-first string literal', () => {
+    const fn = graph.functions['tasks:update']!
+    expect(fn.writes).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:update')
+  })
+
+  it('resolves replace from a table-first string literal', () => {
+    const fn = graph.functions['tasks:replaceDoc']!
+    expect(fn.writes).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:replaceDoc')
+  })
+
+  it('resolves delete from a table-first string literal', () => {
+    const fn = graph.functions['tasks:remove']!
+    expect(fn.writes).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:remove')
+  })
+
+  it('still resolves the id-first overload from the Id type', () => {
+    const fn = graph.functions['tasks:removeById']!
+    expect(fn.writes).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:removeById')
+  })
+})
+
 describe('analyze — depth limit', () => {
   it('emits diagnostic when max depth is exceeded', () => {
     // Default depth of 3 — handler(0) -> level1(1) -> level2(2) -> level3(3) -> level4(4)
