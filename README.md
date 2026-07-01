@@ -24,10 +24,16 @@ Type-safe Convex functions with Zod v4 schemas. Codecs in the schema — `zx.dat
 
 ## Why zodvex?
 
+**zodvex is a codec-aware data layer for Convex, built on Zod v4.** Its defining capability is a codec-aware `ctx.db` — `Date`, typed IDs, and custom codecs encode/decode automatically at the database boundary — with row-level rules (`.withRules()`) and audit hooks (`.audit()`) on the same wrapped db. You configure it once with `initZodvex` and get correct builders back.
+
+**What it is not:** a function-composition or middleware framework. There is no builder chain to assemble — the "middleware" is the ambient codec-aware db, wired once via `initZodvex`. Validator *mapping* (Zod → Convex) is the foundation it stands on (via `convex-helpers`), not the product.
+
 - **Codec-aware database** — `zx.date()`, `zx.codec()` encode/decode automatically at `ctx.db` boundaries
 - **Correct optional/nullable semantics** — preserves Convex's distinction (`.optional()` → `v.optional(T)`, `.nullable()` → `v.union(T, v.null())`)
 - **Client-safe models** — `defineZodModel` is importable in React
 - **End-to-end type safety** — same schema from database to frontend forms
+
+The table below is not "convex-helpers, but nicer" — it's a different layer. `convex-helpers/zod4` maps validators; zodvex adds the codec-aware data layer on top of that mapping.
 
 | Feature | zodvex | convex-helpers/zod4 |
 |---------|--------|---------------------|
@@ -38,7 +44,7 @@ Type-safe Convex functions with Zod v4 schemas. Codecs in the schema — `zx.dat
 | Client-safe models | `defineZodModel` (importable in React) | Not provided |
 | Codegen | Optional typed hooks, boundary helpers | Not provided |
 
-Both are valid choices — zodvex trades some explicitness for significantly better ergonomics.
+Both are valid choices — reach for `convex-helpers/zod4` if you only need validator mapping; reach for zodvex when you want the codec-aware data layer, rules, and audit wired in once.
 
 ## Installation
 

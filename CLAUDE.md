@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping with correct optional and nullable semantics. It acts as a thin, practical glue around `convex-helpers` that preserves Convex's notion of optional fields while offering ergonomic wrappers and codecs for working with Zod schemas in Convex applications.
+**zodvex is a codec-aware data layer for Convex, built on Zod v4.** It preserves Convex's exact optional/nullable validator semantics, and its defining capability is a codec-aware `ctx.db` — `Date`, typed IDs, and custom codecs encode/decode automatically at the database boundary, with row-level rules (`.withRules()`) and audit hooks (`.audit()`) on the same wrapped db. You configure it once with `initZodvex` and get correct builders back.
+
+**What it is not:** a function-composition or middleware framework. There is no builder chain to assemble — the "middleware" is the ambient codec-aware db, wired once via `initZodvex`. Validator *mapping* (Zod → Convex) is the foundation it stands on (via `convex-helpers`), not the product.
+
+See [`docs/positioning.md`](docs/positioning.md) for the canonical positioning statement — lead with this framing in any comparison or summary.
 
 ## Monorepo Structure
 
