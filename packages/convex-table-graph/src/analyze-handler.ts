@@ -10,16 +10,17 @@ import {
   type CallableDeclaration,
   extractTableFromIdType,
   getArgumentType,
-  resolveCallee,
-  resolveStringLiteral
+  resolveCallee
 } from './resolve'
 import {
   addTaintFromParameter,
+  bindStringToParameter,
   classifyArgument,
   createTaintState,
   getCallExpressions,
   isDbReference,
   processBodyDeclarations,
+  resolveStringValue,
   seedTaintFromHandler,
   type TaintState
 } from './taint'
@@ -38,8 +39,12 @@ export type AnalysisResult = {
 
 export type AnalyzeContext = {
   maxDepth: number
-  /** Cycle detection — don't re-analyze a function we've already entered */
-  visited: Set<CallableDeclaration>
+  /**
+   * Cycle/duplicate detection — keys of (function, taint env, string bindings)
+   * already entered. Keyed on the environment so the same helper IS re-analyzed
+   * when called with a different table literal.
+   */
+  visited: Set<string>
   functionPath: string
 }
 
@@ -84,8 +89,9 @@ function analyzeFunctionBody(
   ctx: AnalyzeContext,
   result: AnalysisResult
 ): void {
-  if (ctx.visited.has(fn)) return
-  ctx.visited.add(fn)
+  const key = visitKey(fn, state)
+  if (ctx.visited.has(key)) return
+  ctx.visited.add(key)
 
   const body = getFunctionBody(fn)
   if (!body) return
@@ -168,8 +174,40 @@ function analyzeFunctionBody(
       addTaintFromParameter(param, kind, childState)
     }
 
+    // Propagate known string values alongside taint so parametric helpers
+    // (`getX(db, table, id)`) resolve their table per call site.
+    const callArgs = call.getArguments()
+    const calleeParams = callee.getParameters()
+    for (let i = 0; i < callArgs.length && i < calleeParams.length; i++) {
+      const argNode = callArgs[i]
+      if (!argNode || !Node.isNode(argNode)) continue
+      const value = resolveStringValue(argNode as Node, state)
+      if (value !== null) bindStringToParameter(calleeParams[i]!, value, childState)
+    }
+
     analyzeFunctionBody(callee, childState, depth + 1, ctx, result)
   }
+}
+
+/**
+ * Key identifying a (function, analysis environment) pair for the visited set.
+ * The environment covers each parameter's taint kind and string binding, so a
+ * helper analyzed for `('tasks')` is analyzed again for `('users')` but not for
+ * a second identical call.
+ */
+function visitKey(fn: CallableDeclaration, state: TaintState): string {
+  const env: string[] = []
+  fn.getParameters().forEach((param, i) => {
+    const nameNode = param.getNameNode()
+    if (!Node.isIdentifier(nameNode)) return
+    const symbol = nameNode.getSymbol()
+    if (!symbol) return
+    if (state.ctxSymbols.has(symbol)) env.push(`${i}:ctx`)
+    if (state.dbSymbols.has(symbol)) env.push(`${i}:db`)
+    const bound = state.stringBindings.get(symbol)
+    if (bound !== undefined) env.push(`${i}=${bound}`)
+  })
+  return `${fn.getSourceFile().getFilePath()}:${fn.getStart()}|${env.join(',')}`
 }
 
 type DbCallInfo = { op: 'read' | 'write'; table: string }
@@ -196,7 +234,7 @@ function tryExtractDbCall(call: CallExpression, state: TaintState): DbCallInfo |
   const spec = DB_METHODS[methodName]
   if (!spec) return null
 
-  const table = extractTableName(call, spec.argIndex, spec.tableSource)
+  const table = extractTableName(call, spec.argIndex, spec.tableSource, state)
   if (!table) return null
 
   return { op: spec.op, table }
@@ -219,7 +257,7 @@ function tryExtractUnresolvedDbCall(call: CallExpression, state: TaintState): st
   const spec = DB_METHODS[methodName]
   if (!spec) return null
 
-  const table = extractTableName(call, spec.argIndex, spec.tableSource)
+  const table = extractTableName(call, spec.argIndex, spec.tableSource, state)
   if (!table) return methodName
 
   return null
@@ -228,24 +266,25 @@ function tryExtractUnresolvedDbCall(call: CallExpression, state: TaintState): st
 function extractTableName(
   call: CallExpression,
   argIndex: number,
-  source: 'string' | 'idType'
+  source: 'string' | 'idType',
+  state: TaintState
 ): string | null {
   const args = call.getArguments()
 
   if (source === 'string') {
     const arg = args[argIndex]
     if (!arg) return null
-    return resolveStringLiteral(arg as Node)
+    return resolveStringValue(arg as Node, state)
   }
 
   // idType methods accept two overloads:
   //   db.patch(id, fields)            — vanilla, table encoded in Id<"table"> type
   //   db.patch('tasks', id, fields)   — table-name-first (zodvex codec db / newer convex)
-  // A string literal in the id slot with more arguments following it is the
+  // A string value in the id slot with more arguments following it is the
   // table-first form; every table-first variant has at least one arg after the name.
   const arg = args[argIndex]
   if (arg && args.length > argIndex + 1) {
-    const literal = resolveStringLiteral(arg as Node)
+    const literal = resolveStringValue(arg as Node, state)
     if (literal) return literal
   }
 

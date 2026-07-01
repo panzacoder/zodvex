@@ -107,6 +107,7 @@ for (const [path, info] of Object.entries(graph.functions)) {
 - `const { db } = ctx` / `({ db }, args) => ...` — destructuring propagation
 - `const secureDb = ctx.db.withRules(...)` — db-wrapping method pattern (any non-data-method call on db produces a new tainted db-like)
 - Cross-file helpers: `await helper(ctx.db, ...)` — taint propagates through function-call boundaries up to `maxDepth`
+- Parametric helpers: `getX(ctx.db, 'visits', id)` calling `db.get(table, id)` — string literals propagate into followed helpers per call site (the same helper called with `'tasks'` and `'users'` records both)
 
 ### Diagnostics
 

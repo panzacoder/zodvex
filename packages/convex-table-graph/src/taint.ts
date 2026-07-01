@@ -7,6 +7,7 @@ import {
   Node,
   type ParameterDeclaration
 } from 'ts-morph'
+import { resolveStringLiteral } from './resolve'
 
 export type TaintKind = 'ctx' | 'db'
 
@@ -19,16 +20,23 @@ export type TaintKind = 'ctx' | 'db'
 export type TaintState = {
   ctxSymbols: Set<MorphSymbol>
   dbSymbols: Set<MorphSymbol>
+  /**
+   * Parameters known to hold a specific string value in this scope — populated
+   * when a call site passes a string literal to a followed helper, so that
+   * `db.get(table, id)` inside `getX(db, table, id)` resolves per call site.
+   */
+  stringBindings: Map<MorphSymbol, string>
 }
 
 export function createTaintState(): TaintState {
-  return { ctxSymbols: new Set(), dbSymbols: new Set() }
+  return { ctxSymbols: new Set(), dbSymbols: new Set(), stringBindings: new Map() }
 }
 
 export function cloneTaintState(state: TaintState): TaintState {
   return {
     ctxSymbols: new Set(state.ctxSymbols),
-    dbSymbols: new Set(state.dbSymbols)
+    dbSymbols: new Set(state.dbSymbols),
+    stringBindings: new Map(state.stringBindings)
   }
 }
 
@@ -263,6 +271,43 @@ export function processBodyDeclarations(
       processVariableDeclaration(node, state, isDbMethod)
     }
   })
+}
+
+/**
+ * Resolve a string value from an expression, consulting scope bindings.
+ *
+ * Extends the purely-syntactic resolveStringLiteral with values propagated
+ * from call sites: an identifier whose symbol carries a string binding
+ * (e.g. a `table` parameter that received a literal) resolves to that value.
+ */
+export function resolveStringValue(node: Node, state: TaintState): string | null {
+  const syntactic = resolveStringLiteral(node)
+  if (syntactic !== null) return syntactic
+
+  if (Node.isIdentifier(node)) {
+    const symbol = node.getSymbol()
+    if (symbol) {
+      const bound = state.stringBindings.get(symbol)
+      if (bound !== undefined) return bound
+    }
+  }
+
+  return null
+}
+
+/**
+ * Bind a known string value to a parameter's symbol in the given scope.
+ * Only simple identifier parameters can carry a binding.
+ */
+export function bindStringToParameter(
+  param: ParameterDeclaration,
+  value: string,
+  state: TaintState
+): void {
+  const nameNode = param.getNameNode()
+  if (!Node.isIdentifier(nameNode)) return
+  const symbol = nameNode.getSymbol()
+  if (symbol) state.stringBindings.set(symbol, value)
 }
 
 /**

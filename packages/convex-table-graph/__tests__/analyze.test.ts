@@ -291,6 +291,35 @@ describe('analyze — table-name-first overloads', () => {
   })
 })
 
+describe('analyze — string-literal propagation into parametric helpers', () => {
+  const graph = analyze({ convexDir: fixture('param-tables') })
+
+  it('resolves a table name passed as a helper argument', () => {
+    const fn = graph.functions['tasks:touch']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:touch')
+  })
+
+  it('records both tables when the same helper is called with different literals', () => {
+    const fn = graph.functions['tasks:touchTwo']!
+    expect(fn.reads.sort()).toEqual(['tasks', 'users'])
+    assertFullConfidence(graph, 'tasks:touchTwo')
+  })
+
+  it('resolves query/patch/insert on a parametric table inside a helper', () => {
+    const fn = graph.functions['tasks:save']!
+    expect(fn.reads).toEqual(['tasks'])
+    expect(fn.writes).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:save')
+  })
+
+  it('propagates the literal through a two-hop helper chain', () => {
+    const fn = graph.functions['tasks:touchDeep']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:touchDeep')
+  })
+})
+
 describe('analyze — depth limit', () => {
   it('emits diagnostic when max depth is exceeded', () => {
     // Default depth of 3 — handler(0) -> level1(1) -> level2(2) -> level3(3) -> level4(4)
