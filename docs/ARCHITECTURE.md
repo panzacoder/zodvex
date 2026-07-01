@@ -207,10 +207,16 @@ This affects:
 - wire: `number`
 - runtime: `Date`
 
-The architectural rule is:
+The architectural rules are:
 
 **shared runtime layers own encode/decode behavior once; examples and wrappers
 should not paper over that behavior manually.**
+
+**the codec layer adds meaning at boundaries; it never subtracts native Convex
+capability.** If raw Convex can express something (e.g. `patch` deleting a field
+via `undefined`), the wrapped `ctx.db` must be able to express it too. A "safe
+default" that removes a native capability with no escape hatch is a bug, not a
+design choice.
 
 This is why the refactor also moved index/filter handling back toward shared DB
 machinery instead of letting examples carry ad hoc `getTime()` workarounds.

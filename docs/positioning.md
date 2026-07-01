@@ -13,7 +13,8 @@ On top of that foundation, zodvex adds what plain validator-mapping doesn't:
 - **Codec support at your application boundaries** — `zx.date()`, `zx.codec()`, and typed
   IDs encode/decode automatically at db reads/writes, function args, and return values.
   Handlers work with `Date` and branded IDs; the wire stays Convex-safe. Row-level rules
-  (`.withRules()`) and audit hooks (`.audit()`) ride on the same codec-aware `ctx.db`.
+  (`.withRules()`) and audit hooks (`.audit()`) ride on the same codec-aware `ctx.db`. The
+  codec layer adds meaning at these boundaries — it never subtracts native Convex capability.
 - **Codegen that complements Convex's own** — a `_zodvex/` folder alongside `_generated/`
   gives client-safe schema imports and inferred validators for frontend queries, so your
   Convex functions stay the source of truth.

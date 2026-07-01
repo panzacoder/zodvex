@@ -33,6 +33,24 @@ const userShape = {
 }
 ```
 
+## Two Things Called "Brand" (Disambiguation)
+
+zodvex uses the word *brand* for two unrelated mechanisms — don't conflate them:
+
+1. **The type-level `ZodvexCodec` brand** (shown above). A TypeScript-only marker on the type
+   returned by `zx.codec()` that lets zodvex extract the **wire schema** through an opaque
+   type alias like `EncryptedCodec`. It has no runtime presence and exists so validator
+   generation still sees the wire shape when your codec hides behind a named factory type.
+
+2. **The runtime provenance brand** — the optional fourth argument
+   `zx.codec(wire, runtime, transforms, { brand: 'myLib/encrypted' })`. A runtime tag
+   (stored non-enumerable, surviving `.optional()`/`.nullable()`) that **codegen** uses to
+   match a codec in your function definitions to the same codec on the client, when it can't
+   match by object identity. It does nothing at the type level.
+
+Rule of thumb: factory behind a **type alias** → you're relying on brand (1); codec that must
+be **matched by codegen** across module boundaries → give it brand (2). They compose freely.
+
 ## When to Use Custom Codecs
 
 - **Encrypted data**: Encrypt/decrypt fields before storage

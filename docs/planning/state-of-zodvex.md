@@ -153,6 +153,39 @@ but **blocked on Convex exposing a pre-build hook**.
 
 ---
 
+## 3b. In-flight work on GitHub (surveyed 2026-07-01)
+
+The docs crawl above predates this survey of the 4 open issues / 10 open PRs. Directional
+threads, in priority order (all reflected in `docs/roadmap.md` as of this date):
+
+1. **Deploy-scale performance** — the dominant arc. #49 (external user churned off zodvex over
+   zod-v4 OOM) → #81 (rebuilt stress harness, merges first) → **#80 codec-paths descriptors,
+   beta-cut as `0.8.0-beta.0`, measured at pure-Convex deploy parity, gated on a hotpot
+   trial** → #63 `zodvex compile` (compile-away, draft) → #84 (dynamic-import validation).
+   Consequences: mini is demoted as a perf strategy (kept as a surface preference); the
+   "blocked on upstream pre-build hook" line is moot if compile-away ships; codegen's role
+   grows from client conveniences to the scale path. **Docs hold-back:** do not flip
+   README/Quick Start messaging until #80 clears its trial; #80 also raises "should quickstart
+   adopt codegen."
+2. **Ecosystem composability** — #85's comment thread promoted db-wrap composability to a
+   first-class ask (convex-helpers triggers and zodvex fight over the same `ctx.db` proxy
+   slot). #86 (ref passthrough) is the ready near-term fix. Long-term shapes: compose
+   (`ctx.raw` / wrap-underlying-db) vs absorb (model-bound triggers/cascades declared next to
+   access rules). Converges with the v0.8 free-function wrappers issue and the
+   `wrapCodecDb` primitive in `fluent-convex-integration.md` — one design surface.
+3. **Native-semantics fidelity** — #82/#83 (patch strips `undefined` → can't unset fields;
+   fix ready). Generalized into an architectural rule in `ARCHITECTURE.md`: the codec layer
+   never subtracts native Convex capability.
+4. **Stale March PRs implement three roadmap items** — #43 (`_creationTime` → `Date`; PR is
+   unconditional/breaking, roadmap prefers opt-in — decision required), #45
+   (`zodvex.config.ts` integrations), #47 (introspection Phase 1, 61 tests). All based on
+   pre-refactor main; need rebase + reevaluation, not greenfield work.
+5. **Housekeeping** — #51 (static-analysis RFC) moves `todo/codegen-static-analysis.md` to
+   `docs/plans/`; that file now lives at `docs/planning/codegen-static-analysis.md` after the
+   prune — reconcile paths when #51 rebases (or close it in favor of the roadmap entry).
+   #70 (parked, no repro on 0.7.2) yielded one docs task, now done: the brand-vs-brand
+   disambiguation in `guide/custom-codecs.md`.
+
 ## 4. Positioning findings
 
 - **Broad reinforcement.** `ARCHITECTURE.md`, `CLAUDE.md`, the guides, the decisions, and the

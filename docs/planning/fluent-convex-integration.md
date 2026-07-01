@@ -56,6 +56,18 @@ exactly the injection point zodvex's wrapped db wants. This spec proposes a smal
 
 ---
 
+## Convergence note (2026-07-01)
+
+The `wrapCodecDb` primitive proposed in Step 1 is the same primitive demanded by two other
+live threads: **db-wrap composability** for convex-helpers triggers / Convex components
+(issue #85's promoted "first-class ask" — let other wrappers sit *under* zodvex's codec/rules
+layer) and the **v0.8 free-function `withRules`/`audit`** migration
+(`docs/issues/free-function-db-wrappers.md`). All three want "a standalone, composable way to
+build the codec-aware db around an arbitrary underlying db." Design them as one surface; the
+fluent-convex adapter then becomes a trivial consumer. Note the free-function direction also
+supersedes this spec's chained `wrapCodecDb(...).withRules(...)` sketch — prefer the applied
+form `audit(withRules(wrapCodecDb(db, schema), ctx, rules), cfg)` once that lands.
+
 ## The blocker today
 
 The codec-aware db (`ZodvexDatabaseReader` / `ZodvexDatabaseWriter`) is constructed only
