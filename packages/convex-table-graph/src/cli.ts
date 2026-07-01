@@ -21,6 +21,8 @@ Options:
   -b, --builder <spec>   Extra builder names as <kind>=<name>[,<name>...]. Repeatable.
                          Kinds: query, mutation, action, internalQuery,
                          internalMutation, internalAction, httpAction
+      --db-factory <n>   Names of functions returning a db-like object when passed
+                         a db (e.g. zodvexStream). Comma-separated, repeatable.
       --tsconfig <path>  tsconfig.json used for type resolution
       --max-depth <n>    Max call-graph depth for the taint walk (default: 3)
   -q, --quiet            Suppress diagnostic output on stderr
@@ -30,6 +32,8 @@ Options:
 Config file shape (JSON, or JS default export):
   {
     "builders": { "query": ["zq", "myQuery"], "mutation": ["zm"] },
+    "dbFactories": ["zodvexStream"],
+    "overrides": { "tasks:bulk": { "reads": ["tasks"], "writes": ["tasks"] } },
     "maxDepth": 3,
     "tsConfigFilePath": "./convex/tsconfig.json"
   }

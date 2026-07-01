@@ -26,17 +26,29 @@ export type TaintState = {
    * `db.get(table, id)` inside `getX(db, table, id)` resolves per call site.
    */
   stringBindings: Map<MorphSymbol, string>
+  /**
+   * Names of free functions that return a db-like object when passed a db
+   * (e.g. zodvex's `zodvexStream`). Shared across scopes — comes from config,
+   * not from the walk.
+   */
+  dbFactories: Set<string>
 }
 
-export function createTaintState(): TaintState {
-  return { ctxSymbols: new Set(), dbSymbols: new Set(), stringBindings: new Map() }
+export function createTaintState(dbFactories: Set<string> = new Set()): TaintState {
+  return {
+    ctxSymbols: new Set(),
+    dbSymbols: new Set(),
+    stringBindings: new Map(),
+    dbFactories
+  }
 }
 
 export function cloneTaintState(state: TaintState): TaintState {
   return {
     ctxSymbols: new Set(state.ctxSymbols),
     dbSymbols: new Set(state.dbSymbols),
-    stringBindings: new Map(state.stringBindings)
+    stringBindings: new Map(state.stringBindings),
+    dbFactories: state.dbFactories
   }
 }
 
@@ -110,6 +122,7 @@ export function addTaintFromParameter(
  *   `db`             — Identifier whose symbol ∈ dbSymbols
  *   `ctx.db`         — PropertyAccess where ctx ∈ ctxSymbols and property name is "db"
  *   `alias.db`       — PropertyAccess where alias ∈ ctxSymbols and property name is "db"
+ *   `factory(db, …)` — CallExpression of a configured db factory receiving a tainted db
  */
 export function isDbReference(node: Node, state: TaintState): boolean {
   if (Node.isIdentifier(node)) {
@@ -128,7 +141,28 @@ export function isDbReference(node: Node, state: TaintState): boolean {
     return state.ctxSymbols.has(symbol)
   }
 
+  if (Node.isCallExpression(node)) {
+    return isDbFactoryCall(node, state)
+  }
+
   return false
+}
+
+/**
+ * A call to a configured db-factory function (matched by name, so it works for
+ * unresolvable external imports) that receives a tainted db argument. Its
+ * result is treated as db-like.
+ */
+export function isDbFactoryCall(call: CallExpression, state: TaintState): boolean {
+  if (state.dbFactories.size === 0) return false
+
+  const callee = call.getExpression()
+  let name: string | null = null
+  if (Node.isIdentifier(callee)) name = callee.getText()
+  else if (Node.isPropertyAccessExpression(callee)) name = callee.getNameNode().getText()
+  if (!name || !state.dbFactories.has(name)) return false
+
+  return call.getArguments().some((arg) => Node.isNode(arg) && isDbReference(arg as Node, state))
 }
 
 /**
@@ -153,6 +187,12 @@ export function classifyArgument(node: Node, state: TaintState): TaintKind | nul
 
   if (Node.isPropertyAccessExpression(node)) {
     if (isDbReference(node, state)) return 'db'
+    return null
+  }
+
+  if (Node.isCallExpression(node)) {
+    // A db-factory call yields a db-like value (`const s = zodvexStream(ctx.db, …)`).
+    if (isDbFactoryCall(node, state)) return 'db'
     return null
   }
 

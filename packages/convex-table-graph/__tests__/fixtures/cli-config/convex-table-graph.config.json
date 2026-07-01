@@ -3,6 +3,10 @@
     "query": ["zq", "hotpotQuery"],
     "mutation": ["zm"]
   },
+  "dbFactories": ["zodvexStream"],
+  "overrides": {
+    "retention:processTable": { "reads": ["visits"], "writes": ["visits"] }
+  },
   "maxDepth": 5,
   "tsConfigFilePath": "./convex/tsconfig.json"
 }

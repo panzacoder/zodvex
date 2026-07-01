@@ -22,6 +22,7 @@ export function analyze(options: AnalyzeOptions): TableGraph {
   const convexDir = path.resolve(options.convexDir)
   const builders = mergeBuilders(options.builders)
   const maxDepth = options.maxDepth ?? 3
+  const dbFactories = new Set(options.dbFactories ?? [])
 
   const project = createProject(convexDir, options.tsConfigFilePath)
 
@@ -38,10 +39,49 @@ export function analyze(options: AnalyzeOptions): TableGraph {
     const sourceFile = project.addSourceFileAtPathIfExists(abs)
     if (!sourceFile) continue
 
-    analyzeSourceFile(sourceFile, rel, builders, maxDepth, convexDir, graph)
+    analyzeSourceFile(sourceFile, rel, builders, maxDepth, dbFactories, convexDir, graph)
   }
 
+  applyOverrides(graph, options.overrides)
+
   return graph
+}
+
+/**
+ * Apply manual per-function table declarations (see AnalyzeOptions.overrides):
+ * declared tables are unioned in, the function is promoted to full confidence,
+ * and its diagnostics are dropped. Unknown paths get a warning so typos surface.
+ */
+function applyOverrides(graph: TableGraph, overrides: AnalyzeOptions['overrides']): void {
+  if (!overrides) return
+
+  const overriddenPaths = new Set<string>()
+
+  for (const [fnPath, override] of Object.entries(overrides)) {
+    const info = graph.functions[fnPath]
+    if (!info) {
+      graph.diagnostics.push({
+        severity: 'warning',
+        file: '',
+        line: 0,
+        column: 0,
+        message: `Override for "${fnPath}" matches no analyzed function`,
+        code: 'unknown-override'
+      })
+      continue
+    }
+
+    info.reads = Array.from(new Set([...info.reads, ...(override.reads ?? [])])).sort()
+    info.writes = Array.from(new Set([...info.writes, ...(override.writes ?? [])])).sort()
+    info.confidence = 'full'
+    overriddenPaths.add(fnPath)
+  }
+
+  if (overriddenPaths.size > 0) {
+    graph.diagnostics = graph.diagnostics.filter(
+      (d) => !d.function || !overriddenPaths.has(d.function)
+    )
+  }
 }
 
 function analyzeSourceFile(
@@ -49,6 +89,7 @@ function analyzeSourceFile(
   relFile: string,
   builders: BuilderConfig,
   maxDepth: number,
+  dbFactories: Set<string>,
   convexDir: string,
   graph: TableGraph
 ): void {
@@ -64,7 +105,8 @@ function analyzeSourceFile(
     const analysis = analyzeHandler(fn.handler, {
       maxDepth,
       visited: new Set(),
-      functionPath: path
+      functionPath: path,
+      dbFactories
     })
 
     // Remap diagnostic file paths to be relative to convexDir for portability.

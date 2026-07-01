@@ -77,6 +77,18 @@ export const DEFAULT_BUILDERS: BuilderConfig = {
   httpAction: ['httpAction']
 }
 
+/**
+ * Manual declaration of tables a function touches, for code the analyzer
+ * can't resolve (dynamic table names, external callees). Declared tables are
+ * unioned with whatever the analyzer found, the function is promoted to full
+ * confidence, and its diagnostics are dropped — the developer takes
+ * responsibility for completeness.
+ */
+export type FunctionOverride = {
+  reads?: string[]
+  writes?: string[]
+}
+
 export type AnalyzeOptions = {
   /** Absolute path to the convex/ directory */
   convexDir: string
@@ -85,6 +97,15 @@ export type AnalyzeOptions = {
    * like `zQuery`, `zMutation`, or custom `customQuery` builders.
    */
   builders?: Partial<BuilderConfig>
+  /**
+   * Names of free functions that return a db-like object when passed a db
+   * (e.g. zodvex's `zodvexStream`). Calls to these with a tainted db argument
+   * are treated as db references, so `zodvexStream(ctx.db, schema).query("t")`
+   * records a read of "t".
+   */
+  dbFactories?: string[]
+  /** Per-function manual table declarations, keyed by function path ("tasks:create"). */
+  overrides?: Record<string, FunctionOverride>
   /** Max depth to follow function calls when walking db taint. Default 3. */
   maxDepth?: number
   /** Additional tsconfig-compatible compiler options for ts-morph. */

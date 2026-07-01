@@ -320,6 +320,76 @@ describe('analyze — string-literal propagation into parametric helpers', () =>
   })
 })
 
+describe('analyze — db-factory functions via config', () => {
+  it('flags factory calls as unresolvable without config', () => {
+    const graph = analyze({ convexDir: fixture('db-factory') })
+    const fn = graph.functions['tasks:listViaStream']!
+    expect(fn.confidence).toBe('partial')
+    expect(graph.diagnostics.some((d) => d.code === 'unresolvable-callee')).toBe(true)
+  })
+
+  const graph = analyze({
+    convexDir: fixture('db-factory'),
+    dbFactories: ['fakeStream']
+  })
+
+  it('treats a chained factory call as a db reference', () => {
+    const fn = graph.functions['tasks:listViaStream']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:listViaStream')
+  })
+
+  it('taints a variable holding a factory result as db', () => {
+    const fn = graph.functions['tasks:listViaStreamVar']!
+    expect(fn.reads).toEqual(['tasks'])
+    assertFullConfidence(graph, 'tasks:listViaStreamVar')
+  })
+
+  it('combines factory reads with direct db writes', () => {
+    const fn = graph.functions['tasks:rotate']!
+    expect(fn.reads).toEqual(['tasks'])
+    expect(fn.writes).toEqual(['archive'])
+    assertFullConfidence(graph, 'tasks:rotate')
+  })
+})
+
+describe('analyze — manual overrides', () => {
+  it('unions declared tables, forces full confidence, and drops the diagnostics', () => {
+    const graph = analyze({
+      convexDir: fixture('unresolved'),
+      overrides: {
+        'tasks:dynamicRead': { reads: ['tasks', 'users'] }
+      }
+    })
+    const fn = graph.functions['tasks:dynamicRead']!
+    expect(fn.confidence).toBe('full')
+    expect(fn.reads).toEqual(['tasks', 'users'])
+    expect(graph.diagnostics.filter((d) => d.function === 'tasks:dynamicRead')).toEqual([])
+  })
+
+  it('leaves other functions untouched', () => {
+    const graph = analyze({
+      convexDir: fixture('unresolved'),
+      overrides: {
+        'tasks:dynamicRead': { reads: ['tasks'] }
+      }
+    })
+    expect(graph.functions['tasks:goodRead']!.reads).toEqual(['tasks'])
+  })
+
+  it('warns about an override that matches no function', () => {
+    const graph = analyze({
+      convexDir: fixture('unresolved'),
+      overrides: {
+        'tasks:doesNotExist': { writes: ['tasks'] }
+      }
+    })
+    const diag = graph.diagnostics.find((d) => d.code === 'unknown-override')
+    expect(diag).toBeDefined()
+    expect(diag!.message).toContain('tasks:doesNotExist')
+  })
+})
+
 describe('analyze — depth limit', () => {
   it('emits diagnostic when max depth is exceeded', () => {
     // Default depth of 3 — handler(0) -> level1(1) -> level2(2) -> level3(3) -> level4(4)

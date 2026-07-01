@@ -76,6 +76,11 @@ describe('parseArgs', () => {
   it('rejects a flag missing its value', () => {
     expect(() => parseArgs(['--output'])).toThrow(/Missing value/)
   })
+
+  it('parses repeatable --db-factory flags with deduping', () => {
+    const args = parseArgs(['--db-factory', 'zodvexStream,stream', '--db-factory', 'stream'])
+    expect(args.dbFactories).toEqual(['zodvexStream', 'stream'])
+  })
 })
 
 describe('loadConfigFile', () => {
@@ -89,6 +94,10 @@ describe('loadConfigFile', () => {
     })
     expect(config!.maxDepth).toBe(5)
     expect(config!.tsConfigFilePath).toBe(path.join(configFixtures, 'convex', 'tsconfig.json'))
+    expect(config!.dbFactories).toEqual(['zodvexStream'])
+    expect(config!.overrides).toEqual({
+      'retention:processTable': { reads: ['visits'], writes: ['visits'] }
+    })
   })
 
   it('loads an explicit JS config via its default export', async () => {
@@ -149,6 +158,16 @@ describe('resolveAnalyzeOptions', () => {
     expect(options.maxDepth).toBe(7)
     expect(options.tsConfigFilePath).toBe('/abs/tsconfig.json')
     expect(options.builders).toEqual({ query: ['zq'] })
+  })
+
+  it('unions dbFactories from config and flags, passes overrides through', () => {
+    const cli = parseArgs(['--db-factory', 'stream'])
+    const options = resolveAnalyzeOptions(cli, {
+      dbFactories: ['zodvexStream'],
+      overrides: { 'tasks:bulk': { writes: ['tasks'] } }
+    })
+    expect(options.dbFactories).toEqual(['zodvexStream', 'stream'])
+    expect(options.overrides).toEqual({ 'tasks:bulk': { writes: ['tasks'] } })
   })
 
   it('prefers CLI flags over config-file values and unions builder names', () => {

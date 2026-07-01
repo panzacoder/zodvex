@@ -69,12 +69,19 @@ Instead of flags, put options in `convex-table-graph.config.{json,mjs,cjs,js}` �
     "mutation": ["zm"],
     "internalMutation": ["zim"]
   },
+  "dbFactories": ["zodvexStream"],
+  "overrides": {
+    "retention:processTable": { "reads": ["messages"], "writes": ["messages"] }
+  },
   "maxDepth": 3,
   "tsConfigFilePath": "./convex/tsconfig.json"
 }
 ```
 
 Relative paths in a config file resolve against the config file's location.
+
+- **`dbFactories`** — names of free functions that return a db-like object when passed a db (e.g. zodvex's `zodvexStream`). Calls like `zodvexStream(ctx.db, schema).query("visits")` then record a read of `visits` instead of an unresolvable-callee diagnostic. Also available as the repeatable `--db-factory` flag.
+- **`overrides`** — the escape hatch for code static analysis genuinely can't resolve (dynamic table names, external callees). Declared `reads`/`writes` are unioned with what the analyzer found, the function is promoted to full confidence, and its diagnostics are dropped — you're vouching for completeness. An override whose path matches no function emits an `unknown-override` warning so typos surface. Config-file only.
 
 ### Programmatic API
 

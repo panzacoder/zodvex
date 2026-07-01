@@ -1,7 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { type AnalyzeOptions, type BuilderConfig, DEFAULT_BUILDERS } from './types'
+import {
+  type AnalyzeOptions,
+  type BuilderConfig,
+  DEFAULT_BUILDERS,
+  type FunctionOverride
+} from './types'
 
 /** Thrown for user input errors; the CLI prints the message + usage and exits 1. */
 export class CliUsageError extends Error {}
@@ -15,6 +20,7 @@ export type CliOptions = {
   tsConfigFilePath?: string
   maxDepth?: number
   builders?: Partial<BuilderConfig>
+  dbFactories?: string[]
   help: boolean
   version: boolean
 }
@@ -25,6 +31,8 @@ export type CliOptions = {
  */
 export type ConfigFile = {
   builders?: Partial<BuilderConfig>
+  dbFactories?: string[]
+  overrides?: Record<string, FunctionOverride>
   maxDepth?: number
   tsConfigFilePath?: string
 }
@@ -73,6 +81,17 @@ export function parseArgs(argv: string[]): CliOptions {
     } else if (a === '--builder' || a === '-b') {
       const raw = requireValue(a, argv[++i])
       mergeBuilderFlag(args, raw)
+    } else if (a === '--db-factory') {
+      const raw = requireValue(a, argv[++i])
+      const names = raw
+        .split(',')
+        .map((n) => n.trim())
+        .filter(Boolean)
+      if (names.length === 0) throw new CliUsageError(`--db-factory "${raw}" lists no names`)
+      args.dbFactories ??= []
+      for (const name of names) {
+        if (!args.dbFactories.includes(name)) args.dbFactories.push(name)
+      }
     } else if (a === '--quiet' || a === '-q') {
       args.quiet = true
     } else if (a === '--help' || a === '-h') {
@@ -202,6 +221,43 @@ function validateConfig(raw: Record<string, unknown>, source: string): ConfigFil
     config.builders = builders
   }
 
+  if (raw.dbFactories !== undefined) {
+    if (!Array.isArray(raw.dbFactories) || raw.dbFactories.some((n) => typeof n !== 'string')) {
+      throw new CliUsageError(`Config ${source}: "dbFactories" must be an array of strings`)
+    }
+    config.dbFactories = raw.dbFactories as string[]
+  }
+
+  if (raw.overrides !== undefined) {
+    if (!raw.overrides || typeof raw.overrides !== 'object' || Array.isArray(raw.overrides)) {
+      throw new CliUsageError(`Config ${source}: "overrides" must be an object`)
+    }
+    const overrides: Record<string, FunctionOverride> = {}
+    for (const [fnPath, decl] of Object.entries(raw.overrides)) {
+      if (!decl || typeof decl !== 'object' || Array.isArray(decl)) {
+        throw new CliUsageError(
+          `Config ${source}: overrides["${fnPath}"] must be an object with reads/writes arrays`
+        )
+      }
+      const entry = decl as Record<string, unknown>
+      const override: FunctionOverride = {}
+      for (const key of ['reads', 'writes'] as const) {
+        if (entry[key] === undefined) continue
+        if (
+          !Array.isArray(entry[key]) ||
+          (entry[key] as unknown[]).some((t) => typeof t !== 'string')
+        ) {
+          throw new CliUsageError(
+            `Config ${source}: overrides["${fnPath}"].${key} must be an array of strings`
+          )
+        }
+        override[key] = entry[key] as string[]
+      }
+      overrides[fnPath] = override
+    }
+    config.overrides = overrides
+  }
+
   if (raw.maxDepth !== undefined) {
     if (typeof raw.maxDepth !== 'number' || !Number.isInteger(raw.maxDepth) || raw.maxDepth < 0) {
       throw new CliUsageError(`Config ${source}: "maxDepth" must be a non-negative integer`)
@@ -226,9 +282,12 @@ function validateConfig(raw: Record<string, unknown>, source: string): ConfigFil
  */
 export function resolveAnalyzeOptions(cli: CliOptions, file: ConfigFile | null): AnalyzeOptions {
   const builders = mergeBuilders(file?.builders, cli.builders)
+  const dbFactories = mergeNameLists(file?.dbFactories, cli.dbFactories)
   return {
     convexDir: path.resolve(cli.convexDir),
     ...(builders ? { builders } : {}),
+    ...(dbFactories ? { dbFactories } : {}),
+    ...(file?.overrides ? { overrides: file.overrides } : {}),
     ...((cli.maxDepth ?? file?.maxDepth) !== undefined
       ? { maxDepth: cli.maxDepth ?? file?.maxDepth }
       : {}),
@@ -236,6 +295,15 @@ export function resolveAnalyzeOptions(cli: CliOptions, file: ConfigFile | null):
       ? { tsConfigFilePath: cli.tsConfigFilePath ?? file?.tsConfigFilePath }
       : {})
   }
+}
+
+function mergeNameLists(
+  base: string[] | undefined,
+  extra: string[] | undefined
+): string[] | undefined {
+  if (!base) return extra
+  if (!extra) return base
+  return [...base, ...extra.filter((n) => !base.includes(n))]
 }
 
 function mergeBuilders(

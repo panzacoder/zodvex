@@ -18,6 +18,7 @@ import {
   classifyArgument,
   createTaintState,
   getCallExpressions,
+  isDbFactoryCall,
   isDbReference,
   processBodyDeclarations,
   resolveStringValue,
@@ -46,6 +47,8 @@ export type AnalyzeContext = {
    */
   visited: Set<string>
   functionPath: string
+  /** Names of configured db-factory functions (see AnalyzeOptions.dbFactories). */
+  dbFactories: Set<string>
 }
 
 /**
@@ -65,7 +68,7 @@ export function analyzeHandler(
     diagnostics: []
   }
 
-  const state = createTaintState()
+  const state = createTaintState(ctx.dbFactories)
   const seeded = seedTaintFromHandler(handler, state)
   if (!seeded) {
     result.partial = true
@@ -155,7 +158,7 @@ function analyzeFunctionBody(
     }
 
     // Propagate taint into the callee's scope.
-    const childState = createTaintState()
+    const childState = createTaintState(ctx.dbFactories)
     for (const { paramIndex, kind } of propagation) {
       const params = callee.getParameters()
       const param = params[paramIndex]
@@ -303,6 +306,10 @@ type PropagationEntry = { paramIndex: number; kind: 'ctx' | 'db' }
  * Returns an array of (paramIndex, kind) entries, one per tainted argument.
  */
 function getTaintPropagation(call: CallExpression, state: TaintState): PropagationEntry[] {
+  // A db-factory call is a db source, not a helper to follow — following it
+  // would emit an unresolvable-callee diagnostic for an external package.
+  if (isDbFactoryCall(call, state)) return []
+
   // Skip calls whose receiver is tainted db (those are already handled as db calls,
   // or are method chains on QueryInitializer which we don't need to recurse into).
   const expr = call.getExpression()
