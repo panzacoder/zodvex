@@ -4,7 +4,7 @@
 
 Use Zod v4 as your schema language for Convex — define your data once and use it end to end, with automatic validation and codecs at every boundary.
 
-> Built on top of [convex-helpers](https://github.com/get-convex/convex-helpers)
+> Interoperates with [convex-helpers](https://github.com/get-convex/convex-helpers) — custom function contexts and streams work out of the box
 
 ## Table of Contents
 
@@ -36,7 +36,7 @@ Use Zod v4 as your schema language for Convex — define your data once and use 
   - **Client-safe schema imports** — import your Zod models on the frontend from one stable path, without reaching into server-only backend code.
   - **Inferred validators for frontend queries** — typed hooks (`useZodQuery` / `useZodMutation`) infer argument and return types straight from your function definitions, so your Convex functions stay the single source of truth.
 
-zodvex is built on `convex-helpers`, which provides the underlying Zod → Convex validator mapping. If that mapping is all you need, reach for `convex-helpers/zod4` directly. zodvex is the layer on top — the validation, codecs, and codegen above make Zod your source of truth across the whole app. (It is not a middleware or function-composition framework: its "middleware" is the codec-aware db, configured once via `initZodvex`.)
+zodvex ships its own Zod → Convex mapping layer — codec awareness and Convex's exact optional/nullable semantics require deeper integration than a standalone converter can offer. If one-shot validator conversion is all you need, `convex-helpers/zod4` provides that with less machinery; zodvex is for when Zod is your schema language across the whole app. (`convex-helpers` remains a peer dependency — zodvex uses its custom-function convention and stream primitives, and composes with the rest of its ecosystem. And zodvex is not a middleware or function-composition framework: its "middleware" is the codec-aware db, configured once via `initZodvex`.)
 
 ## Installation
 
@@ -195,7 +195,7 @@ const Users = zodTable('users', { name: z.string() })
 const zq = zQueryBuilder(query)
 ```
 
-At this level, zodvex is roughly equivalent to convex-helpers. This is a valid stepping-stone, but the API is deprecated. When you're ready for codecs, see the [Quick Start](#quick-start) above.
+At this level, zodvex offers roughly what `convex-helpers/zod4` does. This is a valid stepping-stone, but the API is deprecated. When you're ready for codecs, see the [Quick Start](#quick-start) above.
 
 ## Supported Types
 
@@ -300,4 +300,4 @@ MIT
 
 ---
 
-Built with ❤️ on top of [convex-helpers](https://github.com/get-convex/convex-helpers)
+Built with ❤️ for the [Convex](https://www.convex.dev/) ecosystem — with early foundations from [convex-helpers](https://github.com/get-convex/convex-helpers)

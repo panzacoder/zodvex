@@ -9,9 +9,10 @@ full/mini refactor completed on April 7, 2026.
 args, and return types once and use them end to end. Its standout differentiator is
 automatic validation plus a codec-aware `ctx.db` (`Date`/id/custom encode-decode at the
 database boundary, with `.withRules()` and `.audit()`), all wired once via `initZodvex`.
-It is *not* a validator-mapper (that foundation is delegated to `convex-helpers`) and
-*not* a middleware/function-composition framework. The architecture below exists to serve
-that data layer. See [`positioning.md`](./positioning.md) for the canonical statement.
+It is *not* a validator-mapper (mapping is the foundation, not the product — zodvex owns
+its mapping layer in `internal/mapping/`, with `convex-helpers` as a peer for the
+custom-function convention and streams) and *not* a middleware/function-composition
+framework. The architecture below exists to serve that data layer. See [`positioning.md`](./positioning.md) for the canonical statement.
 
 ## Overview
 

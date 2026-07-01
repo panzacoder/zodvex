@@ -14,8 +14,9 @@ the documentation cleanup that follows from that picture. Feeds and sharpens
 args, and return types once and use them end to end. Automatic validation and codecs at
 every boundary are the standout *differentiator*; the codec-aware `ctx.db` is the flagship
 of that, but the *identity* is "Zod as your source of truth across a Convex app." Not a
-validator-mapper (that's the `convex-helpers` foundation it stands on), not a
-middleware/composition framework. See [`../positioning.md`](../positioning.md).
+validator-mapper (mapping is the foundation, not the product — and it's zodvex's **own**
+mapping layer; the only `convex-helpers` imports in `src/` are `customFunctions`, `stream`,
+and legacy `Table`), not a middleware/composition framework. See [`../positioning.md`](../positioning.md).
 
 The crawl **strongly reinforced** this framing across nearly every doc. The exceptions are
 drift, not disagreement (see §4 and §5).

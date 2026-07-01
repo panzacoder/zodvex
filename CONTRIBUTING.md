@@ -8,8 +8,10 @@ run things, and the conventions we follow.
 **zodvex lets you use Zod v4 as your schema language for Convex** — define your tables,
 function arguments, and return types once as Zod schemas and use them end to end. The
 standout differentiator is automatic validation and codecs at every boundary (function I/O
-and the codec-aware `ctx.db`). It is **not** a validator-mapper (that foundation is delegated
-to `convex-helpers`) and **not** a middleware/function-composition framework. See
+and the codec-aware `ctx.db`). It is **not** a validator-mapper (zodvex owns its mapping
+layer in `internal/mapping/`; `convex-helpers` is a peer used for the custom-function
+convention and streams, not the mapping) and **not** a middleware/function-composition
+framework. See
 [`docs/positioning.md`](docs/positioning.md) — contributions should reinforce that framing,
 not drift toward "convex-helpers but nicer" or a builder-chain middleware model.
 

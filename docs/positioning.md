@@ -24,8 +24,12 @@ You configure all of it once with `initZodvex` and get correct builders back.
 ## What it is not
 
 zodvex is **not** a validator-mapper and **not** a middleware / function-composition
-framework. Validator mapping (Zod → Convex) is the foundation it stands on, delegated to
-`convex-helpers` — it is not the product. And there is no `.use()` chain or plugin
+framework. Validator mapping (Zod → Convex) is the foundation it stands on — not the
+product. zodvex ships its **own** mapping layer (built directly on `zod/v4/core` and
+`convex/values`): codec awareness and Convex's exact optional/nullable semantics require
+deeper integration than a standalone converter. `convex-helpers` remains a peer dependency
+for its custom-function convention and stream primitives — not for the mapping. And there
+is no `.use()` chain or plugin
 `.extend()` surface: the "middleware" is the ambient codec-aware db, wired once via
 `initZodvex`. If you want composable handler middleware, that is a different kind of
 library (e.g. [fluent-convex](https://github.com/mikecann/fluent-convex)); the two live
