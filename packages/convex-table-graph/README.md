@@ -50,11 +50,33 @@ convex-table-graph ./examples/my-app/convex -o table-graph.json
 
 # Emit a typed TS module instead of JSON
 convex-table-graph -o convex-table-graph.generated.ts -f ts
+
+# Register custom wrapper builders (repeatable, <kind>=<name>[,<name>...])
+convex-table-graph --builder query=zq,myQuery --builder mutation=zm
+
+# Point at a specific tsconfig and deepen the taint walk
+convex-table-graph --tsconfig ./convex/tsconfig.json --max-depth 5
 ```
 
-### Programmatic API
+### Config file
 
-The CLI recognizes only vanilla Convex builders (`query`, `mutation`, `action`, etc.). For custom wrappers — e.g. zodvex's `zq`/`zm`/`za` or convex-helpers `customQuery` — use the programmatic API:
+Instead of flags, put options in `convex-table-graph.config.{json,mjs,cjs,js}` — auto-discovered in the cwd, then next to the convex/ directory (or pass `-c/--config <path>` explicitly). CLI flags win over config values; builder lists are unioned.
+
+```json
+{
+  "builders": {
+    "query": ["zq"],
+    "mutation": ["zm"],
+    "internalMutation": ["zim"]
+  },
+  "maxDepth": 3,
+  "tsConfigFilePath": "./convex/tsconfig.json"
+}
+```
+
+Relative paths in a config file resolve against the config file's location.
+
+### Programmatic API
 
 ```ts
 import { analyze } from 'convex-table-graph'
@@ -81,6 +103,7 @@ for (const [path, info] of Object.entries(graph.functions)) {
 
 - `ctx.db.query("table")`, `.insert("table", doc)` — direct string-literal tables
 - `ctx.db.patch(id, ...)`, `.replace(id, ...)`, `.delete(id)`, `.get(id)` — table from `Id<"table">` type parameter
+- `ctx.db.get("table", id)`, `.patch("table", id, ...)`, etc. — table-name-first overloads (zodvex codec db / newer convex)
 - `const { db } = ctx` / `({ db }, args) => ...` — destructuring propagation
 - `const secureDb = ctx.db.withRules(...)` — db-wrapping method pattern (any non-data-method call on db produces a new tainted db-like)
 - Cross-file helpers: `await helper(ctx.db, ...)` — taint propagates through function-call boundaries up to `maxDepth`

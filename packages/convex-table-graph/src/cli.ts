@@ -1,44 +1,10 @@
 #!/usr/bin/env node
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { analyze } from './analyze'
+import { CliUsageError, loadConfigFile, parseArgs, resolveAnalyzeOptions } from './cli-args'
 import type { TableGraph } from './types'
-
-type ParsedArgs = {
-  convexDir: string
-  output?: string
-  format: 'json' | 'ts'
-  quiet: boolean
-}
-
-function parseArgs(argv: string[]): ParsedArgs {
-  const args: ParsedArgs = {
-    convexDir: 'convex',
-    format: 'json',
-    quiet: false
-  }
-
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]!
-    if (a === '--dir' || a === '-d') {
-      args.convexDir = argv[++i] ?? args.convexDir
-    } else if (a === '--output' || a === '-o') {
-      args.output = argv[++i]
-    } else if (a === '--format' || a === '-f') {
-      const next = argv[++i]
-      if (next === 'json' || next === 'ts') args.format = next
-    } else if (a === '--quiet' || a === '-q') {
-      args.quiet = true
-    } else if (a === '--help' || a === '-h') {
-      printHelp()
-      process.exit(0)
-    } else if (!a.startsWith('-')) {
-      args.convexDir = a
-    }
-  }
-
-  return args
-}
 
 function printHelp(): void {
   console.log(`Usage: convex-table-graph [options] [convex-dir]
@@ -46,17 +12,40 @@ function printHelp(): void {
 Static analyzer that extracts Convex function → table dependency relationships.
 
 Options:
-  -d, --dir <path>     Path to convex/ directory (default: ./convex)
-  -o, --output <path>  Write graph to file instead of stdout
-  -f, --format <fmt>   Output format: json | ts (default: json)
-  -q, --quiet          Suppress diagnostic output on stderr
-  -h, --help           Show this help message
+  -d, --dir <path>       Path to convex/ directory (default: ./convex)
+  -o, --output <path>    Write graph to file instead of stdout
+  -f, --format <fmt>     Output format: json | ts (default: json)
+  -c, --config <path>    Config file (.json/.js/.mjs/.cjs). Without this flag,
+                         convex-table-graph.config.{json,mjs,cjs,js} is auto-discovered
+                         in the cwd, then next to the convex/ directory.
+  -b, --builder <spec>   Extra builder names as <kind>=<name>[,<name>...]. Repeatable.
+                         Kinds: query, mutation, action, internalQuery,
+                         internalMutation, internalAction, httpAction
+      --tsconfig <path>  tsconfig.json used for type resolution
+      --max-depth <n>    Max call-graph depth for the taint walk (default: 3)
+  -q, --quiet            Suppress diagnostic output on stderr
+  -v, --version          Print version
+  -h, --help             Show this help message
+
+Config file shape (JSON, or JS default export):
+  {
+    "builders": { "query": ["zq", "myQuery"], "mutation": ["zm"] },
+    "maxDepth": 3,
+    "tsConfigFilePath": "./convex/tsconfig.json"
+  }
 
 Examples:
   convex-table-graph ./my-app/convex
   convex-table-graph -d ./convex -o table-graph.json
   convex-table-graph -d ./convex -o convex-table-graph.generated.ts -f ts
+  convex-table-graph --builder query=zq,hotpotQuery --builder mutation=zm
 `)
+}
+
+function printVersion(): void {
+  const pkgPath = path.resolve(fileURLToPath(import.meta.url), '../../package.json')
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+  console.log(pkg.version)
 }
 
 function formatAsTs(graph: TableGraph): string {
@@ -95,12 +84,22 @@ function printDiagnostics(graph: TableGraph, quiet: boolean): void {
   process.stderr.write(`\n${graph.diagnostics.length} diagnostic(s)\n`)
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const argv = process.argv.slice(2)
   const args = parseArgs(argv)
 
-  const convexDir = path.resolve(args.convexDir)
-  const graph = analyze({ convexDir })
+  if (args.help) {
+    printHelp()
+    return
+  }
+  if (args.version) {
+    printVersion()
+    return
+  }
+
+  const config = await loadConfigFile(args.configPath, args.convexDir)
+  const options = resolveAnalyzeOptions(args, config)
+  const graph = analyze(options)
 
   const output = args.format === 'ts' ? formatAsTs(graph) : JSON.stringify(graph, null, 2)
 
@@ -115,4 +114,12 @@ function main(): void {
   printDiagnostics(graph, args.quiet)
 }
 
-main()
+main().catch((err) => {
+  if (err instanceof CliUsageError) {
+    process.stderr.write(`error: ${err.message}\n\n`)
+    printHelp()
+  } else {
+    process.stderr.write(`${err?.stack ?? err}\n`)
+  }
+  process.exit(1)
+})
