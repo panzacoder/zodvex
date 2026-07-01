@@ -18,8 +18,8 @@ export type InferArgs<A> = A extends $ZodType & { shape: infer S extends Record<
 
 // Return type inference - uses zoutput for Zod schemas
 // Previously had bailouts for unions/custom to avoid TypeScript depth errors,
-// but research (Issue #20) showed convex-helpers handles these without issues.
-// Removing bailouts fixes Issue #19 (Promise<any> return types).
+// but they proved unnecessary (Issue #20); removing them fixes Issue #19
+// (Promise<any> return types).
 export type InferReturns<R> =
   R extends $ZodType<any, any> ? zoutput<R> : R extends undefined ? any : R
 

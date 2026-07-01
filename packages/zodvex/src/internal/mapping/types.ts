@@ -180,8 +180,8 @@ type IsZid<T> = T extends { _tableName: infer _TableName extends string } ? true
 type ExtractTableName<T> = T extends { _tableName: infer TableName } ? TableName : never
 
 // Helper to map enum tuple to VLiteral validators tuple
-// Based on convex-helpers approach which handles different lengths explicitly
-// This avoids TypeScript recursion issues and provides better type inference
+// Handles each tuple length explicitly to avoid TypeScript recursion issues
+// and provide better type inference
 type EnumToLiteralsTuple<T extends readonly [string, ...string[]]> = T['length'] extends 1
   ? [VLiteral<T[0], 'required'>]
   : T['length'] extends 2

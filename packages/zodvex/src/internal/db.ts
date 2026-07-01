@@ -435,7 +435,7 @@ type DecodedPatchValue<
 
 /**
  * Resolves a table name from a GenericId by iterating the tableMap
- * and calling normalizeId. Same approach as convex-helpers' WrapReader.
+ * and calling normalizeId.
  */
 function resolveTableName<DataModel extends GenericDataModel>(
   db: GenericDatabaseReader<DataModel>,
