@@ -1,6 +1,6 @@
 import { applyPrediction } from './apply-prediction'
-import type { DiagnosticHandler, Prediction, TableGraphLike } from './types'
 import { resolveAffectedQueries } from './find-queries'
+import type { DiagnosticHandler, Prediction, TableGraphLike } from './types'
 
 /**
  * Minimal interface mirroring convex/react's OptimisticLocalStore. We avoid
@@ -63,7 +63,7 @@ export function applyPredictionToStore(
     }
 
     for (const { args, value } of entries) {
-      const nextValue = applyPrediction(value, prediction)
+      const nextValue = applyPrediction(value, prediction, { queryArgs: args })
       if (nextValue !== value) {
         store.setQuery(ref, args, nextValue)
       }

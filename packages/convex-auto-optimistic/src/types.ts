@@ -36,6 +36,17 @@ export type Prediction =
   | {
       kind: 'insert'
       doc: DocumentLike
+      /**
+       * Where the inserted doc should land in ordered results.
+       *
+       * - `'start'` — prepend. For paginated queries, applies only to the
+       *   first page (the cached entry whose `paginationOpts.cursor` is null).
+       * - `'end'` — append (default for plain arrays). For paginated queries,
+       *   applies only to the final page (`isDone: true`).
+       * - omitted — plain arrays append; paginated results are skipped
+       *   (ordering semantics unknown).
+       */
+      at?: 'start' | 'end'
     }
   | {
       kind: 'patch'

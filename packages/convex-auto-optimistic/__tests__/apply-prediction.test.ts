@@ -47,6 +47,82 @@ describe('applyPrediction — insert', () => {
   })
 })
 
+describe('applyPrediction — insert placement (`at`)', () => {
+  it("prepends to an array when at is 'start'", () => {
+    const before = [task('1'), task('2')]
+    const after = applyPrediction(before, { kind: 'insert', doc: task('3'), at: 'start' })
+    expect(after).toEqual([task('3'), task('1'), task('2')])
+  })
+
+  it("prepends to the first page when at is 'start' and the cursor is null", () => {
+    const before = { page: [task('1')], isDone: false, continueCursor: 'c1' }
+    const after = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('2'), at: 'start' },
+      { queryArgs: { paginationOpts: { numItems: 10, cursor: null } } }
+    )
+    expect(after).toEqual({
+      page: [task('2'), task('1')],
+      isDone: false,
+      continueCursor: 'c1'
+    })
+  })
+
+  it("leaves non-first pages unchanged when at is 'start'", () => {
+    const before = { page: [task('1')], isDone: false, continueCursor: 'c2' }
+    const after = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('2'), at: 'start' },
+      { queryArgs: { paginationOpts: { numItems: 10, cursor: 'c1' } } }
+    )
+    expect(after).toBe(before)
+  })
+
+  it("leaves paginated results unchanged when at is 'start' but no paginationOpts in args", () => {
+    const before = { page: [task('1')], isDone: false, continueCursor: 'c1' }
+    const after = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('2'), at: 'start' },
+      { queryArgs: {} }
+    )
+    expect(after).toBe(before)
+  })
+
+  it("appends to the final page when at is 'end' and isDone", () => {
+    const before = { page: [task('1')], isDone: true, continueCursor: 'c1' }
+    const after = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('2'), at: 'end' },
+      { queryArgs: { paginationOpts: { numItems: 10, cursor: 'c1' } } }
+    )
+    expect(after).toEqual({
+      page: [task('1'), task('2')],
+      isDone: true,
+      continueCursor: 'c1'
+    })
+  })
+
+  it("leaves non-final pages unchanged when at is 'end'", () => {
+    const before = { page: [task('1')], isDone: false, continueCursor: 'c1' }
+    const after = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('2'), at: 'end' },
+      { queryArgs: { paginationOpts: { numItems: 10, cursor: null } } }
+    )
+    expect(after).toBe(before)
+  })
+
+  it('does not duplicate on paginated insert when the doc is already in the page', () => {
+    const before = { page: [task('1')], isDone: false, continueCursor: 'c1' }
+    const after = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('1'), at: 'start' },
+      { queryArgs: { paginationOpts: { numItems: 10, cursor: null } } }
+    )
+    expect(after).toBe(before)
+  })
+})
+
 describe('applyPrediction — patch', () => {
   it('updates the matching doc in an array', () => {
     const before = [task('1'), task('2', { title: 'two' })]

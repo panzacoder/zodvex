@@ -28,34 +28,54 @@ function hasId(value: unknown): value is { _id: string; [k: string]: unknown } {
 }
 
 /**
+ * Per-entry context for applying a prediction. `queryArgs` is the args object
+ * of the cached query entry — needed to tell first pages (cursor null) apart
+ * from later pages when placing paginated inserts.
+ */
+export type ApplyContext = {
+  queryArgs?: unknown
+}
+
+/**
  * Apply a mutation prediction to a single cached query result.
  *
  * The result shape is inferred at runtime; supported shapes are:
  *   - `Document[]` — standard list-style query
  *   - `Document | null` — `.first()`, `.unique()`, `ctx.db.get()` queries
- *   - `{ page, isDone, continueCursor }` — paginated queries (patch/delete only)
+ *   - `{ page, isDone, continueCursor }` — paginated queries (insert requires
+ *     an `at` placement hint; patch/delete always apply)
  *
  * Returns the patched result or the input unchanged if the shape is not
  * recognized or the prediction doesn't apply.
  */
-export function applyPrediction(result: unknown, prediction: Prediction): unknown {
+export function applyPrediction(
+  result: unknown,
+  prediction: Prediction,
+  context: ApplyContext = {}
+): unknown {
   // Query not yet loaded — don't invent a value. Convex's subscription will
   // populate it later; any optimistic state here would be misleading.
   if (result === undefined) return undefined
 
-  if (prediction.kind === 'insert') return applyInsert(result, prediction.doc)
+  if (prediction.kind === 'insert')
+    return applyInsert(result, prediction.doc, prediction.at, context)
   if (prediction.kind === 'patch') return applyPatch(result, prediction.id, prediction.changes)
   if (prediction.kind === 'delete') return applyDelete(result, prediction.id)
 
   return result
 }
 
-function applyInsert(result: unknown, doc: { _id: string; [k: string]: unknown }): unknown {
+function applyInsert(
+  result: unknown,
+  doc: { _id: string; [k: string]: unknown },
+  at: 'start' | 'end' | undefined,
+  context: ApplyContext
+): unknown {
   if (Array.isArray(result)) {
     // Avoid duplicating: if the doc is already there (by _id), leave it.
     const already = result.some((r) => hasId(r) && r._id === doc._id)
     if (already) return result
-    return [...result, doc]
+    return at === 'start' ? [doc, ...result] : [...result, doc]
   }
 
   if (result === null) {
@@ -65,12 +85,38 @@ function applyInsert(result: unknown, doc: { _id: string; [k: string]: unknown }
   }
 
   if (isPaginationResult(result)) {
-    // Ambiguous: should the new doc land on this page? Without filter/sort
-    // semantics we can't know. Err on the side of not mis-ordering.
-    return result
+    // Without a placement hint we can't know which page the doc belongs on —
+    // err on the side of not mis-ordering.
+    if (at === undefined) return result
+
+    const already = result.page.some((r) => hasId(r) && r._id === doc._id)
+    if (already) return result
+
+    if (at === 'start') {
+      // Only the first page — the cached entry whose cursor is null.
+      if (!isFirstPageArgs(context.queryArgs)) return result
+      return { ...result, page: [doc, ...result.page] }
+    }
+
+    // at === 'end': only the final page.
+    if (!result.isDone) return result
+    return { ...result, page: [...result.page, doc] }
   }
 
   return result
+}
+
+/**
+ * Convex paginated queries take their cursor via an argument named
+ * `paginationOpts` (enforced by `usePaginatedQuery` and the
+ * `paginationOptsValidator`). The first page is the one requested with a
+ * null cursor.
+ */
+function isFirstPageArgs(queryArgs: unknown): boolean {
+  if (!queryArgs || typeof queryArgs !== 'object') return false
+  const opts = (queryArgs as Record<string, unknown>).paginationOpts
+  if (!opts || typeof opts !== 'object') return false
+  return (opts as Record<string, unknown>).cursor === null
 }
 
 function applyPatch(result: unknown, id: string, changes: Record<string, unknown>): unknown {

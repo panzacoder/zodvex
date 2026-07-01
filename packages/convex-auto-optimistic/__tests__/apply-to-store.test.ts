@@ -80,6 +80,43 @@ describe('applyPredictionToStore — insert', () => {
     })
   })
 
+  it("passes each cached entry's args through so paginated first-page inserts work", () => {
+    const api = makeApi()
+    const listRef = api.tasks!.list
+
+    const firstPageArgs = { paginationOpts: { numItems: 10, cursor: null } }
+    const secondPageArgs = { paginationOpts: { numItems: 10, cursor: 'c1' } }
+    const entries = new Map<unknown, Array<{ args: unknown; value: unknown }>>([
+      [
+        listRef,
+        [
+          {
+            args: firstPageArgs,
+            value: { page: [{ _id: '1' }], isDone: false, continueCursor: 'c1' }
+          },
+          {
+            args: secondPageArgs,
+            value: { page: [{ _id: '2' }], isDone: true, continueCursor: 'c2' }
+          }
+        ]
+      ]
+    ])
+    const { store, sets } = makeStore(entries)
+
+    applyPredictionToStore(
+      store,
+      { kind: 'insert', doc: { _id: 'new' }, at: 'start' },
+      { graph, apiRoot: api, mutationPath: 'tasks:create' }
+    )
+
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toEqual({
+      ref: listRef,
+      args: firstPageArgs,
+      value: { page: [{ _id: 'new' }, { _id: '1' }], isDone: false, continueCursor: 'c1' }
+    })
+  })
+
   it('skips queries with undefined cached values', () => {
     const api = makeApi()
     const listRef = api.tasks!.list
@@ -174,7 +211,6 @@ describe('applyPredictionToStore — diagnostics', () => {
 
   it('reports getAllQueries failures without aborting other queries', () => {
     const api = makeApi()
-    const listRef = api.tasks!.list
     const byStatusRef = api.tasks!.byStatus
 
     const store: LocalStoreLike = {
