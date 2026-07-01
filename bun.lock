@@ -38,6 +38,7 @@
       "dependencies": {
         "@convex-dev/action-retrier": "^0.3.0",
         "convex": "^1.28.0",
+        "convex-auto-optimistic": "workspace:*",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
         "zod": "4.3.6",
@@ -52,6 +53,7 @@
         "bun-types": "^1.3.0",
         "concurrently": "^9.1.2",
         "convex-helpers": "^0.1.104",
+        "convex-table-graph": "workspace:*",
         "convex-test": "^0.0.41",
         "typescript": "^5.9.3",
         "vite": "^6.3.5",

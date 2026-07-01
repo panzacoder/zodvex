@@ -8,6 +8,7 @@
     "build": "zodvex generate && vite build",
     "deploy": "zodvex generate && bunx convex deploy",
     "generate": "zodvex generate",
+    "generate:graph": "convex-table-graph ./convex -o src/table-graph.generated.ts -f ts",
     "typecheck": "bunx tsc --noEmit --declaration false",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -16,6 +17,7 @@
   "dependencies": {
     "@convex-dev/action-retrier": "^0.3.0",
     "convex": "^1.28.0",
+    "convex-auto-optimistic": "workspace:*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "4.3.6",
@@ -30,6 +32,7 @@
     "bun-types": "^1.3.0",
     "concurrently": "^9.1.2",
     "convex-helpers": "^0.1.104",
+    "convex-table-graph": "workspace:*",
     "convex-test": "^0.0.41",
     "typescript": "^5.9.3",
     "vite": "^6.3.5",

@@ -1,0 +1,21 @@
+{
+  "builders": {
+    "query": ["zq"],
+    "mutation": ["zm", "auditedMutation"],
+    "action": ["za", "authedAction"],
+    "internalQuery": ["ziq"],
+    "internalMutation": ["zim", "auditedInternalMutation"],
+    "internalAction": ["zia"]
+  },
+  "dbFactories": ["zodvexStream"],
+  "overrides": {
+    "notifications:cleanupOld": {
+      "reads": ["notifications"],
+      "writes": ["notifications"]
+    },
+    "cleanup:deleteOldDocs": {
+      "reads": ["users", "tasks", "comments", "activities", "notifications"],
+      "writes": ["users", "tasks", "comments", "activities", "notifications"]
+    }
+  }
+}
