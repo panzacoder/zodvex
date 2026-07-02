@@ -123,6 +123,61 @@ describe('applyPrediction — insert placement (`at`)', () => {
   })
 })
 
+describe('applyPrediction — usePaginatedQuery internal variants', () => {
+  // convex/react's usePaginatedQuery issues internal queries whose
+  // paginationOpts carry an extra `id` field, and identifies the first page
+  // by `cursor === null` (see use_paginated_query.ts). Lock compatibility.
+  it("prepends to the first page when args carry usePaginatedQuery's extra id field", () => {
+    const before = { page: [task('1')], isDone: false, continueCursor: 'c1' }
+    const after = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('2'), at: 'start' },
+      { queryArgs: { paginationOpts: { numItems: 5, cursor: null, id: 1 } } }
+    )
+    expect(after).toEqual({
+      page: [task('2'), task('1')],
+      isDone: false,
+      continueCursor: 'c1'
+    })
+  })
+
+  it('leaves grown (non-first) usePaginatedQuery pages unchanged', () => {
+    const before = { page: [task('1')], isDone: true, continueCursor: 'c2' }
+    const after = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('2'), at: 'start' },
+      { queryArgs: { paginationOpts: { numItems: 5, cursor: 'c1', id: 1 } } }
+    )
+    expect(after).toBe(before)
+  })
+
+  it('recognizes pagination results carrying extra fields and preserves them', () => {
+    const before = {
+      page: [task('1')],
+      isDone: false,
+      continueCursor: 'c1',
+      splitCursor: 's1',
+      pageStatus: 'SplitRecommended'
+    }
+    const inserted = applyPrediction(
+      before,
+      { kind: 'insert', doc: task('2'), at: 'start' },
+      { queryArgs: { paginationOpts: { numItems: 5, cursor: null, id: 1 } } }
+    )
+    expect(inserted).toEqual({ ...before, page: [task('2'), task('1')] })
+
+    const patched = applyPrediction(before, {
+      kind: 'patch',
+      id: '1',
+      changes: { title: 'updated' }
+    })
+    expect(patched).toEqual({ ...before, page: [task('1', { title: 'updated' })] })
+
+    const deleted = applyPrediction(before, { kind: 'delete', id: '1' })
+    expect(deleted).toEqual({ ...before, page: [] })
+  })
+})
+
 describe('applyPrediction — patch', () => {
   it('updates the matching doc in an array', () => {
     const before = [task('1'), task('2', { title: 'two' })]

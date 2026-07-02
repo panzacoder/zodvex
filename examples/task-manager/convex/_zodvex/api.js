@@ -141,7 +141,7 @@ export const zodvexRegistry = {
     returns: TaskModel.schema.doc.nullable(),
   },
   'tasks:list': {
-    args: z.object({ status: z.enum(["todo", "in_progress", "done"]).optional(), ownerId: zx.id("users").optional(), paginationOpts: z.object({ numItems: z.number(), cursor: z.string().nullable() }) }),
+    args: z.object({ status: z.enum(["todo", "in_progress", "done"]).optional(), ownerId: zx.id("users").optional(), paginationOpts: z.object({ numItems: z.number(), cursor: z.string().nullable(), endCursor: z.string().nullable().optional(), id: z.number().optional(), maximumRowsRead: z.number().optional(), maximumBytesRead: z.number().optional() }) }),
     returns: TaskModel.schema.paginatedDoc,
   },
   'tasks:listByCreated': {
@@ -149,7 +149,7 @@ export const zodvexRegistry = {
     returns: z.array(z.object({ title: z.string(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]), priority: z.enum(["low", "medium", "high"]).nullable(), ownerId: zx.id("users"), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), completedAt: zx.date().optional(), estimate: zDuration.optional(), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
   },
   'tasks:listByStatuses': {
-    args: z.object({ statuses: z.array(z.enum(["todo", "in_progress", "done"])), paginationOpts: z.object({ numItems: z.number(), cursor: z.string().nullable() }) }),
+    args: z.object({ statuses: z.array(z.enum(["todo", "in_progress", "done"])), paginationOpts: z.object({ numItems: z.number(), cursor: z.string().nullable(), endCursor: z.string().nullable().optional(), id: z.number().optional(), maximumRowsRead: z.number().optional(), maximumBytesRead: z.number().optional() }) }),
     returns: TaskModel.schema.paginatedDoc,
   },
   'tasks:remove': {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from 'convex/react'
+import { usePaginatedQuery, useQuery, type PaginatedQueryReference } from 'convex/react'
 import { createAutoOptimistic } from 'convex-auto-optimistic/react'
 import { api } from '../convex/_generated/api'
 import { useZodMutation, useZodQuery, encodeArgs, decodeResult } from '../convex/_zodvex/client.js'
@@ -21,6 +21,7 @@ export default function App() {
     <div style={{ display: 'flex', gap: '2rem', padding: '1rem', fontFamily: 'system-ui' }}>
       <UserPanel />
       <TaskPanel />
+      <PaginatedTaskPanel />
     </div>
   )
 }
@@ -169,6 +170,41 @@ function TaskPanel() {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/**
+ * Same tasks table through convex/react's usePaginatedQuery. Its internal
+ * query variants (paginationOpts with an extra `id` field, growing pages)
+ * are patched by the same auto-optimistic predictions as the raw useQuery
+ * panel — create/complete/delete over there update this list instantly too.
+ */
+function PaginatedTaskPanel() {
+  // Cast: zodvex's paginatedDoc types pageStatus as a generic enum string
+  // rather than the 'SplitRecommended' | 'SplitRequired' literal union
+  // PaginatedQueryReference expects (zodvex type bug — runtime shape is
+  // correct). Remove the cast once zx.paginationResult infers literals.
+  const { results, status, loadMore } = usePaginatedQuery(
+    api.tasks.list as unknown as typeof api.tasks.list & PaginatedQueryReference,
+    {},
+    { initialNumItems: 5 }
+  )
+
+  return (
+    <div style={{ flex: 1 }}>
+      <h2>Tasks (usePaginatedQuery)</h2>
+      <ul>
+        {results.map((task) => (
+          <li key={task._id}>
+            <strong>{task.title}</strong> — {task.status}
+          </li>
+        ))}
+      </ul>
+      {status === 'CanLoadMore' && (
+        <button onClick={() => loadMore(5)}>Load more</button>
+      )}
+      {status === 'LoadingFirstPage' && <p>Loading…</p>}
     </div>
   )
 }

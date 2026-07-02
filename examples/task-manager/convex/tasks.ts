@@ -9,6 +9,25 @@ import { zDuration } from './codecs'
 import schema from './schema'
 
 /**
+ * Full Convex pagination validator, hand-typed. usePaginatedQuery sends
+ * extra fields (id, endCursor, ...) that the previous { numItems, cursor }
+ * subset rejected at arg validation.
+ *
+ * NOTE: this should be `zx.paginationOpts()`, but that helper currently
+ * infers `unknown` for every field (its zod-mini-compat optional/nullable
+ * wrappers return untyped $ZodType), which breaks PaginatedQueryReference.
+ * Zodvex bug — replace with zx.paginationOpts() once fixed.
+ */
+const paginationOptsSchema = z.object({
+  numItems: z.number(),
+  cursor: z.string().nullable(),
+  endCursor: z.string().nullable().optional(),
+  id: z.number().optional(),
+  maximumRowsRead: z.number().optional(),
+  maximumBytesRead: z.number().optional(),
+})
+
+/**
  * Read-only helper typed as `QueryCtx`. Used by both `get` (a query) and
  * `complete` (a mutation) below. Demonstrates the native Convex idiom of
  * narrowing `MutationCtx → QueryCtx` for read-only call sites — works
@@ -32,10 +51,7 @@ export const list = zq({
   args: {
     status: z.enum(['todo', 'in_progress', 'done']).optional(),
     ownerId: zx.id('users').optional(),
-    paginationOpts: z.object({
-      numItems: z.number(),
-      cursor: z.string().nullable(),
-    }),
+    paginationOpts: paginationOptsSchema,
   },
   handler: async (ctx, { status, ownerId, paginationOpts }) => {
     const baseQuery = ctx.db.query('tasks')
@@ -71,10 +87,7 @@ export const listByCreated = zq({
 export const listByStatuses = zq({
   args: {
     statuses: z.array(z.enum(['todo', 'in_progress', 'done'])),
-    paginationOpts: z.object({
-      numItems: z.number(),
-      cursor: z.string().nullable(),
-    }),
+    paginationOpts: paginationOptsSchema,
   },
   handler: async (ctx, { statuses, paginationOpts }) => {
     const substreams = statuses.map((status) =>

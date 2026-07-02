@@ -199,6 +199,68 @@ async function main() {
     'doc still gone after server confirmation'
   )
 
+  // ---------- usePaginatedQuery internal variant ----------
+  // convex/react's usePaginatedQuery subscribes with paginationOpts carrying
+  // an extra `id` field. Two things must hold: the server validator accepts
+  // the extra field (zx-style full pagination validator), and the first-page
+  // detection (cursor === null) patches this variant too.
+  console.log('4. usePaginatedQuery-shaped subscription')
+  const PAGINATED_ARGS = { paginationOpts: { numItems: 5, cursor: null, id: 1 } }
+  client.subscribe('tasks:list', PAGINATED_ARGS)
+  const pagDeadline = Date.now() + 10_000
+  const paginatedResult = () =>
+    client.localQueryResult('tasks:list', PAGINATED_ARGS) as ListResult
+  for (;;) {
+    try {
+      if (paginatedResult() !== undefined) break
+    } catch (err) {
+      assert(false, `server accepted usePaginatedQuery args (got: ${err})`)
+      break
+    }
+    if (Date.now() > pagDeadline) throw new Error('paginated tasks:list never loaded')
+    await sleep(20)
+  }
+  assert(paginatedResult() !== undefined, 'server accepted usePaginatedQuery-shaped args (extra id field)')
+
+  const title2 = `optimistic-smoke-paginated ${Date.now()}`
+  const wireArgs2 = encodeArgs(api.tasks.create, {
+    title: title2,
+    ownerId: owner._id,
+    estimate: { hours: 0, minutes: 15 }
+  } as never) as Record<string, unknown>
+  const tempId2 = `optimistic:paginated:${Date.now()}`
+  const insertPrediction2: Prediction = {
+    kind: 'insert',
+    at: 'start',
+    doc: {
+      _id: tempId2,
+      _creationTime: Date.now(),
+      status: 'todo',
+      priority: null,
+      createdAt: Date.now(),
+      ...wireArgs2
+    }
+  }
+  const create2Promise = client.mutation('tasks:create', wireArgs2 as never, {
+    optimisticUpdate: (store) =>
+      applyPredictionToStore(store, insertPrediction2, {
+        ...applyOpts,
+        mutationPath: 'tasks:create'
+      })
+  })
+  assert(
+    paginatedResult()?.page[0]?._id === tempId2,
+    'optimistic doc at top of usePaginatedQuery first page in the same tick'
+  )
+  assert(
+    listResult()?.page[0]?._id === tempId2,
+    'raw useQuery variant patched by the same prediction'
+  )
+  const realId2 = (await create2Promise) as string
+
+  // cleanup: remove the second task
+  await client.mutation('tasks:remove', { id: realId2 })
+
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`)
   await client.close()
   process.exit(failed > 0 ? 1 : 0)
