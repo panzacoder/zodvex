@@ -29,6 +29,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["activities"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"activities","direction":"asc","byCreationTime":false}] as const,
       confidence: "full"
     },
     "activities:update": {
@@ -92,6 +93,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["comments"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"comments","direction":"desc","byCreationTime":false}] as const,
       confidence: "full"
     },
     "componentFunctions:getTaskById": {
@@ -113,6 +115,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["users"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"users","direction":"asc","byCreationTime":true}] as const,
       confidence: "full"
     },
     "filters:recentUsers": {
@@ -120,6 +123,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["users"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"users","direction":"asc","byCreationTime":true}] as const,
       confidence: "full"
     },
     "filters:recentUsersWithHelper": {
@@ -127,6 +131,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["users"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"users","direction":"asc","byCreationTime":true}] as const,
       confidence: "full"
     },
     "notifications:cleanupOld": {
@@ -169,6 +174,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["notifications"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"notifications","direction":"asc","byCreationTime":false}] as const,
       confidence: "full"
     },
     "notifications:listByKind": {
@@ -176,6 +182,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["notifications"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"notifications","direction":"asc","byCreationTime":false}] as const,
       confidence: "full"
     },
     "notifications:listByRecipient": {
@@ -183,6 +190,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["notifications"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"notifications","direction":"asc","byCreationTime":false}] as const,
       confidence: "full"
     },
     "notifications:listByRecipientAndKind": {
@@ -190,6 +198,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["notifications"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"notifications","direction":"asc","byCreationTime":false}] as const,
       confidence: "full"
     },
     "securedTasks:listOwnTasks": {
@@ -197,6 +206,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["tasks"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"tasks","direction":"asc","byCreationTime":true}] as const,
       confidence: "full"
     },
     "securedTasks:updateOwnTask": {
@@ -239,6 +249,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["tasks"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"tasks","direction":"asc","byCreationTime":false}] as const,
       confidence: "full"
     },
     "tasks:listByStatuses": {
@@ -246,6 +257,14 @@ export const tableGraph = {
       visibility: "public",
       reads: ["tasks"] as const,
       writes: [] as const,
+      confidence: "full"
+    },
+    "tasks:recent": {
+      kind: "query",
+      visibility: "public",
+      reads: ["tasks"] as const,
+      writes: [] as const,
+      resultOrderings: [{"table":"tasks","direction":"desc","byCreationTime":true}] as const,
       confidence: "full"
     },
     "tasks:remove": {
@@ -267,6 +286,7 @@ export const tableGraph = {
       visibility: "public",
       reads: ["users"] as const,
       writes: [] as const,
+      resultOrderings: [{"table":"users","direction":"asc","byCreationTime":false}] as const,
       confidence: "full"
     },
     "users:create": {

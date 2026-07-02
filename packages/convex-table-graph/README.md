@@ -106,6 +106,24 @@ for (const [path, info] of Object.entries(graph.functions)) {
 }
 ```
 
+### Result orderings
+
+For query functions, the analyzer also extracts how list-shaped results are ordered, when a complete `db.query('t')…collect/take/paginate` chain is visible:
+
+```jsonc
+"tasks:recent": {
+  "kind": "query",
+  "reads": ["tasks"],
+  "resultOrderings": [{ "table": "tasks", "direction": "desc", "byCreationTime": true }]
+}
+```
+
+- `direction` comes from a literal `.order('asc'|'desc')` call (default `asc`).
+- `byCreationTime` is true when the chain uses the default index (or `by_creation_time` explicitly) — the only case where a newly inserted doc's position is statically knowable. Custom-index chains are recorded with `byCreationTime: false`.
+- Extraction is conservative: broken chains (variable assignments, ternaries), dynamic `.order()` arguments, search indexes, unknown chain methods, and disagreeing chains on the same table all suppress the entry. Single-doc terminators (`first`/`unique`) neither contribute nor invalidate.
+
+Consumers (e.g. convex-auto-optimistic) use this to place optimistic inserts per query instead of requiring a per-mutation hint.
+
 ### Patterns recognized
 
 - `ctx.db.query("table")`, `.insert("table", doc)` — direct string-literal tables

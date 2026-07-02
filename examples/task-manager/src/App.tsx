@@ -205,6 +205,29 @@ function PaginatedTaskPanel() {
         <button onClick={() => loadMore(5)}>Load more</button>
       )}
       {status === 'LoadingFirstPage' && <p>Loading…</p>}
+      <RecentTasks />
     </div>
+  )
+}
+
+/**
+ * tasks:recent has a statically extractable ordering (desc, creation-time),
+ * so optimistic inserts land at the top of this list purely from the graph —
+ * the prediction's `at` hint exists only for queries like the paginated
+ * tasks:list whose ordering the analyzer can't see.
+ */
+function RecentTasks() {
+  const recent = useQuery(api.tasks.recent, {})
+  return (
+    <>
+      <h3>Recent (auto-placed)</h3>
+      <ul>
+        {recent?.map((task) => (
+          <li key={task._id}>
+            <strong>{task.title}</strong> — {task.status}
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }

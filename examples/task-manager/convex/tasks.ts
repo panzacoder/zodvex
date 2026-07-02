@@ -66,6 +66,20 @@ export const list = zq({
   returns: TaskModel.schema.paginatedDoc,
 })
 
+/**
+ * Newest-first over the default creation-time index. The table-graph analyzer
+ * extracts { direction: 'desc', byCreationTime: true } from this chain, so
+ * convex-auto-optimistic places inserted docs at the top automatically — no
+ * `at` hint needed in predictions.
+ */
+export const recent = zq({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query('tasks').order('desc').take(20)
+  },
+  returns: z.array(TaskModel.schema.doc),
+})
+
 export const listByCreated = zq({
   args: { after: zx.date() },
   handler: async (ctx, { after }) => {

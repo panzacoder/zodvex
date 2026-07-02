@@ -261,6 +261,56 @@ async function main() {
   // cleanup: remove the second task
   await client.mutation('tasks:remove', { id: realId2 })
 
+  // ---------- graph-derived auto placement ----------
+  // tasks:recent is `.order('desc').take(20)` — the analyzer extracted
+  // { direction: 'desc', byCreationTime: true }, so an insert prediction with
+  // NO `at` hint must land at the top of tasks:recent, while the paginated
+  // tasks:list (no ordering extractable, no hint) must be skipped.
+  console.log('5. auto placement from resultOrderings (no at hint)')
+  client.subscribe('tasks:recent', {})
+  const recentResult = () => client.localQueryResult('tasks:recent', {}) as TaskDoc[] | undefined
+  const recDeadline2 = Date.now() + 10_000
+  while (recentResult() === undefined) {
+    if (Date.now() > recDeadline2) throw new Error('tasks:recent never loaded')
+    await sleep(20)
+  }
+
+  const title3 = `optimistic-smoke-autoplace ${Date.now()}`
+  const wireArgs3 = encodeArgs(api.tasks.create, {
+    title: title3,
+    ownerId: owner._id
+  } as never) as Record<string, unknown>
+  const tempId3 = `optimistic:autoplace:${Date.now()}`
+  const insertPrediction3: Prediction = {
+    kind: 'insert',
+    // no `at` — placement must come from the graph
+    doc: {
+      _id: tempId3,
+      _creationTime: Date.now(),
+      status: 'todo',
+      priority: null,
+      createdAt: Date.now(),
+      ...wireArgs3
+    }
+  }
+  const create3Promise = client.mutation('tasks:create', wireArgs3 as never, {
+    optimisticUpdate: (store) =>
+      applyPredictionToStore(store, insertPrediction3, {
+        ...applyOpts,
+        mutationPath: 'tasks:create'
+      })
+  })
+  assert(
+    recentResult()?.[0]?._id === tempId3,
+    'doc auto-placed at top of tasks:recent (desc creation-time ordering, no hint)'
+  )
+  assert(
+    !(listResult()?.page ?? []).some((t) => t._id === tempId3),
+    'paginated tasks:list skipped without ordering or hint'
+  )
+  const realId3 = (await create3Promise) as string
+  await client.mutation('tasks:remove', { id: realId3 })
+
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`)
   await client.close()
   process.exit(failed > 0 ? 1 : 0)

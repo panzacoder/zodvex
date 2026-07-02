@@ -114,18 +114,23 @@ The prediction describes what the mutation is expected to do. The helper applies
 | -------------------------------------- | ------------------------------------------- | ------------------------------ | ------------------------------- |
 | `Document[]` (list)                    | Append, or prepend with `at: 'start'` (dedup on `_id`) | Replace matching `_id`         | Filter out matching `_id`       |
 | `Document \| null` (first/unique/get)  | Replace `null` with doc                     | Replace if `_id` matches       | Replace with `null` if match    |
-| `{ page, isDone, continueCursor }`     | Requires `at` hint (see below); skipped otherwise | Operate on `page` array        | Operate on `page` array         |
+| `{ page, isDone, continueCursor }`     | Requires placement — graph ordering or `at` hint (see below) | Operate on `page` array        | Operate on `page` array         |
 | Other shapes                           | Skip                                        | Skip                           | Skip                            |
 
-### Paginated inserts and the `at` hint
+### Insert placement: graph orderings first, `at` hint as fallback
 
-An insert prediction can carry `at: 'start' | 'end'` describing where the doc lands in ordered results:
+Where an inserted doc lands is resolved per affected query:
 
-- `at: 'start'` — prepend. For paginated queries, applies **only to the first page**: the cached entry whose `paginationOpts.cursor` is `null` (Convex requires the pagination argument to be named `paginationOpts`, so this is detectable). Use for `desc`-ordered lists where new docs appear on top.
-- `at: 'end'` — append. For paginated queries, applies only to the final page (`isDone: true`).
-- omitted — plain arrays append; paginated results are skipped, because without ordering information a misplaced insert is worse than a ~100ms delay.
+1. **Graph result orderings (automatic).** convex-table-graph statically extracts each query's ordering when the full chain is visible (`resultOrderings` in the graph). A creation-time ordering makes placement exact — new docs always have the max `_creationTime` — so `desc` → start, `asc` → end, with no configuration. This *overrides* the prediction's `at` hint, because the graph knows this specific query's ordering while the hint is one-size-for-all.
+2. **The prediction's `at: 'start' | 'end'` hint (fallback).** Used for queries the analyzer couldn't classify (broken chains, custom indexes, dynamic ordering).
+3. **Neither** — plain arrays append; paginated results are skipped, because a misplaced insert is worse than a ~100ms delay.
 
-The hint is per-*mutation*, but it applies to every affected query. If one mutation feeds queries with conflicting orderings, the hint will misplace the doc in some of them until the server confirms (subscription corrects it). That's inherent to table-level granularity — see "Caveats".
+Pagination mechanics for either source of placement:
+
+- `'start'` applies **only to the first page**: the cached entry whose `paginationOpts.cursor` is `null` (Convex requires the pagination argument to be named `paginationOpts`, so this is detectable — including `usePaginatedQuery`'s internal query variants).
+- `'end'` applies only to the final page (`isDone: true`).
+
+The `at` hint is per-*mutation* but applies to every affected query without an extracted ordering; if those queries disagree on ordering, the hint misplaces the doc in some of them until the server confirms (subscription corrects it).
 
 For filtered queries (e.g. `tasks:byStatus({ status: 'todo' })`), the naive insert may include docs that don't match the filter — the subscription update will correct this within ~100ms. If this matters for your UI, use Convex's native `withOptimisticUpdate` for that specific mutation.
 
@@ -154,5 +159,5 @@ createAutoOptimistic({
 2. **Complex return shapes** — if your query returns a custom shape (not `Document[]`, `Document | null`, or paginated), the helper can't patch it. Use native `withOptimisticUpdate` for those.
 3. **Conflicting mutations** — if two optimistic updates fire before either confirms, they stack in order. Rollback behavior matches Convex's native semantics.
 4. **Stale graph** — if you regenerate your code without regenerating the graph, new functions are invisible to the helper. Run `convex-table-graph` in your build pipeline.
-5. **One `at` hint for all affected queries** — insert placement is declared per mutation but applied per query; queries with different orderings than the hint assumes show the doc in the wrong position until the subscription corrects it.
+5. **One `at` hint for all unclassified queries** — queries with extracted orderings are placed exactly, but the fallback hint is per-mutation; unclassified queries whose real ordering differs from the hint show the doc in the wrong position until the subscription corrects it.
 6. **Predictions are wire-shaped** — see "The codec contract" above. Authoring predictions in runtime shape (e.g. a `Date` in a doc field) silently produces store values your components won't expect.
