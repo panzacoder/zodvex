@@ -32,6 +32,43 @@ function isClientSubscribable(info: FunctionInfo): boolean {
 }
 
 /**
+ * Determine where a newly inserted doc lands in a query's results, from the
+ * graph's statically extracted orderings.
+ *
+ * Only creation-time orderings are placeable (new docs always have the max
+ * `_creationTime`): desc → 'start', asc → 'end'. When the mutation writes
+ * several tables the query reads, every such table must have a placeable
+ * ordering and they must all agree — the prediction doesn't say which table
+ * the doc belongs to.
+ *
+ * Returns undefined when placement can't be derived; callers fall back to
+ * the prediction's explicit `at` hint.
+ */
+export function resolveInsertPlacement(
+  graph: TableGraphLike,
+  mutationPath: string,
+  queryPath: string
+): 'start' | 'end' | undefined {
+  const mutation = graph.functions[mutationPath]
+  const query = graph.functions[queryPath]
+  if (!mutation || !query?.resultOrderings) return undefined
+
+  const written = new Set(mutation.writes)
+  const relevantTables = query.reads.filter((t) => written.has(t))
+  if (relevantTables.length === 0) return undefined
+
+  let placement: 'start' | 'end' | undefined
+  for (const table of relevantTables) {
+    const ordering = query.resultOrderings.find((o) => o.table === table)
+    if (!ordering || !ordering.byCreationTime) return undefined
+    const p = ordering.direction === 'desc' ? 'start' : 'end'
+    if (placement && placement !== p) return undefined
+    placement = p
+  }
+  return placement
+}
+
+/**
  * Walk a Convex `api` object and resolve a function path (e.g. "tasks:list"
  * or "api/reports:summary") to its FunctionReference.
  *

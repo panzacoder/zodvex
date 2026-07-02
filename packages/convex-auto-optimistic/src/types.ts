@@ -17,11 +17,24 @@ export type FunctionKind =
 
 export type Visibility = 'public' | 'internal'
 
+/**
+ * How a query function orders its list-shaped results for one table
+ * (extracted statically by convex-table-graph). `byCreationTime: true` means
+ * the default creation-time index — the only case where a newly inserted
+ * doc's position is knowable: desc → start of results, asc → end.
+ */
+export type ResultOrdering = {
+  table: string
+  direction: 'asc' | 'desc'
+  byCreationTime: boolean
+}
+
 export type FunctionInfo = {
   kind: FunctionKind
   visibility: Visibility
   reads: readonly string[]
   writes: readonly string[]
+  resultOrderings?: readonly ResultOrdering[]
 }
 
 export type TableGraphLike = {

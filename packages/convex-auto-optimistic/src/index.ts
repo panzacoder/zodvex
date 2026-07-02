@@ -3,6 +3,7 @@ export { applyPredictionToStore, type LocalStoreLike } from './apply-to-store'
 export {
   findAffectedQueryPaths,
   resolveAffectedQueries,
+  resolveInsertPlacement,
   resolveRefFromPath
 } from './find-queries'
 export type {
@@ -12,6 +13,7 @@ export type {
   FunctionInfo,
   FunctionKind,
   Prediction,
+  ResultOrdering,
   TableGraphLike,
   Visibility
 } from './types'

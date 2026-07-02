@@ -1,5 +1,5 @@
 import { applyPrediction } from './apply-prediction'
-import { resolveAffectedQueries } from './find-queries'
+import { resolveAffectedQueries, resolveInsertPlacement } from './find-queries'
 import type { DiagnosticHandler, Prediction, TableGraphLike } from './types'
 
 /**
@@ -49,6 +49,17 @@ export function applyPredictionToStore(
   }
 
   for (const { path, ref } of resolved) {
+    // Per-query insert placement from the graph's statically extracted
+    // orderings beats the prediction's per-mutation `at` hint — the graph
+    // knows THIS query's ordering; the hint is a one-size-for-all fallback.
+    let effectivePrediction = prediction
+    if (prediction.kind === 'insert') {
+      const placement = resolveInsertPlacement(graph, mutationPath, path)
+      if (placement && placement !== prediction.at) {
+        effectivePrediction = { ...prediction, at: placement }
+      }
+    }
+
     let entries: Array<{ args: unknown; value: unknown }>
     try {
       entries = store.getAllQueries(ref)
@@ -63,7 +74,7 @@ export function applyPredictionToStore(
     }
 
     for (const { args, value } of entries) {
-      const nextValue = applyPrediction(value, prediction, { queryArgs: args })
+      const nextValue = applyPrediction(value, effectivePrediction, { queryArgs: args })
       if (nextValue !== value) {
         store.setQuery(ref, args, nextValue)
       }

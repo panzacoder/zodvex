@@ -117,6 +117,95 @@ describe('applyPredictionToStore — insert', () => {
     })
   })
 
+  it('auto-places inserts from graph resultOrderings without an at hint', () => {
+    const orderedGraph: TableGraphLike = {
+      functions: {
+        'tasks:create': { kind: 'mutation', visibility: 'public', reads: [], writes: ['tasks'] },
+        'tasks:newestFirst': {
+          kind: 'query',
+          visibility: 'public',
+          reads: ['tasks'],
+          writes: [],
+          resultOrderings: [{ table: 'tasks', direction: 'desc', byCreationTime: true }]
+        },
+        'tasks:oldestFirst': {
+          kind: 'query',
+          visibility: 'public',
+          reads: ['tasks'],
+          writes: [],
+          resultOrderings: [{ table: 'tasks', direction: 'asc', byCreationTime: true }]
+        }
+      }
+    }
+    const api = {
+      tasks: {
+        newestFirst: { _name: 'tasks:newestFirst' },
+        oldestFirst: { _name: 'tasks:oldestFirst' }
+      }
+    }
+    const entries = new Map<unknown, Array<{ args: unknown; value: unknown }>>([
+      [api.tasks.newestFirst, [{ args: {}, value: [{ _id: '1' }] }]],
+      [api.tasks.oldestFirst, [{ args: {}, value: [{ _id: '1' }] }]]
+    ])
+    const { store, sets } = makeStore(entries)
+
+    applyPredictionToStore(
+      store,
+      { kind: 'insert', doc: { _id: 'new' } }, // no `at`
+      { graph: orderedGraph, apiRoot: api, mutationPath: 'tasks:create' }
+    )
+
+    expect(sets).toEqual([
+      { ref: api.tasks.newestFirst, args: {}, value: [{ _id: 'new' }, { _id: '1' }] },
+      { ref: api.tasks.oldestFirst, args: {}, value: [{ _id: '1' }, { _id: 'new' }] }
+    ])
+  })
+
+  it('graph resultOrderings override a conflicting at hint', () => {
+    const orderedGraph: TableGraphLike = {
+      functions: {
+        'tasks:create': { kind: 'mutation', visibility: 'public', reads: [], writes: ['tasks'] },
+        'tasks:newestFirst': {
+          kind: 'query',
+          visibility: 'public',
+          reads: ['tasks'],
+          writes: [],
+          resultOrderings: [{ table: 'tasks', direction: 'desc', byCreationTime: true }]
+        }
+      }
+    }
+    const api = { tasks: { newestFirst: { _name: 'tasks:newestFirst' } } }
+    const entries = new Map<unknown, Array<{ args: unknown; value: unknown }>>([
+      [api.tasks.newestFirst, [{ args: {}, value: [{ _id: '1' }] }]]
+    ])
+    const { store, sets } = makeStore(entries)
+
+    applyPredictionToStore(
+      store,
+      { kind: 'insert', doc: { _id: 'new' }, at: 'end' }, // wrong hint for a desc query
+      { graph: orderedGraph, apiRoot: api, mutationPath: 'tasks:create' }
+    )
+
+    expect(sets[0]?.value).toEqual([{ _id: 'new' }, { _id: '1' }])
+  })
+
+  it('falls back to the at hint for queries without orderings', () => {
+    const api = makeApi()
+    const listRef = api.tasks!.list
+    const entries = new Map<unknown, Array<{ args: unknown; value: unknown }>>([
+      [listRef, [{ args: {}, value: [{ _id: '1' }] }]]
+    ])
+    const { store, sets } = makeStore(entries)
+
+    applyPredictionToStore(
+      store,
+      { kind: 'insert', doc: { _id: 'new' }, at: 'start' },
+      { graph, apiRoot: api, mutationPath: 'tasks:create' }
+    )
+
+    expect(sets[0]?.value).toEqual([{ _id: 'new' }, { _id: '1' }])
+  })
+
   it('skips queries with undefined cached values', () => {
     const api = makeApi()
     const listRef = api.tasks!.list
