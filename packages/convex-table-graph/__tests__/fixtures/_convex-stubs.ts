@@ -8,13 +8,20 @@ export type Id<T extends string> = string & { readonly __tableName: T }
 
 export type GenericId<T extends string> = Id<T>
 
+type QueryChain = {
+  collect: () => Promise<any[]>
+  first: () => Promise<any | null>
+  unique: () => Promise<any>
+  take: (n: number) => Promise<any[]>
+  paginate: (opts: any) => Promise<{ page: any[]; isDone: boolean; continueCursor: string }>
+  order: (direction: 'asc' | 'desc') => QueryChain
+  filter: (fn: (q: any) => any) => QueryChain
+  withIndex: (name: string, fn?: (q: any) => any) => QueryChain
+  withSearchIndex: (name: string, fn: (q: any) => any) => QueryChain
+}
+
 export type DatabaseReader = {
-  query: (tableName: string) => {
-    collect: () => Promise<any[]>
-    first: () => Promise<any | null>
-    unique: () => Promise<any>
-    withIndex: (name: string, fn: (q: any) => any) => any
-  }
+  query: (tableName: string) => QueryChain
   get: {
     <T extends string>(id: Id<T>): Promise<any>
     <T extends string>(tableName: T, id: Id<T>): Promise<any>

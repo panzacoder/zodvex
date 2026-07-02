@@ -31,6 +31,22 @@ export type SourceLocation = {
   column: number
 }
 
+/**
+ * The result ordering of a query function's list-shaped output for one table,
+ * extracted from a complete `db.query(table)...order(...)…collect/take/paginate`
+ * chain. Only present when every list-producing chain for the table agrees.
+ *
+ * `byCreationTime` is true when the chain uses the default index (or
+ * `by_creation_time` explicitly) — the only case where the position of a
+ * newly inserted doc is statically knowable (new docs have the max
+ * `_creationTime`): desc → start of results, asc → end.
+ */
+export type ResultOrdering = {
+  table: string
+  direction: 'asc' | 'desc'
+  byCreationTime: boolean
+}
+
 export type FunctionInfo = {
   /** e.g. "tasks:create" */
   path: string
@@ -40,6 +56,11 @@ export type FunctionInfo = {
   reads: string[]
   /** Tables written by this function */
   writes: string[]
+  /**
+   * Per-table result orderings for query functions (see ResultOrdering).
+   * Omitted when nothing could be confidently extracted.
+   */
+  resultOrderings?: ResultOrdering[]
   /** full = all paths resolved; partial = some db access unresolved */
   confidence: Confidence
   /** Relative source file path (from cwd or convex root) */

@@ -408,3 +408,86 @@ describe('analyze — depth limit', () => {
     expect(fn.writes).toEqual(['tasks'])
   })
 })
+
+describe('analyze — result orderings', () => {
+  const graph = analyze({ convexDir: fixture('ordering') })
+
+  function orderings(fnPath: string) {
+    const fn = graph.functions[fnPath]
+    if (!fn) throw new Error(`missing ${fnPath}`)
+    return fn.resultOrderings
+  }
+
+  it('records explicit desc over the creation-time default index', () => {
+    expect(orderings('tasks:listDesc')).toEqual([
+      { table: 'tasks', direction: 'desc', byCreationTime: true }
+    ])
+  })
+
+  it('records the asc default when .order() is absent', () => {
+    expect(orderings('tasks:listDefault')).toEqual([
+      { table: 'tasks', direction: 'asc', byCreationTime: true }
+    ])
+  })
+
+  it('treats paginate and take as list-producing terminators', () => {
+    expect(orderings('tasks:paginatedDesc')).toEqual([
+      { table: 'tasks', direction: 'desc', byCreationTime: true }
+    ])
+    expect(orderings('tasks:recentTake')).toEqual([
+      { table: 'tasks', direction: 'desc', byCreationTime: true }
+    ])
+  })
+
+  it('ignores order-preserving .filter() in the chain', () => {
+    expect(orderings('tasks:filteredDesc')).toEqual([
+      { table: 'tasks', direction: 'desc', byCreationTime: true }
+    ])
+  })
+
+  it('records custom-index orderings with byCreationTime false', () => {
+    expect(orderings('tasks:indexedDesc')).toEqual([
+      { table: 'tasks', direction: 'desc', byCreationTime: false }
+    ])
+  })
+
+  it('produces no entry for single-doc terminators', () => {
+    expect(orderings('tasks:singleOnly')).toBeUndefined()
+  })
+
+  it('produces no entry when the chain is broken by a variable assignment', () => {
+    expect(orderings('tasks:brokenChain')).toBeUndefined()
+    expect(graph.functions['tasks:brokenChain']!.reads).toEqual(['tasks'])
+  })
+
+  it('produces no entry when two confident chains conflict', () => {
+    expect(orderings('tasks:conflicting')).toBeUndefined()
+  })
+
+  it('produces no entry for a dynamic .order() argument', () => {
+    expect(orderings('tasks:dynamicOrder')).toBeUndefined()
+  })
+
+  it('produces no entry for search-indexed queries', () => {
+    expect(orderings('tasks:searched')).toBeUndefined()
+  })
+
+  it('records per-table orderings independently', () => {
+    expect(orderings('tasks:multiTable')).toEqual([
+      { table: 'tasks', direction: 'desc', byCreationTime: true },
+      { table: 'users', direction: 'asc', byCreationTime: true }
+    ])
+  })
+
+  it('lets a list chain coexist with a single-doc chain on the same table', () => {
+    expect(orderings('tasks:mixedShapes')).toEqual([
+      { table: 'tasks', direction: 'desc', byCreationTime: true }
+    ])
+  })
+
+  it('keeps reads extraction intact across all ordering fixtures', () => {
+    for (const fn of Object.values(graph.functions)) {
+      expect(fn.reads.length).toBeGreaterThan(0)
+    }
+  })
+})

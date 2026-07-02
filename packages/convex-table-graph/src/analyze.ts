@@ -133,6 +133,15 @@ function analyzeSourceFile(
       }
     }
 
+    // Result orderings only make sense for subscribable results — attach for
+    // query kinds, dropping tables whose chains conflicted.
+    if (fn.kind === 'query' || fn.kind === 'internalQuery') {
+      const orderings = Array.from(analysis.orderings.values())
+        .filter((o): o is Exclude<typeof o, 'conflict'> => o !== 'conflict')
+        .sort((a, b) => a.table.localeCompare(b.table))
+      if (orderings.length > 0) info.resultOrderings = orderings
+    }
+
     graph.functions[path] = info
   }
 }

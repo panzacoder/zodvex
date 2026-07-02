@@ -67,6 +67,9 @@ function formatAsTs(graph: TableGraph): string {
     lines.push(`      visibility: ${JSON.stringify(info.visibility)},`)
     lines.push(`      reads: ${JSON.stringify(info.reads)} as const,`)
     lines.push(`      writes: ${JSON.stringify(info.writes)} as const,`)
+    if (info.resultOrderings) {
+      lines.push(`      resultOrderings: ${JSON.stringify(info.resultOrderings)} as const,`)
+    }
     lines.push(`      confidence: ${JSON.stringify(info.confidence)}`)
     lines.push(`    },`)
   }

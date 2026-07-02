@@ -6,6 +6,7 @@ import {
   Node
 } from 'ts-morph'
 import { DB_METHODS, DB_METHODS_IGNORED } from './db-methods'
+import { extractChainOrdering } from './ordering'
 import {
   type CallableDeclaration,
   extractTableFromIdType,
@@ -25,7 +26,7 @@ import {
   seedTaintFromHandler,
   type TaintState
 } from './taint'
-import type { Diagnostic } from './types'
+import type { Diagnostic, ResultOrdering } from './types'
 
 const isDbMethod = (methodName: string): boolean => {
   return methodName in DB_METHODS || DB_METHODS_IGNORED.has(methodName)
@@ -36,6 +37,12 @@ export type AnalysisResult = {
   writes: Set<string>
   partial: boolean
   diagnostics: Diagnostic[]
+  /**
+   * Per-table result ordering extracted from complete query chains.
+   * 'conflict' means chains disagreed or one was inconclusive — the table
+   * must not report an ordering.
+   */
+  orderings: Map<string, ResultOrdering | 'conflict'>
 }
 
 export type AnalyzeContext = {
@@ -65,7 +72,8 @@ export function analyzeHandler(
     reads: new Set(),
     writes: new Set(),
     partial: false,
-    diagnostics: []
+    diagnostics: [],
+    orderings: new Map()
   }
 
   const state = createTaintState(ctx.dbFactories)
@@ -107,8 +115,12 @@ function analyzeFunctionBody(
     // 1. Is this a direct call on a tainted db? If so, record the table.
     const dbCall = tryExtractDbCall(call, state)
     if (dbCall) {
-      if (dbCall.op === 'read') result.reads.add(dbCall.table)
-      else result.writes.add(dbCall.table)
+      if (dbCall.op === 'read') {
+        result.reads.add(dbCall.table)
+        if (dbCall.method === 'query') recordOrdering(call, dbCall.table, result)
+      } else {
+        result.writes.add(dbCall.table)
+      }
       continue
     }
 
@@ -213,7 +225,41 @@ function visitKey(fn: CallableDeclaration, state: TaintState): string {
   return `${fn.getSourceFile().getFilePath()}:${fn.getStart()}|${env.join(',')}`
 }
 
-type DbCallInfo = { op: 'read' | 'write'; table: string }
+type DbCallInfo = { op: 'read' | 'write'; table: string; method: string }
+
+/**
+ * Fold one query chain's ordering into the per-table map. Every list-producing
+ * chain for a table must agree; a disagreeing or inconclusive chain poisons
+ * the table ('conflict'). Single-doc chains contribute nothing either way.
+ */
+function recordOrdering(call: CallExpression, table: string, result: AnalysisResult): void {
+  const chain = extractChainOrdering(call)
+  if (chain.kind === 'single') return
+
+  const existing = result.orderings.get(table)
+  if (existing === 'conflict') return
+
+  if (chain.kind === 'inconclusive') {
+    result.orderings.set(table, 'conflict')
+    return
+  }
+
+  const ordering: ResultOrdering = {
+    table,
+    direction: chain.direction,
+    byCreationTime: chain.byCreationTime
+  }
+  if (!existing) {
+    result.orderings.set(table, ordering)
+    return
+  }
+  if (
+    existing.direction !== ordering.direction ||
+    existing.byCreationTime !== ordering.byCreationTime
+  ) {
+    result.orderings.set(table, 'conflict')
+  }
+}
 
 /**
  * Try to interpret a call as a direct ctx.db method call on a tainted db reference,
@@ -240,7 +286,7 @@ function tryExtractDbCall(call: CallExpression, state: TaintState): DbCallInfo |
   const table = extractTableName(call, spec.argIndex, spec.tableSource, state)
   if (!table) return null
 
-  return { op: spec.op, table }
+  return { op: spec.op, table, method: methodName }
 }
 
 /**
