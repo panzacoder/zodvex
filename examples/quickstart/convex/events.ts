@@ -5,7 +5,7 @@ import { EventModel } from './models'
 
 export const list = zq({
   args: {},
-  returns: EventModel.schema.docArray,
+  returns: zx.docArray(EventModel),
   handler: async (ctx) => {
     // Dates come back as Date objects, not numbers
     return await ctx.db.query('events').collect()
