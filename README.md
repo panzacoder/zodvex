@@ -22,7 +22,7 @@ Use Zod v4 as your schema language for Convex — define your data once and use 
 
 ## Why zodvex?
 
-**zodvex lets you use Zod v4 as your schema language for Convex.** Define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation, zodvex adds what plain validator-mapping doesn't: function I/O is validated automatically, and `ctx.db` is codec-aware.
+**zodvex lets you use Zod v4 as your schema language for Convex.** Define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. Convex's codegen gives your functions end-to-end *type* safety; zodvex matches that inference and extends it into *runtime* safety.
 
 - **Define your schema once, in Zod.** Model your tables, arguments, and return types as Zod v4 schemas, then reuse the same definitions across your database, server, and client. `defineZodModel` builds the table; `defineZodSchema` assembles the Convex schema from your models.
 
@@ -32,7 +32,7 @@ Use Zod v4 as your schema language for Convex — define your data once and use 
 
 - **Codegen that complements Convex's own.** An optional CLI emits a `_zodvex/` folder alongside `_generated/`: client-safe schema imports from one stable path, plus typed hooks (`useZodQuery` / `useZodMutation`) that infer argument and return types straight from your function definitions — your Convex functions stay the single source of truth.
 
-zodvex ships its own Zod → Convex mapping layer — codec awareness and Convex's exact optional/nullable semantics require deeper integration than a standalone converter can offer. It is not a middleware or function-composition framework: its "middleware" is the codec-aware db, configured once via `initZodvex`.
+- **Schema-aware functions, wired once.** Convex's built-in validators check structure; zodvex layers full Zod power on top — refinements (`.min()`, `.email()`), transformations, and codecs run at runtime, not just in the type system. `initZodvex` configures it once: your builders come back with validation, codecs, and the wrapped `ctx.db` ready to go.
 
 ## Installation
 
