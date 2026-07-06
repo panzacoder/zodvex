@@ -2,6 +2,8 @@
 
 Use `zx.date()` for explicit, type-safe date handling. This codec transforms between JavaScript `Date` objects and Convex timestamps (stored as `v.float64()`).
 
+The examples assume the standard [`initZodvex` setup](./builders.md) — `zm` is a builder returned by `initZodvex`.
+
 ## Using zx.date() (Recommended)
 
 ```ts
@@ -28,15 +30,35 @@ export const createEvent = zm({
   }
 })
 
-// On the frontend - just pass Date objects
-const createEvent = useMutation(api.events.createEvent)
+```
+
+**On the frontend**, how you pass dates depends on your client setup:
+
+```ts
+// With codegen's typed hooks — pass Date objects, they're encoded for you
+import { useZodMutation } from '../convex/_zodvex/client'
+
+const createEvent = useZodMutation(api.events.createEvent)
 await createEvent({
   title: 'My Event',
   startDate: new Date('2024-01-01'),
   endDate: new Date('2024-01-02')
 })
-// ✅ Automatically encoded to timestamps
 ```
+
+```ts
+// With Convex's plain useMutation — pass the wire format (epoch ms).
+// The Convex client can't serialize Date objects; your handler still
+// receives Date objects because zodvex decodes args on the server.
+const createEvent = useMutation(api.events.createEvent)
+await createEvent({
+  title: 'My Event',
+  startDate: new Date('2024-01-01').getTime(),
+  endDate: new Date('2024-01-02').getTime()
+})
+```
+
+See the [Codegen guide](./codegen.md) for setting up the typed hooks.
 
 **How it works:**
 - **Args**: Timestamps from client → decoded to `Date` objects via codec

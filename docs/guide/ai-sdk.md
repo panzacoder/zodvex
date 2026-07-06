@@ -65,18 +65,23 @@ import { zx, toJSONSchema } from 'zodvex'
 
 const schema = z.object({
   userId: zx.id('users'),
-  createdAt: zx.date(),
   name: z.string()
 })
 
-// Automatically handles zx.id() and zx.date() for JSON Schema generation
+// Automatically handles zx.id() for JSON Schema generation
 const jsonSchema = toJSONSchema(schema)
 // Use with AI SDK or other JSON Schema consumers
 ```
 
-The `toJSONSchema` helper automatically handles zodvex-managed types:
+The `toJSONSchema` helper automatically handles:
 - `zx.id('tableName')` → `{ type: "string", format: "convex-id:tableName" }`
-- `zx.date()` → `{ type: "string", format: "date-time" }`
+- native `z.date()` → `{ type: "string", format: "date-time" }`
+
+> **Known limitation:** `zx.date()` (and custom `zx.codec()` fields) are **not** yet
+> converted — they currently emit an unconstrained `{}` property, so an LLM can put
+> anything in that field ([#91](https://github.com/panzacoder/zodvex/issues/91)). Until
+> that's fixed, use a plain `z.string()` / ISO-string field in schemas you hand to the
+> AI SDK, or supply your own override (below) for codec fields.
 
 For custom overrides, use `zodvexJSONSchemaOverride` directly:
 ```ts

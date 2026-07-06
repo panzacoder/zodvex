@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-zodvex is a TypeScript library that provides Zod v4 → Convex validator mapping with correct optional and nullable semantics. It acts as a thin, practical glue around `convex-helpers` that preserves Convex's notion of optional fields while offering ergonomic wrappers and codecs for working with Zod schemas in Convex applications.
+**zodvex lets you use Zod v4 as your schema language for Convex.** You define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation: function I/O is validated automatically, `ctx.db` is codec-aware (`Date`/typed-id/custom encode-decode at the database boundary, with `.withRules()` and `.audit()` on the same wrapped db), and an optional codegen CLI shares client-safe schemas and inferred query validators.
+
+The codec-aware data layer is the standout *differentiator*, but the *identity* is "Zod as your source of truth across a Convex app." zodvex is not a validator-mapper (mapping is the foundation, not the product — and zodvex ships its **own** mapping layer in `internal/mapping/`; `convex-helpers` is a peer used for the custom-function convention and streams, not the mapping) and not a middleware/function-composition framework (its "middleware" is the codec-aware db, wired once via `initZodvex`).
+
+See [`docs/positioning.md`](docs/positioning.md) for the canonical positioning statement — lead with this framing in any comparison or summary.
 
 ## Monorepo Structure
 
@@ -100,7 +104,7 @@ The library is organized into focused modules in `packages/zodvex/src/`:
    - `.nullable()` → `v.union(T, v.null())`
    - Both → `v.optional(v.union(T, v.null()))`
 
-2. **Convex Integration**: Built on top of `convex-helpers/server/zodV4` and post-processes validators to maintain Convex's optional/null semantics.
+2. **Self-owned mapping**: zodvex ships its own Zod → Convex mapping (`internal/mapping/`), built directly on `zod/v4/core` and `convex/values` — codec awareness and the optional/null semantics above require it. `convex-helpers` is used only for the custom-function convention (`customCtx`/`Customization`/`onSuccess`) and stream interop, plus `Table` in the deprecated legacy layer.
 
 3. **Type Safety**: Provides full TypeScript type inference from Zod schemas through to Convex validators and function arguments.
 

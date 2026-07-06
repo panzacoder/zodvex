@@ -2,43 +2,33 @@
 
 #### [Zod](https://zod.dev/) + [Convex](https://www.convex.dev/)
 
-Type-safe Convex functions with Zod v4 schemas. Codecs in the schema — `zx.date()`, custom transformations — plus typed IDs, all wired up through `initZodvex`.
+Use Zod v4 as your schema language for Convex — define your data once and use it end to end, with automatic validation and codecs at every boundary.
 
-> Built on top of [convex-helpers](https://github.com/get-convex/convex-helpers)
-
-## Table of Contents
-
-- [Why zodvex?](#why-zodvex)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Import Paths](#import-paths)
-- [Features](#features)
-  - [Codec-Aware Database](#codec-aware-database)
-  - [Codegen & Client-Side Schema Sharing](#codegen--client-side-schema-sharing)
-  - [Using zodvex Without Codecs](#using-zodvex-without-codecs)
-- [Supported Types](#supported-types)
-- [Upgrading?](#upgrading)
-- [API Reference](#api-reference)
-- [Roadmap](#roadmap)
-- [License](#license)
+[![npm version](https://img.shields.io/npm/v/zodvex)](https://www.npmjs.com/package/zodvex)
+[![CI](https://github.com/panzacoder/zodvex/actions/workflows/ci.yml/badge.svg)](https://github.com/panzacoder/zodvex/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/zodvex)](./LICENSE)
 
 ## Why zodvex?
 
-- **Codec-aware database** — `zx.date()`, `zx.codec()` encode/decode automatically at `ctx.db` boundaries
-- **Correct optional/nullable semantics** — preserves Convex's distinction (`.optional()` → `v.optional(T)`, `.nullable()` → `v.union(T, v.null())`)
-- **Client-safe models** — `defineZodModel` is importable in React
-- **End-to-end type safety** — same schema from database to frontend forms
+**Your Zod schemas are the source of truth** — tables, function arguments, and return types defined once, used database to frontend. Two things make that real:
 
-| Feature | zodvex | convex-helpers/zod4 |
-|---------|--------|---------------------|
-| Codec-aware DB | `initZodvex` wraps `ctx.db` automatically | Manual |
-| Date handling | `zx.date()` — automatic Date ↔ timestamp | Manual `z.codec()` |
-| Typed IDs | `zx.id('table')` with type branding | Manual |
-| Custom codecs | `zx.codec()` with auto-detection | Not provided |
-| Client-safe models | `defineZodModel` (importable in React) | Not provided |
-| Codegen | Optional typed hooks, boundary helpers | Not provided |
+- **Functions run full Zod pipelines.** Your argument and return schemas execute as real Zod at runtime — refinements like `.min()` and `.email()`, transformations, codecs — not erased down to structural checks.
 
-Both are valid choices — zodvex trades some explicitness for significantly better ergonomics.
+- **The database is Zod-validated, automatically.** `ctx.db` parses every read and encodes every write through your schemas: `.email()` holds at the row level where Convex's structural checks stop, and codecs live in the schema itself — handlers see `Date` objects and branded IDs while Convex stores plain values.
+
+What you gain over Convex out of the box:
+
+| | Convex | with zodvex |
+|---|---|---|
+| Type safety | end-to-end inference | same — driven by your Zod schemas |
+| Runtime validation | structural checks | full Zod — refinements, transforms, codecs |
+| End-to-end validation | per-function validators | one Zod schema — client, functions, and db access |
+| Client calls | `useQuery(api.fn)` infers types | `useZodQuery(api.fn)` infers the runtime schema too — args encoded, results decoded (via codegen) |
+| Dates & custom types | `number` timestamps | `Date` objects and custom codecs (`zx.date()`, `zx.codec()`) |
+| Rows on read | as stored | parsed & decoded through your schema |
+| Row-level rules & audit | build your own | `.withRules()` / `.audit()` on `ctx.db` |
+
+All of it wired once with `initZodvex` — see [Features](#features).
 
 ## Installation
 
@@ -72,7 +62,9 @@ export const EventModel = defineZodModel('events', {
 
 > `defineZodModel` is client-safe — you can import it in React.
 
-### Step 2. Build your schema
+### Step 2. Wire it up
+
+Two one-time files: build your Convex schema from your models, and create your function builders.
 
 ```ts
 // convex/schema.ts
@@ -83,8 +75,6 @@ export default defineZodSchema({
   events: EventModel,
 })
 ```
-
-### Step 3. Set up builders
 
 ```ts
 // convex/functions.ts
@@ -101,9 +91,9 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
 })
 ```
 
-`initZodvex` returns builders for all six Convex function types. By default, `zq` and `zm` (and internal variants) wrap `ctx.db` with automatic codec encode/decode.
+`initZodvex` returns builders for all six Convex function types, with `ctx.db` wrapped for automatic codec encode/decode. You write these two files once and rarely touch them again.
 
-### Step 4. Write functions — Date conversion Just Works
+### Step 3. Write functions
 
 ```ts
 // convex/events.ts
@@ -114,7 +104,7 @@ import { EventModel } from './models'
 
 export const list = zq({
   args: {},
-  returns: EventModel.schema.docArray,
+  returns: zx.docArray(EventModel),
   handler: async (ctx) => {
     // Dates come back as Date objects, not numbers
     return await ctx.db.query('events').collect()
@@ -136,39 +126,52 @@ export const create = zm({
 })
 ```
 
-> `zx.id('events')` is a typed Convex ID validator — it provides type branding for `GenericId<'events'>` but is NOT a codec (no wire transformation happens). `zx.date()` and `zx.codec()` ARE codecs.
+> `zx.id('events')` is a typed ID validator — branding only, no wire transform. `zx.date()` and `zx.codec()` are codecs. Details in [Features](#features).
 
 See the full [quickstart example](./examples/quickstart/) for a runnable project.
 
 ## Import Paths
 
-Four entry points:
+Four primary entry points:
 
 - **`zodvex`** — Client-safe full-Zod surface. Use in React components and shared code.
 - **`zodvex/server`** — Server-only. Use in Convex functions and schema definitions.
 - **`zodvex/mini`** — Client-safe zod/mini surface.
 - **`zodvex/mini/server`** — Server-only zod/mini surface.
-- **`zodvex/legacy`** — Deprecated runtime APIs kept only for migration.
 
-> `zodvex/core` remains as a deprecated compatibility alias for `zodvex`.
+Focused entrypoints — `zodvex/react`, `zodvex/client`, `zodvex/codegen` (and their `zodvex/mini` variants) — back the codegen workflow and are mostly consumed by generated code; see [Codegen](#codegen--client-side-schema-sharing).
+
+Two deprecated paths remain for migration only:
+
+- **`zodvex/legacy`** — Deprecated runtime APIs kept only for migration.
+- **`zodvex/core`** — Deprecated compatibility alias for `zodvex`.
 
 ## Features
 
 ### Codec-Aware Database
 
-`initZodvex` wraps `ctx.db` so reads decode automatically and writes encode automatically.
+`initZodvex` wraps `ctx.db` so reads decode automatically and writes encode automatically. Codecs are opt-in per field — schemas without them get the same validation, typed IDs, and correct optional/nullable mapping through the exact same setup.
 
 - **`zx.date()`** — Date ↔ timestamp codec. Stored as `v.float64()`, used as `Date` in handlers.
 - **`zx.codec(wire, runtime, transforms)`** — Custom codecs for complex transformations (encryption, serialization, etc.).
-- **`zx.id('table')`** — Typed Convex ID validator with `GenericId<T>` branding. This is NOT a codec — no wire transformation happens.
+- **`zx.id('table')`** — Typed Convex ID validator with `GenericId<T>` branding — no wire transform (not a codec).
 
 Guides: [Custom Codecs](./docs/guide/custom-codecs.md), [Date Handling](./docs/guide/date-handling.md)
+
+### Row-Level Rules & Audit
+
+The same wrapped `ctx.db` carries per-row security and observability — both operating on decoded documents (`Date` objects, typed IDs), never wire values:
+
+- **`.withRules(ruleCtx, rules)`** — gate and transform reads and writes per table (`read`, `insert`, `patch`, `replace`, `delete`), with an optional deny-by-default policy.
+- **`.audit({ afterRead, afterWrite })`** — observe successful reads and writes; composes with `.withRules()`, so audit sees only what the rules allowed.
+
+Guide: [Rules & Audit](./docs/guide/rules-and-audit.md)
 
 ### Codegen & Client-Side Schema Sharing
 
 zodvex includes an optional CLI that generates typed client code:
 
-- **Typed hooks** — `useZodQuery`, `useZodMutation` with automatic codec decode
+- **Typed hooks** — `useZodQuery`, `useZodMutation`, generated into `convex/_zodvex/client` — import them from there; args are encoded and results decoded automatically
 - **Boundary helpers** — `encodeArgs`, `decodeResult` for custom client integrations
 - **Cross-function auto-codec** — `ctx.runQuery` / `ctx.runMutation` encode args + decode results, and `ctx.scheduler.runAfter` / `ctx.scheduler.runAt` encode args, via the registry. Pass natural decoded values; zodvex encodes them to wire at the call site.
 
@@ -182,20 +185,6 @@ zodvex dev        # watch mode
 **When you DON'T:** Server-side codec-aware DB works with just `initZodvex` — no codegen needed.
 
 Guides: [Codegen](./docs/guide/codegen.md) | Example: [examples/task-manager/](./examples/task-manager/)
-
-### Using zodvex Without Codecs
-
-`zodTable` and `zQueryBuilder` still work without `initZodvex`:
-
-```ts
-import { zodTable, zQueryBuilder } from 'zodvex/legacy'
-import { query } from './_generated/server'
-
-const Users = zodTable('users', { name: z.string() })
-const zq = zQueryBuilder(query)
-```
-
-At this level, zodvex is roughly equivalent to convex-helpers. This is a valid stepping-stone, but the API is deprecated. When you're ready for codecs, see the [Quick Start](#quick-start) above.
 
 ## Supported Types
 
@@ -217,52 +206,13 @@ At this level, zodvex is roughly equivalent to convex-helpers. This is a valid s
 
 > **Note:** Native `z.date()` is **not supported** — use `zx.date()` instead. See [Date Handling](./docs/guide/date-handling.md) for details.
 
-**Zod v4 Enum Type Note:**
+¹ Enum unions carry a cosmetically different TypeScript signature than hand-written `v.union(v.literal(...))` calls — identical values, runtime validation, and type safety. Details: [Mapping Helpers](./docs/guide/mapping-helpers.md#zod-v4-enum-type-note).
 
-¹ Enum types in Zod v4 produce a slightly different TypeScript signature than manually created unions:
-
-```typescript
-// Manual union (precise tuple type)
-const manual = v.union(v.literal('a'), v.literal('b'))
-// Type: VUnion<"a" | "b", [VLiteral<"a", "required">, VLiteral<"b", "required">], "required", never>
-
-// From Zod enum (array type)
-const fromZod = zodToConvex(z.enum(['a', 'b']))
-// Type: VUnion<"a" | "b", Array<VLiteral<"a" | "b", "required">>, "required", never>
-```
-
-**This difference is purely cosmetic with no functional impact:**
-
-- Value types are identical (`"a" | "b"`)
-- Runtime validation is identical
-- Type safety for function arguments/returns is preserved
-- Convex uses `T[number]` which works identically for both array and tuple types
-
-This limitation exists because Zod v4 changed enum types from tuple-based to Record-based ([`ToEnum<T>`](https://github.com/colinhacks/zod/blob/v4/src/v4/core/util.ts#L83-L85)). TypeScript cannot convert a Record type to a specific tuple without knowing the keys at compile time. See [Zod v4 changelog](https://zod.dev/v4/changelog) and [enum evolution discussion](https://github.com/colinhacks/zod/discussions/2125) for more details.
-
-**zx namespace types:**
-
-```ts
-import { zx } from 'zodvex'
-
-// Convex IDs — typed validator, NOT a codec
-zx.id('tableName')            // → v.id('tableName')
-zx.id('tableName').optional() // → v.optional(v.id('tableName'))
-
-// Dates — codec (Date ↔ timestamp)
-zx.date()            // → v.float64() (timestamp)
-zx.date().optional() // → v.optional(v.float64())
-zx.date().nullable() // → v.union(v.float64(), v.null())
-
-// Custom codecs
-zx.codec(wireSchema, runtimeSchema, { encode, decode })
-```
+For zodvex's own types — `zx.id()`, `zx.date()`, `zx.codec()` — and exactly how they map to Convex validators, see [The zx Namespace](./docs/guide/zx-namespace.md).
 
 ## Upgrading?
 
-> **Upgrading from a previous version?** Read the [migration guide](./docs/migration/v0.6.md) for what changed and why. Key takeaway: the CLI/codegen is optional — the Quick Start path above needs no codegen.
-
-Automated renames are available:
+Read the [migration guide](./MIGRATION.md) for what changed in each release and why. Automated renames are available:
 
 ```bash
 npx zodvex migrate ./convex            # apply renames
@@ -273,7 +223,8 @@ npx zodvex migrate ./convex --dry-run  # preview changes
 
 - [The zx Namespace](./docs/guide/zx-namespace.md) — `zx.id()`, `zx.date()`, `zx.codec()`
 - [Builders](./docs/guide/builders.md) — `initZodvex` and legacy builders
-- [Custom Context](./docs/guide/custom-context.md) — `.withContext()`, `onSuccess`
+- [Custom Context](./docs/guide/custom-context.md) — `.withContext()`, `defineContext`, `onSuccess`
+- [Rules & Audit](./docs/guide/rules-and-audit.md) — `.withRules()`, `.audit()` on `ctx.db`
 - [Custom Codecs](./docs/guide/custom-codecs.md) — `zx.codec()`, `decodeDoc`/`encodeDoc`
 - [Date Handling](./docs/guide/date-handling.md) — `zx.date()` deep dive
 - [Form Validation](./docs/guide/form-validation.md) — react-hook-form integration
@@ -288,10 +239,7 @@ npx zodvex migrate ./convex --dry-run  # preview changes
 
 ## Roadmap
 
-- Migration tooling: vanilla Convex → zodvex (for new adopters with existing Convex projects)
-- Migration tooling: pre-0.5 → current zodvex
-- Additional example projects (e.g., full-stack with React, codegen showcase)
-- Per-feature READMEs in examples/task-manager/
+See the [roadmap](./docs/roadmap.md) for where zodvex is heading — deploy-scale performance, ecosystem interop, and the model/namespace evolution.
 
 ## License
 
@@ -299,4 +247,4 @@ MIT
 
 ---
 
-Built with ❤️ on top of [convex-helpers](https://github.com/get-convex/convex-helpers)
+Built with ❤️ for the [Convex](https://www.convex.dev/) ecosystem. Thanks to [convex-helpers](https://github.com/get-convex/convex-helpers) for the early foundations.
