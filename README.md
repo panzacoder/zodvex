@@ -4,21 +4,9 @@
 
 Use Zod v4 as your schema language for Convex — define your data once and use it end to end, with automatic validation and codecs at every boundary.
 
-## Table of Contents
-
-- [Why zodvex?](#why-zodvex)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Import Paths](#import-paths)
-- [Features](#features)
-  - [Codec-Aware Database](#codec-aware-database)
-  - [Row-Level Rules & Audit](#row-level-rules--audit)
-  - [Codegen & Client-Side Schema Sharing](#codegen--client-side-schema-sharing)
-- [Supported Types](#supported-types)
-- [Upgrading?](#upgrading)
-- [API Reference](#api-reference)
-- [Roadmap](#roadmap)
-- [License](#license)
+[![npm version](https://img.shields.io/npm/v/zodvex)](https://www.npmjs.com/package/zodvex)
+[![CI](https://github.com/panzacoder/zodvex/actions/workflows/ci.yml/badge.svg)](https://github.com/panzacoder/zodvex/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/zodvex)](./LICENSE)
 
 ## Why zodvex?
 
@@ -206,23 +194,7 @@ Guides: [Codegen](./docs/guide/codegen.md) | Example: [examples/task-manager/](.
 
 ¹ Enum unions carry a cosmetically different TypeScript signature than hand-written `v.union(v.literal(...))` calls — identical values, runtime validation, and type safety. Details: [Mapping Helpers](./docs/guide/mapping-helpers.md#zod-v4-enum-type-note).
 
-**zx namespace types:**
-
-```ts
-import { zx } from 'zodvex'
-
-// Convex IDs — typed validator (type branding, no wire transform)
-zx.id('tableName')            // → v.id('tableName')
-zx.id('tableName').optional() // → v.optional(v.id('tableName'))
-
-// Dates — codec (Date ↔ timestamp)
-zx.date()            // → v.float64() (timestamp)
-zx.date().optional() // → v.optional(v.float64())
-zx.date().nullable() // → v.union(v.float64(), v.null())
-
-// Custom codecs
-zx.codec(wireSchema, runtimeSchema, { encode, decode })
-```
+For zodvex's own types — `zx.id()`, `zx.date()`, `zx.codec()` — and exactly how they map to Convex validators, see [The zx Namespace](./docs/guide/zx-namespace.md).
 
 ## Upgrading?
 
