@@ -258,10 +258,14 @@ export function customFnBuilder<
           return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
         }
       })
+      // Merge via shape-spread rather than .extend() — `argsSchema` may be a
+      // user-supplied zod/mini object, which has no schema methods. Custom args
+      // win on key conflicts, mirroring the `convexArgs` spread above.
       const metaArgsSchema = customArgsSchema
-        ? ((argsSchema as unknown as z.ZodObject<any>).extend(
-            (customArgsSchema as unknown as z.ZodObject<any>).shape
-          ) as unknown as $ZodObject)
+        ? (z.object({
+            ...(argsSchema as any)._zod.def.shape,
+            ...(customArgsSchema as any)._zod.def.shape
+          }) as unknown as $ZodObject)
         : argsSchema
       attachFunctionMeta(registered, metaArgsSchema, returns)
       return registered

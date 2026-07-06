@@ -72,6 +72,26 @@ describe('__zodvexMeta in customFnBuilder', () => {
     expect(meta.zodArgs?.shape).toHaveProperty('age')
   })
 
+  it('includes customization args when authored args are a zod/mini object schema', async () => {
+    // zod/mini object schemas have no .extend() method — the meta merge must
+    // work via shape-spread so mini-authored args don't throw at definition time.
+    const zm = await import('zod/mini')
+    const withActor = {
+      args: { _actor: z.string() },
+      input: async (ctx: any) => ({ ctx: { actor: ctx._actor } })
+    }
+    const builder = zCustomQuery(mockBuilder, withActor)
+    const fn = builder({
+      args: zm.object({ name: zm.string() }),
+      handler: async (_ctx: any, _args: any) => 'hello'
+    })
+
+    const meta = readMeta(fn) as ZodvexFunctionMeta
+    expect(meta.zodArgs).toBeDefined()
+    expect(meta.zodArgs?.shape).toHaveProperty('_actor')
+    expect(meta.zodArgs?.shape).toHaveProperty('name')
+  })
+
   it('includes customization args in meta even with no authored args', () => {
     const withActor = {
       args: { _actor: z.string() },
