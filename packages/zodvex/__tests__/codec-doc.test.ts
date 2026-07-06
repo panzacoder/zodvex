@@ -124,16 +124,40 @@ describe('encodePartialDoc', () => {
     expect(result).toEqual({ name: 'Updated Name', updatedAt: 1700000000000 })
   })
 
-  it('strips undefined values from partial', () => {
+  it('preserves top-level undefined so patch can delete the field (issue #82)', () => {
     const schema = z.object({
       name: z.string(),
       nickname: z.string().optional()
     })
 
+    // Top-level undefined is an intentional unset — it must survive so Convex's
+    // patch serializer turns it into a field delete ({ $undefined: null }).
     const result = encodePartialDoc(schema, { name: 'Alice', nickname: undefined })
 
-    expect(result).toEqual({ name: 'Alice' })
-    expect('nickname' in result).toBe(false)
+    expect('nickname' in result).toBe(true)
+    expect((result as any).nickname).toBe(undefined)
+    expect((result as any).name).toBe('Alice')
+  })
+
+  it('strips undefined nested inside a value (not a delete)', () => {
+    const schema = z.object({
+      name: z.string(),
+      profile: z.object({
+        bio: z.string().optional(),
+        handle: z.string()
+      })
+    })
+
+    const result = encodePartialDoc(schema, {
+      name: 'Alice',
+      profile: { bio: undefined, handle: 'alice' }
+    })
+
+    // Nested undefined is cleaned (it means "absent", not "delete a top-level field").
+    expect((result as any).profile).toEqual({ handle: 'alice' })
+    expect('bio' in (result as any).profile).toBe(false)
+    // But the top-level key is still preserved as a normal value.
+    expect((result as any).name).toBe('Alice')
   })
 
   it('handles empty partial', () => {
