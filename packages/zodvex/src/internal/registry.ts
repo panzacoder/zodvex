@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { $ZodDate, $ZodType, globalRegistry } from './zod-core'
+import { $ZodCodec, $ZodCustom, $ZodDate, $ZodNumber, $ZodType, globalRegistry } from './zod-core'
 
 // ============================================================================
 // JSON Schema Override Support
@@ -90,11 +90,55 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
     jsonSchema.format = 'date-time'
     return
   }
+
+  // Handle zx.date() — a ZodCodec with in=ZodNumber, out=ZodCustom<Date> (the
+  // same structural check codegen uses). Its runtime side is a Date, so it gets
+  // the same JSON Schema as native z.date(). Without this, the codec is
+  // "unrepresentable" and comes out as an unconstrained {} (issue #91).
+  if (
+    zodSchema instanceof $ZodCodec &&
+    zodSchema._zod.def.in instanceof $ZodNumber &&
+    zodSchema._zod.def.out instanceof $ZodCustom
+  ) {
+    jsonSchema.type = 'string'
+    jsonSchema.format = 'date-time'
+    const description = globalRegistry.get(zodSchema)?.description
+    if (description) {
+      jsonSchema.description = description
+    }
+    return
+  }
+
+  // Generic codecs (zx.codec / z.codec) — represent them by their WIRE (input)
+  // side. JSON Schema describes serialized JSON, and a codec's wire side is by
+  // definition its JSON shape: a value matching it round-trips through the
+  // codec's decode. (zx.date is special-cased above for LLM friendliness and
+  // parity with native z.date().) Consumers needing a different shape for a
+  // custom codec can compose their own override ahead of this one.
+  if (zodSchema instanceof $ZodCodec) {
+    const wire = zodSchema._zod.def.in
+    const wireJsonSchema = z.toJSONSchema(wire as any, {
+      unrepresentable: 'any',
+      override: zodvexJSONSchemaOverride
+    }) as Record<string, any>
+    delete wireJsonSchema.$schema
+    Object.assign(jsonSchema, wireJsonSchema)
+    const description = globalRegistry.get(zodSchema)?.description
+    if (description) {
+      jsonSchema.description = description
+    }
+    return
+  }
 }
 
 /**
  * Composes multiple JSON Schema override functions into one.
  * Overrides run in order - first override runs first.
+ *
+ * Order matters: overrides mutate `jsonSchema` in place, so the LAST one to
+ * touch a property wins. `zodvexJSONSchemaOverride` writes codec/zid/date
+ * output unconditionally — to customize those, put your override AFTER it
+ * (this matches the `toJSONSchema` wrapper, which runs the user override last).
  *
  * @example
  * ```ts
@@ -107,10 +151,10 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
  *   }
  * }
  *
- * // User's override runs first, then zodvex's
+ * // zodvex's override runs first; yours runs last and wins on conflicts
  * z.toJSONSchema(schema, {
  *   unrepresentable: 'any',
- *   override: composeOverrides(myOverride, zodvexJSONSchemaOverride)
+ *   override: composeOverrides(zodvexJSONSchemaOverride, myOverride)
  * })
  * ```
  */

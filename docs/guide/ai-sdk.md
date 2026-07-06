@@ -76,12 +76,15 @@ const jsonSchema = toJSONSchema(schema)
 The `toJSONSchema` helper automatically handles:
 - `zx.id('tableName')` → `{ type: "string", format: "convex-id:tableName" }`
 - native `z.date()` → `{ type: "string", format: "date-time" }`
-
-> **Known limitation:** `zx.date()` (and custom `zx.codec()` fields) are **not** yet
-> converted — they currently emit an unconstrained `{}` property, so an LLM can put
-> anything in that field ([#91](https://github.com/panzacoder/zodvex/issues/91)). Until
-> that's fixed, use a plain `z.string()` / ISO-string field in schemas you hand to the
-> AI SDK, or supply your own override (below) for codec fields.
+- `zx.date()` → `{ type: "string", format: "date-time" }` (same as native `z.date()`)
+- custom codecs (`zx.codec()` / `z.codec()`) → the JSON Schema of the codec's **wire**
+  (input) side. JSON Schema describes serialized JSON, and a codec's wire side is by
+  definition its JSON shape — a value matching it round-trips through the codec's
+  `decode`. To represent a custom codec differently, supply your own override; the
+  `toJSONSchema` helper runs it **after** zodvex's, so whatever it sets wins. (If you
+  compose overrides manually, order matters: an override that runs *before*
+  `zodvexJSONSchemaOverride` gets overwritten for codec/zid/date fields — put yours
+  after it.)
 
 For custom overrides, use `zodvexJSONSchemaOverride` directly:
 ```ts

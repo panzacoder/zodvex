@@ -16,6 +16,7 @@ import {
   toJSONSchema,
   zodvexJSONSchemaOverride
 } from '../src/internal/registry'
+import { zx } from '../src/internal/zx'
 
 describe('isZidSchema', () => {
   it('should return true for zid schemas', () => {
@@ -389,5 +390,140 @@ describe('AI SDK compatibility', () => {
     expect(jsonSchema.properties.email.type).toBe('string')
     expect(jsonSchema.properties.preferences.type).toBe('object')
     expect(jsonSchema.properties.preferences.properties.theme.enum).toEqual(['light', 'dark'])
+  })
+})
+
+describe('codec handling (issue #91)', () => {
+  it('zx.date() emits { type: string, format: date-time } like native z.date()', () => {
+    const schema = z.object({
+      userId: zx.id('users'),
+      createdAt: zx.date(),
+      name: z.string()
+    })
+
+    const jsonSchema = toJSONSchema(schema)
+
+    expect(jsonSchema.properties.createdAt).toEqual({
+      type: 'string',
+      format: 'date-time'
+    })
+    // The pre-existing handling stays intact alongside it.
+    expect(jsonSchema.properties.userId.type).toBe('string')
+    expect(jsonSchema.properties.name.type).toBe('string')
+  })
+
+  it('zx.date().optional() and .nullable() still emit the date-time schema', () => {
+    const schema = z.object({
+      dueDate: zx.date().optional(),
+      deletedAt: zx.date().nullable()
+    })
+
+    const jsonSchema = toJSONSchema(schema)
+
+    expect(jsonSchema.properties.dueDate.type).toBe('string')
+    expect(jsonSchema.properties.dueDate.format).toBe('date-time')
+    expect(JSON.stringify(jsonSchema.properties.deletedAt)).toContain('date-time')
+  })
+
+  it('a custom codec emits its wire-side JSON Schema', () => {
+    // Wire: string, runtime: URL instance — the JSON side is the string.
+    const urlCodec = z.codec(
+      z.string(),
+      z.custom<URL>(v => v instanceof URL),
+      {
+        decode: (s: string) => new URL(s),
+        encode: (u: URL) => u.toString()
+      }
+    )
+    const schema = z.object({ homepage: urlCodec })
+
+    const jsonSchema = toJSONSchema(schema)
+
+    expect(jsonSchema.properties.homepage.type).toBe('string')
+  })
+
+  it('a codec with an object wire side emits the full wire structure', () => {
+    const pointCodec = z.codec(
+      z.object({ x: z.number(), y: z.number() }),
+      z.custom<{ magnitude: number }>(v => typeof v === 'object'),
+      {
+        decode: (p: { x: number; y: number }) => ({ magnitude: Math.hypot(p.x, p.y) }),
+        encode: (_r: { magnitude: number }) => ({ x: 0, y: 0 })
+      }
+    )
+    const schema = z.object({ position: pointCodec })
+
+    const jsonSchema = toJSONSchema(schema)
+
+    expect(jsonSchema.properties.position.type).toBe('object')
+    expect(jsonSchema.properties.position.properties.x.type).toBe('number')
+    expect(jsonSchema.properties.position.properties.y.type).toBe('number')
+    // No stray root-level $schema leaked from the nested conversion.
+    expect(jsonSchema.properties.position.$schema).toBeUndefined()
+  })
+
+  it('a codec whose wire side contains zx.date() resolves recursively', () => {
+    const eventCodec = z.codec(
+      z.object({ at: zx.date() }),
+      z.custom<{ label: string }>(v => typeof v === 'object'),
+      {
+        decode: (w: { at: Date }) => ({ label: w.at.toISOString() }),
+        encode: (_r: { label: string }) => ({ at: new Date(0) })
+      }
+    )
+    const schema = z.object({ event: eventCodec })
+
+    const jsonSchema = toJSONSchema(schema)
+
+    expect(jsonSchema.properties.event.type).toBe('object')
+    expect(jsonSchema.properties.event.properties.at).toEqual({
+      type: 'string',
+      format: 'date-time'
+    })
+  })
+
+  it('zodvexJSONSchemaOverride fires for zx.date() when used directly', () => {
+    const jsonSchema: Record<string, any> = {}
+    zodvexJSONSchemaOverride({ zodSchema: zx.date(), jsonSchema })
+
+    expect(jsonSchema.type).toBe('string')
+    expect(jsonSchema.format).toBe('date-time')
+  })
+})
+
+describe('override ordering for codecs', () => {
+  it('a user override passed to toJSONSchema runs after zodvex and can reshape codec output', () => {
+    const schema = z.object({ createdAt: zx.date() })
+
+    const jsonSchema = toJSONSchema(schema, {
+      override: ctx => {
+        // zodvex has already written { type: 'string', format: 'date-time' } —
+        // the user override runs last, so it can overwrite it.
+        if (ctx.jsonSchema.format === 'date-time') {
+          ctx.jsonSchema.type = 'number'
+          ctx.jsonSchema.format = 'unix-millis'
+        }
+      }
+    })
+
+    expect(jsonSchema.properties.createdAt).toEqual({
+      type: 'number',
+      format: 'unix-millis'
+    })
+  })
+
+  it('composeOverrides: an override placed after zodvexJSONSchemaOverride wins for codecs', () => {
+    const schema = z.object({ createdAt: zx.date() })
+
+    const jsonSchema = z.toJSONSchema(schema, {
+      unrepresentable: 'any',
+      override: composeOverrides(zodvexJSONSchemaOverride, ctx => {
+        if (ctx.jsonSchema.format === 'date-time') {
+          ctx.jsonSchema.format = 'custom'
+        }
+      })
+    }) as Record<string, any>
+
+    expect(jsonSchema.properties.createdAt.format).toBe('custom')
   })
 })

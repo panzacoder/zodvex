@@ -12,11 +12,30 @@ import path from 'node:path'
  * that triggers component constructors at module scope (e.g. `new LocalDTA(components.localDTA)`).
  */
 const HOOKS_SOURCE = `
-export function resolve(specifier, context, nextResolve) {
+const EXT_CANDIDATES = ['.ts', '.tsx', '.mts', '.js', '.mjs', '.jsx', '/index.ts', '/index.js'];
+
+export async function resolve(specifier, context, nextResolve) {
   if (/_generated\\/api(\\.[mc]?[jt]sx?)?$/.test(specifier)) {
     return { shortCircuit: true, url: 'zodvex-stub://api' };
   }
-  return nextResolve(specifier, context);
+  try {
+    return await nextResolve(specifier, context);
+  } catch (err) {
+    // Convex code uses extensionless relative imports (bundler resolution).
+    // Bun resolves those natively; Node's ESM loader does not — retry with
+    // the usual extension candidates before giving up.
+    if (
+      (specifier.startsWith('./') || specifier.startsWith('../')) &&
+      !/\\.[cm]?[jt]sx?$/.test(specifier)
+    ) {
+      for (const ext of EXT_CANDIDATES) {
+        try {
+          return await nextResolve(specifier + ext, context);
+        } catch {}
+      }
+    }
+    throw err;
+  }
 }
 
 export function load(url, context, nextLoad) {
@@ -63,9 +82,16 @@ let hooksRegistered = false
 export function registerDiscoveryHooks(): boolean {
   if (hooksRegistered) return true
   try {
-    // Dynamic import to avoid hard dependency on node:module in non-Node runtimes
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { register } = require('node:module') as typeof import('node:module')
+    // `require` doesn't exist in Node ESM, so a bare require() here silently
+    // failed under `node dist/cli/index.js` and the hook never registered.
+    // process.getBuiltinModule (Node 22.3+, also implemented by Bun) is the
+    // runtime-agnostic synchronous way to reach node:module from ESM.
+    const nodeModule =
+      typeof process.getBuiltinModule === 'function'
+        ? (process.getBuiltinModule('node:module') as typeof import('node:module'))
+        : // eslint-disable-next-line @typescript-eslint/no-require-imports
+          (require('node:module') as typeof import('node:module'))
+    const { register } = nodeModule
     if (typeof register !== 'function') return false
     register(`data:text/javascript,${encodeURIComponent(HOOKS_SOURCE)}`)
     hooksRegistered = true

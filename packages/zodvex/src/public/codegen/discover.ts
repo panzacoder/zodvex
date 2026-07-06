@@ -306,6 +306,7 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
     ]
   }).sort()
 
+  let importFailures = 0
   try {
     for (const file of files) {
       const absPath = path.resolve(convexDir, file)
@@ -314,6 +315,7 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
       try {
         moduleExports = await import(absPath)
       } catch (err) {
+        importFailures++
         console.warn(`[zodvex] Warning: Failed to import ${file}:`, (err as Error).message)
         continue
       }
@@ -395,6 +397,18 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
     }
 
     const functionCodecs = walkFunctionCodecs(functions)
+
+    // If imports failed and NOTHING was discovered, the runtime almost
+    // certainly can't load the project's TypeScript at all (e.g. Node < 22.18,
+    // which lacks native type stripping). Failing loudly beats silently
+    // generating empty registry files.
+    if (importFailures > 0 && models.length === 0 && functions.length === 0) {
+      throw new Error(
+        `[zodvex] Discovery imported 0 modules (${importFailures} file(s) failed to load). ` +
+          'Importing TypeScript at runtime requires Bun or Node >= 22.18 (native type stripping). ' +
+          'Re-run with Bun (`bunx zodvex generate`) or upgrade Node.'
+      )
+    }
 
     return { models, functions, codecs, modelCodecs, functionCodecs }
   } finally {
