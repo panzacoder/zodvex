@@ -16,7 +16,18 @@ Use Zod v4 as your schema language for Convex — define your data once and use 
 
 - **The database is Zod-validated, automatically.** `ctx.db` parses every read and encodes every write through your schemas: `.email()` holds at the row level where Convex's structural checks stop, and codecs live in the schema itself — handlers see `Date` objects and branded IDs while Convex stores plain values.
 
-On the same foundation: row-level rules (`.withRules()`) and audit hooks (`.audit()`) on the wrapped db, client-safe models you can import in React, and optional codegen with typed hooks. All of it wired once with `initZodvex` — see [Features](#features).
+What you gain over Convex out of the box:
+
+| | Convex | with zodvex |
+|---|---|---|
+| Type safety | end-to-end inference | same — driven by your Zod schemas |
+| Runtime validation | structural checks | full Zod — refinements, transforms, codecs |
+| End-to-end validation | per-function validators | one Zod schema — client, functions, and db access |
+| Dates & custom types | `number` timestamps | `Date` objects and custom codecs (`zx.date()`, `zx.codec()`) |
+| Rows on read | as stored | parsed & decoded through your schema |
+| Row-level rules & audit | build your own | `.withRules()` / `.audit()` on `ctx.db` |
+
+All of it wired once with `initZodvex` — see [Features](#features).
 
 ## Installation
 
