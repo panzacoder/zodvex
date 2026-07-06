@@ -61,7 +61,9 @@ export const EventModel = defineZodModel('events', {
 
 > `defineZodModel` is client-safe — you can import it in React.
 
-### Step 2. Build your schema
+### Step 2. Wire it up
+
+Two one-time files: build your Convex schema from your models, and create your function builders.
 
 ```ts
 // convex/schema.ts
@@ -72,8 +74,6 @@ export default defineZodSchema({
   events: EventModel,
 })
 ```
-
-### Step 3. Set up builders
 
 ```ts
 // convex/functions.ts
@@ -90,9 +90,9 @@ export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
 })
 ```
 
-`initZodvex` returns builders for all six Convex function types. By default, `zq` and `zm` (and internal variants) wrap `ctx.db` with automatic codec encode/decode.
+`initZodvex` returns builders for all six Convex function types, with `ctx.db` wrapped for automatic codec encode/decode. You write these two files once and rarely touch them again.
 
-### Step 4. Write functions — Date conversion Just Works
+### Step 3. Write functions — Date conversion Just Works
 
 ```ts
 // convex/events.ts
