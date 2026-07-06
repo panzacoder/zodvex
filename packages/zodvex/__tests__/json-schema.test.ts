@@ -490,3 +490,40 @@ describe('codec handling (issue #91)', () => {
     expect(jsonSchema.format).toBe('date-time')
   })
 })
+
+describe('override ordering for codecs', () => {
+  it('a user override passed to toJSONSchema runs after zodvex and can reshape codec output', () => {
+    const schema = z.object({ createdAt: zx.date() })
+
+    const jsonSchema = toJSONSchema(schema, {
+      override: ctx => {
+        // zodvex has already written { type: 'string', format: 'date-time' } —
+        // the user override runs last, so it can overwrite it.
+        if (ctx.jsonSchema.format === 'date-time') {
+          ctx.jsonSchema.type = 'number'
+          ctx.jsonSchema.format = 'unix-millis'
+        }
+      }
+    })
+
+    expect(jsonSchema.properties.createdAt).toEqual({
+      type: 'number',
+      format: 'unix-millis'
+    })
+  })
+
+  it('composeOverrides: an override placed after zodvexJSONSchemaOverride wins for codecs', () => {
+    const schema = z.object({ createdAt: zx.date() })
+
+    const jsonSchema = z.toJSONSchema(schema, {
+      unrepresentable: 'any',
+      override: composeOverrides(zodvexJSONSchemaOverride, ctx => {
+        if (ctx.jsonSchema.format === 'date-time') {
+          ctx.jsonSchema.format = 'custom'
+        }
+      })
+    }) as Record<string, any>
+
+    expect(jsonSchema.properties.createdAt.format).toBe('custom')
+  })
+})

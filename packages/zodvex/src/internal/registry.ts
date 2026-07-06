@@ -135,6 +135,11 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
  * Composes multiple JSON Schema override functions into one.
  * Overrides run in order - first override runs first.
  *
+ * Order matters: overrides mutate `jsonSchema` in place, so the LAST one to
+ * touch a property wins. `zodvexJSONSchemaOverride` writes codec/zid/date
+ * output unconditionally — to customize those, put your override AFTER it
+ * (this matches the `toJSONSchema` wrapper, which runs the user override last).
+ *
  * @example
  * ```ts
  * import { composeOverrides, zodvexJSONSchemaOverride } from 'zodvex'
@@ -146,10 +151,10 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
  *   }
  * }
  *
- * // User's override runs first, then zodvex's
+ * // zodvex's override runs first; yours runs last and wins on conflicts
  * z.toJSONSchema(schema, {
  *   unrepresentable: 'any',
- *   override: composeOverrides(myOverride, zodvexJSONSchemaOverride)
+ *   override: composeOverrides(zodvexJSONSchemaOverride, myOverride)
  * })
  * ```
  */

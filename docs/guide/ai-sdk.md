@@ -80,8 +80,11 @@ The `toJSONSchema` helper automatically handles:
 - custom codecs (`zx.codec()` / `z.codec()`) → the JSON Schema of the codec's **wire**
   (input) side. JSON Schema describes serialized JSON, and a codec's wire side is by
   definition its JSON shape — a value matching it round-trips through the codec's
-  `decode`. To represent a custom codec differently, supply your own override (below);
-  it runs before zodvex's.
+  `decode`. To represent a custom codec differently, supply your own override; the
+  `toJSONSchema` helper runs it **after** zodvex's, so whatever it sets wins. (If you
+  compose overrides manually, order matters: an override that runs *before*
+  `zodvexJSONSchemaOverride` gets overwritten for codec/zid/date fields — put yours
+  after it.)
 
 For custom overrides, use `zodvexJSONSchemaOverride` directly:
 ```ts
