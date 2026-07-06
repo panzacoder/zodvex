@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - 'v*'
+    # Release-branch fallback for environments whose git credential can push
+    # branches but not tags AND can't call the workflow_dispatch API (e.g. the
+    # remote sandbox's GitHub App). Pushing `release/vX.Y.Z` triggers the same
+    # pipeline: the tag is derived from the branch name, verified against
+    # package.json, created via GITHUB_TOKEN, and the branch is deleted after
+    # a successful publish.
+    branches:
+      - 'release/v*'
   # Manual fallback for environments that can't push tags (e.g. remote/CI
   # sandboxes whose git credential is branch-only). The workflow verifies the
   # requested tag against package.json, creates the tag on the dispatched ref,
@@ -57,6 +65,8 @@ jobs:
         run: |
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             TAG="$INPUT_TAG"
+          elif [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
+            TAG="${GITHUB_REF#refs/heads/release/}"
           else
             TAG="${GITHUB_REF#refs/tags/}"
           fi
@@ -72,8 +82,8 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Create release tag (manual dispatch only)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Create release tag (dispatch / release-branch paths)
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/heads/release/')
         uses: actions/github-script@v7
         env:
           RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}
@@ -149,3 +159,16 @@ jobs:
         run: |
           cd packages/zodvex
           npm publish --access public --provenance --tag "$DIST_TAG"
+
+      - name: Delete release branch (release-branch path)
+        if: startsWith(github.ref, 'refs/heads/release/')
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.git.deleteRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.ref.replace('refs/', ''),
+            });
+            core.info(`Deleted ${context.ref} after successful publish.`);
