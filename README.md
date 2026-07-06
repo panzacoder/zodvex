@@ -22,17 +22,13 @@ Use Zod v4 as your schema language for Convex — define your data once and use 
 
 ## Why zodvex?
 
-**zodvex lets you use Zod v4 as your schema language for Convex.** Define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. Convex's codegen gives your functions end-to-end *type* safety; zodvex matches that inference and extends it into *runtime* safety.
+**zodvex lets you use Zod v4 as your schema language for Convex.** Define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. Two things make that real:
 
-- **Define your schema once, in Zod.** Model your tables, arguments, and return types as Zod v4 schemas, then reuse the same definitions across your database, server, and client. `defineZodModel` builds the table; `defineZodSchema` assembles the Convex schema from your models.
+- **Functions run full Zod pipelines.** Your argument and return schemas execute as real Zod at runtime — refinements like `.min()` and `.email()`, transformations, codecs — not erased down to structural checks.
 
-- **Automatic runtime validation at every boundary.** Function arguments and return values are validated against your schemas — *and so is every document read at the database layer*. Validating at the database boundary, not just at function edges, is a differentiator on its own: most Zod-and-Convex setups validate function I/O but hand you unvalidated rows.
+- **The database is Zod-validated, automatically.** `ctx.db` parses every read and encodes every write through your schemas: `.email()` holds at the row level where Convex's structural checks stop, and codecs live in the schema itself — handlers see `Date` objects and branded IDs while Convex stores plain values.
 
-- **Codecs at your application boundaries.** `zx.date()`, `zx.codec()`, and typed IDs encode and decode automatically wherever data crosses a boundary — database reads and writes, function arguments, and return values. Your handlers work with `Date` objects and branded IDs while the wire format stays Convex-safe. Row-level rules (`.withRules()`) and audit hooks (`.audit()`) ride on the same wrapped db.
-
-- **Codegen that complements Convex's own.** An optional CLI emits a `_zodvex/` folder alongside `_generated/`: client-safe schema imports from one stable path, plus typed hooks (`useZodQuery` / `useZodMutation`) that infer argument and return types straight from your function definitions — your Convex functions stay the single source of truth.
-
-- **Schema-aware functions, wired once.** Convex's built-in validators check structure; zodvex layers full Zod power on top — refinements (`.min()`, `.email()`), transformations, and codecs run at runtime, not just in the type system. `initZodvex` configures it once: your builders come back with validation, codecs, and the wrapped `ctx.db` ready to go.
+On the same foundation: row-level rules (`.withRules()`) and audit hooks (`.audit()`) on the wrapped db, client-safe models you can import in React, and optional codegen with typed hooks. All of it wired once with `initZodvex` — see [Features](#features).
 
 ## Installation
 

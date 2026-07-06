@@ -6,10 +6,10 @@ definitions end to end — database to frontend. That is the identity: Zod is yo
 of truth across a Convex app.
 
 The comparison axis that matters is **Convex's own validation system**: Convex's codegen
-gives functions end-to-end *type* safety, and its built-in validators check structure.
-zodvex matches that inference and extends it into *runtime* safety — full Zod validation
-(refinements, transformations, codecs) executing at every boundary, not just in the type
-system. Concretely:
+gives functions end-to-end type inference, and its built-in validators check structure at
+runtime. zodvex keeps that inference and deepens the runtime layer — full Zod pipelines
+(refinements, transformations, codecs) execute at every boundary instead of being erased
+to structural checks. Concretely:
 
 - **Automatic runtime validation at every boundary** — arguments, return values, *and
   every document read at the database layer*. Validating at the db boundary (a real Zod
