@@ -23,6 +23,7 @@ What you gain over Convex out of the box:
 | Type safety | end-to-end inference | same — driven by your Zod schemas |
 | Runtime validation | structural checks | full Zod — refinements, transforms, codecs |
 | End-to-end validation | per-function validators | one Zod schema — client, functions, and db access |
+| Client calls | `useQuery(api.fn)` infers types | `useZodQuery(api.fn)` infers the runtime schema too — args encoded, results decoded, no schema imports (via codegen) |
 | Dates & custom types | `number` timestamps | `Date` objects and custom codecs (`zx.date()`, `zx.codec()`) |
 | Rows on read | as stored | parsed & decoded through your schema |
 | Row-level rules & audit | build your own | `.withRules()` / `.audit()` on `ctx.db` |
