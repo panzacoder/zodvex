@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { dev, generate } from './commands'
 
 const command = process.argv[2]

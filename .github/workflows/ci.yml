@@ -43,6 +43,24 @@ jobs:
             exit 1
           }
 
+      - name: Setup Node for CLI smoke test
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: CLI smoke test under Node (issue #89)
+        run: |
+          # The published bin must run on Bun-less machines: node shebang,
+          # no Bun-only APIs, and discovery (loader hooks + extensionless
+          # TS imports) must produce identical output to the Bun run above.
+          node packages/zodvex/dist/cli/index.js --help > /dev/null
+          node packages/zodvex/dist/cli/index.js generate examples/task-manager/convex
+          git diff --exit-code examples/task-manager/convex/_zodvex/ || {
+            echo ""
+            echo "ERROR: 'zodvex generate' under Node produced different output than under Bun."
+            exit 1
+          }
+
 
   lint:
     runs-on: macos-latest
