@@ -53,6 +53,37 @@ describe('__zodvexMeta in customFnBuilder', () => {
     expect(fmeta.zodArgs).toBeUndefined()
     expect(fmeta.zodReturns).toBeUndefined()
   })
+
+  it('includes customization args in meta alongside authored args', () => {
+    const withActor = {
+      args: { _actor: z.string() },
+      input: async (ctx: any) => ({ ctx: { actor: ctx._actor } })
+    }
+    const builder = zCustomQuery(mockBuilder, withActor)
+    const fn = builder({
+      args: { name: z.string(), age: z.number() },
+      handler: async (_ctx: any, _args: any) => 'hello'
+    })
+
+    const meta = readMeta(fn) as ZodvexFunctionMeta
+    expect(meta.zodArgs).toBeDefined()
+    expect(meta.zodArgs?.shape).toHaveProperty('_actor')
+    expect(meta.zodArgs?.shape).toHaveProperty('name')
+    expect(meta.zodArgs?.shape).toHaveProperty('age')
+  })
+
+  it('includes customization args in meta even with no authored args', () => {
+    const withActor = {
+      args: { _actor: z.string() },
+      input: async (ctx: any) => ({ ctx: { actor: ctx._actor } })
+    }
+    const builder = zCustomQuery(mockBuilder, withActor)
+    const fn = builder(async (_ctx: any) => 'hello')
+
+    const meta = readMeta(fn) as ZodvexFunctionMeta
+    expect(meta.zodArgs).toBeDefined()
+    expect(meta.zodArgs?.shape).toHaveProperty('_actor')
+  })
 })
 
 describe('__zodvexMeta in direct builders', () => {

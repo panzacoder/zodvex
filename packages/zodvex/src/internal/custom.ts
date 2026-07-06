@@ -258,7 +258,12 @@ export function customFnBuilder<
           return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
         }
       })
-      attachFunctionMeta(registered, argsSchema, returns)
+      const metaArgsSchema = customArgsSchema
+        ? ((argsSchema as unknown as z.ZodObject<any>).extend(
+            (customArgsSchema as unknown as z.ZodObject<any>).shape
+          ) as unknown as $ZodObject)
+        : argsSchema
+      attachFunctionMeta(registered, metaArgsSchema, returns)
       return registered
     }
     const registered = builder({
@@ -280,7 +285,7 @@ export function customFnBuilder<
         return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
       }
     })
-    attachFunctionMeta(registered, undefined, returns)
+    attachFunctionMeta(registered, customArgsSchema ?? undefined, returns)
     return registered
   }
 }
