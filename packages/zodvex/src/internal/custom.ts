@@ -258,7 +258,16 @@ export function customFnBuilder<
           return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
         }
       })
-      attachFunctionMeta(registered, argsSchema, returns)
+      // Merge via shape-spread rather than .extend() — `argsSchema` may be a
+      // user-supplied zod/mini object, which has no schema methods. Custom args
+      // win on key conflicts, mirroring the `convexArgs` spread above.
+      const metaArgsSchema = customArgsSchema
+        ? (z.object({
+            ...(argsSchema as any)._zod.def.shape,
+            ...(customArgsSchema as any)._zod.def.shape
+          }) as unknown as $ZodObject)
+        : argsSchema
+      attachFunctionMeta(registered, metaArgsSchema, returns)
       return registered
     }
     const registered = builder({
@@ -280,7 +289,7 @@ export function customFnBuilder<
         return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
       }
     })
-    attachFunctionMeta(registered, undefined, returns)
+    attachFunctionMeta(registered, customArgsSchema ?? undefined, returns)
     return registered
   }
 }
