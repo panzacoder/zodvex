@@ -3,8 +3,10 @@
 zodvex fully supports polymorphic tables using discriminated unions. Pass a union schema directly to `defineZodModel()`:
 
 ```ts
-import { defineZodModel } from 'zodvex'
 import { z } from 'zod'
+import { zx, defineZodModel } from 'zodvex'
+import { defineZodSchema } from 'zodvex/server'
+import { zq, zm } from './functions'
 
 // Define your discriminated union schema
 const shapeSchema = z.union([
@@ -27,49 +29,48 @@ const shapeSchema = z.union([
   })
 ])
 
-// Define the table - defineZodModel() accepts unions!
+// Define the model — defineZodModel() accepts unions!
 export const Shapes = defineZodModel('shapes', shapeSchema)
 
-// Use in schema
-export default defineSchema({
-  shapes: Shapes.table
+// Use in your schema — the table becomes a Convex union validator
+export default defineZodSchema({
+  shapes: Shapes
 })
 
-// docArray automatically includes system fields for each variant
+// zx.docArray() adds system fields to each variant
 export const getShapes = zq({
   args: {},
-  returns: Shapes.docArray,  // ✅ Each variant has _id and _creationTime
+  returns: zx.docArray(Shapes),  // ✅ Each variant has _id and _creationTime
   handler: async (ctx) => ctx.db.query('shapes').collect()
 })
 
 // Create with type-safe discriminated unions
 export const createShape = zm({
-  args: shapeSchema,
-  handler: async (ctx, shape) => {
-    // shape is discriminated - TypeScript knows the fields based on `kind`
+  args: { shape: shapeSchema },
+  handler: async (ctx, { shape }) => {
+    // shape is discriminated — TypeScript knows the fields based on `kind`
     return await ctx.db.insert('shapes', shape)
   }
 })
 ```
 
-## Union Table Helpers
+## Union Model Surface
 
-Union tables provide different helpers than object tables:
+A union model exposes the same surface as an object model, with a couple of union-specific caveats:
 
 ```ts
 const Shapes = defineZodModel('shapes', shapeSchema)
 
-// Available properties:
-Shapes.table          // TableDefinition for schema
-Shapes.tableName      // 'shapes'
-Shapes.schema         // Original union schema
-Shapes.validator      // Convex validator (union)
-Shapes.docArray       // Array schema with system fields added to each variant
-Shapes.withSystemFields()  // Returns union with _id and _creationTime on each variant
+Shapes.name            // 'shapes'
+Shapes.validator       // The exact Zod union you passed in (refinements preserved)
+zx.doc(Shapes)         // Union with _id and _creationTime added to each variant
+zx.docArray(Shapes)    // z.array of the doc union — for `returns`
+zx.update(Shapes)      // Update schema derived from the union
+Shapes.index(...)      // Index builders work as usual
 
-// NOT available (specific to object tables):
-// Shapes.shape       - unions don't have a fixed shape
-// Shapes.zDoc        - use withSystemFields() instead
+// Union-specific caveats:
+// Shapes.fields — empty for unions (there is no single object shape)
+// Use zx.doc()/zx.base() to derive schemas instead of spreading fields
 ```
 
 ## Advanced Union Patterns

@@ -61,29 +61,18 @@ export const UserModel = defineZodModel('users', {
 })
 
 // Access fields for spread/pick operations
-UserModel.fields  // The original Zod shape object
-UserModel.name    // 'users' (table name)
-UserModel.schema.doc     // Zod schema with _id and _creationTime
-UserModel.schema.docArray  // z.array(zDoc) for return types
+UserModel.fields         // The original Zod shape object
+UserModel.name           // 'users' (table name)
+UserModel.validator      // User-facing Zod schema (refinements preserved)
+
+// Derive doc schemas with zx helpers (preferred — works for slim models too)
+zx.doc(UserModel)        // Zod schema with _id and _creationTime
+zx.docArray(UserModel)   // z.array(doc) for return types
+zx.update(UserModel)     // _id required, all other fields optional
 ```
+
+Full models also expose the same schemas eagerly as `UserModel.schema.doc` / `UserModel.schema.docArray`; prefer the `zx.*` form in new code — it works for both full and slim models.
 
 ## TypeScript Performance Tip
 
-If you hit TypeScript instantiation depth limits (rare, 100+ fields), use `pickShape` or `safePick` from zodvex instead of `.pick()`:
-
-```ts
-import { pickShape, safePick } from 'zodvex'
-
-// pickShape returns a plain object shape
-const userFields = pickShape(z.object(UserModel.fields), ['email', 'firstName', 'lastName'])
-const UserUpdate = z.object(userFields)
-
-// safePick is a convenience wrapper
-const UserUpdate = safePick(z.object(UserModel.fields), {
-  email: true,
-  firstName: true,
-  lastName: true
-})
-```
-
-Standard Zod `.pick()` works great for most schemas — only reach for these helpers if you encounter the TypeScript depth limit error.
+Standard Zod `.pick()` works great for most schemas. If you hit TypeScript instantiation depth limits (rare, 100+ fields), zodvex ships `pickShape` and `safePick` as drop-in alternatives — see [Large Schemas](./large-schemas.md).

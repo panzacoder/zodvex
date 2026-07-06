@@ -44,7 +44,7 @@ import { UserModel } from './models/user'
 
 export const getUser = zq({
   args: { id: zx.id('users') },
-  returns: UserModel.schema.doc.nullable(),
+  returns: zx.doc(UserModel).nullable(),
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id)
   }
@@ -77,7 +77,7 @@ export const authQuery = zq.withContext(
 
 export const getMyProfile = authQuery({
   args: {},
-  returns: UserModel.schema.doc.nullable(),
+  returns: zx.doc(UserModel).nullable(),
   handler: async (ctx) => {
     // ctx.user is available
     return ctx.db.get(ctx.user._id)
@@ -85,35 +85,10 @@ export const getMyProfile = authQuery({
 })
 ```
 
-## Legacy: Individual Builders
-
-The individual builder functions (`zQueryBuilder`, `zMutationBuilder`, `zActionBuilder`) still work but are considered legacy. Use `initZodvex` for new projects.
-
-```typescript
-// Legacy (still works)
-import { zQueryBuilder, zMutationBuilder, zActionBuilder } from 'zodvex/server'
-
-export const zq = zQueryBuilder(query)
-export const zm = zMutationBuilder(mutation)
-export const za = zActionBuilder(action)
-```
-
-Similarly, `zCustomQueryBuilder`, `zCustomMutationBuilder`, and `zCustomActionBuilder` still work for custom context, but `.withContext()` from `initZodvex` is now the recommended approach.
-
-```typescript
-// Legacy custom builder
-import { zCustomQueryBuilder, customCtx } from 'zodvex/server'
-import { type QueryCtx } from './_generated/server'
-
-export const authQuery = zCustomQueryBuilder(
-  query,
-  customCtx(async (ctx: QueryCtx) => {
-    const user = await getUserOrThrow(ctx)
-    return { user }
-  })
-)
-```
-
 > **Best Practice:** Always add explicit type annotations to the `ctx` parameter in your context functions. This improves TypeScript performance and prevents `ctx` from falling back to `any` in complex type scenarios. Import context types from `./_generated/server` (e.g., `QueryCtx`, `MutationCtx`, `ActionCtx`).
 
 For `onSuccess` hooks and other customization patterns, see [Custom Context](./custom-context.md).
+
+## Deprecated: individual builders
+
+`zQueryBuilder` / `zMutationBuilder` / `zActionBuilder` (and the `zCustom*Builder` variants) still work but are deprecated, migration-only APIs — new projects should use `initZodvex`. See the [migration guide](../../MIGRATION.md) for the renames.

@@ -127,19 +127,19 @@ Both work at runtime — the difference is TypeScript type inference precision. 
 For manual control over encoding/decoding outside of the automatic schema pipeline, use `decodeDoc` and `encodeDoc`:
 
 ```ts
-import { decodeDoc, encodeDoc } from 'zodvex'
+import { decodeDoc, encodeDoc, zx } from 'zodvex'
 import { UserModel } from './models/user'
 
 // Decode a raw Convex document to runtime types
 const rawDoc = await ctx.db.get(id) // wire format from Convex
-const user = decodeDoc(UserModel.schema.doc, rawDoc) // runtime format (Dates, etc.)
+const user = decodeDoc(zx.doc(UserModel), rawDoc) // runtime format (Dates, etc.)
 
 // Encode runtime data back to wire format for insert/replace
-const wireData = encodeDoc(UserModel.schema.insert, user) // wire format (timestamps, etc.)
+const wireData = encodeDoc(zx.base(UserModel), user) // wire format (timestamps, etc.)
 await ctx.db.insert('users', wireData)
 ```
 
-Both functions take a `z.ZodTypeAny` schema, not a model directly. Use `UserModel.schema.doc` for decoding reads (includes `_id`, `_creationTime`), `UserModel.schema.insert` for encoding writes.
+Both functions take a Zod schema, not a model directly. Use `zx.doc(UserModel)` for decoding reads (includes `_id`, `_creationTime`), `zx.base(UserModel)` (the user fields) for encoding writes.
 
 Use these when building custom DB wrappers or working outside of `initZodvex` (which handles codec encode/decode automatically).
 

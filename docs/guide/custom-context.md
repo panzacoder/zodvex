@@ -2,6 +2,8 @@
 
 Add auth, permissions, or other context to all your Zod-validated functions using builder patterns.
 
+The examples below assume the standard [`initZodvex` setup](./builders.md) — `zq`, `zm`, `zim`, etc. are the builders returned by `initZodvex`, imported from your `convex/functions.ts` (or `convex/util.ts`).
+
 > **Best Practice:** Always add explicit type annotations to the `ctx` parameter in your `customCtx` functions. This improves TypeScript performance and prevents `ctx` from falling back to `any` in complex type scenarios. Import context types from `./_generated/server` (e.g., `QueryCtx`, `MutationCtx`, `ActionCtx`).
 
 ## Recommended: `.withContext()` (v0.6+)
@@ -82,59 +84,18 @@ Pass either builder of the pair (`zm` or `zim`) — the result is identical and 
 
 > **Empty-args note (v0.7.4):** with `args: {}` (or no `args`), `input`'s args parameter types as `Record<string, never>`. v0.7.3 widened it to `{ [x: string]: unknown }`, which broke standalone customizations whose `input` params were hand-annotated `Record<string, never>`. v0.7.4 fixes that resolution whether or not you adopt `defineContext`.
 
-## Legacy: `zCustomQueryBuilder` / `zCustomMutationBuilder`
+## Deprecated: `zCustomQueryBuilder` / `zCustomMutationBuilder`
 
-For projects not using `initZodvex`, the standalone builders remain available:
-
-```ts
-import { zCustomQueryBuilder, zCustomMutationBuilder, customCtx } from 'zodvex/server'
-import { type QueryCtx, type MutationCtx, query, mutation } from './_generated/server'
-
-// Add user to all queries
-export const authQuery = zCustomQueryBuilder(
-  query,
-  customCtx(async (ctx: QueryCtx) => {
-    const user = await getUserOrThrow(ctx)
-    return { user }
-  })
-)
-
-// Add user + permissions to mutations
-export const authMutation = zCustomMutationBuilder(
-  mutation,
-  customCtx(async (ctx: MutationCtx) => {
-    const user = await getUserOrThrow(ctx)
-    const permissions = await getPermissions(ctx, user)
-    return { user, permissions }
-  })
-)
-
-// Use them
-export const updateProfile = authMutation({
-  args: { name: z.string() },
-  returns: z.null(),
-  handler: async (ctx, { name }) => {
-    // ctx.user and ctx.permissions are available
-    if (!ctx.permissions.canEdit) {
-      throw new Error('No permission')
-    }
-    await ctx.db.patch(ctx.user._id, { name })
-    return null
-  }
-})
-```
+The standalone custom builders (`zCustomQueryBuilder`, `zCustomMutationBuilder`, `zCustomActionBuilder`) still work but are deprecated, migration-only APIs — use `.withContext()` on the `initZodvex` builders instead. See the [migration guide](../../MIGRATION.md).
 
 ## onSuccess Hook
 
 The `onSuccess` callback follows convex-helpers' `Customization` convention and is the only hook point zodvex exposes. Return it from your customization's `input` function:
 
 ```ts
-import { zCustomMutationBuilder } from 'zodvex/server'
-import { type MutationCtx, mutation } from './_generated/server'
-
-export const secureMutation = zCustomMutationBuilder(mutation, {
+export const secureMutation = zm.withContext({
   args: {},
-  input: async (ctx: MutationCtx) => {
+  input: async (ctx) => {
     const securityCtx = await getSecurityContext(ctx)
     return {
       ctx: { securityCtx },

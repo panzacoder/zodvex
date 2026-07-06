@@ -1,6 +1,6 @@
 # The zx Namespace
 
-The `zx` namespace provides zodvex-specific validators and codecs. The name signals "zodvex" or "zod + convex" — explicit handling for Convex compatibility. See the [README](../../README.md) for a full overview of zodvex.
+The `zx` namespace is zodvex's analogue of Zod's `z` — the home for zodvex-specific validators, codecs, and schema-derivation helpers. The name signals "zodvex" or "zod + convex" — explicit handling for Convex compatibility. See the [README](../../README.md) for a full overview of zodvex.
 
 ```ts
 import { z } from 'zod'
@@ -15,6 +15,8 @@ const schema = z.object({
 
 ## Helpers Overview
 
+**Validators & codecs** — used inside your schemas:
+
 | Helper | Wire Format | Runtime Format | Type | Use Case |
 |--------|------------|----------------|------|----------|
 | `zx.id('table')` | `string` | `GenericId<T>` | Validator (no wire transformation) | Convex document IDs |
@@ -22,6 +24,51 @@ const schema = z.object({
 | `zx.codec(wire, runtime, transforms)` | Custom | Custom | Codec (transforms wire ↔ runtime) | Custom transformations |
 
 > **Important distinction:** `zx.id()` is a **typed validator** — it validates that a value is a Convex ID string and brands the TypeScript type, but performs no wire format transformation. `zx.date()` and `zx.codec()` are **codecs** — they transform data between wire format (stored in Convex) and runtime format (used in your code).
+
+**Schema-derivation helpers** — derive schemas from a `defineZodModel` model or wrap item schemas:
+
+| Helper | Returns | Use Case |
+|--------|---------|----------|
+| `zx.doc(Model)` | Model fields + `_id` + `_creationTime` | `returns` for a single document |
+| `zx.docArray(Model)` | `z.array(zx.doc(Model))` | `returns` for `.collect()` results |
+| `zx.update(Model)` | `_id` required, all other fields optional | Args for patch-style mutations |
+| `zx.base(Model)` | User fields only (no system fields) | Insert args, form schemas |
+| `zx.paginationOpts()` | Convex's `PaginationOptions` shape | Args for paginated queries |
+| `zx.paginationResult(item)` | Convex's `PaginationResult` wrapping `item` | `returns` for `.paginate()` results |
+
+## Model-Derived Schemas
+
+The model helpers work for **both full and slim models** (full models reuse their eager schema bundle; slim models derive and cache on demand), and for union models they add system fields to each variant. Prefer them over reaching into `Model.schema.*`:
+
+```ts
+import { zx } from 'zodvex'
+import { EventModel } from './models'
+import { zq, zm } from './functions'
+
+export const list = zq({
+  args: {},
+  returns: zx.docArray(EventModel),
+  handler: (ctx) => ctx.db.query('events').collect(),
+})
+
+export const update = zm({
+  args: zx.update(EventModel),
+  handler: async (ctx, { _id, ...fields }) => {
+    await ctx.db.patch(_id, fields)
+  },
+})
+```
+
+For paginated queries, pair the two pagination helpers:
+
+```ts
+export const listPaged = zq({
+  args: { paginationOpts: zx.paginationOpts() },
+  returns: zx.paginationResult(zx.doc(EventModel)),
+  handler: (ctx, { paginationOpts }) =>
+    ctx.db.query('events').paginate(paginationOpts),
+})
+```
 
 ## Why `zx.*` instead of `z.*`?
 

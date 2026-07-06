@@ -13,8 +13,8 @@ import { zodvexMergedStream, zodvexStream } from 'zodvex/server'
 import schema from './schema'
 
 export const visitsForRooms = zq({
-  args: { rooms: z.array(z.string()), paginationOpts: zx.paginationOpts() },
-  handler: async (ctx, { rooms, paginationOpts }) => {
+  args: { tenantId: z.string(), rooms: z.array(z.string()), paginationOpts: zx.paginationOpts() },
+  handler: async (ctx, { tenantId, rooms, paginationOpts }) => {
     const substreams = rooms.map(roomId =>
       zodvexStream(ctx.db, schema)
         .query('visits')

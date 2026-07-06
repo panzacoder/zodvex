@@ -49,7 +49,7 @@ export const listOwnTasks = zq({
     )
     return await secureDb.query('tasks').collect() // only the owner's tasks
   },
-  returns: z.array(TaskModel.schema.doc),
+  returns: zx.docArray(TaskModel),
 })
 ```
 

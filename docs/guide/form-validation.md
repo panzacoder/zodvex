@@ -12,8 +12,8 @@ import { useMutation } from 'convex/react'
 import { api } from '../convex/_generated/api'
 import { UserModel } from '../convex/models/user'
 
-// Create form schema from your model's fields
-const CreateUserForm = z.object(UserModel.fields)
+// Your model's user-facing schema — refinements preserved
+const CreateUserForm = UserModel.validator
 type CreateUserForm = z.infer<typeof CreateUserForm>
 
 function UserForm() {
@@ -45,6 +45,8 @@ function UserForm() {
 }
 ```
 
+`Model.validator` is the model's user-facing Zod schema, designed for client-side validation: unlike rebuilding a schema from `Model.fields`, it preserves any `.refine()` / `.check()` constraints you defined on the model.
+
 ## Codegen Typed Hooks
 
 When using zodvex codegen (`zodvex generate`), typed React hooks are generated for your Convex functions. These hooks (`useZodQuery`, `useZodMutation`) automatically decode codec fields in query results. See the [Codegen Guide](./codegen.md) for setup details.
@@ -67,7 +69,7 @@ type ProfileForm = z.infer<typeof ProfileForm>
 
 ## Date Fields in Forms
 
-`zx.date()` fields store `Date` objects at runtime. For form inputs, you'll typically work with strings and convert:
+`zx.date()` fields are `Date` objects at runtime. For form inputs, you'll typically work with strings and convert on submit — where the target format depends on your client:
 
 ```tsx
 import { zx } from 'zodvex'
@@ -78,11 +80,22 @@ const EventForm = z.object({
   startDate: z.string(), // HTML date input gives a string
 })
 
-// Convert to Date before calling the mutation
+// With codegen's useZodMutation — pass a Date, it's encoded for you
 const onSubmit = async (data: EventForm) => {
   await createEvent({
     title: data.title,
-    startDate: new Date(data.startDate), // zx.date() expects a Date
+    startDate: new Date(data.startDate),
+  })
+}
+
+// With Convex's plain useMutation — pass epoch ms (the wire format);
+// the Convex client can't serialize Date objects
+const onSubmitPlain = async (data: EventForm) => {
+  await createEvent({
+    title: data.title,
+    startDate: new Date(data.startDate).getTime(),
   })
 }
 ```
+
+See [Date Handling](./date-handling.md) for the full client-side story.
