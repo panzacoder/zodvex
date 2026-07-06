@@ -153,6 +153,26 @@ describe('createZodvexActionCtx', () => {
       expect(result).toEqual(raw)
     })
 
+    it('passes through args/results for refs missing functionNameSymbol', async () => {
+      const raw = { foo: 'bar' }
+      let capturedArgs: any = null
+      const mockCtx = {
+        runQuery: async (_ref: any, args: any) => {
+          capturedArgs = args
+          return raw
+        },
+        runMutation: noop,
+        runAction: noop,
+        auth: { getUserIdentity: async () => null }
+      }
+
+      const wrappedCtx = createZodvexActionCtx(registry as any, mockCtx as any)
+      const result = await wrappedCtx.runQuery({} as any, { x: 1 })
+
+      expect(capturedArgs).toEqual({ x: 1 })
+      expect(result).toEqual(raw)
+    })
+
     it('passes through when registry entry has no returns schema', async () => {
       const raw = { data: 42 }
       const mockCtx = {
@@ -253,6 +273,26 @@ describe('createZodvexActionCtx', () => {
       const wrappedCtx = createZodvexActionCtx(registry as any, mockCtx as any)
       const result = await wrappedCtx.runMutation(fakeRef('unknown:fn'), { x: 1 })
 
+      expect(result).toEqual(raw)
+    })
+
+    it('passes through args/results for refs missing functionNameSymbol', async () => {
+      const raw = { result: 'unchanged' }
+      let capturedArgs: any = null
+      const mockCtx = {
+        runQuery: noop,
+        runMutation: async (_ref: any, args: any) => {
+          capturedArgs = args
+          return raw
+        },
+        runAction: noop,
+        auth: { getUserIdentity: async () => null }
+      }
+
+      const wrappedCtx = createZodvexActionCtx(registry as any, mockCtx as any)
+      const result = await wrappedCtx.runMutation({} as any, { x: 1 })
+
+      expect(capturedArgs).toEqual({ x: 1 })
       expect(result).toEqual(raw)
     })
 
