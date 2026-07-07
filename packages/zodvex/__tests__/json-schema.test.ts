@@ -527,3 +527,28 @@ describe('override ordering for codecs', () => {
     expect(jsonSchema.properties.createdAt.format).toBe('custom')
   })
 })
+
+describe('zx.date brand vs shape-alike codecs (issue #100)', () => {
+  it('a user codec with number wire + custom runtime is NOT treated as zx.date', () => {
+    // The hotpot repro: a money codec shaped exactly like zx.date structurally.
+    const money = z.codec(
+      z.number(),
+      z.custom<{ cents: number }>(v => typeof v === 'object'),
+      {
+        decode: (n: number) => ({ cents: n }),
+        encode: (m: { cents: number }) => m.cents
+      }
+    )
+    const schema = z.object({ price: money })
+
+    const jsonSchema = toJSONSchema(schema)
+
+    // Wire-side schema, not date-time.
+    expect(jsonSchema.properties.price).toEqual({ type: 'number' })
+  })
+
+  it('zx.date() still emits date-time via its brand', () => {
+    const jsonSchema = toJSONSchema(z.object({ at: zx.date() }))
+    expect(jsonSchema.properties.at).toEqual({ type: 'string', format: 'date-time' })
+  })
+})

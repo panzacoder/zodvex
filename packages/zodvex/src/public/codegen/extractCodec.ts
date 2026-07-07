@@ -1,12 +1,6 @@
 import { readMeta } from '../../internal/meta'
-import {
-  $ZodCodec,
-  $ZodCustom,
-  $ZodNullable,
-  $ZodNumber,
-  $ZodOptional,
-  $ZodType
-} from '../../internal/zod-core'
+import { $ZodCodec, $ZodNullable, $ZodOptional, $ZodType } from '../../internal/zod-core'
+import { isZxDateCodec } from '../../internal/zxDateBrand'
 
 /**
  * Unwraps ZodOptional/ZodNullable layers to find the inner ZodCodec.
@@ -19,9 +13,9 @@ export function findCodec(schema: $ZodType): $ZodType | undefined {
   let current = schema
   for (let i = 0; i < 10; i++) {
     if (current instanceof $ZodCodec) {
-      const isZxDate =
-        current._zod.def.in instanceof $ZodNumber && current._zod.def.out instanceof $ZodCustom
-      if (isZxDate) return undefined
+      // Brand check, not shape: a user codec with number wire + custom
+      // runtime is a real custom codec, not zx.date() (#100).
+      if (isZxDateCodec(current)) return undefined
       return current
     }
     if (current instanceof $ZodOptional || current instanceof $ZodNullable) {

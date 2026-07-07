@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { $ZodCodec, $ZodCustom, $ZodDate, $ZodNumber, $ZodType, globalRegistry } from './zod-core'
+import { $ZodCodec, $ZodDate, $ZodType, globalRegistry } from './zod-core'
+import { isZxDateCodec } from './zxDateBrand'
 
 // ============================================================================
 // JSON Schema Override Support
@@ -91,15 +92,17 @@ export function zodvexJSONSchemaOverride(ctx: JSONSchemaOverrideContext): void {
     return
   }
 
-  // Handle zx.date() — a ZodCodec with in=ZodNumber, out=ZodCustom<Date> (the
-  // same structural check codegen uses). Its runtime side is a Date, so it gets
-  // the same JSON Schema as native z.date(). Without this, the codec is
+  // Handle zx.date() — detected by its runtime brand, not by shape: a user
+  // codec with the same wire/runtime shape (number → custom) must NOT be
+  // treated as a date (#100). Its runtime side is a Date, so it gets the same
+  // JSON Schema as native z.date(). Without this, the codec is
   // "unrepresentable" and comes out as an unconstrained {} (issue #91).
-  if (
-    zodSchema instanceof $ZodCodec &&
-    zodSchema._zod.def.in instanceof $ZodNumber &&
-    zodSchema._zod.def.out instanceof $ZodCustom
-  ) {
+  //
+  // NOTE: the emitted schema (ISO date-time string) describes the RUNTIME
+  // value; zx.date()'s wire side is an epoch-ms number. Consumers producing
+  // values against this schema must convert before wire validation — see the
+  // AI SDK guide.
+  if (isZxDateCodec(zodSchema)) {
     jsonSchema.type = 'string'
     jsonSchema.format = 'date-time'
     const description = globalRegistry.get(zodSchema)?.description

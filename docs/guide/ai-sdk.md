@@ -76,7 +76,12 @@ const jsonSchema = toJSONSchema(schema)
 The `toJSONSchema` helper automatically handles:
 - `zx.id('tableName')` → `{ type: "string", format: "convex-id:tableName" }`
 - native `z.date()` → `{ type: "string", format: "date-time" }`
-- `zx.date()` → `{ type: "string", format: "date-time" }` (same as native `z.date()`)
+- `zx.date()` → `{ type: "string", format: "date-time" }` (same as native `z.date()`).
+  **Caveat:** this describes the *runtime* value; `zx.date()`'s **wire** side is an
+  epoch-ms `number`. A value produced against this schema (an ISO string) will fail the
+  codec's wire validation if fed directly to decode — convert it first
+  (`new Date(iso).getTime()`), or supply an override that emits `{ type: "number" }`
+  if you want wire-shaped output.
 - custom codecs (`zx.codec()` / `z.codec()`) → the JSON Schema of the codec's **wire**
   (input) side. JSON Schema describes serialized JSON, and a codec's wire side is by
   definition its JSON shape — a value matching it round-trips through the codec's

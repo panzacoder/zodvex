@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import type { AliasEntry } from './tsconfigPaths'
 
 /**
  * JavaScript source for the ESM loader hook that intercepts `_generated/api`
@@ -11,8 +12,34 @@ import path from 'node:path'
  * The api stub is needed because `_generated/api` exports a `components` object
  * that triggers component constructors at module scope (e.g. `new LocalDTA(components.localDTA)`).
  */
-const HOOKS_SOURCE = `
+function buildHooksSource(aliases: AliasEntry[]): string {
+  return `
+import { pathToFileURL } from 'node:url';
+
 const EXT_CANDIDATES = ['.ts', '.tsx', '.mts', '.js', '.mjs', '.jsx', '/index.ts', '/index.js'];
+
+// tsconfig path aliases compiled by loadTsconfigAliases (#99). Bun resolves
+// these natively; Node's ESM loader needs them replayed here.
+const ALIASES = ${JSON.stringify(aliases)};
+
+function aliasCandidates(specifier) {
+  const out = [];
+  for (const a of ALIASES) {
+    if (a.star) {
+      if (
+        specifier.length >= a.prefix.length + a.suffix.length &&
+        specifier.startsWith(a.prefix) &&
+        specifier.endsWith(a.suffix)
+      ) {
+        const captured = specifier.slice(a.prefix.length, specifier.length - a.suffix.length);
+        for (const t of a.targets) out.push(t.prefix + captured + t.suffix);
+      }
+    } else if (specifier === a.prefix) {
+      for (const t of a.targets) out.push(t.prefix);
+    }
+  }
+  return out;
+}
 
 export async function resolve(specifier, context, nextResolve) {
   if (/_generated\\/api(\\.[mc]?[jt]sx?)?$/.test(specifier)) {
@@ -21,6 +48,15 @@ export async function resolve(specifier, context, nextResolve) {
   try {
     return await nextResolve(specifier, context);
   } catch (err) {
+    // tsconfig path aliases (e.g. '@/convex/...'). Try each mapped absolute
+    // path as-is, then with the usual extension/index candidates.
+    for (const base of aliasCandidates(specifier)) {
+      for (const ext of ['', ...EXT_CANDIDATES]) {
+        try {
+          return await nextResolve(pathToFileURL(base + ext).href, context);
+        } catch {}
+      }
+    }
     // Convex code uses extensionless relative imports (bundler resolution).
     // Bun resolves those natively; Node's ESM loader does not — retry with
     // the usual extension candidates before giving up.
@@ -65,6 +101,7 @@ export function load(url, context, nextLoad) {
   return nextLoad(url, context);
 }
 `
+}
 
 let hooksRegistered = false
 
@@ -79,7 +116,9 @@ let hooksRegistered = false
  * Returns true if hooks were registered, false if Module.register is
  * unavailable (e.g. Bun, older Node).
  */
-export function registerDiscoveryHooks(): boolean {
+export function registerDiscoveryHooks(aliases: AliasEntry[] = []): boolean {
+  // First registration wins — the CLI runs one project per process, and
+  // Module.register hooks can't be replaced anyway.
   if (hooksRegistered) return true
   try {
     // `require` doesn't exist in Node ESM, so a bare require() here silently
@@ -93,7 +132,7 @@ export function registerDiscoveryHooks(): boolean {
           (require('node:module') as typeof import('node:module'))
     const { register } = nodeModule
     if (typeof register !== 'function') return false
-    register(`data:text/javascript,${encodeURIComponent(HOOKS_SOURCE)}`)
+    register(`data:text/javascript,${encodeURIComponent(buildHooksSource(aliases))}`)
     hooksRegistered = true
     return true
   } catch {

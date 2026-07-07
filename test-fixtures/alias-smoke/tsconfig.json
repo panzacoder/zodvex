@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "zod": ["../../packages/zodvex/node_modules/zod/index.js"],
+      "zodvex/core": ["../../packages/zodvex/dist/core/index.js"]
+    }
+  }
+}
