@@ -63,12 +63,20 @@ jobs:
           # tsconfig path aliases must resolve under Node (#99)
           node packages/zodvex/dist/cli/index.js generate test-fixtures/alias-smoke/convex
           # and any failed module import must fail the generate rather than
-          # silently emitting a partial registry (#99)
+          # silently emitting a partial registry (#99), leaving any existing
+          # registry untouched instead of clobbering it with the stub (#104)
+          mkdir -p test-fixtures/broken-import-smoke/convex/_zodvex
+          echo "// sentinel registry" > test-fixtures/broken-import-smoke/convex/_zodvex/api.js
           if node packages/zodvex/dist/cli/index.js generate test-fixtures/broken-import-smoke/convex; then
             echo ""
             echo "ERROR: 'zodvex generate' succeeded despite a failed module import."
             exit 1
           fi
+          grep -q "sentinel registry" test-fixtures/broken-import-smoke/convex/_zodvex/api.js || {
+            echo ""
+            echo "ERROR: failed generate clobbered the existing registry (#104)."
+            exit 1
+          }
 
 
   lint:
