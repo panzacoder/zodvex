@@ -26,11 +26,13 @@ import type * as models_activity from "../models/activity.js";
 import type * as models_comment from "../models/comment.js";
 import type * as models_notification from "../models/notification.js";
 import type * as models_task from "../models/task.js";
+import type * as models_triggerCompose from "../models/triggerCompose.js";
 import type * as models_user from "../models/user.js";
 import type * as notifications from "../notifications.js";
 import type * as securedTasks from "../securedTasks.js";
 import type * as tagged from "../tagged.js";
 import type * as tasks from "../tasks.js";
+import type * as triggersCompose from "../triggersCompose.js";
 import type * as users from "../users.js";
 
 import type {
@@ -58,11 +60,13 @@ declare const fullApi: ApiFromModules<{
   "models/comment": typeof models_comment;
   "models/notification": typeof models_notification;
   "models/task": typeof models_task;
+  "models/triggerCompose": typeof models_triggerCompose;
   "models/user": typeof models_user;
   notifications: typeof notifications;
   securedTasks: typeof securedTasks;
   tagged: typeof tagged;
   tasks: typeof tasks;
+  triggersCompose: typeof triggersCompose;
   users: typeof users;
 }>;
 

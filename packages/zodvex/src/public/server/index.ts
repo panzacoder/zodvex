@@ -31,7 +31,10 @@ export {
   zCustomQuery
 } from '../../internal/custom'
 // Codec customization (manual composition escape hatch)
-export { createZodvexCustomization } from '../../internal/customization'
+export {
+  createZodvexCustomization,
+  type ZodvexUnderlyingDb
+} from '../../internal/customization'
 // Database wrappers (ZodvexDatabaseReader, ZodvexDatabaseWriter, etc.)
 export {
   createZodDbReader,

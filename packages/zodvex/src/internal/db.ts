@@ -484,6 +484,18 @@ export class ZodvexDatabaseReader<
     return { db: this.db, tableMap: this.tableMap }
   }
 
+  /**
+   * Escape hatch (#85/#92): returns the database this codec wrapper delegates
+   * to — the composed underlying stack when `underlyingDb` is configured (e.g.
+   * a trigger-wrapped writer), the bare Convex db otherwise.
+   *
+   * The returned db is native-shape: reads are undecoded wire documents and it
+   * bypasses codec, `.withRules()`, and `.audit()` layers entirely.
+   */
+  unwrap(): GenericDatabaseReader<DataModel> {
+    return this.db
+  }
+
   normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
     tableName: TableName,
     id: string
@@ -598,6 +610,18 @@ export class ZodvexDatabaseWriter<
     reader: ZodvexDatabaseReader<DataModel, DecodedDocs>
   } {
     return { db: this.writerDb, tableMap: this.tableMap, reader: this }
+  }
+
+  /**
+   * Escape hatch (#85/#92): returns the writer this codec wrapper delegates
+   * to — the composed underlying stack when `underlyingDb` is configured (e.g.
+   * a trigger-wrapped writer), the bare Convex db otherwise.
+   *
+   * The returned db is native-shape: writes must be wire-format and it
+   * bypasses codec, `.withRules()`, and `.audit()` layers entirely.
+   */
+  override unwrap(): GenericDatabaseWriter<DataModel> {
+    return this.writerDb
   }
 
   // --- Write methods: encode before delegating ---

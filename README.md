@@ -167,6 +167,21 @@ The same wrapped `ctx.db` carries per-row security and observability — both op
 
 Guide: [Rules & Audit](./docs/guide/rules-and-audit.md)
 
+### Composable with Triggers
+
+The codec wrapper can delegate to an underlying db you supply, so `ctx.db`-wrapping libraries like `convex-helpers/server/triggers` compose instead of colliding — codec on top, triggers underneath, real db at the bottom:
+
+```ts
+const triggers = new Triggers<DataModel>()
+export const { zq, zm, zim /* ... */ } = initZodvex(schema, server, {
+  underlyingDb: { mutation: (ctx) => triggers.wrapDB(ctx).db },
+})
+```
+
+Triggers fire inside zodvex mutations and observe native wire-format writes — which unlocks the aggregate component's table-trigger mode, model-bound cascades, and similar reactive patterns. `ctx.db.unwrap()` is the matching escape hatch for direct access to the underlying db.
+
+Guide: [Builders — Composing with triggers](./docs/guide/builders.md#composing-with-convex-helpers-triggers-underlyingdb)
+
 ### Codegen & Client-Side Schema Sharing
 
 zodvex includes an optional CLI that generates typed client code:

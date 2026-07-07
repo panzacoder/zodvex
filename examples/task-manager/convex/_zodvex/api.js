@@ -156,6 +156,22 @@ export const zodvexRegistry = {
     args: z.object({ id: zx.id("tasks"), title: z.string().optional(), description: z.string().optional(), status: z.enum(["todo", "in_progress", "done"]).optional(), priority: z.enum(["low", "medium", "high"]).nullable().optional(), assigneeId: zx.id("users").optional(), dueDate: zx.date().optional(), estimate: zDuration.optional() }),
     returns: undefined,
   },
+  'triggersCompose:createTask': {
+    args: z.object({ title: z.string(), ownerId: zx.id("users"), dueDate: zx.date().optional() }),
+    returns: zx.id("tasks"),
+  },
+  'triggersCompose:getOwnerCount': {
+    args: z.object({ ownerId: zx.id("users") }),
+    returns: z.number(),
+  },
+  'triggersCompose:removeTask': {
+    args: z.object({ taskId: zx.id("tasks") }),
+    returns: z.null(),
+  },
+  'triggersCompose:rescheduleTask': {
+    args: z.object({ taskId: zx.id("tasks"), dueDate: zx.date() }),
+    returns: z.null(),
+  },
   'users:countByEmail': {
     args: z.object({ email: taggedEmail }),
     returns: z.number(),
