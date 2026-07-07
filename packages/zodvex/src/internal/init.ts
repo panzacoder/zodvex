@@ -2,6 +2,8 @@ import type {
   ActionBuilder,
   FunctionVisibility,
   GenericActionCtx,
+  GenericDatabaseReader,
+  GenericDatabaseWriter,
   GenericDataModel,
   GenericMutationCtx,
   GenericQueryCtx,
@@ -13,7 +15,7 @@ import type { z } from 'zod'
 import { createCodecCallOverrides } from './actionCtx'
 import type { CustomBuilder } from './custom'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './custom'
-import { createZodvexCustomization } from './customization'
+import { createZodvexCustomization, type ZodvexUnderlyingDb } from './customization'
 import type { ZodvexDatabaseReader, ZodvexDatabaseWriter } from './db'
 import type { ZodValidator } from './mapping'
 import type { ZodTableMap } from './schema'
@@ -255,7 +257,28 @@ export function initZodvex<
     internalMutation: MutationBuilder<DM, 'internal'>
     internalAction: ActionBuilder<DM, 'internal'>
   },
-  options?: { wrapDb?: true; registry?: () => AnyRegistry }
+  options?: {
+    wrapDb?: true
+    registry?: () => AnyRegistry
+    /**
+     * Resolve the database the codec wrapper delegates to, instead of `ctx.db`.
+     * Lets native-shape layers (e.g. convex-helpers triggers) sit under the
+     * codec layer — codec on top → triggers → real db. See #92.
+     *
+     * ```ts
+     * const triggers = new Triggers<DataModel>()
+     * initZodvex(schema, server, {
+     *   underlyingDb: { mutation: (ctx) => triggers.wrapDB(ctx).db }
+     * })
+     * ```
+     */
+    underlyingDb?: ZodvexUnderlyingDb<
+      GenericQueryCtx<DM>,
+      GenericMutationCtx<DM>,
+      GenericDatabaseReader<DM>,
+      GenericDatabaseWriter<DM>
+    >
+  }
 ): {
   zq: ZodvexBuilder<'query', { db: ZodvexDatabaseReader<DM, DD> }, GenericQueryCtx<DM>, 'public'>
   zm: ZodvexBuilder<
@@ -279,11 +302,23 @@ export function initZodvex<
 export function initZodvex(
   schema: { __zodTableMap: ZodTableMap },
   server: InitServerBuilders,
-  options?: { wrapDb?: boolean; registry?: () => AnyRegistry }
+  options?: {
+    wrapDb?: boolean
+    registry?: () => AnyRegistry
+    underlyingDb?: ZodvexUnderlyingDb
+  }
 ) {
-  const codec = createZodvexCustomization(schema.__zodTableMap)
-  const noOp = createNoOpCustomization()
   const wrap = options?.wrapDb !== false
+  if (!wrap && options?.underlyingDb) {
+    throw new Error(
+      '[zodvex] initZodvex: `underlyingDb` requires the codec db wrapper — ' +
+        'remove `wrapDb: false` or drop `underlyingDb`.'
+    )
+  }
+  const codec = createZodvexCustomization(schema.__zodTableMap, {
+    underlyingDb: options?.underlyingDb
+  })
+  const noOp = createNoOpCustomization()
 
   const registryThunk = options?.registry
   const actionCust = createActionCustomization(registryThunk, noOp)

@@ -89,6 +89,38 @@ export const getMyProfile = authQuery({
 
 For `onSuccess` hooks and other customization patterns, see [Custom Context](./custom-context.md).
 
+### Composing with convex-helpers triggers (`underlyingDb`)
+
+Libraries like [`convex-helpers/server/triggers`](https://github.com/get-convex/convex-helpers#triggers) work by wrapping `ctx.db` — the same slot zodvex's codec wrapper occupies. The `underlyingDb` option lets them compose: zodvex's codec wrapper delegates to a db you resolve from the raw ctx, so the trigger layer sits **under** the codec layer.
+
+```typescript
+import { Triggers } from 'convex-helpers/server/triggers'
+import type { DataModel } from './_generated/dataModel'
+
+const triggers = new Triggers<DataModel>()
+triggers.register('tasks', async (ctx, change) => {
+  // change.newDoc / change.oldDoc are wire-format documents (native shape) —
+  // codec fields are already encoded (e.g. zx.date() → number).
+  // ctx.innerDb is the raw Convex writer.
+})
+
+export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, server, {
+  underlyingDb: {
+    mutation: (ctx) => triggers.wrapDB(ctx).db,
+    // query?: (ctx) => ...  — same hook for readers (e.g. RLS layers)
+  },
+})
+```
+
+The resulting stack is `codec (zodvex) → triggers (convex-helpers) → real db`: handlers keep working with decoded values (`Date`, typed IDs), zodvex encodes at the write boundary, and the trigger layer observes exactly the native wire-format writes it was written against. This is what enables the aggregate component's table-trigger mode (auto-maintained counts) under zodvex mutations. `.withRules()` and `.audit()` keep working on top of the composed stack.
+
+Two related escape hatches:
+
+- `ctx.db.unwrap()` returns the database the codec wrapper delegates to (the trigger-wrapped writer above, or the bare Convex db when `underlyingDb` isn't set). It bypasses codec, rules, and audit — reads are undecoded and writes must be wire-format.
+- `createZodvexCustomization(tableMap, { underlyingDb })` accepts the same option for manual composition.
+
+Design notes: [docs/decisions/2026-07-07-db-wrap-compose-not-absorb.md](../decisions/2026-07-07-db-wrap-compose-not-absorb.md). Working example: [examples/task-manager/convex/triggersCompose.ts](../../examples/task-manager/convex/triggersCompose.ts).
+
 ## Deprecated: individual builders
 
 `zQueryBuilder` / `zMutationBuilder` / `zActionBuilder` (and the `zCustom*Builder` variants) still work but are deprecated, migration-only APIs — new projects should use `initZodvex`. See the [migration guide](../../MIGRATION.md) for the renames.
