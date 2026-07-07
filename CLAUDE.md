@@ -49,13 +49,13 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 
 ### Releasing
 
-**Beta releases** (manual, fast):
-- `bin/release-beta` — auto-increments prerelease number, builds, tests, tags, pushes
-- `bin/release-beta 0.7.0-beta.0` — explicit version
-- Tag push triggers `.github/workflows/release.yml` → npm publish with `--tag beta`
-- No GitHub Release created for betas
+All releases go through `bin/release-beta` locally (runs the full check pipeline, bumps, commits, tags, pushes) and `.github/workflows/release.yml` in CI (tests, npm publish with the dist-tag derived from the version suffix, GitHub Release for stables). The script refuses to run off a clean, synced `main`.
 
-**Stable releases**: No automated stable release workflow yet. Stable releases are cut manually.
+- `bin/release-beta` — prerelease only: retries the current version if unpublished, else bumps the beta number. **Errors if the current version is stable** (an auto-increment would silently produce a stable publish to `latest`).
+- `bin/release-beta 0.8.0-beta.0` — explicit prerelease → npm `--tag beta`, no GitHub Release
+- `bin/release-beta 0.8.0 --stable` — explicit stable → npm `latest` + a GitHub Release (body from `docs/releases/v<version>.md` when present, auto-generated notes appended)
+
+**Tag-less environments** (e.g. remote sandboxes whose credential can push branches but not tags): after merging the version bump to main, push `release/v<version>` — `release.yml` verifies the version against `package.json`, creates the tag via `GITHUB_TOKEN`, publishes, and deletes the branch. `workflow_dispatch` with a `tag` input is equivalent. To add a GitHub Release entry for an already-published tag, push `gh-release/v<version>` (`.github/workflows/gh-release.yml`).
 
 **PR titles** must follow conventional commit format (`feat:`, `fix:`, `chore:`, etc.) — enforced by `.github/workflows/pr-title.yml`
 

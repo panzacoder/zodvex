@@ -3,45 +3,95 @@ set -euo pipefail
 
 # Release script: fails fast on lint/type errors, then builds once before
 # running example verification that depends on the packaged exports.
-# Usage: bin/release <patch|minor|major|<explicit-version>>
 #
-# Examples:
-#   bin/release patch          # 0.6.0-beta.29 -> 0.6.0-beta.30
-#   bin/release 0.7.0          # set version explicitly
-#   bin/release                 # auto-increment prerelease number
+# Usage:
+#   bin/release-beta                          # prerelease only: retry current if
+#                                             # unpublished, else bump beta number
+#   bin/release-beta 0.8.0-beta.0             # explicit prerelease
+#   bin/release-beta 0.8.0 --stable           # explicit STABLE release (npm latest)
 #
-# Smart retry: if the current version in package.json was never published
-# to npm (e.g., previous CI failure), it re-uses that version instead of
-# burning a new number.
+# Version safety:
+#   - With no argument, the script only ever produces a PRERELEASE. If the
+#     current version is stable (e.g. 0.7.7), it refuses to guess — a bare
+#     auto-increment used to yield the next stable (0.7.8) and publish it to
+#     npm `latest` by accident.
+#   - A stable version (no -beta/-alpha/-rc suffix) always requires --stable.
+#
+# What happens after the push: the v<version> tag triggers
+# .github/workflows/release.yml, which tests, publishes to npm (dist-tag from
+# the suffix: -beta → beta, none → latest), and creates a GitHub Release for
+# stable versions. Environments that can't push tags have two equivalent
+# fallbacks built into that workflow: the workflow_dispatch trigger (tag
+# input) and pushing a `release/v<version>` branch. All paths verify the tag
+# against packages/zodvex/package.json before publishing.
 
 PKG="packages/zodvex/package.json"
-CURRENT=$(grep '"version"' "$PKG" | sed 's/.*": "\(.*\)".*/\1/')
 
+# --- Parse args ---
+EXPLICIT=""
+STABLE_FLAG=0
+for arg in "$@"; do
+  case "$arg" in
+    --stable) STABLE_FLAG=1 ;;
+    -*) echo "Unknown flag: $arg" >&2; exit 1 ;;
+    *) EXPLICIT="$arg" ;;
+  esac
+done
+
+# --- Guards: release from a clean, current main ---
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$BRANCH" != "main" ]]; then
+  echo "Error: releases are cut from main (currently on '$BRANCH')." >&2
+  exit 1
+fi
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Error: working tree is not clean. Commit or stash first." >&2
+  exit 1
+fi
+git fetch origin main --quiet
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+  echo "Error: local main is not in sync with origin/main. Pull/push first." >&2
+  exit 1
+fi
+
+CURRENT=$(bun -e "console.log(JSON.parse(require('fs').readFileSync('$PKG','utf8')).version)")
 echo "Current version: $CURRENT"
 
 # --- Determine next version ---
-if [[ $# -eq 0 ]]; then
+if [[ -z "$EXPLICIT" ]]; then
+  if [[ "$CURRENT" != *-* ]]; then
+    echo "Error: current version '$CURRENT' is stable — refusing to auto-increment." >&2
+    echo "Pass an explicit version: bin/release-beta <next>-beta.0, or <next> --stable." >&2
+    exit 1
+  fi
   # Check if current version was actually published to npm
-  if npm view "zodvex@$CURRENT" version &>/dev/null 2>&1; then
-    # Published — auto-increment as usual
+  if npm view "zodvex@$CURRENT" version &>/dev/null; then
+    # Published — bump the trailing prerelease number
     if [[ "$CURRENT" =~ ^(.+\.)([0-9]+)$ ]]; then
-      PREFIX="${BASH_REMATCH[1]}"
-      NUM="${BASH_REMATCH[2]}"
-      NEXT="${PREFIX}$((NUM + 1))"
+      NEXT="${BASH_REMATCH[1]}$((BASH_REMATCH[2] + 1))"
     else
       echo "Error: cannot auto-increment '$CURRENT'. Pass an explicit version." >&2
       exit 1
     fi
   else
-    # Not published — retry same version
+    # Not published (e.g. previous CI failure) — retry the same version
     NEXT="$CURRENT"
     echo "Version $CURRENT not found on npm — retrying release."
   fi
 else
-  NEXT="$1"
+  NEXT="$EXPLICIT"
+fi
+
+if [[ "$NEXT" != *-* && "$STABLE_FLAG" -ne 1 ]]; then
+  echo "Error: '$NEXT' is a STABLE version and would publish to npm 'latest'." >&2
+  echo "If that is intended, re-run with: bin/release-beta $NEXT --stable" >&2
+  exit 1
 fi
 
 echo "Next version:    $NEXT"
+if [[ "$NEXT" != *-* ]]; then
+  echo "*** STABLE release: publishes to npm 'latest' and creates a GitHub Release ***"
+fi
 echo ""
 
 # --- Pre-release checks ---
@@ -85,21 +135,29 @@ echo ""
 
 # --- Bump, commit, tag, push ---
 if [[ "$NEXT" != "$CURRENT" ]]; then
-  # Version changed — bump package.json and commit
-  sed -i '' "s/\"version\": \"$CURRENT\"/\"version\": \"$NEXT\"/" "$PKG"
+  # Version changed — bump package.json and commit. Edited via bun (not sed)
+  # so the same script works on macOS and Linux.
+  CURRENT="$CURRENT" NEXT="$NEXT" PKG="$PKG" bun -e "
+    const fs = require('fs')
+    const src = fs.readFileSync(process.env.PKG, 'utf8')
+    const from = '\"version\": \"' + process.env.CURRENT + '\"'
+    const to = '\"version\": \"' + process.env.NEXT + '\"'
+    if (!src.includes(from)) { console.error('version field not found'); process.exit(1) }
+    fs.writeFileSync(process.env.PKG, src.replace(from, to))
+  "
   git add "$PKG"
   git commit -m "chore: bump version to $NEXT"
 fi
 
 # Delete existing tag if present (retry after CI failure)
-if git rev-parse "v$NEXT" &>/dev/null 2>&1; then
+if git rev-parse "v$NEXT" &>/dev/null; then
   echo "Replacing existing tag v$NEXT..."
   git tag -d "v$NEXT"
   git push origin ":refs/tags/v$NEXT" 2>/dev/null || true
 fi
 
 git tag "v$NEXT"
-git push
+git push origin main
 git push origin "v$NEXT"
 
 echo ""
