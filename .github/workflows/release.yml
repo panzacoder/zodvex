@@ -160,6 +160,39 @@ jobs:
           cd packages/zodvex
           npm publish --access public --provenance --tag "$DIST_TAG"
 
+      # Stable releases get a GitHub Release entry; prereleases don't. The
+      # body is docs/releases/<tag>.md when the repo carries one, and GitHub's
+      # auto-generated notes (PR list since the previous tag) are appended
+      # either way. Idempotent: an existing release is left untouched.
+      - name: Create GitHub Release (stable only)
+        if: steps.dist-tag.outputs.tag == 'latest'
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}
+        with:
+          script: |
+            const fs = require('fs');
+            const tag = process.env.RELEASE_TAG;
+            const notesPath = `docs/releases/${tag}.md`;
+            const body = fs.existsSync(notesPath) ? fs.readFileSync(notesPath, 'utf8') : undefined;
+            try {
+              await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: tag,
+                body,
+                generate_release_notes: true,
+              });
+              core.info(`Created GitHub Release ${tag}`);
+            } catch (e) {
+              if (`${e}`.includes('already_exists')) {
+                core.info(`Release ${tag} already exists — skipping.`);
+              } else {
+                throw e;
+              }
+            }
+
       - name: Delete release branch (release-branch path)
         if: startsWith(github.ref, 'refs/heads/release/')
         continue-on-error: true

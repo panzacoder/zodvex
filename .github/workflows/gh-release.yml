@@ -1,0 +1,72 @@
+name: GitHub Release (existing tag)
+
+# Creates a GitHub Release for an ALREADY-PUBLISHED tag. The normal path is
+# automatic — release.yml creates the GitHub Release when a stable version
+# publishes. This workflow exists for two cases:
+#   1. Retroactive entries for tags that shipped before that automation.
+#   2. Environments that can't call the releases API directly (e.g. remote
+#      sandboxes on the repo's GitHub App credential, which can push branches
+#      but nothing else).
+# Trigger it by pushing a branch named gh-release/v<version> (any commit —
+# typically just main). The release body is docs/releases/v<version>.md when
+# present, with GitHub's auto-generated notes appended; the trigger branch is
+# deleted afterwards.
+
+on:
+  push:
+    branches:
+      - 'gh-release/v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release for existing tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const tag = context.ref.replace('refs/heads/gh-release/', '');
+            // The tag must already exist — this workflow only writes the
+            // release entry; it never creates tags or publishes packages.
+            await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `tags/${tag}`,
+            });
+            const notesPath = `docs/releases/${tag}.md`;
+            const body = fs.existsSync(notesPath) ? fs.readFileSync(notesPath, 'utf8') : undefined;
+            try {
+              await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: tag,
+                body,
+                prerelease: tag.includes('-'),
+                generate_release_notes: true,
+              });
+              core.info(`Created GitHub Release ${tag}`);
+            } catch (e) {
+              if (`${e}`.includes('already_exists')) {
+                core.info(`Release ${tag} already exists — nothing to do.`);
+              } else {
+                throw e;
+              }
+            }
+
+      - name: Delete trigger branch
+        if: always()
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.git.deleteRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.ref.replace('refs/', ''),
+            });
