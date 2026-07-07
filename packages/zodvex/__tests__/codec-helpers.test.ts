@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
-import { createBoundaryHelpers } from '../src/internal/boundaryHelpers'
+import { __resetRegistryMissWarnings, createBoundaryHelpers } from '../src/internal/boundaryHelpers'
 import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
@@ -91,6 +91,7 @@ describe('createBoundaryHelpers', () => {
     })
 
     it('logs console.debug (not warn) for missing registry entry', () => {
+      __resetRegistryMissWarnings()
       const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       const helpers = createBoundaryHelpers(registry as any)
@@ -105,13 +106,15 @@ describe('createBoundaryHelpers', () => {
       warnSpy.mockRestore()
     })
 
-    it('warns only once per path per helper instance (deduplication)', () => {
+    it('warns only once per path per process, even across helper instances (#101)', () => {
+      __resetRegistryMissWarnings()
       const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
-      const helpers = createBoundaryHelpers(registry as any)
 
-      helpers.encodeArgs(fakeRef('noisy:func'), { x: 1 })
-      helpers.encodeArgs(fakeRef('noisy:func'), { x: 2 })
-      helpers.encodeArgs(fakeRef('noisy:func'), { x: 3 })
+      // Convex wraps ctx per invocation, so each request builds fresh helpers.
+      // The dedup must survive that or hot paths log on every call.
+      createBoundaryHelpers(registry as any).encodeArgs(fakeRef('noisy:func'), { x: 1 })
+      createBoundaryHelpers(registry as any).encodeArgs(fakeRef('noisy:func'), { x: 2 })
+      createBoundaryHelpers(registry as any).encodeArgs(fakeRef('noisy:func'), { x: 3 })
 
       expect(debugSpy).toHaveBeenCalledOnce()
 
@@ -119,6 +122,7 @@ describe('createBoundaryHelpers', () => {
     })
 
     it('warns separately for different unregistered paths', () => {
+      __resetRegistryMissWarnings()
       const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
       const helpers = createBoundaryHelpers(registry as any)
 

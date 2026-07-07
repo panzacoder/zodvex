@@ -18,6 +18,7 @@ import {
   $ZodUndefined,
   $ZodUnion
 } from '../../internal/zod-core'
+import { isZxDateCodec } from '../../internal/zxDateBrand'
 
 export type CodecRef = {
   exportName: string
@@ -76,12 +77,10 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
     }
   }
 
-  // zx.date() — ZodCodec with in=ZodNumber, out=ZodCustom
-  if (
-    schema instanceof $ZodCodec &&
-    schema._zod.def.in instanceof $ZodNumber &&
-    schema._zod.def.out instanceof $ZodCustom
-  ) {
+  // zx.date() — brand check, not shape: a user codec with number wire +
+  // custom runtime must be emitted as a named codec reference, not rewritten
+  // to zx.date(), or decode produces a Date instead of the user's type (#100).
+  if (schema instanceof $ZodCodec && isZxDateCodec(schema)) {
     return 'zx.date()'
   }
 

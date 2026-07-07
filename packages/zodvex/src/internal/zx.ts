@@ -37,6 +37,7 @@ import {
   $ZodType as $ZodTypeValue,
   type output as zoutput
 } from './zod-core'
+import { brandZxDate } from './zxDateBrand'
 
 /**
  * Date codec type for explicit type annotations
@@ -61,15 +62,17 @@ export type ZxDate = FullZodvexCodec<$ZodNumber, $ZodCustom<Date, Date>>
  * ```
  */
 function date(): ZxDate {
-  return zodvexCodec(
-    z.number(), // Wire: timestamp
-    z.custom<Date>(val => val instanceof Date, {
-      message: 'Expected Date instance'
-    }),
-    {
-      decode: (timestamp: number) => new Date(timestamp),
-      encode: (date: Date) => date.getTime()
-    }
+  return brandZxDate(
+    zodvexCodec(
+      z.number(), // Wire: timestamp
+      z.custom<Date>(val => val instanceof Date, {
+        message: 'Expected Date instance'
+      }),
+      {
+        decode: (timestamp: number) => new Date(timestamp),
+        encode: (date: Date) => date.getTime()
+      }
+    )
   ) as unknown as ZxDate
 }
 

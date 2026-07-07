@@ -17,8 +17,10 @@ import {
   $ZodUnion
 } from '../../internal/zod-core'
 import { zx } from '../../internal/zx'
+import { isZxDateCodec } from '../../internal/zxDateBrand'
 import { registerDiscoveryHooks, writeGeneratedStubs } from './discovery-hooks'
 import { findCodec } from './extractCodec'
+import { loadTsconfigAliases } from './tsconfigPaths'
 
 export type DiscoveredModel = {
   exportName: string
@@ -284,7 +286,9 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
   // (e.g. `new LocalDTA(components.localDTA)`) receives a harmless Proxy
   // instead of throwing outside the Convex runtime. _generated/server is NOT
   // stubbed — it re-exports generic builders from convex/server which work natively.
-  registerDiscoveryHooks()
+  // The hook also replays tsconfig path aliases (e.g. '@/convex/...') that
+  // Bun resolves natively but Node's ESM loader does not (#99).
+  registerDiscoveryHooks(loadTsconfigAliases(convexDir))
   const cleanupStubs = writeGeneratedStubs(convexDir)
 
   const files = globSync(['**/*.{ts,js}'], {
@@ -306,7 +310,7 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
     ]
   }).sort()
 
-  let importFailures = 0
+  const failedImports: Array<{ file: string; message: string }> = []
   try {
     for (const file of files) {
       const absPath = path.resolve(convexDir, file)
@@ -315,7 +319,7 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
       try {
         moduleExports = await import(absPath)
       } catch (err) {
-        importFailures++
+        failedImports.push({ file, message: (err as Error).message })
         console.warn(`[zodvex] Warning: Failed to import ${file}:`, (err as Error).message)
         continue
       }
@@ -367,11 +371,11 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
         }
 
         // Check for exported ZodCodec instances (custom codecs)
-        // Skip zx.date() — it's handled natively by zodToSource
+        // Skip zx.date() — it's handled natively by zodToSource. Brand check,
+        // not shape: user codecs with number wire + custom runtime are custom
+        // codecs, not dates (#100).
         if (value instanceof $ZodCodec) {
-          const isZxDate =
-            value._zod.def.in instanceof $ZodNumber && value._zod.def.out instanceof $ZodCustom
-          if (!isZxDate) {
+          if (!isZxDateCodec(value)) {
             // Deduplicate by object identity (same codec from re-exports)
             if (!codecs.some(c => c.schema === value)) {
               codecs.push({
@@ -398,15 +402,23 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
 
     const functionCodecs = walkFunctionCodecs(functions)
 
-    // If imports failed and NOTHING was discovered, the runtime almost
-    // certainly can't load the project's TypeScript at all (e.g. Node < 22.18,
-    // which lacks native type stripping). Failing loudly beats silently
-    // generating empty registry files.
-    if (importFailures > 0 && models.length === 0 && functions.length === 0) {
+    // ANY failed import means the registry is missing entries — silently
+    // emitting a partial registry is worse than a failed generate (#99: a
+    // project with alias-only failures got 1 model / 0 functions and exit 0).
+    // Escape hatch for exotic setups: ZODVEX_ALLOW_IMPORT_FAILURES=1.
+    if (failedImports.length > 0 && !process.env.ZODVEX_ALLOW_IMPORT_FAILURES) {
+      const shown = failedImports
+        .slice(0, 10)
+        .map(f => `  - ${f.file}: ${f.message}`)
+        .join('\n')
+      const more = failedImports.length > 10 ? `\n  … and ${failedImports.length - 10} more` : ''
       throw new Error(
-        `[zodvex] Discovery imported 0 modules (${importFailures} file(s) failed to load). ` +
-          'Importing TypeScript at runtime requires Bun or Node >= 22.18 (native type stripping). ' +
-          'Re-run with Bun (`bunx zodvex generate`) or upgrade Node.'
+        `[zodvex] ${failedImports.length} module(s) failed to import during discovery — ` +
+          `the generated registry would be incomplete:\n${shown}${more}\n` +
+          'Common causes: Node < 22.18 (no native TypeScript type stripping — use Bun or ' +
+          'upgrade Node), or an import style the discovery resolver does not handle. ' +
+          'tsconfig path aliases and extensionless relative imports are supported. ' +
+          'Set ZODVEX_ALLOW_IMPORT_FAILURES=1 to generate anyway (skipping the failed modules).'
       )
     }
 

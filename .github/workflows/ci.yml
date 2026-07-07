@@ -60,6 +60,15 @@ jobs:
             echo "ERROR: 'zodvex generate' under Node produced different output than under Bun."
             exit 1
           }
+          # tsconfig path aliases must resolve under Node (#99)
+          node packages/zodvex/dist/cli/index.js generate test-fixtures/alias-smoke/convex
+          # and any failed module import must fail the generate rather than
+          # silently emitting a partial registry (#99)
+          if node packages/zodvex/dist/cli/index.js generate test-fixtures/broken-import-smoke/convex; then
+            echo ""
+            echo "ERROR: 'zodvex generate' succeeded despite a failed module import."
+            exit 1
+          fi
 
 
   lint:
