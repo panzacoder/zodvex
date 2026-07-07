@@ -37,6 +37,8 @@ for arg in "$@"; do
     *) EXPLICIT="$arg" ;;
   esac
 done
+# Tolerate a leading v ("bin/release-beta v0.8.0") — the tag adds its own.
+EXPLICIT="${EXPLICIT#v}"
 
 # --- Guards: release from a clean, current main ---
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
