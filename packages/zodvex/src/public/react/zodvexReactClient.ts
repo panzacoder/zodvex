@@ -19,7 +19,10 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
   }
 
   constructor(registry: R, options: ZodvexReactClientOptions) {
-    this.codec = createBoundaryHelpers(registry, { onDecodeError: options.onDecodeError })
+    this.codec = createBoundaryHelpers(registry, {
+      onDecodeError: options.onDecodeError,
+      warnWirePreview: options.warnWirePreview
+    })
     this.options = options
     if ('client' in options) {
       this.innerClient = options.client

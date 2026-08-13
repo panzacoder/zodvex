@@ -51,6 +51,46 @@ describe('decodeResult', () => {
     expect(warnSpy).toHaveBeenCalled()
     const msg = warnSpy.mock.calls[0][0] as string
     expect(msg).toContain('tasks:get')
+    // The default warn message omits the raw wire preview — wire values may be sensitive (#111)
+    expect(msg).toContain('Returning raw wire data')
+    expect(msg).not.toContain('Preview')
+    expect(msg).not.toContain('123')
+    warnSpy.mockRestore()
+  })
+
+  it('warnWirePreview: true includes a preview of the raw wire data in the warn message', () => {
+    const codec = createBoundaryHelpers(registry, { warnWirePreview: true })
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    // Pass invalid data — title should be string, not number
+    const wire = { _id: 'x', title: 123, createdAt: 1700000000000 }
+    const result = codec.decodeResult(fakeRef('tasks:get'), wire)
+
+    expect(result).toBe(wire) // raw wire data returned
+    expect(warnSpy).toHaveBeenCalled()
+    const msg = warnSpy.mock.calls[0][0] as string
+    expect(msg).toContain('Preview:')
+    expect(msg).toContain('"title":123')
+    warnSpy.mockRestore()
+  })
+
+  it('warnWirePreview: true truncates previews longer than 200 chars', () => {
+    const codec = createBoundaryHelpers(registry, { warnWirePreview: true })
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    // createdAt is wire-typed as a number, so this fails decode while keeping
+    // the JSON payload well over 200 chars
+    const wire = { _id: 'x', title: 'a'.repeat(400), createdAt: 'not-a-number' }
+    const result = codec.decodeResult(fakeRef('tasks:get'), wire)
+
+    expect(result).toBe(wire) // raw wire data returned
+    const msg = warnSpy.mock.calls[0][0] as string
+    expect(msg).toContain('Preview: ')
+    const preview = msg.split('Preview: ')[1]
+    expect(preview.length).toBe(203) // 200 chars + '...'
+    expect(preview.endsWith('...')).toBe(true)
     warnSpy.mockRestore()
   })
 
