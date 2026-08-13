@@ -139,7 +139,9 @@ export function fingerprintCell(key: CellKey, meta: HarnessMeta): string {
   if (key.flavor === 'zodvex' || key.flavor === 'zodvex-mini') {
     hashPath(join(REPO_ROOT, 'packages', 'zodvex', 'dist'), h)
     if (key.flavor === 'zodvex-mini') {
-      hashPath(join(REPO_ROOT, 'packages', 'zod-to-mini', 'dist'), h)
+      // src, not dist: the workspace package's main is src/index.ts and it
+      // is never built, so compose imports the codemod straight from src.
+      hashPath(join(REPO_ROOT, 'packages', 'zod-to-mini', 'src'), h)
     }
   }
 

@@ -58,7 +58,8 @@ export type DeployOutcome =
 export interface DeployOptions {
   /** Path to the composed convex/ directory to upload. */
   source: string
-  /** CONVEX_DEPLOYMENT slug. Read from env if omitted. */
+  /** CONVEX_DEPLOYMENT slug. Read from _deploy/.env.local if omitted;
+   *  ambient process.env.CONVEX_DEPLOYMENT is deliberately refused. */
   deployment?: string
   /** Push timeout in ms. Default 5 minutes. */
   timeoutMs?: number
@@ -175,27 +176,66 @@ function stageSource(source: string): void {
   cpSync(source, DEPLOY_CONVEX, { recursive: true })
 }
 
+export interface SlugSources {
+  /** DeployOptions.deployment — an explicit, caller-chosen target. */
+  explicit?: string
+  /** Ambient process.env.CONVEX_DEPLOYMENT. */
+  envSlug?: string
+  /** CONVEX_DEPLOYMENT pinned in _deploy/.env.local. */
+  envFileSlug?: string
+}
+
+/**
+ * The harness resets (wipes) whatever deployment it pushes to, so an
+ * ambient CONVEX_DEPLOYMENT — commonly left exported by `npx convex dev`
+ * in some other project — must never be used implicitly. Only an explicit
+ * option or the deployment pinned in _deploy/.env.local is accepted.
+ */
+export function resolveDeploymentSlug(sources: SlugSources): { slug: string } | { error: string } {
+  if (sources.explicit) return { slug: sources.explicit }
+  if (sources.envFileSlug) return { slug: sources.envFileSlug }
+  if (sources.envSlug) {
+    return {
+      error:
+        `refusing to deploy to ambient CONVEX_DEPLOYMENT=${sources.envSlug} — it likely points at an ` +
+        `unrelated project, and the harness resets whatever it deploys to. Pin the harness's own ` +
+        `deployment in examples/stress-test/_deploy/.env.local (run \`npx convex dev --configure\` ` +
+        `inside _deploy/) or pass { deployment } explicitly.`,
+    }
+  }
+  return {
+    error:
+      'no deployment configured — provision examples/stress-test/_deploy/.env.local ' +
+      '(run `npx convex dev --configure` inside _deploy/)',
+  }
+}
+
 export function deploy(opts: DeployOptions): Promise<DeployOutcome> {
   const { source, deployment, timeoutMs = 5 * 60 * 1000, verbose = true, smokeFunction } = opts
 
   // Resolve deployment slug.
-  let slug = deployment ?? process.env.CONVEX_DEPLOYMENT
-  if (!slug) {
-    const envFile = join(DEPLOY_DIR, '.env.local')
-    if (existsSync(envFile)) {
-      const m = readFileSync(envFile, 'utf-8').match(/CONVEX_DEPLOYMENT=(\S+)/)
-      if (m) slug = m[1]
-    }
+  let envFileSlug: string | undefined
+  const envFile = join(DEPLOY_DIR, '.env.local')
+  if (existsSync(envFile)) {
+    const m = readFileSync(envFile, 'utf-8').match(/CONVEX_DEPLOYMENT=(\S+)/)
+    if (m) envFileSlug = m[1]
   }
-  if (!slug) {
+  const resolved = resolveDeploymentSlug({
+    explicit: deployment,
+    envSlug: process.env.CONVEX_DEPLOYMENT,
+    envFileSlug,
+  })
+  if ('error' in resolved) {
+    console.error(`[realDeploy] ${resolved.error}`)
     return Promise.resolve({
       kind: 'other',
       exitCode: -1,
       durationMs: 0,
-      stderrSnippet: 'CONVEX_DEPLOYMENT not set (env or _deploy/.env.local)',
+      stderrSnippet: resolved.error,
       stdoutTail: '',
     })
   }
+  const slug = resolved.slug
 
   stageSource(source)
 

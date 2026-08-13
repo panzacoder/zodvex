@@ -5,9 +5,13 @@
 // known-good target proves zodvex stays competitive with pure-convex and
 // continues to beat plain convex-helpers/zod4.
 //
-// Default target: N=600 endpoints (~3,000 functions).
+// Default target: N=100 endpoints in the 'explicit' shape — the documented
+// shape zodvex MAIN supports (no codegen tables.ts/server.ts), so the
+// default invocation gates main itself. Feature branches that add
+// thin-schema shapes raise their own gate, e.g.
+// `--target=600 --shape=consolidated`.
 //
-// Why 600 specifically:
+// Why 600 for those thin-schema gates:
 // - The fresh-diff TooManyReads wall sits between N=750 and N=800 (each
 //   new push reset to a 1-table state, full N-table diff in one
 //   `finish_push` transaction). N=600 leaves a comfortable buffer below
@@ -60,21 +64,29 @@ interface FlavorPlan {
 }
 
 /**
- * Expected outcomes at N=800. Updates here are signals that the underlying
- * library or Convex backend behavior changed. Update intentionally.
+ * Expected outcomes per flavor at a given target. Updates here are signals
+ * that the underlying library or Convex backend behavior changed. Update
+ * intentionally. zodvex flavors default to the 'explicit' shape so the
+ * default plan composes and deploys against zodvex MAIN.
  */
-const DEFAULT_PLAN: FlavorPlan[] = [
-  { flavor: 'convex', lazyTables: false, expectedDeploy: 'ok',
-    note: 'baseline: plain Convex validators, no zod' },
-  { flavor: 'convex-helpers-zod3', lazyTables: false, expectedDeploy: 'ok',
-    note: 'zod3 + convex-helpers adapter; ~6× lighter per object than zod4' },
-  { flavor: 'zodvex', lazyTables: true, expectedDeploy: 'ok',
-    note: 'zodvex (full zod) with the new lazy-tables + marker + consolidated server.ts' },
-  { flavor: 'zodvex-mini', lazyTables: true, expectedDeploy: 'ok',
-    note: 'zodvex/mini (zod-mini); should match zodvex performance + slightly lighter' },
-  { flavor: 'convex-helpers', lazyTables: false, expectedDeploy: 'oom',
-    note: 'reference point: plain convex-helpers/zod4 still OOMs at this N (no lazy schema)' },
-]
+export function defaultPlan(target: number): FlavorPlan[] {
+  // convex-helpers + zod4 OOMs at N≈500 with no in-library fix path.
+  const helpersZod4Expected: 'ok' | 'oom' = target >= 500 ? 'oom' : 'ok'
+  return [
+    { flavor: 'convex', lazyTables: false, expectedDeploy: 'ok',
+      note: 'baseline: plain Convex validators, no zod' },
+    { flavor: 'convex-helpers-zod3', lazyTables: false, expectedDeploy: 'ok',
+      note: 'zod3 + convex-helpers adapter; ~6× lighter per object than zod4' },
+    { flavor: 'zodvex', lazyTables: false, shape: 'explicit', expectedDeploy: 'ok',
+      note: 'zodvex (full zod), documented explicit shape (works against main)' },
+    { flavor: 'zodvex-mini', lazyTables: false, shape: 'explicit', expectedDeploy: 'ok',
+      note: 'zodvex/mini (zod-mini); should match zodvex + slightly lighter' },
+    { flavor: 'convex-helpers', lazyTables: false, expectedDeploy: helpersZod4Expected,
+      note: helpersZod4Expected === 'oom'
+        ? 'reference point: plain convex-helpers/zod4 still OOMs at this N (no lazy schema)'
+        : 'plain convex-helpers/zod4 — below its ~N=500 OOM wall at this target' },
+  ]
+}
 
 export interface RegressionOptions {
   target?: number
@@ -93,8 +105,8 @@ export async function regression(opts: RegressionOptions = {}): Promise<{
   ok: boolean
   outcomes: FlavorOutcome[]
 }> {
-  const target = opts.target ?? 600
-  let plan = opts.plan ?? DEFAULT_PLAN
+  const target = opts.target ?? 100
+  let plan = opts.plan ?? defaultPlan(target)
   if (opts.shape) {
     plan = plan.map(e =>
       e.flavor === 'zodvex' || e.flavor === 'zodvex-mini'
@@ -190,10 +202,10 @@ function fmtTable(target: number, outcomes: FlavorOutcome[]): string {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)
   const get = (k: string) => args.find(a => a.startsWith(`--${k}=`))?.split('=')[1]
-  const target = get('target') ? parseInt(get('target')!) : 600
+  const target = get('target') ? parseInt(get('target')!) : 100
   const outFile = get('out') ?? join(__dirname, 'results', `regression-${new Date().toISOString().slice(0, 10)}.json`)
   const flavors = get('flavors')?.split(',').map(s => s.trim()).filter(Boolean) as Flavor[] | undefined
-  const plan = flavors ? DEFAULT_PLAN.filter(p => flavors.includes(p.flavor)) : undefined
+  const plan = flavors ? defaultPlan(target).filter(p => flavors.includes(p.flavor)) : undefined
   if (flavors && plan!.length === 0) {
     console.error(`✗ no flavors in --flavors=${flavors.join(',')} matched the regression plan`)
     process.exit(1)

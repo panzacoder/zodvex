@@ -43,7 +43,7 @@ interface CellResult {
 interface SweepConfig {
   flavors?: Flavor[]
   ns?: number[]
-  /** zodvex consumer shape to compose (parity flavors unaffected). Default 'harness'. */
+  /** zodvex consumer shape to compose (parity flavors unaffected). Default 'explicit'. */
   shape?: 'harness' | 'explicit' | 'consolidated'
   /** Skip flavor at higher N once it's already failed at a lower N for the same flavor. Default true. */
   skipAfterFailure?: boolean
@@ -71,6 +71,11 @@ function classifyOutcome(outcome: { kind: string; stderrSnippet?: string }): str
   return 'other'
 }
 
+/** Default zodvex consumer shape: 'explicit' is the documented shape MAIN
+ *  supports (no codegen tables.ts), so a plain `bun run sweep` works
+ *  against main. */
+export const DEFAULT_SHAPE: 'harness' | 'explicit' | 'consolidated' = 'explicit'
+
 export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
   const flavors = config.flavors ?? [
     'convex',
@@ -80,7 +85,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
     'zodvex-mini',
   ]
   const ns = config.ns ?? [200, 500, 800, 1000, 1500, 2000]
-  const shape = config.shape ?? 'harness'
+  const shape = config.shape ?? DEFAULT_SHAPE
   const skipAfterFailure = config.skipAfterFailure ?? true
   const doReset = config.reset ?? true
   const force = config.force ?? false
@@ -148,8 +153,9 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
       }
 
       console.error(`[${flavor} N=${n}] composing…`)
-      // explicit = the main-compatible defineZodSchema shape: no tables.ts.
-      const lazyTables = isZodvex && shape !== 'explicit'
+      // Thin schema (codegen tables.ts) exists only for the consolidated
+      // shape; explicit and harness compose without codegen output.
+      const lazyTables = isZodvex && shape === 'consolidated'
       let measured
       try {
         measured = await bench({
@@ -270,7 +276,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const results = await sweep({
     flavors,
     ns,
-    shape: (get('shape') ?? 'harness') as 'harness' | 'explicit' | 'consolidated',
+    shape: get('shape') as 'harness' | 'explicit' | 'consolidated' | undefined,
     models: get('models') ? parseInt(get('models')!, 10) : undefined,
     endpoints: get('endpoints') ? parseInt(get('endpoints')!, 10) : undefined,
     outFile,

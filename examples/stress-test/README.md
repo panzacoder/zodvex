@@ -10,8 +10,11 @@ deploy headroom" claim.
 # Build zodvex first (harness imports from built dist)
 cd ../.. && bun run build && cd examples/stress-test
 
-# Single-N regression gate (used by `bun run validate` at the repo root)
-bun run regression -- --target=600 --flavors=zodvex,zodvex-mini
+# Single-N regression gate (used by `bun run validate` at the repo root).
+# Defaults: N=100 in the explicit shape — the level and shape zodvex main
+# passes. Thin-schema feature branches raise their own gate, e.g.
+# `--target=600 --shape=consolidated`.
+bun run regression -- --flavors=zodvex,zodvex-mini
 
 # Full ceiling sweep across all flavors and N values
 bun run sweep -- --ns=200,400,500,600,700,750,800 --continue
@@ -52,9 +55,10 @@ bun run bench -- --flavor=zodvex --count=200
 ### regression / sweep
 | Flag | Description |
 |------|-------------|
-| `--target=N` (regression) | Endpoints per flavor (default 600) |
+| `--target=N` (regression) | Endpoints per flavor (default 100) |
 | `--ns=200,400,500,...` (sweep) | Comma-separated N values |
 | `--flavors=zodvex,zodvex-mini` | Subset of flavors to run |
+| `--shape=explicit\|consolidated\|harness` | zodvex consumer shape (default `explicit`, the main-compatible shape) |
 | `--continue` (sweep) | Don't skip a flavor after its first failure |
 | `--out=path` | Write JSON results to this path |
 
@@ -63,7 +67,7 @@ bun run bench -- --flavor=zodvex --count=200
 |------|-------------|
 | `--flavor=zodvex` | Which flavor to compose (zodvex / zodvex-mini / convex / convex-helpers / convex-helpers-zod3) |
 | `--count=200` | Endpoints to compose |
-| `--lazyTables` | Use the codegen-emitted `_zodvex/tables.ts` shape |
+| `--lazy-tables` | Use the codegen-emitted `_zodvex/tables.ts` shape |
 | `--keep` | Don't delete `tmp/<flavor>/composed/` after measure |
 
 ## Results

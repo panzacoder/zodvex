@@ -47,7 +47,10 @@ export function measureBundle(opts: MeasureOptions): Promise<MeasureResult> {
   nodeArgs.push(CHILD, bundle)
 
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, nodeArgs, {
+    // Always node, never process.execPath: the harness itself runs under
+    // bun, but --max-old-space-size and the OOM stderr patterns are
+    // V8-specific — under bun's JSC the heap cap is a silent no-op.
+    const child = spawn('node', nodeArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env },
     })

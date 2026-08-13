@@ -123,6 +123,22 @@ function seedDirFor(flavor: Flavor): string {
   return join(SEEDS_DIR, flavor)
 }
 
+/**
+ * Table name for a seed. zodvex seeds carry it in defineZodModel('name');
+ * parity seeds (plain defineTable) don't name the table in the model file,
+ * so read it from the endpoint's first db.query()/db.insert() call. The
+ * `${name}s` naive-plural fallback must stay last: on irregular plurals it
+ * produces names like 'activitys', which silently no-op the per-copy table
+ * rename in renameSeed.
+ */
+export function extractTableName(name: string, modelSource: string, endpointSource: string): string {
+  const zodvexTable = modelSource.match(/defineZodModel\(\s*'([^']+)'/)
+  if (zodvexTable) return zodvexTable[1]
+  const endpointTable = endpointSource.match(/\bdb\.(?:query|insert)\(\s*'([^']+)'/)
+  if (endpointTable) return endpointTable[1]
+  return `${name}s`
+}
+
 function loadSeeds(flavor: Flavor): SeedInfo[] {
   const root = seedDirFor(flavor)
   const modelDir = join(root, 'models')
@@ -136,9 +152,7 @@ function loadSeeds(flavor: Flavor): SeedInfo[] {
     const endpointPath = join(endpointDir, file)
     const endpointSource = existsSync(endpointPath) ? readFileSync(endpointPath, 'utf-8') : ''
 
-    const zodvexTable = modelSource.match(/defineZodModel\(\s*'([^']+)'/)
-    const convexTable = modelSource.match(/defineTable\(\s*\{[\s\S]*?\}\s*\)/) // fallback
-    const tableName = zodvexTable?.[1] ?? `${name}s`
+    const tableName = extractTableName(name, modelSource, endpointSource)
 
     seeds.push({
       name,
