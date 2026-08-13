@@ -18,6 +18,7 @@ import { type Flavor } from './compose.js'
 import {
   collectMeta,
   fingerprintCell,
+  isCacheableOutcome,
   loadCellCache,
   saveCellCache,
   type CachedCell,
@@ -59,16 +60,6 @@ interface SweepConfig {
    */
   models?: number
   endpoints?: number
-}
-
-/** Friendly outcome label that disambiguates the various 'other' Convex errors. */
-function classifyOutcome(outcome: { kind: string; stderrSnippet?: string }): string {
-  if (outcome.kind !== 'other') return outcome.kind
-  const snippet = outcome.stderrSnippet ?? ''
-  if (/TooManyReads/i.test(snippet)) return 'too-many-reads'
-  if (/Too many function files/i.test(snippet)) return 'function-limit'
-  if (/Total bundle/i.test(snippet) || /bundle.*too large/i.test(snippet)) return 'bundle-limit'
-  return 'other'
 }
 
 /** Default zodvex consumer shape: 'explicit' is the documented shape MAIN
@@ -144,10 +135,14 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         continue
       }
 
+      // Whether the cell ran against a clean deployment — diff-dependent
+      // outcomes (ok, too-many-reads) are only cacheable when it did.
+      let resetOk = false
       if (doReset) {
         console.error(`[${flavor} N=${n}] reset…`)
         const reset = await resetDeployment({ verbose: false })
-        if (reset.kind !== 'ok') {
+        resetOk = reset.kind === 'ok'
+        if (!resetOk) {
           console.error(`[${flavor} N=${n}] reset failed (${reset.kind}); proceeding anyway`)
         }
       }
@@ -204,7 +199,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         verbose: false,
         smokeFunction: smokeFns,
       })
-      const kind = classifyOutcome(outcome)
+      const kind = outcome.kind
       const cell: CellResult = {
         flavor,
         n,
@@ -216,16 +211,20 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         errorTail: 'stderrSnippet' in outcome ? (outcome.stderrSnippet ?? '').slice(-300) : null,
       }
       results.push(cell)
-      cache[fp] = {
-        outcome: cell.outcome,
-        durationMs: cell.durationMs,
-        endpointHeapMaxMB: cell.endpointHeapMaxMB,
-        schemaHeapMB: cell.schemaHeapMB,
-        errorTail: cell.errorTail,
-        cachedAt: new Date().toISOString(),
-        key: { flavor, shape: cellShape, n: cellEndpoints, models: cellModels },
-      } satisfies CachedCell
-      saveCellCache(cache)
+      if (isCacheableOutcome(outcome, resetOk)) {
+        cache[fp] = {
+          outcome: cell.outcome,
+          durationMs: cell.durationMs,
+          endpointHeapMaxMB: cell.endpointHeapMaxMB,
+          schemaHeapMB: cell.schemaHeapMB,
+          errorTail: cell.errorTail,
+          cachedAt: new Date().toISOString(),
+          key: { flavor, shape: cellShape, n: cellEndpoints, models: cellModels },
+        } satisfies CachedCell
+        saveCellCache(cache)
+      } else {
+        console.error(`[${flavor} N=${n}] not caching ${kind} (transient or contaminated by failed reset)`)
+      }
       const icon = kind === 'ok' ? '✓' : '✗'
       console.error(`[${flavor} N=${n}] ${icon} ${kind} (${(outcome.durationMs / 1000).toFixed(1)}s)`)
       if (kind !== 'ok') failed.add(flavor)
@@ -270,7 +269,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const has = (k: string) => args.includes(`--${k}`)
   const flavors = get('flavors')?.split(',') as Flavor[] | undefined
   const ns = get('ns')?.split(',').map(s => parseInt(s, 10))
-  const outFile = get('out') ?? join(__dirname, 'results', `sweep-${new Date().toISOString().slice(0, 10)}.json`)
+  // Default under results/local/ (gitignored): results/ proper is the
+  // curated, hand-promoted snapshot set.
+  const outFile = get('out') ?? join(__dirname, 'results', 'local', `sweep-${new Date().toISOString().slice(0, 10)}.json`)
 
   console.error('zodvex ceiling sweep (resets deployment between tests)')
   const results = await sweep({

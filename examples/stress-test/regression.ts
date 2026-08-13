@@ -203,7 +203,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)
   const get = (k: string) => args.find(a => a.startsWith(`--${k}=`))?.split('=')[1]
   const target = get('target') ? parseInt(get('target')!) : 100
-  const outFile = get('out') ?? join(__dirname, 'results', `regression-${new Date().toISOString().slice(0, 10)}.json`)
+  // Default under results/local/ (gitignored): results/ proper is the
+  // curated, hand-promoted snapshot set.
+  const outFile = get('out') ?? join(__dirname, 'results', 'local', `regression-${new Date().toISOString().slice(0, 10)}.json`)
   const flavors = get('flavors')?.split(',').map(s => s.trim()).filter(Boolean) as Flavor[] | undefined
   const plan = flavors ? defaultPlan(target).filter(p => flavors.includes(p.flavor)) : undefined
   if (flavors && plan!.length === 0) {

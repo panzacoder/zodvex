@@ -31,6 +31,7 @@ const OOM_PATTERNS = [
 
 const FUNCTION_LIMIT_PATTERNS = [
   /too many functions/i,
+  /too many function files/i,
   /function array/i,
 ]
 
@@ -42,6 +43,17 @@ const BUNDLE_LIMIT_PATTERNS = [
 const TOO_MANY_READS_PATTERNS = [
   /TooManyReads/,
   /Too many reads/i,
+]
+
+// The backend's real schema failures carry these phrases (see the captured
+// errorTails in results/). A bare /schema/ && /error/ test is far too broad:
+// any esbuild failure inside convex/schema.ts plus a generic "✖ Error:"
+// line would match. Under-matching is the safer direction — 'other' is
+// treated as transient and re-run, while 'schema-error' is cached as
+// authoritative.
+const SCHEMA_ERROR_PATTERNS = [
+  /while evaluating your schema/i,
+  /schema validation failed/i,
 ]
 
 export type DeployOutcome =
@@ -76,13 +88,20 @@ export interface DeployOptions {
   smokeFunction?: string | string[]
 }
 
-function classify(stdout: string, stderr: string): DeployOutcome['kind'] {
+/**
+ * The single classifier for deploy failures — sweep and regression must
+ * not layer their own pattern sets on top (they drifted once: sweep
+ * matched 'Too many function files' while this file matched 'too many
+ * functions', labeling the same failure differently in the two scripts).
+ * OOM is tested first so an OOM during schema evaluation stays 'oom'.
+ */
+export function classify(stdout: string, stderr: string): DeployOutcome['kind'] {
   const combined = `${stderr}\n${stdout}`
   if (OOM_PATTERNS.some(re => re.test(combined))) return 'oom'
   if (FUNCTION_LIMIT_PATTERNS.some(re => re.test(combined))) return 'function-limit'
   if (BUNDLE_LIMIT_PATTERNS.some(re => re.test(combined))) return 'bundle-limit'
   if (TOO_MANY_READS_PATTERNS.some(re => re.test(combined))) return 'too-many-reads'
-  if (/schema/i.test(stderr) && /error/i.test(stderr)) return 'schema-error'
+  if (SCHEMA_ERROR_PATTERNS.some(re => re.test(combined))) return 'schema-error'
   return 'other'
 }
 
@@ -191,6 +210,15 @@ export interface SlugSources {
  * in some other project — must never be used implicitly. Only an explicit
  * option or the deployment pinned in _deploy/.env.local is accepted.
  */
+/** CONVEX_DEPLOYMENT pinned in _deploy/.env.local, or null. The only
+ *  implicit deploy target — everything else must be passed explicitly. */
+export function pinnedDeploymentSlug(): string | null {
+  const envFile = join(DEPLOY_DIR, '.env.local')
+  if (!existsSync(envFile)) return null
+  const m = readFileSync(envFile, 'utf-8').match(/CONVEX_DEPLOYMENT=([^\s#]+)/)
+  return m?.[1] ?? null
+}
+
 export function resolveDeploymentSlug(sources: SlugSources): { slug: string } | { error: string } {
   if (sources.explicit) return { slug: sources.explicit }
   if (sources.envFileSlug) return { slug: sources.envFileSlug }
@@ -214,16 +242,10 @@ export function deploy(opts: DeployOptions): Promise<DeployOutcome> {
   const { source, deployment, timeoutMs = 5 * 60 * 1000, verbose = true, smokeFunction } = opts
 
   // Resolve deployment slug.
-  let envFileSlug: string | undefined
-  const envFile = join(DEPLOY_DIR, '.env.local')
-  if (existsSync(envFile)) {
-    const m = readFileSync(envFile, 'utf-8').match(/CONVEX_DEPLOYMENT=(\S+)/)
-    if (m) envFileSlug = m[1]
-  }
   const resolved = resolveDeploymentSlug({
     explicit: deployment,
     envSlug: process.env.CONVEX_DEPLOYMENT,
-    envFileSlug,
+    envFileSlug: pinnedDeploymentSlug() ?? undefined,
   })
   if ('error' in resolved) {
     console.error(`[realDeploy] ${resolved.error}`)

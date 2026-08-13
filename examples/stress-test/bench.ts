@@ -19,6 +19,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 interface EndpointMetric {
   endpoint: string
+  /** Whether esbuild produced a bundle. When false, the byte counts are 0
+   *  placeholders and must not enter the bundle-size stats. */
+  bundled: boolean
   bundleBytes: number
   entryBytes: number
   chunkBytes: number
@@ -72,6 +75,12 @@ function stats(xs: number[]): Stats {
   }
 }
 
+/** Bundle-size stats over endpoints that actually produced a bundle —
+ *  failed bundles carry 0-byte placeholders that would corrupt min/mean/sum. */
+export function bundleBytesStats(metrics: Pick<EndpointMetric, 'bundled' | 'bundleBytes'>[]): Stats {
+  return stats(metrics.filter(m => m.bundled).map(m => m.bundleBytes))
+}
+
 export interface BenchOptions {
   flavor: Flavor
   count: number
@@ -122,6 +131,19 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     verbose = true,
   } = opts
 
+  // Validate before any filesystem work: a zero-endpoint compose would leave
+  // the measure pool with no work items and its promise never resolving, and
+  // a negative sample would silently slice(0, -1) and mismeasure.
+  if (!Number.isInteger(count) || count < 1) {
+    throw new Error(`bench: count must be a positive integer, got ${count}`)
+  }
+  if (sample !== undefined && (!Number.isInteger(sample) || sample < 1)) {
+    throw new Error(`bench: sample must be a positive integer, got ${sample}`)
+  }
+  if (models !== undefined && (!Number.isInteger(models) || models < 1)) {
+    throw new Error(`bench: models must be a positive integer, got ${models}`)
+  }
+
   const startedAt = Date.now()
   const composedDir = join(workDir, 'composed')
   const bundlesRoot = join(workDir, 'bundles')
@@ -167,6 +189,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
   let idx = 0
 
   await new Promise<void>((resolve) => {
+    if (bundles.length === 0) return resolve()
     const launch = () => {
       while (inflight < concurrency && idx < bundles.length) {
         const b = bundles[idx++]
@@ -177,6 +200,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
           inflight--
           metrics.push({
             endpoint: name,
+            bundled: !!b.bundle,
             bundleBytes: b.entryBytes + b.chunkBytes,
             entryBytes: b.entryBytes,
             chunkBytes: b.chunkBytes,
@@ -243,7 +267,7 @@ export async function bench(opts: BenchOptions): Promise<BenchResult> {
     endpointsOk: ok.length,
     endpointsFailed: failed.length,
     endpointsOOM: oom.length,
-    bundleBytes: stats(metrics.map(m => m.bundleBytes)),
+    bundleBytes: bundleBytesStats(metrics),
     heapDeltaMB: stats(ok.map(m => m.heapDeltaMB)),
     rssMB: stats(ok.map(m => m.rssAfterMB)),
     schemaBundleBytes,

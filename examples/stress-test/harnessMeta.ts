@@ -17,13 +17,14 @@ import { createHash, type Hash } from 'crypto'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
+import { pinnedDeploymentSlug } from './realDeploy.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = __dirname
 const REPO_ROOT = join(ROOT, '..', '..')
 
 /** Bump when the fingerprint structure itself changes. */
-const FINGERPRINT_SCHEMA = 'v2'
+const FINGERPRINT_SCHEMA = 'v3'
 
 // ---------------------------------------------------------------------------
 // Metadata
@@ -60,14 +61,6 @@ function git(cmd: string): string {
   }
 }
 
-function deploymentSlug(): string | null {
-  const envFile = join(ROOT, '_deploy', '.env.local')
-  if (process.env.CONVEX_DEPLOYMENT) return process.env.CONVEX_DEPLOYMENT
-  if (!existsSync(envFile)) return null
-  const m = readFileSync(envFile, 'utf-8').match(/CONVEX_DEPLOYMENT=([^\s#]+)/)
-  return m?.[1] ?? null
-}
-
 export function collectMeta(): HarnessMeta {
   return {
     timestamp: new Date().toISOString(),
@@ -80,7 +73,9 @@ export function collectMeta(): HarnessMeta {
     convexHelpersVersion: pkgVersion('convex-helpers'),
     zodVersion: pkgVersion('zod'),
     bunVersion: (globalThis as any).Bun?.version ?? process.version,
-    deployment: deploymentSlug()
+    // Same source deploy() actually targets — ambient CONVEX_DEPLOYMENT is
+    // refused there, so it must not leak into fingerprints either.
+    deployment: pinnedDeploymentSlug(),
   }
 }
 
@@ -105,6 +100,22 @@ function hashPath(p: string, h: Hash): void {
   h.update(readFileSync(p))
 }
 
+// Subtree digests are stable for the lifetime of one harness process — a
+// sweep calls fingerprintCell once per cell, and re-reading the zodvex
+// dist (hundreds of files) for every cell is pure waste. A rebuild racing
+// a running sweep is out of scope.
+const subtreeDigestCache = new Map<string, string>()
+
+function subtreeDigest(p: string): string {
+  const hit = subtreeDigestCache.get(p)
+  if (hit) return hit
+  const h = createHash('sha256')
+  hashPath(p, h)
+  const digest = h.digest('hex')
+  subtreeDigestCache.set(p, digest)
+  return digest
+}
+
 export interface CellKey {
   flavor: string
   shape: string
@@ -127,21 +138,28 @@ export function fingerprintCell(key: CellKey, meta: HarnessMeta): string {
   h.update(`convex:${meta.convexVersion}|helpers:${meta.convexHelpersVersion}|zod:${meta.zodVersion}`)
 
   // Harness logic — any change to compose/deploy/measure invalidates.
-  for (const f of ['compose.ts', 'sweep.ts', 'bench.ts', 'realDeploy.ts', 'bundle.ts', 'measureBundle.ts', 'measureChild.mjs']) {
-    hashPath(join(ROOT, f), h)
+  // sweep.ts is deliberately NOT hashed: it orchestrates and reports but
+  // never changes what a cell deploys or measures, and hashing it meant a
+  // cosmetic table tweak blew the entire cell cache.
+  for (const f of ['compose.ts', 'bench.ts', 'realDeploy.ts', 'bundle.ts', 'measureBundle.ts', 'measureChild.mjs']) {
+    h.update(subtreeDigest(join(ROOT, f)))
   }
 
-  // Seed corpus for the flavor (zodvex-mini shares zodvex seeds).
-  const seedFlavor = key.flavor === 'zodvex-mini' ? 'zodvex' : key.flavor
-  hashPath(join(ROOT, 'seeds', seedFlavor), h)
+  // Seed corpus for the flavor (zodvex-mini shares zodvex seeds;
+  // convex-helpers-zod3 derives from the convex-helpers corpus).
+  const seedFlavor =
+    key.flavor === 'zodvex-mini' ? 'zodvex'
+    : key.flavor === 'convex-helpers-zod3' ? 'convex-helpers'
+    : key.flavor
+  h.update(subtreeDigest(join(ROOT, 'seeds', seedFlavor)))
 
   // zodvex flavors depend on the built workspace dist (library + CLI).
   if (key.flavor === 'zodvex' || key.flavor === 'zodvex-mini') {
-    hashPath(join(REPO_ROOT, 'packages', 'zodvex', 'dist'), h)
+    h.update(subtreeDigest(join(REPO_ROOT, 'packages', 'zodvex', 'dist')))
     if (key.flavor === 'zodvex-mini') {
       // src, not dist: the workspace package's main is src/index.ts and it
       // is never built, so compose imports the codemod straight from src.
-      hashPath(join(REPO_ROOT, 'packages', 'zod-to-mini', 'src'), h)
+      h.update(subtreeDigest(join(REPO_ROOT, 'packages', 'zod-to-mini', 'src')))
     }
   }
 
@@ -162,6 +180,38 @@ export interface CachedCell {
   errorTail: string | null
   cachedAt: string
   key: CellKey
+}
+
+/**
+ * Whether a deploy outcome is deterministic enough to cache. Everything the
+ * cache replays is treated as authoritative and also feeds skipAfterFailure,
+ * so transient failures (timeouts, unclassified 'other' — the bucket network
+ * flakes land in, smoke timeouts) must be re-run, never cached. Outcomes
+ * that depend on the push diff (ok, too-many-reads) additionally require a
+ * clean reset: residual state can shrink the diff (false pass) or stack it
+ * (spurious TooManyReads).
+ */
+export function isCacheableOutcome(
+  outcome: { kind: string; stderrSnippet?: string | null },
+  resetOk: boolean,
+): boolean {
+  switch (outcome.kind) {
+    // Analysis-isolate and count-based limits: independent of the push diff.
+    case 'oom':
+    case 'function-limit':
+    case 'bundle-limit':
+    case 'schema-error':
+      return true
+    // Diff-dependent: only valid as a fresh-diff claim.
+    case 'ok':
+    case 'too-many-reads':
+      return resetOk
+    // Real handler crashes reproduce; smoke timeouts don't.
+    case 'runtime-error':
+      return !/smoke timeout/i.test(outcome.stderrSnippet ?? '')
+    default:
+      return false
+  }
 }
 
 export function loadCellCache(): Record<string, CachedCell> {

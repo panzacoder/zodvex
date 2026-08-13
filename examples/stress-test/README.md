@@ -23,12 +23,34 @@ bun run sweep -- --ns=200,400,500,600,700,750,800 --continue
 bun run bench -- --flavor=zodvex --count=200
 ```
 
+## Setup: the harness's own deployment
+
+Real-deploy steps (`regression`, `sweep`) push to the deployment pinned in
+`_deploy/.env.local` — a gitignored, per-developer file. **The harness resets
+(wipes) whatever deployment it targets**, so an ambient `CONVEX_DEPLOYMENT`
+env var is deliberately refused; only the pinned file (or an explicit
+`deployment` option) is used.
+
+One-time provisioning:
+
+```bash
+cd _deploy && bunx convex dev --once --configure new   # writes _deploy/.env.local
+```
+
+Use a dedicated project (e.g. `zodvex-stress-test`) — never point this at a
+deployment you care about. Convex deletes inactive dev deployments; if a
+deploy fails with `DeploymentNotFound`, re-run the command above. Afterwards
+check `git status`: `--configure` can regenerate tsconfig files to the stock
+template.
+
 ## How It Works
 
 1. **Seeds** (`seeds/<flavor>/`) — hand-written models and endpoints
-   per flavor (zodvex, convex, convex-helpers, convex-helpers-zod3).
-   The zodvex seeds are reused for zodvex-mini via the zod-to-mini
-   codemod at compose time.
+   per flavor (zodvex, convex, convex-helpers). Two flavors derive at
+   compose time instead of duplicating a corpus: zodvex-mini from the
+   zodvex seeds via the zod-to-mini codemod, and convex-helpers-zod3
+   from the convex-helpers seeds via import rewrites (zod → zod/v3,
+   server/zod4 → server/zod3).
 2. **Composer** (`compose.ts`) — scales seeds to N models +
    endpoints per flavor via file copy with table-name + symbol
    replacement. Outputs to `tmp/<flavor>/composed/`.
@@ -44,7 +66,10 @@ bun run bench -- --flavor=zodvex --count=200
    verify Q/M handlers actually run at runtime (catches the
    dynamic-import-unsupported regression class).
 6. **Regression** (`regression.ts`) — fixed-N pass/fail run across
-   the 5 flavors with expected outcomes. Used by `validate`.
+   the 5 flavors with expected outcomes. The repo-root `validate`
+   runs it for the zodvex flavors only, at `--target=100
+   --shape=explicit` — a deploy-parity gate at main's known-good
+   level, not a ceiling search.
 7. **Sweep** (`sweep.ts`) — full flavor × N grid for ceiling
    discovery. Each cell does `resetDeployment()` first so the
    `finish_push` diff is "0 → N" (the true fresh-diff ceiling). The

@@ -120,6 +120,10 @@ function seedDirFor(flavor: Flavor): string {
   // 'zodvex-mini' shares zodvex seeds; the mini bit is enforced at the
   // function-builder level via different imports in functions.ts.
   if (flavor === 'zodvex-mini') return join(SEEDS_DIR, 'zodvex')
+  // 'convex-helpers-zod3' shares the convex-helpers corpus — the two were
+  // byte-identical except the zod / convex-helpers-adapter import lines,
+  // which applyFlavorImportRewrites rewrites at compose time.
+  if (flavor === 'convex-helpers-zod3') return join(SEEDS_DIR, 'convex-helpers')
   return join(SEEDS_DIR, flavor)
 }
 
@@ -168,7 +172,14 @@ function loadSeeds(flavor: Flavor): SeedInfo[] {
   return seeds
 }
 
-function applyFlavorImportRewrites(flavor: Flavor, source: string, filename: string): string {
+export function applyFlavorImportRewrites(flavor: Flavor, source: string, filename: string): string {
+  if (flavor === 'convex-helpers-zod3') {
+    // Derived from the convex-helpers (zod4) corpus: same models and
+    // endpoints, zod3 runtime + adapter.
+    return source
+      .replace(/from ['"]zod['"]/g, "from 'zod/v3'")
+      .replace(/from ['"]convex-helpers\/server\/zod4['"]/g, "from 'convex-helpers/server/zod3'")
+  }
   if (flavor !== 'zodvex-mini') return source
   // The zodvex-mini flavor reuses the zodvex seed corpus. The codemod
   // converts method-chain syntax (.optional(), etc.) to mini's functional
