@@ -1,11 +1,25 @@
+node_modules/
+tmp/
+
+# Convex deploy secrets (per-developer)
+.env.local
+_deploy/.env.local
+
+# Transient harness output
+.measure-result.json
+results/*.log
+
+# Stale output dirs from the legacy compose/measure harness (the harness
+# itself — stress-test.ts, measure.ts, legacy/ — is deleted; see git
+# history). Kept ignored in case anyone has them locally.
 convex/generated/
 convex/composed/
 convex/compiled/
-node_modules/
 
-# Stress-test runner working dirs
-_deploy/
-tmp/
+# Sweep fingerprint cache (machine-local)
+results/.cell-cache.json
 
-.env.local
-.measure-result.json
+# Default output location for regression/sweep runs. results/ proper is
+# curated — promote a local run there deliberately, with a name that says
+# what it measured.
+results/local/

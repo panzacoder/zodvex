@@ -1,0 +1,294 @@
+{
+  "timestamp": "2026-05-13T20:01:06.082Z",
+  "config": {
+    "flavors": [
+      "convex",
+      "convex-helpers-zod3",
+      "convex-helpers",
+      "zodvex",
+      "zodvex-mini"
+    ],
+    "ns": [
+      200,
+      500,
+      800,
+      1000,
+      1500,
+      2000
+    ],
+    "skipAfterFailure": true,
+    "doReset": true
+  },
+  "results": [
+    {
+      "flavor": "convex",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 11937,
+      "endpointHeapMaxMB": 0.41,
+      "schemaHeapMB": 2.02,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 26119,
+      "endpointHeapMaxMB": 0.4,
+      "schemaHeapMB": 4.5,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 37471,
+      "endpointHeapMaxMB": 0.41,
+      "schemaHeapMB": 6.9,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "convex",
+      "n": 1000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex",
+      "n": 1500,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex",
+      "n": 2000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 12496,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 2.6,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 28882,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 4.86,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 40320,
+      "endpointHeapMaxMB": 1.2,
+      "schemaHeapMB": 7.04,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 1000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 1500,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex-helpers-zod3",
+      "n": 2000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 13789,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 3.67,
+      "errorTail": null
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 500,
+      "outcome": "oom",
+      "durationMs": 7443,
+      "endpointHeapMaxMB": 2.29,
+      "schemaHeapMB": 5.75,
+      "errorTail": "to https://tangible-jellyfish-256.convex.cloud\n✖ Error fetching POST  https://tangible-jellyfish-256.convex.cloud/api/deploy2/start_push 400 Bad Request: Error: Hit an error while pushing:\nHit an error while evaluating your schema:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 800,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 1000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 1500,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "convex-helpers",
+      "n": 2000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 13335,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 3.25,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 30569,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 5.71,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 65042,
+      "endpointHeapMaxMB": 2.69,
+      "schemaHeapMB": 8.09,
+      "errorTail": "h 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions.\nUnexpected Error: Error: read ETIMEDOUT"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 1000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 1500,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 2000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "outcome": "ok",
+      "durationMs": 13448,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 3.02,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 500,
+      "outcome": "ok",
+      "durationMs": 31732,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 5.48,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 800,
+      "outcome": "too-many-reads",
+      "durationMs": 45334,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 7.87,
+      "errorTail": "-256.convex.cloud/api/deploy2/finish_push 400 Bad Request: TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 1000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 1500,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 2000,
+      "outcome": "skipped",
+      "durationMs": 0,
+      "endpointHeapMaxMB": 0,
+      "schemaHeapMB": null,
+      "errorTail": "skipped after earlier failure for this flavor"
+    }
+  ]
+}
