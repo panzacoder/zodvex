@@ -1074,6 +1074,96 @@ describe('generateModelDescriptors', () => {
     expect(js).toContain('EitherModel.schema.doc')
   })
 
+  it('falls back (never silently omits) when a codec sits inside a z.lazy subtree', () => {
+    // Recursive models are mapped by mapping/core, so they deploy — the
+    // descriptor emitter must therefore take the full-model fallback, not
+    // silently drop the lazy subtree's codecs from the tableMap.
+    const node: any = z.object({
+      when: zx.date(),
+      children: z.array(z.lazy(() => node))
+    })
+    const lazyModel: DiscoveredModel = {
+      exportName: 'TreeModel',
+      tableName: 'trees',
+      sourceFile: 'models/tree.ts',
+      schemas: {
+        doc: z.object({ _id: z.string(), root: z.lazy(() => node) }),
+        insert: z.object({})
+      } as any
+    }
+    const out = generateModelDescriptors([lazyModel])
+    expect(out.fallbacks).toHaveLength(1)
+    expect(out.fallbacks[0]).toMatchObject({ tableName: 'trees' })
+    expect(out.fallbacks[0].reason).toContain('lazy')
+  })
+
+  it('codec-free z.lazy subtrees pass through without forcing a fallback', () => {
+    const plainNode: any = z.object({ s: z.string() })
+    const model: DiscoveredModel = {
+      exportName: 'MixedModel',
+      tableName: 'mixed',
+      sourceFile: 'models/mixed.ts',
+      schemas: {
+        doc: z.object({
+          _id: z.string(),
+          when: zx.date(),
+          children: z.array(z.lazy(() => plainNode))
+        }),
+        insert: z.object({})
+      } as any
+    }
+    const out = generateModelDescriptors([model])
+    expect(out.fallbacks).toHaveLength(0)
+    expect(out.files[0].js).toContain('when: zx.date(),')
+    expect(out.files[0].js).not.toContain('children')
+  })
+
+  it('falls back when a codec sits inside an object catchall (doc path)', () => {
+    const model: DiscoveredModel = {
+      exportName: 'CatchModel',
+      tableName: 'catches',
+      sourceFile: 'models/catch.ts',
+      schemas: {
+        doc: z.object({ _id: z.string() }).catchall(zx.date()),
+        insert: z.object({})
+      } as any
+    }
+    const out = generateModelDescriptors([model])
+    expect(out.fallbacks).toHaveLength(1)
+    expect(out.fallbacks[0].reason).toContain('catchall')
+  })
+
+  it('never emits zx.date() for an unbranded number→custom codec (#100 class)', () => {
+    // Structurally IDENTICAL to zx.date() (number in, custom out) but decodes
+    // to something else entirely. Only the zx.date brand may inline; anything
+    // else must resolve a ref or fall back — silently inlining zx.date()
+    // would decode cents into Dates.
+    const moneyCodec = zx.codec(
+      z.number(),
+      z.custom<{ cents: number }>(() => true),
+      {
+        decode: (cents: number) => ({ cents }),
+        encode: (m: { cents: number }) => m.cents
+      }
+    )
+    const moneyModel: DiscoveredModel = {
+      exportName: 'InvoiceModel',
+      tableName: 'invoices',
+      sourceFile: 'models/invoice.ts',
+      schemas: {
+        doc: z.object({ _id: z.string(), amount: moneyCodec }),
+        insert: z.object({ amount: moneyCodec })
+      } as any
+    }
+    // No importable codec refs available → must FALL BACK, never inline.
+    const out = generateModelDescriptors([moneyModel])
+    expect(out.fallbacks).toHaveLength(1)
+    expect(out.fallbacks[0]).toMatchObject({ tableName: 'invoices' })
+    for (const f of out.files) {
+      expect(f.js).not.toContain('zx.date()')
+    }
+  })
+
   it('resolves custom codecs to importable standalone references', () => {
     const customCodec = zx.codec(
       z.string(),

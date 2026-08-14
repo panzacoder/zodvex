@@ -358,8 +358,18 @@ export function initZodvex(
         'remove `wrapDb: false` or drop `underlyingDb`.'
     )
   }
+  // A thin defineZodvexSchema schema carries NO zod tableMap — the real one
+  // lives in codegen output. Falling through to {} here would silently
+  // disable every codec, so refuse loudly instead.
+  if (wrap && !options?.tableMap && (schema as any)?.__zodvexThinSchema) {
+    throw new Error(
+      '[zodvex] initZodvex: this schema is the thin defineZodvexSchema form — its zod ' +
+        'tableMap lives in codegen output. Init through the generated `_zodvex/server` ' +
+        'initZodvex (which wires it automatically), or pass `options.tableMap`.'
+    )
+  }
   // Source-of-truth for the codec tableMap, in priority order:
-  //   1. options.tableMap (lazy thunk from _zodvex/tableMap.lazy.js)
+  //   1. options.tableMap (lazy thunk from the generated _zodvex/server)
   //   2. schema.__zodTableMap (legacy defineZodSchema-driven shape)
   //   3. {} — no-op (wrapDb pages still work but produce no codec transforms)
   const tableMapSource: ZodTableMap | ZodTableMapThunk =

@@ -101,6 +101,22 @@ functions files.
 
 ### Changed
 
+- **BREAKING: `patch()` no longer strips unknown keys (strip → loose).**
+  In 0.7.x, keys outside the model's shape in a `zdb.patch(id, {...})` were
+  silently dropped before Convex saw them. In 0.8 they are forwarded
+  untouched — minimal codec-paths descriptors carry only codec fields, so
+  stripping would eat every non-codec field of a patch. If your code
+  spreads objects carrying extra keys into patches (e.g.
+  `zdb.patch(id, { ...decodedDoc, uiOnlyFlag: true })` or a field you
+  removed from the model), Convex's own schema validation now rejects the
+  stray key at runtime where it previously succeeded silently. Clean the
+  patch object at the call site.
+- **BREAKING: `defineZodvexSchema` no longer attaches an (empty)
+  `__zodTableMap`.** Passing its result directly to `createZodDbReader` /
+  `createZodDbWriter` or the library `initZodvex` without a `tableMap`
+  option now throws a descriptive error instead of silently running with
+  zero codecs — init through the generated `_zodvex/server` (which wires
+  the real map), or pass `options.tableMap`.
 - **`initZodvex` accepts a `tableMap?` option** (a thunk
   `() => ZodTableMap | Promise<ZodTableMap>`). `createZodvexCustomization`
   caches the resolved table map on first DB call.

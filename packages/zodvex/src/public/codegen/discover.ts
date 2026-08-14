@@ -7,6 +7,7 @@ import {
   $ZodArray,
   $ZodCodec,
   $ZodCustom,
+  $ZodLazy,
   $ZodNullable,
   $ZodNumber,
   $ZodObject,
@@ -65,37 +66,6 @@ export type FunctionEmbeddedCodec = {
 }
 
 /**
- * A codec located at a DATA path within a model's doc schema — the unit the
- * descriptor emitter (`generateModelDescriptors`) consumes. Unlike
- * {@link ModelEmbeddedCodec} (whose accessPath is a schema-STRUCTURE
- * expression and which deliberately skips zx.date), this walk:
- *  - includes zx.date() codecs (descriptors must decode them),
- *  - produces data paths (object keys + '*' for array elements),
- *  - reports unsupported containers (union/record/tuple subtrees holding
- *    codecs) so the emitter can fall back to the full model for that table.
- */
-export type ModelCodecPath = {
-  /** Object keys from the doc root; '*' = array element. */
-  path: (string | '*')[]
-  codec: $ZodType
-  /** zx.date() (in: number, out: custom) — emitter constructs zx.date() inline. */
-  isDate: boolean
-  /** The value position is wrapped optional/nullable at its leaf. */
-  optional: boolean
-  nullable: boolean
-}
-
-export type ModelCodecPathsResult =
-  | { supported: true; paths: ModelCodecPath[] }
-  | { supported: false; reason: string }
-
-/**
- * Walks a model's DOC schema for codec data paths. Returns
- * `supported: false` when a codec sits inside a container the descriptor
- * format can't address path-wise (union branch, record value, tuple slot) —
- * the caller falls back to importing the full model for that table.
- */
-/**
  * Deep probe: does any node of this schema tree contain a $ZodCodec
  * (including zx.date)? Used to keep generated registries minimal — a
  * function whose args carry no codecs needs no args-registry entry
@@ -106,6 +76,18 @@ export function schemaSubtreeHasCodec(schema: $ZodType, seen: Set<$ZodType> = ne
   if (seen.has(schema)) return false
   seen.add(schema)
   if (schema instanceof $ZodCodec) return true
+  if (schema instanceof $ZodLazy) {
+    // The child sits behind def.getter (a function), invisible to the
+    // generic def walk below; `seen` guards recursive schemas. A getter
+    // that throws can't be inspected — report true so callers take their
+    // conservative (fallback) path rather than silently missing a codec.
+    try {
+      const inner = (schema as any)._zod.def.getter()
+      return inner instanceof $ZodType ? schemaSubtreeHasCodec(inner, seen) : false
+    } catch {
+      return true
+    }
+  }
   const def = (schema as any)._zod?.def
   if (!def) return false
   for (const value of Object.values(def)) {
@@ -121,77 +103,6 @@ export function schemaSubtreeHasCodec(schema: $ZodType, seen: Set<$ZodType> = ne
     }
   }
   return false
-}
-
-export function walkModelCodecPaths(doc: $ZodType): ModelCodecPathsResult {
-  const paths: ModelCodecPath[] = []
-  const visited = new Set<$ZodType>()
-
-  const subtreeHasCodec = (schema: $ZodType, seen: Set<$ZodType>) =>
-    schemaSubtreeHasCodec(schema, seen)
-
-  function walk(
-    schema: $ZodType,
-    path: (string | '*')[],
-    optional: boolean,
-    nullable: boolean
-  ): string | null {
-    if (visited.has(schema)) return null
-    visited.add(schema)
-
-    if (schema instanceof $ZodCodec) {
-      const isDate =
-        (schema as any)._zod.def.in instanceof $ZodNumber &&
-        (schema as any)._zod.def.out instanceof $ZodCustom
-      paths.push({ path, codec: schema, isDate, optional, nullable })
-      return null
-    }
-    if (schema instanceof $ZodOptional) {
-      return walk((schema as any)._zod.def.innerType, path, true, nullable)
-    }
-    if (schema instanceof $ZodNullable) {
-      return walk((schema as any)._zod.def.innerType, path, optional, true)
-    }
-    if (schema instanceof $ZodObject) {
-      const shape = (schema as any)._zod.def.shape as Record<string, $ZodType>
-      for (const [key, field] of Object.entries(shape ?? {})) {
-        const err = walk(field, [...path, key], false, false)
-        if (err) return err
-      }
-      return null
-    }
-    if (schema instanceof $ZodArray) {
-      return walk((schema as any)._zod.def.element, [...path, '*'], false, false)
-    }
-    // Containers the descriptor format can't address: only a problem if a
-    // codec actually lives inside.
-    if (
-      schema instanceof $ZodUnion ||
-      schema instanceof $ZodRecord ||
-      schema instanceof $ZodTuple
-    ) {
-      if (subtreeHasCodec(schema, new Set())) {
-        const kind =
-          schema instanceof $ZodUnion ? 'union' : schema instanceof $ZodRecord ? 'record' : 'tuple'
-        return `codec inside ${kind} at .${path.join('.')}`
-      }
-      return null
-    }
-    // Other wrappers (default/readonly/pipe-like): descend any schema-valued
-    // def slots conservatively at the same path.
-    const def = (schema as any)._zod?.def
-    if (def?.innerType instanceof $ZodType) {
-      return walk(def.innerType, path, optional, nullable)
-    }
-    if (subtreeHasCodec(schema, new Set())) {
-      return `codec inside unsupported node at .${path.join('.')}`
-    }
-    return null
-  }
-
-  const err = walk(doc, [], false, false)
-  if (err) return { supported: false, reason: err }
-  return { supported: true, paths }
 }
 
 export type DiscoveryResult = {

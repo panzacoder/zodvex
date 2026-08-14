@@ -288,12 +288,17 @@ export function defineZodvexSchema<
 >(
   tables: T
 ): ReturnType<typeof defineSchema<T>> & {
-  __zodTableMap: ZodTableMap
+  __zodvexThinSchema: true
   __decodedDocs: DD
 } {
   const schema = defineSchema(tables)
+  // Deliberately NO __zodTableMap: the real map lives in codegen output and
+  // is wired by the generated `_zodvex/server` initZodvex. Attaching an
+  // empty {} here (as this once did) is truthy — it defeated the
+  // createZodDb*/initZodvex misuse guards and produced silent zero-codec
+  // reads. The marker lets those guards say precisely what went wrong.
   return Object.assign(schema, {
-    __zodTableMap: {} as ZodTableMap,
+    __zodvexThinSchema: true as const,
     __decodedDocs: undefined as unknown as DD
   }) as any
 }

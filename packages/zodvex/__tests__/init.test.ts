@@ -12,6 +12,35 @@ import {
 
 const functionNameSymbol = Symbol.for('functionName')
 
+describe('thin-schema (defineZodvexSchema) guards', () => {
+  const mockServer = {
+    query: (fn: any) => fn,
+    mutation: (fn: any) => fn,
+    action: (fn: any) => fn,
+    internalQuery: (fn: any) => fn,
+    internalMutation: (fn: any) => fn,
+    internalAction: (fn: any) => fn
+  } as any
+
+  it('initZodvex refuses a thin schema without options.tableMap (silent zero-codec trap)', async () => {
+    const { defineZodvexSchema } = await import('../src/internal/schema')
+    const thin = defineZodvexSchema({} as any)
+    expect(() => initZodvex(thin as any, mockServer)).toThrow(/_zodvex\/server|tableMap/)
+  })
+
+  it('initZodvex accepts a thin schema when options.tableMap is provided', async () => {
+    const { defineZodvexSchema } = await import('../src/internal/schema')
+    const thin = defineZodvexSchema({} as any)
+    expect(() => initZodvex(thin as any, mockServer, { tableMap: () => ({}) as any })).not.toThrow()
+  })
+
+  it('initZodvex accepts a legitimately codec-free defineZodSchema schema', async () => {
+    const { defineZodSchema } = await import('../src/internal/schema')
+    const plain = defineZodSchema({})
+    expect(() => initZodvex(plain as any, mockServer)).not.toThrow()
+  })
+})
+
 describe('composeCustomizations', () => {
   // Minimal codec customization mock — wraps ctx.db
   const mockCodecCust = {

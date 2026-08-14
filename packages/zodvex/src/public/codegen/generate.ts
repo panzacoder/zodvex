@@ -6,6 +6,7 @@ import {
   $ZodCodec,
   $ZodCustom,
   $ZodDiscriminatedUnion,
+  $ZodLazy,
   $ZodLiteral,
   $ZodNullable,
   $ZodNumber,
@@ -20,6 +21,7 @@ import {
   $ZodUnion
 } from '../../internal/zod-core'
 import { zx } from '../../internal/zx'
+import { isZxDateCodec } from '../../internal/zxDateBrand'
 import type {
   DiscoveredFunction,
   DiscoveredModel,
@@ -1215,9 +1217,10 @@ function emitMinimalSchema(
   at: string
 ): MinimalEmit {
   if (schema instanceof $ZodCodec) {
-    const def = (schema as any)._zod.def
-    const isDate = def.in instanceof $ZodNumber && def.out instanceof $ZodCustom
-    if (isDate) return 'zx.date()'
+    // Brand check, never structural: a user codec with the same in/out shape
+    // (number → custom, e.g. Money-in-cents) must resolve a ref or fall
+    // back — inlining zx.date() for it would decode cents into Dates (#100).
+    if (isZxDateCodec(schema)) return 'zx.date()'
     const ref = codecRef(schema)
     return (
       ref ?? { unsupported: `custom codec without an importable standalone reference at ${at}` }
@@ -1234,6 +1237,12 @@ function emitMinimalSchema(
     return `z.nullable(${inner})`
   }
   if (schema instanceof $ZodObject) {
+    // Shape-keys-only emit: a codec hiding in the catchall would be
+    // silently dropped from the tableMap — fall back instead.
+    const catchall = (schema as any)._zod.def.catchall
+    if (catchall instanceof $ZodType && schemaSubtreeHasCodec(catchall)) {
+      return { unsupported: `codec inside object catchall at ${at}` }
+    }
     const shape = (schema as any)._zod.def.shape as Record<string, $ZodType>
     const lines: string[] = []
     for (const key of Object.keys(shape ?? {}).sort()) {
@@ -1303,6 +1312,15 @@ function emitMinimalSchema(
     if (schemaSubtreeHasCodec(schema)) {
       const kind = schema instanceof $ZodRecord ? 'record' : 'tuple'
       return { unsupported: `codec inside ${kind} at ${at}` }
+    }
+    return null
+  }
+  if (schema instanceof $ZodLazy) {
+    // Descriptors are static source — a lazy (possibly recursive) subtree
+    // can't be re-emitted structurally. With a codec beneath, fall back to
+    // the full model; codec-free lazy subtrees pass through untouched.
+    if (schemaSubtreeHasCodec(schema)) {
+      return { unsupported: `codec inside a z.lazy subtree at ${at}` }
     }
     return null
   }
@@ -1466,7 +1484,29 @@ function subtreeHasEnforceableCheck(schema: $ZodType, seen: Set<$ZodType> = new 
   if (!def) return false
   const checks = def.checks
   if (Array.isArray(checks) && checks.length > 0) return true
-  for (const key of ['innerType', 'element', 'valueType', 'keyType', 'in', 'out']) {
+  if (schema instanceof $ZodLazy) {
+    // Child hides behind def.getter (a function). A getter that throws is
+    // uninspectable — report true so the caller takes the fallback rather
+    // than silently dropping an enforcement it can't see.
+    try {
+      const inner = def.getter()
+      return inner instanceof $ZodType ? subtreeHasEnforceableCheck(inner, seen) : false
+    } catch {
+      return true
+    }
+  }
+  // left/right = $ZodIntersection sides; catchall = object catchall schema.
+  for (const key of [
+    'innerType',
+    'element',
+    'valueType',
+    'keyType',
+    'in',
+    'out',
+    'left',
+    'right',
+    'catchall'
+  ]) {
     const v = def[key]
     if (v instanceof $ZodType && subtreeHasEnforceableCheck(v, seen)) return true
   }
@@ -1497,7 +1537,28 @@ function subtreeHasTransform(schema: $ZodType, seen: Set<$ZodType> = new Set()):
   if (schema instanceof $ZodPipe || schema instanceof $ZodTransform) return true
   const def = (schema as any)?._zod?.def
   if (!def) return false
-  for (const key of ['innerType', 'element', 'valueType', 'keyType', 'in', 'out']) {
+  if (schema instanceof $ZodLazy) {
+    // See subtreeHasEnforceableCheck: resolve the getter; uninspectable →
+    // conservative true (fallback), never a silent drop.
+    try {
+      const inner = def.getter()
+      return inner instanceof $ZodType ? subtreeHasTransform(inner, seen) : false
+    } catch {
+      return true
+    }
+  }
+  // left/right = $ZodIntersection sides; catchall = object catchall schema.
+  for (const key of [
+    'innerType',
+    'element',
+    'valueType',
+    'keyType',
+    'in',
+    'out',
+    'left',
+    'right',
+    'catchall'
+  ]) {
     const v = def[key]
     if (v instanceof $ZodType && subtreeHasTransform(v, seen)) return true
   }
@@ -1558,6 +1619,17 @@ function emitInsertSchema(
     if (own === CHECKS_UNSUPPORTED) {
       return {
         unsupported: `custom refinement on object at ${at} — insert falls back to full model`
+      }
+    }
+    // The minimal emit below walks shape keys only — a catchall carrying a
+    // check or transform would be silently dropped from enforcement.
+    const catchall = (schema as any)._zod.def.catchall
+    if (
+      catchall instanceof $ZodType &&
+      (subtreeHasEnforceableCheck(catchall) || subtreeHasTransform(catchall))
+    ) {
+      return {
+        unsupported: `refinement inside object catchall at ${at} — insert falls back to full model`
       }
     }
     const shape = (schema as any)._zod.def.shape as Record<string, $ZodType>

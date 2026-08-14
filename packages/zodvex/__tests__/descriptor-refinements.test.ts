@@ -121,6 +121,54 @@ describe('descriptor insert-side refinement enforcement', () => {
     expect(out.files[0].js).toContain('insert: BlobModel.schema.insert')
   })
 
+  it('checks inside z.intersection are enforced via insert fallback (not silently dropped)', () => {
+    // Intersections map to v.any() in the Convex validator, so if the
+    // descriptor walker misses the check here NOTHING enforces it.
+    const model: DiscoveredModel = {
+      exportName: 'MergeModel',
+      tableName: 'merges',
+      sourceFile: 'models/merge.ts',
+      schemas: {
+        doc: z.object({ _id: z.string(), createdAt: zx.date() }),
+        insert: z.object({
+          createdAt: zx.date(),
+          combo: z.intersection(z.object({ a: z.string().min(3) }), z.object({ b: z.string() }))
+        })
+      } as any
+    }
+    const out = generateModelDescriptors([model])
+    expect(out.insertFallbacks.some(f => f.tableName === 'merges')).toBe(true)
+  })
+
+  it('checks inside an object catchall are enforced via insert fallback', () => {
+    const model: DiscoveredModel = {
+      exportName: 'BagModel',
+      tableName: 'bags',
+      sourceFile: 'models/bag.ts',
+      schemas: {
+        doc: z.object({ _id: z.string(), createdAt: zx.date() }),
+        insert: z.object({ createdAt: zx.date() }).catchall(z.string().min(3))
+      } as any
+    }
+    const out = generateModelDescriptors([model])
+    expect(out.insertFallbacks.some(f => f.tableName === 'bags')).toBe(true)
+  })
+
+  it('checks inside a z.lazy subtree are enforced via insert fallback', () => {
+    const node: any = z.object({ label: z.string().min(3) })
+    const model: DiscoveredModel = {
+      exportName: 'LazyCheckModel',
+      tableName: 'lazychecks',
+      sourceFile: 'models/lazycheck.ts',
+      schemas: {
+        doc: z.object({ _id: z.string(), createdAt: zx.date() }),
+        insert: z.object({ createdAt: zx.date(), child: z.lazy(() => node) })
+      } as any
+    }
+    const out = generateModelDescriptors([model])
+    expect(out.insertFallbacks.some(f => f.tableName === 'lazychecks')).toBe(true)
+  })
+
   it('zx.id() fields do NOT force a fallback — insert stays minimal (codec-only)', () => {
     // zid carries a `custom` id-shape check, but it is a passthrough field on
     // reads, so it must not pull the whole table into a full-model insert.
