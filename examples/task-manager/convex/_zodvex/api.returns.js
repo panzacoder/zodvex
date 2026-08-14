@@ -6,53 +6,63 @@ import { zx } from 'zodvex'
 import { zDuration } from '../codecs.js'
 import { taggedEmail, taggedTag } from '../tagged.js'
 
+const _ret0 = z.nullable(z.looseObject({ createdAt: zx.date(), payload: z.union([z.looseObject({ type: z.literal("task_completed"), duration: zDuration, }), z.looseObject({ type: z.literal("user_invited"), email: taggedEmail, }), z.looseObject({})]), tags: z.optional(z.array(taggedTag)), }))
+const _ret1 = z.array(z.looseObject({ createdAt: zx.date(), payload: z.union([z.looseObject({ type: z.literal("task_completed"), duration: zDuration, }), z.looseObject({ type: z.literal("user_invited"), email: taggedEmail, }), z.looseObject({})]), tags: z.optional(z.array(taggedTag)), }))
+const _ret2 = z.nullable(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), }))
+const _ret3 = z.array(z.looseObject({ createdAt: zx.date(), }))
+const _ret4 = z.nullable(z.union([z.looseObject({ kind: z.literal("email"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("push"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("in_app"), createdAt: zx.date(), }), z.looseObject({})]))
+const _ret5 = z.array(z.union([z.looseObject({ kind: z.literal("email"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("push"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("in_app"), createdAt: zx.date(), }), z.looseObject({})]))
+const _ret6 = z.array(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), }))
+const _ret7 = z.looseObject({ page: z.array(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), })), })
+const _ret8 = z.nullable(z.looseObject({ createdAt: zx.date(), email: z.optional(taggedEmail), }))
+
 export const zodvexReturnsRegistry = {
   'activities:get': {
-    returns: z.nullable(z.looseObject({ createdAt: zx.date(), payload: z.union([z.looseObject({ type: z.literal("task_completed"), duration: zDuration, }), z.looseObject({ type: z.literal("user_invited"), email: taggedEmail, }), z.looseObject({})]), tags: z.optional(z.array(taggedTag)), })),
+    returns: _ret0,
   },
   'activities:listByActor': {
-    returns: z.array(z.looseObject({ createdAt: zx.date(), payload: z.union([z.looseObject({ type: z.literal("task_completed"), duration: zDuration, }), z.looseObject({ type: z.literal("user_invited"), email: taggedEmail, }), z.looseObject({})]), tags: z.optional(z.array(taggedTag)), })),
+    returns: _ret1,
   },
   'api/reports:taskById': {
-    returns: z.nullable(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), })),
+    returns: _ret2,
   },
   'comments:list': {
-    returns: z.array(z.looseObject({ createdAt: zx.date(), })),
+    returns: _ret3,
   },
   'notifications:get': {
-    returns: z.nullable(z.union([z.looseObject({ kind: z.literal("email"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("push"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("in_app"), createdAt: zx.date(), }), z.looseObject({})])),
+    returns: _ret4,
   },
   'notifications:listByCreated': {
-    returns: z.array(z.union([z.looseObject({ kind: z.literal("email"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("push"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("in_app"), createdAt: zx.date(), }), z.looseObject({})])),
+    returns: _ret5,
   },
   'notifications:listByKind': {
-    returns: z.array(z.union([z.looseObject({ kind: z.literal("email"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("push"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("in_app"), createdAt: zx.date(), }), z.looseObject({})])),
+    returns: _ret5,
   },
   'notifications:listByRecipient': {
-    returns: z.array(z.union([z.looseObject({ kind: z.literal("email"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("push"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("in_app"), createdAt: zx.date(), }), z.looseObject({})])),
+    returns: _ret5,
   },
   'notifications:listByRecipientAndKind': {
-    returns: z.array(z.union([z.looseObject({ kind: z.literal("email"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("push"), createdAt: zx.date(), sentAt: zx.date(), }), z.looseObject({ kind: z.literal("in_app"), createdAt: zx.date(), }), z.looseObject({})])),
+    returns: _ret5,
   },
   'securedTasks:listOwnTasks': {
-    returns: z.array(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), })),
+    returns: _ret6,
   },
   'tasks:get': {
-    returns: z.nullable(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), })),
+    returns: _ret2,
   },
   'tasks:list': {
-    returns: z.looseObject({ page: z.array(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), })), }),
+    returns: _ret7,
   },
   'tasks:listByCreated': {
-    returns: z.array(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), })),
+    returns: _ret6,
   },
   'tasks:listByStatuses': {
-    returns: z.looseObject({ page: z.array(z.looseObject({ completedAt: z.optional(zx.date()), createdAt: zx.date(), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), })), }),
+    returns: _ret7,
   },
   'users:get': {
-    returns: z.nullable(z.looseObject({ createdAt: zx.date(), email: z.optional(taggedEmail), })),
+    returns: _ret8,
   },
   'users:getByEmail': {
-    returns: z.nullable(z.looseObject({ createdAt: zx.date(), email: z.optional(taggedEmail), })),
+    returns: _ret8,
   },
 }

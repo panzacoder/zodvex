@@ -91,6 +91,27 @@ describe('generateApiFile returnsOnly (api.returns.js)', () => {
     }
   ]
 
+  it('HOISTS identical minimal returns to one shared const (registry stays O(distinct shapes))', () => {
+    // Every zod object instance costs tens of KB of heap and this file is
+    // statically imported by every endpoint — per-function inline schemas
+    // re-create a function-count-scaled memory term (measured: 13→33 MB
+    // endpoint heap at N=100). Identical shapes must share one instance.
+    const shape = () => z.object({ _id: z.string(), when: zx.date() })
+    const many: DiscoveredFunction[] = ['a', 'b', 'c'].map(n => ({
+      functionPath: `events:${n}`,
+      exportName: n,
+      sourceFile: 'events.ts',
+      zodArgs: z.object({}),
+      zodReturns: shape()
+    }))
+    const { js } = generateApiFile(many, [], [], [], [], { returnsOnly: true })
+    // One schema construction, three references.
+    expect(js.match(/z\.looseObject\(/g)?.length).toBe(1)
+    expect(js).toContain("'events:a'")
+    expect(js).toContain("'events:b'")
+    expect(js).toContain("'events:c'")
+  })
+
   it('emits zodvexReturnsRegistry with MINIMAL returns for codec-bearing functions only', () => {
     const { js } = generateApiFile(fns, [], [], [], [], { returnsOnly: true })
     expect(js).toContain('export const zodvexReturnsRegistry')

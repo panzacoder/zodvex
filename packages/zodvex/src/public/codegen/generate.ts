@@ -720,6 +720,22 @@ export function generateApiFile(
   // as identity and need no entry, so the file stays O(codec paths), never
   // O(model graph) — it is statically imported by every endpoint.
   const returnsOnly = options?.returnsOnly === true
+  // Hoisted dedup for returnsOnly: identical minimal sources share ONE
+  // schema instance. Every zod object costs tens of KB of heap and this
+  // file sits in every endpoint's static bundle — per-function inline
+  // schemas re-created a function-count-scaled memory term (measured
+  // 13→33 MB per-endpoint heap at harness N=100), while distinct SHAPES
+  // are O(tables): 100 composed copies of a seed emit byte-identical
+  // minimal returns.
+  const hoistedReturns = new Map<string, string>()
+  const hoistVar = (source: string): string => {
+    let name = hoistedReturns.get(source)
+    if (!name) {
+      name = `_ret${hoistedReturns.size}`
+      hoistedReturns.set(source, name)
+    }
+    return name
+  }
   const entries = functions
     .map(fn => {
       if (returnsOnly) {
@@ -741,7 +757,7 @@ export function generateApiFile(
           needsZod = true
           if (returns.includes('zx.date()')) needsZx = true
         }
-        return `  '${fn.functionPath}': {\n    returns: ${returns},\n  }`
+        return `  '${fn.functionPath}': {\n    returns: ${hoistVar(returns)},\n  }`
       }
       if (argsOnly) {
         if (!fn.zodArgs) return null
@@ -826,7 +842,11 @@ export function generateApiFile(
     : argsOnly
       ? 'zodvexArgsRegistry'
       : 'zodvexRegistry'
-  const js = `${HEADER}\n${importSection}${codecVarSection}export const ${registryExportName} = {\n${registryEntries}}\n`
+  const hoistSection =
+    hoistedReturns.size > 0
+      ? `${[...hoistedReturns.entries()].map(([src, name]) => `const ${name} = ${src}`).join('\n')}\n\n`
+      : ''
+  const js = `${HEADER}\n${importSection}${codecVarSection}${hoistSection}export const ${registryExportName} = {\n${registryEntries}}\n`
 
   const entryType = returnsOnly
     ? { mini: '{ returns: $ZodType }', full: '{ returns: ZodTypeAny }' }
