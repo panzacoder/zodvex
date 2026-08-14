@@ -151,9 +151,10 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
       }
 
       console.error(`[${flavor} N=${n}] composing…`)
-      // Thin schema (codegen tables.ts) exists only for the consolidated
-      // shape; explicit and harness compose without codegen output.
-      const lazyTables = isZodvex && shape === 'consolidated'
+      // Thin schema (codegen tables.ts) exists only for the codegen-driven
+      // shapes; explicit and harness compose without codegen output.
+      const lazyTables =
+        isZodvex && (shape === 'consolidated' || shape === 'per-endpoint' || shape === 'codec-paths')
       let measured
       try {
         measured = await bench({
