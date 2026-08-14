@@ -6,7 +6,9 @@ import type { QueryCtx } from './_zodvex/server'
 import { zq, zm } from './functions'
 import { TaskModel } from './models/task'
 import { zDuration } from './codecs'
-import schema from './schema'
+// The codec-aware schema token (NOT ../schema — the plain defineSchema(tables)
+// carries no __zodTableMap, which zodvexStream needs for mid-stream decode).
+import { schema } from './_zodvex/server'
 
 /**
  * Read-only helper typed as `QueryCtx`. Used by both `get` (a query) and

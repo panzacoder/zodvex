@@ -8,6 +8,8 @@ import type { ActivityModel } from '../models/activity.js'
 import type { CommentModel } from '../models/comment.js'
 import type { NotificationModel } from '../models/notification.js'
 import type { TaskModel } from '../models/task.js'
+import type { TaskCountModel } from '../models/triggerCompose.js'
+import type { TriggerLogModel } from '../models/triggerCompose.js'
 import type { UserModel } from '../models/user.js'
 import type { DecodedDocFor } from 'zodvex/server'
 
@@ -29,6 +31,12 @@ export default {
     .index("by_assignee", ["assigneeId"])
     .index("by_created", ["createdAt"])
     .index("by_completed", ["completedAt"]),
+  "taskCounts": defineTable(v.object({ "ownerId": v.string(), "count": v.float64(), "createdAt": v.float64() }))
+    .index("by_owner", ["ownerId"])
+    .index("by_created", ["createdAt"]),
+  "triggerLog": defineTable(v.object({ "taskId": v.string(), "operation": v.union(v.literal("insert"), v.literal("update"), v.literal("delete")), "wireDueDate": v.union(v.float64(), v.null()), "wireDueDateType": v.string(), "createdAt": v.float64() }))
+    .index("by_task", ["taskId"])
+    .index("by_created", ["createdAt"]),
   "users": defineTable(v.object({ "name": v.string(), "email": v.optional(v.object({ "value": v.string(), "tag": v.string() })), "avatarUrl": v.optional(v.string()), "createdAt": v.float64() }))
     .index("by_email", ["email.value"])
     .index("by_created", ["createdAt"]),
@@ -47,5 +55,7 @@ export type DecodedDocs = DecodedDocFor<{
   "comments": typeof CommentModel
   "notifications": typeof NotificationModel
   "tasks": typeof TaskModel
+  "taskCounts": typeof TaskCountModel
+  "triggerLog": typeof TriggerLogModel
   "users": typeof UserModel
 }>

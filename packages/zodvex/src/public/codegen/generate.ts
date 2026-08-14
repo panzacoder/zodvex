@@ -942,6 +942,12 @@ export function initZodvex(server: Server, options: {
   registry?: () => any
   schedulerRegistry?: () => any
   tableMap?: any
+  /** Compose native db wrappers (e.g. convex-helpers triggers) UNDER the
+   *  codec layer — forwarded to the library's initZodvex (#92). */
+  underlyingDb?: {
+    query?: (ctx: GenericQueryCtx<DataModel>) => any
+    mutation?: (ctx: GenericMutationCtx<DataModel>) => any
+  }
 } = {}): Bundle {
   return (_libInitZodvex as any)(_schemaToken, server, {
     ...options,

@@ -31,6 +31,12 @@ export const zodvexArgsRegistry = {
   'tasks:update': {
     args: z.looseObject({ dueDate: z.optional(zx.date()), estimate: z.optional(zDuration), }),
   },
+  'triggersCompose:createTask': {
+    args: z.looseObject({ dueDate: z.optional(zx.date()), }),
+  },
+  'triggersCompose:rescheduleTask': {
+    args: z.looseObject({ dueDate: zx.date(), }),
+  },
   'users:countByEmail': {
     args: z.looseObject({ email: taggedEmail, }),
   },

@@ -297,6 +297,14 @@ describe('generateClientFile', () => {
 })
 
 describe('generateServerFile', () => {
+  it("forwards initZodvex's underlyingDb option (db-wrap composability, #92)", () => {
+    const { js } = generateServerFile([])
+    // The pre-wired wrapper's options type must include everything the
+    // library's initZodvex accepts — composing e.g. convex-helpers triggers
+    // under the codec layer goes through this generated entry point.
+    expect(js).toContain('underlyingDb?:')
+  })
+
   it('emits a single TS file with context types, split registry, and a pre-wired initZodvex', () => {
     const { js, dts } = generateServerFile([])
 
