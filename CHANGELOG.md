@@ -101,6 +101,18 @@ functions files.
 
 ### Changed
 
+- **`ctx.runQuery`/`ctx.runMutation` results decode via a MINIMAL returns
+  registry (`_zodvex/api.returns.js`), in mutations AND actions.** Entries
+  carry codec-path-only loose schemas of each function's returns — codec
+  fields decode, everything else passes through — matching 0.8's codec-only
+  `ctx.db` semantics (in 0.7.x, action-side run* results ran a FULL zod
+  parse; defaults/refinements on non-codec returns fields no longer apply
+  at this boundary). This also fixes a gap in earlier 0.8 betas where
+  MUTATION-side run* results were not decoded at all (the args-only
+  registry carried no `returns`). The full registry (`api.js`) is now
+  client-only; the generated `server.ts` no longer references it, even
+  lazily. New `initZodvex` option: `returnsRegistry` (sync, V8-safe;
+  merged with `schedulerRegistry` for the call overrides).
 - **BREAKING: `patch()` no longer strips unknown keys (strip → loose).**
   In 0.7.x, keys outside the model's shape in a `zdb.patch(id, {...})` were
   silently dropped before Convex saw them. In 0.8 they are forwarded

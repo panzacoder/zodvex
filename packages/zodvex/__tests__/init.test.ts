@@ -899,6 +899,102 @@ describe('initZodvex with registry', () => {
 
     expect(calls).toBe(1)
   })
+
+  describe('returnsRegistry (run* decode parity in the codegen shape)', () => {
+    const ts = 1700000000000
+    const returnsRegistry = {
+      'tasks:get': { returns: z.object({ createdAt: zx.date() }) }
+    }
+    const argsRegistry = {
+      'tasks:reminder': { args: z.object({ dueAt: zx.date() }) }
+    }
+
+    it('zm handler ctx.runQuery DECODES results (the 0.7.x parity gap)', async () => {
+      const { zm } = initZodvex(mockSchema, mockServer as any, {
+        schedulerRegistry: () => argsRegistry,
+        returnsRegistry: () => returnsRegistry
+      })
+
+      let decoded: any
+      const fn = zm({
+        handler: async (ctx: any) => {
+          decoded = await ctx.runQuery(fakeRef('tasks:get'), {})
+        }
+      })
+
+      await fn.handler(
+        {
+          db: createMockDbWriter(userTableData).db,
+          runQuery: async () => ({ createdAt: ts }),
+          runMutation: async () => undefined,
+          scheduler: { runAfter: async () => 'job', runAt: async () => 'job' }
+        },
+        {}
+      )
+
+      expect(decoded.createdAt).toBeInstanceOf(Date)
+      expect(decoded.createdAt.getTime()).toBe(ts)
+    })
+
+    it('zm scheduler encoding still works alongside returnsRegistry', async () => {
+      const { zm } = initZodvex(mockSchema, mockServer as any, {
+        schedulerRegistry: () => argsRegistry,
+        returnsRegistry: () => returnsRegistry
+      })
+
+      let captured: any[] = []
+      const dueAt = new Date('2030-01-01T00:00:00Z')
+      const fn = zm({
+        handler: async (ctx: any) => {
+          await ctx.scheduler.runAfter(5, fakeRef('tasks:reminder'), { dueAt })
+        }
+      })
+
+      await fn.handler(
+        {
+          db: createMockDbWriter(userTableData).db,
+          scheduler: {
+            runAfter: async (...a: any[]) => {
+              captured = a
+              return 'job'
+            },
+            runAt: async () => 'job'
+          }
+        },
+        {}
+      )
+
+      expect(captured[2]).toEqual({ dueAt: dueAt.getTime() })
+    })
+
+    it('za actions decode via the minimal registries when no full registry is given', async () => {
+      // Codec-only-everywhere: the codegen shape wires actions with the
+      // same static args+returns registries as mutations.
+      const { za } = initZodvex(mockSchema, mockServer as any, {
+        schedulerRegistry: () => argsRegistry,
+        returnsRegistry: () => returnsRegistry
+      })
+
+      let decoded: any
+      const fn = za({
+        handler: async (ctx: any) => {
+          decoded = await ctx.runQuery(fakeRef('tasks:get'), {})
+        }
+      })
+
+      await fn.handler(
+        {
+          runQuery: async () => ({ createdAt: ts }),
+          runMutation: async () => undefined,
+          runAction: async () => undefined,
+          auth: { getUserIdentity: async () => null }
+        },
+        {}
+      )
+
+      expect(decoded.createdAt).toBeInstanceOf(Date)
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------

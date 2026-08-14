@@ -266,6 +266,19 @@ interface InitZodvexOptionsBase {
    * sync `registry: () => zodvexRegistry` pattern).
    */
   schedulerRegistry?: () => AnyRegistry
+  /**
+   * Registry carrying MINIMAL `returns` schemas (codec fields only, loose
+   * passthrough — the codegen-emitted `api.returns.js`). Merged with
+   * `schedulerRegistry` into the call-override registry so `ctx.runQuery` /
+   * `ctx.runMutation` RESULTS decode in mutations (which cannot
+   * dynamic-import the full registry) — restoring 0.7.x run* decode parity
+   * under 0.8's codec-only semantics. When the static registries are
+   * present, ACTIONS use them too (one decode semantic everywhere) and the
+   * full `registry` remains only the legacy explicit-shape fallback.
+   * Must be synchronous (V8 sandbox — same constraint as
+   * `schedulerRegistry`).
+   */
+  returnsRegistry?: () => AnyRegistry
 }
 
 // Overload 1: wrapDb: false — no codec DB wrapping
@@ -380,14 +393,31 @@ export function initZodvex(
   const noOp = createNoOpCustomization()
 
   // One shared caching resolver feeds the action customization (and the
-  // mutation customization when no schedulerRegistry is given), so an async
-  // thunk is awaited once per init bundle.
+  // mutation customization when no static registries are given), so an
+  // async thunk is awaited once per init bundle.
   const resolveRegistry = options?.registry ? createRegistryResolver(options.registry) : undefined
-  // Mutations prefer the sync, V8-safe schedulerRegistry — a dynamic-import
-  // backed `registry` thunk must never execute in the Q/M sandbox.
+  // The codegen shape provides sync, V8-safe static registries: args
+  // (scheduler encode + run* arg encode) and minimal returns (run* result
+  // decode). Merged, they carry everything the call overrides consult —
+  // and under 0.8's codec-only doctrine they serve BOTH mutations and
+  // actions, so both function types share one decode semantic. A
+  // dynamic-import backed `registry` thunk must never execute in the Q/M
+  // sandbox; it remains the legacy explicit-shape fallback.
   const schedulerThunk = options?.schedulerRegistry
-  const resolveMutationRegistry = schedulerThunk ? async () => schedulerThunk() : resolveRegistry
-  const actionCust = createActionCustomization(resolveRegistry, noOp)
+  const returnsThunk = options?.returnsRegistry
+  const resolveStaticRegistry =
+    schedulerThunk || returnsThunk
+      ? createRegistryResolver(() => mergeCallRegistries(schedulerThunk?.(), returnsThunk?.()))
+      : undefined
+  const resolveMutationRegistry = resolveStaticRegistry ?? resolveRegistry
+  // Actions switch to the static registries only when `returns` coverage is
+  // actually there (returnsRegistry present). With just an args-only
+  // schedulerRegistry (the transitional codegen shape), actions must keep
+  // the full registry or their run* result decode would silently vanish.
+  const resolveActionRegistry = returnsThunk
+    ? resolveStaticRegistry
+    : (resolveRegistry ?? resolveStaticRegistry)
+  const actionCust = createActionCustomization(resolveActionRegistry, noOp)
   const customizations = {
     query: wrap ? codec.query : noOp,
     mutation: createMutationCustomization(wrap ? codec.mutation : noOp, resolveMutationRegistry),
@@ -407,6 +437,19 @@ function createNoOpCustomization(): InternalCustomization {
  * or a `Promise<AnyRegistry>` (a codegen-emitted lazy loader). Both shapes
  * are awaited transparently and cached after the first resolution.
  */
+/** Merge the static args registry (entries carry `args`) with the minimal
+ *  returns registry (entries carry `returns`) into one call-override
+ *  registry keyed by function path. */
+function mergeCallRegistries(a?: AnyRegistry, b?: AnyRegistry): AnyRegistry {
+  if (!a) return b ?? {}
+  if (!b) return a
+  const out: Record<string, any> = { ...a }
+  for (const [key, entry] of Object.entries(b as Record<string, any>)) {
+    out[key] = out[key] ? { ...out[key], ...entry } : entry
+  }
+  return out as AnyRegistry
+}
+
 function createRegistryResolver(thunk: RegistryThunk): () => Promise<AnyRegistry> {
   let cached: AnyRegistry | undefined
   return async () => {

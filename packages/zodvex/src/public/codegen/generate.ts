@@ -386,7 +386,7 @@ export function generateApiFile(
   codecs?: CodecForGeneration[],
   modelCodecs?: ModelEmbeddedCodec[],
   functionCodecs?: FunctionEmbeddedCodec[],
-  options?: { mini?: boolean; argsOnly?: boolean }
+  options?: { mini?: boolean; argsOnly?: boolean; returnsOnly?: boolean }
 ): GeneratedFile {
   // Sort every input collection by a stable key BEFORE walking. Discovery
   // order can vary across platforms (different filesystem traversal); we
@@ -714,8 +714,35 @@ export function generateApiFile(
     zodToSourceCtx.neededCodecImports.get(ref.sourceFile)?.add(ref.exportName)
     return ref.exportName
   }
+  // returnsOnly registry (api.returns.js): serves run* RESULT decode under
+  // 0.8's codec-only semantics — one MINIMAL loose schema per function
+  // whose returns carry codecs. Functions with codec-free returns decode
+  // as identity and need no entry, so the file stays O(codec paths), never
+  // O(model graph) — it is statically imported by every endpoint.
+  const returnsOnly = options?.returnsOnly === true
   const entries = functions
     .map(fn => {
+      if (returnsOnly) {
+        if (!fn.zodReturns) return null
+        const minimal = emitMinimalSchema(
+          fn.zodReturns as $ZodType,
+          minimalCodecRef,
+          fn.functionPath
+        )
+        if (minimal === null) return null // no codec in returns -> identity decode
+        let returns: string
+        if (isUnsupported(minimal)) {
+          // Rare: returns whose codecs the minimal format can't address —
+          // fall back to the full inline schema for THIS function only
+          // (same accepted-and-warned class as table-descriptor fallbacks).
+          returns = resolveSchema(fn.zodReturns)
+        } else {
+          returns = minimal
+          needsZod = true
+          if (returns.includes('zx.date()')) needsZx = true
+        }
+        return `  '${fn.functionPath}': {\n    returns: ${returns},\n  }`
+      }
       if (argsOnly) {
         if (!fn.zodArgs) return null
         const minimal = emitMinimalSchema(fn.zodArgs as $ZodType, minimalCodecRef, fn.functionPath)
@@ -794,15 +821,21 @@ export function generateApiFile(
   const codecVarSection = allCodecVars.length > 0 ? `${allCodecVars.join('\n')}\n\n` : ''
 
   const registryEntries = entries.length > 0 ? `${entries},\n` : ''
-  const registryExportName = argsOnly ? 'zodvexArgsRegistry' : 'zodvexRegistry'
+  const registryExportName = returnsOnly
+    ? 'zodvexReturnsRegistry'
+    : argsOnly
+      ? 'zodvexArgsRegistry'
+      : 'zodvexRegistry'
   const js = `${HEADER}\n${importSection}${codecVarSection}export const ${registryExportName} = {\n${registryEntries}}\n`
 
-  const entryType = argsOnly
-    ? { mini: '{ args: $ZodType }', full: '{ args: ZodTypeAny }' }
-    : {
-        mini: '{ args: $ZodType; returns: $ZodType | undefined }',
-        full: '{ args: ZodTypeAny; returns: ZodTypeAny | undefined }'
-      }
+  const entryType = returnsOnly
+    ? { mini: '{ returns: $ZodType }', full: '{ returns: ZodTypeAny }' }
+    : argsOnly
+      ? { mini: '{ args: $ZodType }', full: '{ args: ZodTypeAny }' }
+      : {
+          mini: '{ args: $ZodType; returns: $ZodType | undefined }',
+          full: '{ args: ZodTypeAny; returns: ZodTypeAny | undefined }'
+        }
   const dts = options?.mini
     ? `${HEADER}
 import type { $ZodType } from 'zod/v4/core'
@@ -875,6 +908,7 @@ import type {
 } from 'convex/server'
 import type { DataModel } from '../_generated/dataModel.js'
 import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'
+import { zodvexReturnsRegistry as _returnsRegistry } from './api.returns.js'
 import { zodvexTableMap as _tableMap } from './models/index.js'
 
 // --- Context types ---
@@ -894,20 +928,18 @@ export type MutationCtx = ZodvexMutationCtx<DataModel, DecodedDocs>
 /** Action context (no db, but runQuery/runMutation may be codec-wrapped). */
 export type ActionCtx = ZodvexActionCtx<DataModel>
 
-// --- Registry: lazy full (actions) + static args-only (mutations) ---
-// Actions run in Node, where dynamic \`import()\` works — the FULL registry
-// (args + returns, whose model-doc graph dominates bundle weight) loads
-// lazily, so it never enters any endpoint's static bundle (~20x per-endpoint
-// heap reduction at N=200; see
-// examples/stress-test/results/archive/lazy-registry-2026-05-12.md).
-// Mutations run in Convex's Q/M V8 sandbox (no dynamic import) but only
-// consume ARGS schemas (scheduler.runAfter/runAt encoding) — they get the
-// statically-imported args-only registry from ./api.args.js, which stays
-// light because it carries no \`returns\` schemas.
+// --- Registries: static args (encode) + static minimal returns (decode) ---
+// Both are statically imported (the Q/M V8 sandbox forbids dynamic
+// \`import()\`) and both stay light by construction: args entries are
+// MINIMAL codec-path schemas, and returns entries are MINIMAL codec-path
+// schemas of each function's returns — never the model-doc graph that made
+// the full registry too heavy to import statically. Under 0.8's codec-only
+// semantics these two registries serve mutations AND actions alike; the
+// FULL registry (./api.js, args + returns as full zod) is client-bundle
+// territory and is deliberately not referenced here, even lazily.
 
-let _cachedRegistry: Promise<typeof import('./api.js').zodvexRegistry> | undefined
-const _registry = () => (_cachedRegistry ??= import('./api.js').then(m => m.zodvexRegistry))
 const _schedulerRegistry = () => _argsRegistry
+const _returnsRegistryThunk = () => _returnsRegistry
 
 // --- Codec-paths table map (Q/M-safe, ~zero weight) ---
 // The Q/M V8 sandbox forbids dynamic \`import()\`, so the runtime tableMap
@@ -943,6 +975,7 @@ export function initZodvex(server: Server, options: {
   wrapDb?: boolean
   registry?: () => any
   schedulerRegistry?: () => any
+  returnsRegistry?: () => any
   tableMap?: any
   /** Compose native db wrappers (e.g. convex-helpers triggers) UNDER the
    *  codec layer — forwarded to the library's initZodvex (#92). */
@@ -953,8 +986,8 @@ export function initZodvex(server: Server, options: {
 } = {}): Bundle {
   return (_libInitZodvex as any)(_schemaToken, server, {
     ...options,
-    registry: options.registry ?? _registry,
     schedulerRegistry: options.schedulerRegistry ?? _schedulerRegistry,
+    returnsRegistry: options.returnsRegistry ?? _returnsRegistryThunk,
     tableMap: options.tableMap ?? _tableMap,
   }) as Bundle
 }

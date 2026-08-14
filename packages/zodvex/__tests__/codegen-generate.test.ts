@@ -66,6 +66,47 @@ const sampleFunctions: DiscoveredFunction[] = [
   }
 ]
 
+describe('generateApiFile returnsOnly (api.returns.js)', () => {
+  const fns: DiscoveredFunction[] = [
+    {
+      functionPath: 'events:get',
+      exportName: 'get',
+      sourceFile: 'events.ts',
+      zodArgs: z.object({}),
+      zodReturns: z.object({ _id: z.string(), when: zx.date() })
+    },
+    {
+      functionPath: 'events:count',
+      exportName: 'count',
+      sourceFile: 'events.ts',
+      zodArgs: z.object({}),
+      zodReturns: z.number() // no codec — identity decode, no entry needed
+    },
+    {
+      functionPath: 'events:noReturns',
+      exportName: 'noReturns',
+      sourceFile: 'events.ts',
+      zodArgs: z.object({}),
+      zodReturns: undefined
+    }
+  ]
+
+  it('emits zodvexReturnsRegistry with MINIMAL returns for codec-bearing functions only', () => {
+    const { js } = generateApiFile(fns, [], [], [], [], { returnsOnly: true })
+    expect(js).toContain('export const zodvexReturnsRegistry')
+    // Codec-bearing entry, minimal (loose, codec fields only)
+    expect(js).toContain("'events:get'")
+    expect(js).toContain('returns:')
+    expect(js).toContain('when: zx.date()')
+    // Non-codec fields never appear; codec-free functions get no entry
+    expect(js).not.toContain('_id')
+    expect(js).not.toContain("'events:count'")
+    expect(js).not.toContain("'events:noReturns'")
+    // Never args in this file
+    expect(js).not.toContain('args:')
+  })
+})
+
 describe('generateSchemaFile', () => {
   it('returns js and dts with model re-exports using .js extensions', () => {
     const { js, dts } = generateSchemaFile(sampleModels)
@@ -340,11 +381,17 @@ describe('generateServerFile', () => {
     // Split registry: lazy full registry for actions (Node — dynamic import
     // keeps the heavy returns graph out of static bundles), static args-only
     // registry for the mutation scheduler path (Q/M V8 sandbox forbids
-    // dynamic import; it only consults args schemas).
-    expect(js).toContain("import('./api.js').then(m => m.zodvexRegistry)")
+    // dynamic import), plus the minimal returns registry for run* result
+    // decode. Codec-only-everywhere: the full registry (api.js) is CLIENT
+    // territory — server.ts must not reference it, not even lazily.
+    expect(js).not.toContain("import('./api.js')")
     expect(js).toContain("import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'")
+    expect(js).toContain(
+      "import { zodvexReturnsRegistry as _returnsRegistry } from './api.returns.js'"
+    )
     expect(js).toContain('const _schedulerRegistry = () => _argsRegistry')
     expect(js).toContain('schedulerRegistry: options.schedulerRegistry ?? _schedulerRegistry')
+    expect(js).toContain('returnsRegistry: options.returnsRegistry ?? _returnsRegistry')
 
     // Codec-paths tableMap: imported from the generated descriptor index
     // (O(codec fields) per table), NOT built from all-models imports.

@@ -68,14 +68,22 @@ describe('generate()', () => {
     expect(content).toContain('export type MutationCtx')
     expect(content).toContain('export type ActionCtx')
     expect(content).toContain('export function initZodvex')
-    // Split registry: lazy full (actions) + static args-only (mutations).
-    expect(content).toContain("import('./api.js')")
+    // Static registries: args (encode) + minimal returns (decode). The
+    // full registry (api.js) is client-only — server.ts must not
+    // reference it, even lazily.
+    expect(content).not.toContain("import('./api.js')")
     expect(content).toContain("import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'")
+    expect(content).toContain(
+      "import { zodvexReturnsRegistry as _returnsRegistry } from './api.returns.js'"
+    )
 
-    // The args-only registry file is emitted alongside api.js.
+    // The args-only + returns-only registry files are emitted alongside api.js.
     const argsContent = fs.readFileSync(path.join(outputDir, 'api.args.js'), 'utf-8')
     expect(argsContent).toContain('export const zodvexArgsRegistry')
     expect(argsContent).not.toContain('returns:')
+    const returnsContent = fs.readFileSync(path.join(outputDir, 'api.returns.js'), 'utf-8')
+    expect(returnsContent).toContain('export const zodvexReturnsRegistry')
+    expect(returnsContent).not.toContain('args:')
   })
 
   it('throws for non-existent convex directory', async () => {
