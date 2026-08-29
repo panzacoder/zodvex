@@ -89,8 +89,25 @@ export interface ComposeConfig {
    *    tableMap). This is the shape that OOMs at N≈200 full-zod
    *    (results/server-ts-shape-findings-2026-06-12.md); composing it
    *    here is what lets the sweep track that cliff. Implies lazyTables.
+   *  - 'codec-paths': SPIKE for "option 3" (per-model codegen folder,
+   *    docs/plans/per-endpoint-model-registration.md addendum). Codegen
+   *    emits `_zodvex/models/<table>.ts` descriptors containing MINIMAL
+   *    loose zod schemas (codec fields only — bytes per table instead of
+   *    the full model graph) plus a statically-imported index, passed to
+   *    initZodvex as the central tableMap. The consumer API is COMPLETELY
+   *    unchanged (db.get(id), relational lookups decode). Hypothesis:
+   *    floor-parity ceilings AND relational probe decoded:true.
+   *  - 'per-endpoint': SPIKE for the model-registration design
+   *    (docs/plans/per-endpoint-model-registration.md). Codecs fully ON
+   *    (wrapDb + scheduler registry) but NO centralized model graph:
+   *    each composed model self-registers into a per-isolate global as
+   *    an import side effect, and functions.ts passes a live registry
+   *    view as the tableMap thunk. Built entirely in the harness — no
+   *    library API. Hypothesis to prove: this shape matches the floor's
+   *    ceiling (750 / TooManyReads at 800) with codec assertions
+   *    passing at every cell. Implies lazyTables.
    */
-  shape?: 'harness' | 'explicit' | 'consolidated'
+  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths'
   /**
    * Decouple the MODEL axis from the ENDPOINT axis. When set, exactly
    * `models` model files (tables) are composed and the `count` endpoint
@@ -431,7 +448,8 @@ export function compose(config: ComposeConfig): ComposeResult {
   const lazyTables =
     isZodvex && shape === 'explicit'
       ? false
-      : (config.lazyTables ?? false) || (isZodvex && shape === 'consolidated')
+      : (config.lazyTables ?? false) ||
+        (isZodvex && (shape === 'consolidated' || shape === 'per-endpoint' || shape === 'codec-paths'))
   const modelsDir = join(outputDir, 'models')
   const endpointsDir = join(outputDir, 'endpoints')
 
@@ -459,7 +477,10 @@ export function compose(config: ComposeConfig): ComposeResult {
     const newPascal = `${seed.pascal}${suffix}`
     const fileName = `${seed.name}_${suffix}`
 
-    const modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, flavor)
+    let modelOut = renameSeed(seed.modelSource, seed, suffix, newTable, newPascal, flavor)
+    if (isZodvex && shape === 'per-endpoint') {
+      modelOut += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('${newTable}', ${newPascal}Model)\n`
+    }
     writeFileSync(join(modelsDir, `${fileName}.ts`), modelOut)
 
     allRefs.push({
@@ -535,7 +556,31 @@ export function compose(config: ComposeConfig): ComposeResult {
   // The endpoint is the sweep's runtime smoke target — it round-trips a
   // write+read (and, for zodvex, asserts the codec semantics the composed
   // shape promises), throwing on any violation so `convex run` fails loudly.
-  writeFileSync(join(modelsDir, 'healthcheck.ts'), healthcheckModelSource(flavor))
+  // Relational-codec probe: an endpoint that follows a foreign key into a
+  // codec table WITHOUT importing that table's model. Under a centralized
+  // tableMap the child doc decodes; under per-endpoint registration the
+  // lookup silently returns WIRE values. The probe reports (never throws)
+  // so the same function demonstrates both behaviors on real deploys.
+  if (isZodvex && (shape === 'per-endpoint' || shape === 'consolidated' || shape === 'codec-paths')) {
+    let refModel = relationalRefModelSource(flavor)
+    if (shape === 'per-endpoint') {
+      refModel += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('hcRefs', HealthcheckRefModel)\n`
+    }
+    writeFileSync(join(modelsDir, 'healthcheckRef.ts'), refModel)
+    writeFileSync(join(endpointsDir, 'healthcheck_rel.ts'), relationalProbeSource(flavor))
+    tables.push({
+      fileName: 'healthcheckRef',
+      symbol: 'HealthcheckRefModel',
+      alias: 'T_hcref',
+      tableName: 'hcRefs',
+    })
+  }
+
+  let hcModel = healthcheckModelSource(flavor)
+  if (isZodvex && shape === 'per-endpoint') {
+    hcModel += `\nimport { __registerModel } from '../tableRegistry'\n__registerModel('healthchecks', HealthcheckModel)\n`
+  }
+  writeFileSync(join(modelsDir, 'healthcheck.ts'), hcModel)
   writeFileSync(
     join(endpointsDir, 'healthcheck.ts'),
     healthcheckEndpointSource(flavor, isZodvex ? shape : 'harness'),
@@ -583,6 +628,14 @@ export function compose(config: ComposeConfig): ComposeResult {
     writeFileSync(join(outputDir, 'functions.ts'), consolidatedFunctionsSource())
   } else if (isZodvex && shape === 'explicit') {
     writeFileSync(join(outputDir, 'functions.ts'), explicitFunctionsSource(flavor))
+  } else if (isZodvex && shape === 'per-endpoint') {
+    writeFileSync(join(outputDir, 'tableRegistry.ts'), tableRegistrySource(flavor))
+    writeFileSync(join(outputDir, 'functions.ts'), perEndpointFunctionsSource(flavor))
+  } else if (isZodvex && shape === 'codec-paths') {
+    // The REAL v2 consumer shape: server.ts's tableMap IS the generated
+    // descriptor index (codec-paths), its scheduler registry the
+    // codec-args-only api.args.js. Nothing hand-rolled remains.
+    writeFileSync(join(outputDir, 'functions.ts'), consolidatedFunctionsSource())
   }
 
   return { flavor, outputDir, modelsDir, endpointsDir, endpointFiles }
@@ -613,6 +666,140 @@ export const { zq, zm } = initZodvex(schema as any, {
   registry: () => zodvexRegistry,
 })
 `
+}
+
+/**
+ * SPIKE registry for the per-endpoint shape. A per-isolate global keyed by
+ * Symbol.for (robust across duplicated module instances); models register
+ * on import; the view builds {doc, insert} lazily through zx's WeakMap
+ * caches and is handed to initZodvex as the tableMap thunk.
+ */
+function relationalRefModelSource(flavor: Flavor): string {
+  const src = `import { defineZodModel, zx } from 'zodvex'
+
+export const HealthcheckRefModel = defineZodModel('hcRefs', {
+  target: zx.id('healthchecks'),
+})
+`
+  return applyFlavorImportRewrites(flavor, src, 'models/healthcheckRef.ts')
+}
+
+/**
+ * The relational lookup under test. Imports ONLY its own model
+ * (HealthcheckRefModel) — the 'healthchecks' codec table is reached purely
+ * through the foreign key, exactly the everyday relation-follow pattern.
+ */
+function relationalProbeSource(flavor: Flavor): string {
+  const src = `import { z } from 'zod'
+import { zm } from '../functions'
+import { HealthcheckRefModel } from '../models/healthcheckRef'
+// Deliberately ABSENT: any import of ../models/healthcheck
+
+export const relationalCodecProbe = zm({
+  args: {},
+  returns: z.object({ decoded: z.boolean(), runtimeType: z.string(), writePath: z.string() }),
+  handler: async (ctx: any) => {
+    // Seed a child row, topology-agnostically. Registered world: the
+    // writer ENCODES, so it expects the runtime value (Date). Unregistered
+    // world: the writer passes through, a raw Date is unserializable, and
+    // we must write wire values directly — the write-path half of the
+    // failure mode.
+    let childId: any
+    let writePath = 'encoded (model registered)'
+    try {
+      childId = await ctx.db.insert('healthchecks', { label: 'rel', at: new Date(1700000000000) })
+    } catch {
+      writePath = 'raw passthrough (model NOT in this isolate)'
+      childId = await ctx.db.insert('healthchecks', { label: 'rel', at: 1700000000000 })
+    }
+    const refId = await ctx.db.insert('hcRefs', { target: childId })
+
+    // The lookup under test: follow the foreign key into the codec table.
+    const ref = await ctx.db.get(refId)
+    const child = await ctx.db.get(ref.target)
+    const decoded = child.at instanceof Date
+    return { decoded, runtimeType: decoded ? 'Date' : typeof child.at, writePath }
+  },
+})
+`
+  return applyFlavorImportRewrites(flavor, src, 'endpoints/healthcheck_rel.ts')
+}
+
+function tableRegistrySource(flavor: Flavor): string {
+  const zxImport = flavor === 'zodvex-mini' ? 'zodvex/mini' : 'zodvex'
+  return `import { zx } from '${zxImport}'
+
+const KEY = Symbol.for('zodvex.spike.tableRegistry')
+const models: Map<string, any> = ((globalThis as any)[KEY] ??= new Map())
+
+export function __registerModel(table: string, model: any): void {
+  models.set(table, model)
+}
+
+const built: Map<string, any> = new Map()
+
+export function __tableMapView(): Record<string, any> {
+  return new Proxy(
+    {},
+    {
+      get(_t, name) {
+        if (typeof name !== 'string') return undefined
+        if (built.has(name)) return built.get(name)
+        const m = models.get(name)
+        if (!m) return undefined
+        const schemas = { doc: zx.doc(m), insert: zx.base(m) }
+        built.set(name, schemas)
+        return schemas
+      },
+      has(_t, name) {
+        return typeof name === 'string' && models.has(name)
+      },
+      ownKeys() {
+        return [...models.keys()]
+      },
+      getOwnPropertyDescriptor() {
+        return { enumerable: true, configurable: true }
+      },
+    },
+  )
+}
+`
+}
+
+/**
+ * SPIKE functions.ts: codecs fully on (wrapDb via the live registry view,
+ * scheduler encoding via a hand-rolled single-entry registry) with NO
+ * centralized model imports. The hand-rolled scheduler registry isolates
+ * the model-graph hypothesis from the args-registry scaling term (a
+ * known, separate ~0.2 MB/endpoint-file cost).
+ */
+function perEndpointFunctionsSource(flavor: Flavor): string {
+  const serverImport = flavor === 'zodvex-mini' ? 'zodvex/mini/server' : 'zodvex/server'
+  const src = `import { z } from 'zod'
+import { initZodvex } from '${serverImport}'
+import {
+  queryGeneric as query,
+  mutationGeneric as mutation,
+  actionGeneric as action,
+  internalQueryGeneric as internalQuery,
+  internalMutationGeneric as internalMutation,
+  internalActionGeneric as internalAction,
+} from 'convex/server'
+import { zx } from 'zodvex'
+import { __tableMapView } from './tableRegistry'
+
+const schedulerRegistry = {
+  'endpoints/healthcheck:onSchedule': { args: z.object({ at: zx.date() }) },
+}
+
+export const { zq, zm } = initZodvex({} as any, {
+  query, mutation, action, internalQuery, internalMutation, internalAction,
+} as any, {
+  tableMap: () => __tableMapView(),
+  schedulerRegistry: () => schedulerRegistry,
+} as any)
+`
+  return applyFlavorImportRewrites(flavor, src, 'functions.ts')
 }
 
 function consolidatedFunctionsSource(): string {
@@ -664,11 +851,17 @@ export const HealthcheckTable = defineTable({
  *  - zodvex 'harness' (wrapDb:false): db is raw — `at` must stay a number.
  *  - parity flavors: plain write+read round-trip, same table shape.
  */
-function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'explicit' | 'consolidated'): string {
+function healthcheckEndpointSource(flavor: Flavor, shape: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths'): string {
   if (flavor === 'zodvex' || flavor === 'zodvex-mini') {
+    // per-endpoint shape: the endpoint must VALUE-import the model of any
+    // codec table it touches — that import IS the registration. (The spike
+    // initially omitted this and reproduced the silent-miss hazard: the
+    // unregistered writer passed a raw Date to Convex's serializer.)
+    const modelImport =
+      shape === 'per-endpoint' ? `import '../models/healthcheck'\n` : ''
     const src =
       shape !== 'harness'
-        ? `import { z } from 'zod'
+        ? `${modelImport}import { z } from 'zod'
 import { makeFunctionReference } from 'convex/server'
 import { zx } from 'zodvex'
 import { zm } from '../functions'
@@ -677,7 +870,7 @@ const AT = 1700000000000
 
 export const healthcheck = zm({
   args: {},
-  returns: z.object({ ok: z.boolean() }),
+  returns: z.object({ ok: z.boolean(), metrics: z.any() }),
   handler: async (ctx: any) => {
     const at = new Date(AT)
     const id = await ctx.db.insert('healthchecks', { label: 'hc', at })
@@ -685,7 +878,12 @@ export const healthcheck = zm({
     if (!doc) throw new Error('healthcheck: doc missing after insert')
     if (!(doc.at instanceof Date)) throw new Error('healthcheck: codec decode failed — at is ' + typeof doc.at)
     if (doc.at.getTime() !== AT) throw new Error('healthcheck: decode value mismatch')
-    return { ok: true }
+    // Runtime transaction metrics (convex >=1.36). NOTE: describes THIS
+    // transaction, not the deploy-time finish_push transaction where the
+    // TooManyReads wall lives — recorded for platform limit constants and
+    // future runtime sweeps.
+    const metrics = ctx.meta?.getTransactionMetrics ? await ctx.meta.getTransactionMetrics() : null
+    return { ok: true, metrics }
   },
 })
 
@@ -712,13 +910,14 @@ const AT = 1700000000000
 
 export const healthcheck = zm({
   args: {},
-  returns: z.object({ ok: z.boolean() }),
+  returns: z.object({ ok: z.boolean(), metrics: z.any() }),
   handler: async (ctx: any) => {
     const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
     const doc = await ctx.db.get(id)
     if (!doc) throw new Error('healthcheck: doc missing after insert')
     if (typeof doc.at !== 'number' || doc.at !== AT) throw new Error('healthcheck: raw round-trip failed')
-    return { ok: true }
+    const metrics = ctx.meta?.getTransactionMetrics ? await ctx.meta.getTransactionMetrics() : null
+    return { ok: true, metrics }
   },
 })
 `
@@ -733,12 +932,15 @@ const AT = 1700000000000
 
 export const healthcheck = mutation({
   args: {},
-  returns: v.object({ ok: v.boolean() }),
+  returns: v.object({ ok: v.boolean(), metrics: v.any() }),
   handler: async (ctx) => {
     const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
     const doc = await ctx.db.get(id)
     if (!doc || doc.at !== AT) throw new Error('healthcheck: round-trip failed')
-    return { ok: true }
+    const metrics = (ctx as any).meta?.getTransactionMetrics
+      ? await (ctx as any).meta.getTransactionMetrics()
+      : null
+    return { ok: true, metrics }
   },
 })
 `
@@ -755,7 +957,8 @@ export const healthcheck = zMutation({
     const id = await ctx.db.insert('healthchecks', { label: 'hc', at: AT })
     const doc = await ctx.db.get(id)
     if (!doc || doc.at !== AT) throw new Error('healthcheck: round-trip failed')
-    return { ok: true }
+    const metrics = ctx.meta?.getTransactionMetrics ? await ctx.meta.getTransactionMetrics() : null
+    return { ok: true, metrics }
   },
 })
 `

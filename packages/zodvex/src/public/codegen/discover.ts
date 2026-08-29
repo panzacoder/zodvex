@@ -7,6 +7,7 @@ import {
   $ZodArray,
   $ZodCodec,
   $ZodCustom,
+  $ZodLazy,
   $ZodNullable,
   $ZodNumber,
   $ZodObject,
@@ -29,6 +30,8 @@ export type DiscoveredModel = {
   schemas: ZodvexModelMeta['schemas']
   /** @internal For slim models — used to reconstruct schemas at codegen time. */
   _modelRef?: unknown
+  /** @internal Live model object — used by codegen to build Convex TableDefinitions. */
+  _liveModel?: unknown
 }
 
 export type DiscoveredFunction = {
@@ -60,6 +63,46 @@ export type FunctionEmbeddedCodec = {
   functionSourceFile: string
   schemaSource: 'zodArgs' | 'zodReturns'
   accessPath: string
+}
+
+/**
+ * Deep probe: does any node of this schema tree contain a $ZodCodec
+ * (including zx.date)? Used to keep generated registries minimal — a
+ * function whose args carry no codecs needs no args-registry entry
+ * (encode is identity), and a container with no codecs needs no
+ * descriptor handling.
+ */
+export function schemaSubtreeHasCodec(schema: $ZodType, seen: Set<$ZodType> = new Set()): boolean {
+  if (seen.has(schema)) return false
+  seen.add(schema)
+  if (schema instanceof $ZodCodec) return true
+  if (schema instanceof $ZodLazy) {
+    // The child sits behind def.getter (a function), invisible to the
+    // generic def walk below; `seen` guards recursive schemas. A getter
+    // that throws can't be inspected — report true so callers take their
+    // conservative (fallback) path rather than silently missing a codec.
+    try {
+      const inner = (schema as any)._zod.def.getter()
+      return inner instanceof $ZodType ? schemaSubtreeHasCodec(inner, seen) : false
+    } catch {
+      return true
+    }
+  }
+  const def = (schema as any)._zod?.def
+  if (!def) return false
+  for (const value of Object.values(def)) {
+    if (value instanceof $ZodType && schemaSubtreeHasCodec(value, seen)) return true
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item instanceof $ZodType && schemaSubtreeHasCodec(item, seen)) return true
+      }
+    } else if (value && typeof value === 'object') {
+      for (const item of Object.values(value)) {
+        if (item instanceof $ZodType && schemaSubtreeHasCodec(item, seen)) return true
+      }
+    }
+  }
+  return false
 }
 
 export type DiscoveryResult = {
@@ -306,7 +349,13 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
       'convex.config.ts',
       'convex.config.js',
       'crons.ts',
-      'crons.js'
+      'crons.js',
+      // schema.{ts,js} never exports queries/mutations/codecs — and under
+      // the lazy-tables shape it imports from `_zodvex/tables`, which is
+      // generated DURING this same codegen pass. Importing it during
+      // discovery would create an ordering loop on first run; ignore it.
+      'schema.ts',
+      'schema.js'
     ]
   }).sort()
 
@@ -346,7 +395,8 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
                   tableName: meta.tableName,
                   sourceFile: file,
                   schemas: meta.schemas,
-                  _modelRef: meta.schemas ? undefined : value
+                  _modelRef: meta.schemas ? undefined : value,
+                  _liveModel: value
                 }
               }
               // If existing is direct and new is barrel, skip
@@ -356,7 +406,8 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
                 tableName: meta.tableName,
                 sourceFile: file,
                 schemas: meta.schemas,
-                _modelRef: meta.schemas ? undefined : value
+                _modelRef: meta.schemas ? undefined : value,
+                _liveModel: value
               })
             }
           } else if (meta.type === 'function') {

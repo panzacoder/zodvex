@@ -2,6 +2,10 @@ import { convexTest } from 'convex-test'
 import { describe, expect, test } from 'vitest'
 import { createZodDbWriter } from 'zodvex/server'
 import schema from './schema'
+// The codec-aware token — the thin defineSchema(tables) schema carries no
+// __zodTableMap, which the secure writer needs. convexTest still gets the
+// real schema above.
+import { schema as codecSchema } from './_zodvex/server'
 
 const modules = import.meta.glob('./**/*.ts')
 
@@ -41,7 +45,7 @@ describe('secure writer patch can unset optional fields (issue #82)', () => {
       const before = await ctx.db.get(id)
       expect((before as any).description).toBe('temporary note')
 
-      const zdb = createZodDbWriter(ctx.db as any, schema as any)
+      const zdb = createZodDbWriter(ctx.db as any, codecSchema as any)
       await zdb.patch(id as any, { description: undefined } as any)
 
       const after = await ctx.db.get(id)
@@ -57,7 +61,7 @@ describe('secure writer patch can unset optional fields (issue #82)', () => {
       const before = await ctx.db.get(id)
       expect(typeof (before as any).dueDate).toBe('number')
 
-      const zdb = createZodDbWriter(ctx.db as any, schema as any)
+      const zdb = createZodDbWriter(ctx.db as any, codecSchema as any)
       await zdb.patch(id as any, { dueDate: undefined } as any)
 
       const after = await ctx.db.get(id)
@@ -70,7 +74,7 @@ describe('secure writer patch can unset optional fields (issue #82)', () => {
     const id = await seedTask(t, { description: 'keep me' })
 
     await t.run(async (ctx) => {
-      const zdb = createZodDbWriter(ctx.db as any, schema as any)
+      const zdb = createZodDbWriter(ctx.db as any, codecSchema as any)
       // Patch a different field; `description` is absent (not undefined) — must remain.
       await zdb.patch(id as any, { title: 'renamed' } as any)
 

@@ -49,30 +49,52 @@ export type ZodvexUnderlyingDb<
  * })
  * ```
  */
+/**
+ * `tableMap` accepts either:
+ *   - a synchronous ZodTableMap (today's `defineZodSchema(...).__zodTableMap`)
+ *   - a thunk `() => ZodTableMap | Promise<ZodTableMap>` (codegen-emitted
+ *     lazy table map for the schema-only-thin shape)
+ *
+ * The thunk is invoked once on the first query/mutation and cached. This
+ * lets the schema-eval isolate skip loading zod entirely while the runtime
+ * codec wrappers still get the zod schemas they need.
+ */
 export function createZodvexCustomization(
-  tableMap: ZodTableMap,
+  tableMap: ZodTableMap | (() => ZodTableMap | Promise<ZodTableMap>),
   options?: { underlyingDb?: ZodvexUnderlyingDb }
 ) {
   const resolveReaderDb = options?.underlyingDb?.query
   const resolveWriterDb = options?.underlyingDb?.mutation
+  let cached: ZodTableMap | undefined
+  const resolve = async (): Promise<ZodTableMap> => {
+    if (cached !== undefined) return cached
+    cached = typeof tableMap === 'function' ? await tableMap() : tableMap
+    return cached
+  }
   return {
     query: {
       args: {} as Record<string, never>,
-      input: async (ctx: any, _args: any, _extra?: any) => ({
-        ctx: {
-          db: new ZodvexDatabaseReader(resolveReaderDb ? resolveReaderDb(ctx) : ctx.db, tableMap)
-        },
-        args: {}
-      })
+      input: async (ctx: any, _args: any, _extra?: any) => {
+        const tm = await resolve()
+        return {
+          ctx: {
+            db: new ZodvexDatabaseReader(resolveReaderDb ? resolveReaderDb(ctx) : ctx.db, tm)
+          },
+          args: {}
+        }
+      }
     },
     mutation: {
       args: {} as Record<string, never>,
-      input: async (ctx: any, _args: any, _extra?: any) => ({
-        ctx: {
-          db: new ZodvexDatabaseWriter(resolveWriterDb ? resolveWriterDb(ctx) : ctx.db, tableMap)
-        },
-        args: {}
-      })
+      input: async (ctx: any, _args: any, _extra?: any) => {
+        const tm = await resolve()
+        return {
+          ctx: {
+            db: new ZodvexDatabaseWriter(resolveWriterDb ? resolveWriterDb(ctx) : ctx.db, tm)
+          },
+          args: {}
+        }
+      }
     }
   }
 }

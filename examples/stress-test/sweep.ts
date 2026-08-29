@@ -37,6 +37,9 @@ interface CellResult {
   endpointHeapMaxMB: number
   schemaHeapMB: number | null
   errorTail: string | null
+  /** Healthcheck's runtime transaction metrics (its OWN transaction — limit
+   *  constants + usage; NOT deploy-time finish_push proximity). */
+  txnMetrics?: unknown
   /** True when reused from the fingerprint cache instead of re-running. */
   cached?: boolean
 }
@@ -45,7 +48,7 @@ interface SweepConfig {
   flavors?: Flavor[]
   ns?: number[]
   /** zodvex consumer shape to compose (parity flavors unaffected). Default 'explicit'. */
-  shape?: 'harness' | 'explicit' | 'consolidated'
+  shape?: 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths'
   /** Skip flavor at higher N once it's already failed at a lower N for the same flavor. Default true. */
   skipAfterFailure?: boolean
   outFile?: string
@@ -148,9 +151,10 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
       }
 
       console.error(`[${flavor} N=${n}] composing…`)
-      // Thin schema (codegen tables.ts) exists only for the consolidated
-      // shape; explicit and harness compose without codegen output.
-      const lazyTables = isZodvex && shape === 'consolidated'
+      // Thin schema (codegen tables.ts) exists only for the codegen-driven
+      // shapes; explicit and harness compose without codegen output.
+      const lazyTables =
+        isZodvex && (shape === 'consolidated' || shape === 'per-endpoint' || shape === 'codec-paths')
       let measured
       try {
         measured = await bench({
@@ -200,6 +204,15 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         smokeFunction: smokeFns,
       })
       const kind = outcome.kind
+      let txnMetrics: unknown
+      if (outcome.kind === 'ok' && outcome.smokeOutputs) {
+        try {
+          const parsed = JSON.parse(outcome.smokeOutputs['endpoints/healthcheck:healthcheck'] ?? 'null')
+          txnMetrics = parsed?.metrics ?? undefined
+        } catch {
+          txnMetrics = undefined
+        }
+      }
       const cell: CellResult = {
         flavor,
         n,
@@ -209,6 +222,7 @@ export async function sweep(config: SweepConfig = {}): Promise<CellResult[]> {
         endpointHeapMaxMB: measured.heapDeltaMB.max,
         schemaHeapMB: measured.schemaHeapDeltaMB,
         errorTail: 'stderrSnippet' in outcome ? (outcome.stderrSnippet ?? '').slice(-300) : null,
+        ...(txnMetrics !== undefined && { txnMetrics }),
       }
       results.push(cell)
       if (isCacheableOutcome(outcome, resetOk)) {
@@ -277,7 +291,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const results = await sweep({
     flavors,
     ns,
-    shape: get('shape') as 'harness' | 'explicit' | 'consolidated' | undefined,
+    shape: get('shape') as 'harness' | 'explicit' | 'consolidated' | 'per-endpoint' | 'codec-paths' | undefined,
     models: get('models') ? parseInt(get('models')!, 10) : undefined,
     endpoints: get('endpoints') ? parseInt(get('endpoints')!, 10) : undefined,
     outFile,

@@ -60,7 +60,8 @@ export function gitignoreEntry(content: string): string | null {
  * codegen run. Called by `zodvex init` and can also be called standalone.
  *
  * Creates:
- * - _zodvex/api.ts — empty registry stub
+ * - _zodvex/api.ts — empty registry stub (the eager data export)
+ * - _zodvex/api.args.ts — empty args-only registry stub (mutation scheduler)
  * - _zodvex/client.ts — stub that imports from the api stub
  */
 export function generateStubs(convexDir: string): void {
@@ -72,6 +73,11 @@ export const zodvexRegistry = {} as const
 `
   fs.writeFileSync(path.join(zodvexDir, 'api.ts'), apiStub)
 
+  const apiArgsStub = `// Auto-generated stub. Run \`zodvex generate\` to populate.
+export const zodvexArgsRegistry = {} as const
+`
+  fs.writeFileSync(path.join(zodvexDir, 'api.args.ts'), apiArgsStub)
+
   const clientStub = `// Auto-generated stub. Run \`zodvex generate\` to populate.
 import { zodvexRegistry } from './api'
 
@@ -80,6 +86,15 @@ export const useZodMutation = undefined as any
 export const createClient = undefined as any
 `
   fs.writeFileSync(path.join(zodvexDir, 'client.ts'), clientStub)
+
+  // NOOP marker: presence of this file makes Convex's CLI walker skip
+  // _zodvex/ during entrypoint discovery (see `looksLikeNestedComponent`
+  // in convex/dist/esm/bundler/index.js). Only `fs.exists` is checked,
+  // so content is irrelevant.
+  const skipMarker = `// NOOP — prevents Convex from importing the zod-only code into the runtime isolate.
+// See https://github.com/panzacoder/zodvex for context.
+`
+  fs.writeFileSync(path.join(zodvexDir, 'convex.config.ts'), skipMarker)
 }
 
 /**

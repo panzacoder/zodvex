@@ -1,0 +1,113 @@
+{
+  "meta": {
+    "timestamp": "2026-06-12T18:44:44.915Z",
+    "gitSha": "41a16c06113be97997e94054cd5efc22b5095c4e",
+    "gitDirty": true,
+    "zodvexVersion": "0.7.5",
+    "convexVersion": "1.32.0",
+    "convexHelpersVersion": "0.1.113",
+    "zodVersion": "4.3.6",
+    "bunVersion": "1.3.8",
+    "deployment": "dev:first-skunk-786"
+  },
+  "config": {
+    "flavors": [
+      "zodvex",
+      "zodvex-mini"
+    ],
+    "ns": [
+      200,
+      600,
+      750,
+      800
+    ],
+    "shape": "harness",
+    "models": null,
+    "endpoints": null,
+    "skipAfterFailure": false,
+    "doReset": true,
+    "force": false
+  },
+  "results": [
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "shape": "harness",
+      "outcome": "ok",
+      "durationMs": 29248,
+      "endpointHeapMaxMB": 2.68,
+      "schemaHeapMB": 3.24,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 600,
+      "shape": "harness",
+      "outcome": "ok",
+      "durationMs": 56558,
+      "endpointHeapMaxMB": 2.67,
+      "schemaHeapMB": 6.48,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 750,
+      "shape": "harness",
+      "outcome": "ok",
+      "durationMs": 65419,
+      "endpointHeapMaxMB": 2.67,
+      "schemaHeapMB": 7.7,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 800,
+      "shape": "harness",
+      "outcome": "too-many-reads",
+      "durationMs": 57945,
+      "endpointHeapMaxMB": 2.68,
+      "schemaHeapMB": 8.09,
+      "errorTail": "first-skunk-786.convex.cloud/api/deploy2/finish_push 400 : TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "shape": "harness",
+      "outcome": "ok",
+      "durationMs": 21453,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 3.02,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 600,
+      "shape": "harness",
+      "outcome": "ok",
+      "durationMs": 56675,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 6.26,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 750,
+      "shape": "harness",
+      "outcome": "ok",
+      "durationMs": 62388,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 7.47,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 800,
+      "shape": "harness",
+      "outcome": "too-many-reads",
+      "durationMs": 64567,
+      "endpointHeapMaxMB": 2.09,
+      "schemaHeapMB": 7.87,
+      "errorTail": "first-skunk-786.convex.cloud/api/deploy2/finish_push 400 : TooManyReads: Hit an error while pushing:\nToo many reads in a single function execution (limit: 4096). Consider using smaller limits in your queries, paginating your queries, or using indexed queries with a selective index range expressions."
+    }
+  ]
+}

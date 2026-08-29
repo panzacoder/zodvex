@@ -1,7 +1,6 @@
 import { Triggers } from 'convex-helpers/server/triggers'
 import { z } from 'zod'
 import { zx } from 'zodvex'
-import { initZodvex } from 'zodvex/server'
 import type { DataModel } from './_generated/dataModel'
 import {
   query,
@@ -11,7 +10,9 @@ import {
   internalMutation,
   internalAction,
 } from './_generated/server'
-import schema from './schema'
+// The codegen-emitted pre-wired initZodvex — it carries the lazy tableMap
+// the thin schema no longer does, and forwards underlyingDb (#92).
+import { initZodvex } from './_zodvex/server'
 
 /**
  * convex-helpers triggers composed UNDER the zodvex codec layer (zodvex#92).
@@ -58,7 +59,6 @@ triggers.register('tasks', async (ctx, change) => {
 
 // Composed builders: zodvex codec on top, triggers underneath.
 const { zm: triggerMutation, zq: triggerQuery } = initZodvex(
-  schema,
   { query, mutation, action, internalQuery, internalMutation, internalAction },
   {
     underlyingDb: { mutation: (ctx) => triggers.wrapDB(ctx).db },

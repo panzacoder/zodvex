@@ -205,6 +205,158 @@ function classifyImport(imported: string): ImportGroup {
  *   import { zid } from 'zodvex/core'
  *   import { type Zid, zid } from 'zodvex'
  */
+
+/**
+ * Migrates the schema.ts shape from the legacy `defineZodSchema({...models})`
+ * call to the pure-Convex `defineSchema(tables)` call that pulls table
+ * definitions from codegen-emitted `_zodvex/tables.ts`.
+ *
+ * Only rewrites files we recognise as the canonical shape — leaves anything
+ * customised alone (the user will see a deprecation warning from the
+ * separate scanner instead).
+ *
+ * Before:
+ *   import { defineZodSchema } from 'zodvex/server'
+ *   import { UserModel } from './models/user'
+ *   import { TaskModel } from './models/task'
+ *   ...
+ *   export default defineZodSchema({ users: UserModel, tasks: TaskModel })
+ *
+ * After:
+ *   import { defineSchema } from 'convex/server'
+ *   import tables from './_zodvex/tables'
+ *
+ *   export default defineSchema(tables)
+ */
+function applySchemaRewrite(content: string): string {
+  // Skip files that don't match the legacy shape — be permissive about
+  // whitespace but anchor on the defineZodSchema call.
+  if (!/\bdefineZodSchema\s*\(/.test(content)) return content
+  // Whole-file match, NO /m flag: with per-line anchors any customized
+  // schema.ts containing the canonical lines somewhere matched and was
+  // wholesale-replaced — deleting inline models and helper exports (and,
+  // since discovery no longer reads schema.ts, dropping their tables from
+  // the next push). The middle section may contain ONLY import lines: any
+  // other statement means the file is customized → leave it alone (the
+  // deprecation scanner still warns).
+  const canonicalRe =
+    /^import\s+\{\s*defineZodSchema\s*\}\s+from\s+['"]zodvex(?:\/mini)?\/server['"]\s*;?\s*\n((?:\s*(?:import[^\n]*)?\n)*?)\s*export default defineZodSchema\(\{[\s\S]*?\}\)\s*;?\s*$/
+  if (!canonicalRe.test(content.trim())) return content
+  return [
+    "import { defineSchema } from 'convex/server'",
+    "import tables from './_zodvex/tables'",
+    '',
+    'export default defineSchema(tables)',
+    ''
+  ].join('\n')
+}
+
+/**
+ * Migrates the functions.ts shape from the legacy initZodvex call to the
+ * codegen-bundled wrapper. Drops schema/registry/tableMap imports and
+ * options; rewrites the initZodvex import to come from `./_zodvex/server`.
+ *
+ * Recognised legacy shapes (any combination of these option fields):
+ *   - registry: () => zodvexRegistry
+ *   - registry: zodvexRegistry  (post-lazy form)
+ *   - tableMap: zodTableMap     (post-tableMap-lazy form)
+ *
+ * Matches both top-level `initZodvex(schema, server, options)` calls
+ * inside the destructuring assignment commonly used in functions.ts.
+ */
+function applyInitZodvexConsolidation(content: string): string {
+  // The schema default-import may be named anything — resolve the local
+  // binding of './schema' instead of assuming `schema` (an aliased import
+  // used to fail this guard, leaving the file half-migrated).
+  const schemaImport = content.match(
+    /import\s+([A-Za-z_$][\w$]*)\s+from\s+['"]\.\/schema(?:\.js)?['"]\s*;?\s*\n/
+  )
+  const schemaName = schemaImport?.[1]
+  if (!schemaName) return content
+  const callIdx = content.search(new RegExp(`\\binitZodvex\\(\\s*${schemaName}\\b`))
+  if (callIdx === -1) return content
+
+  // Balanced scan over the call's argument list (regexes can't handle the
+  // nested braces of options like `underlyingDb: { mutation: (ctx) => … }`).
+  const open = content.indexOf('(', callIdx)
+  let depth = 0
+  let close = -1
+  for (let i = open; i < content.length; i++) {
+    const c = content[i]
+    if (c === '(' || c === '{' || c === '[') depth++
+    else if (c === ')' || c === '}' || c === ']') {
+      depth--
+      if (depth === 0 && c === ')') {
+        close = i
+        break
+      }
+    }
+  }
+  if (close === -1) return content
+  const args = splitTopLevelArgs(content.slice(open + 1, close))
+  if (args.length < 2) return content
+  const serverArg = args[1].trim()
+
+  // Drop only the options the generated wrapper now auto-wires; PRESERVE
+  // everything else (underlyingDb, wrapDb, …) — stripping the whole object
+  // silently disabled e.g. convex-helpers triggers composed under the
+  // codec layer.
+  let optionsArg: string | undefined = args[2]?.trim()
+  if (optionsArg) {
+    optionsArg = optionsArg
+      .replace(/\bregistry\s*:\s*(?:\(\s*\)\s*=>\s*)?zodvexRegistry\s*,?\s*/g, '')
+      .replace(/\bschedulerRegistry\s*:\s*(?:\(\s*\)\s*=>\s*)?[A-Za-z_$][\w$]*\s*,?\s*/g, '')
+      .replace(/\btableMap\s*:\s*zodTableMap\s*,?\s*/g, '')
+    if (/^\{[\s,]*\}$/.test(optionsArg)) optionsArg = undefined
+  }
+
+  let next =
+    content.slice(0, callIdx) +
+    (optionsArg ? `initZodvex(${serverArg}, ${optionsArg})` : `initZodvex(${serverArg})`) +
+    content.slice(close + 1)
+
+  // Drop the schema import only when nothing else references the binding.
+  const withoutImport = next.replace(schemaImport[0], '')
+  if (!new RegExp(`\\b${schemaName}\\b`).test(withoutImport)) {
+    next = withoutImport
+  }
+  next = next.replace(
+    /import\s+\{\s*zodvexRegistry\s*\}\s+from\s+['"]\.\/_zodvex\/api(?:\.lazy)?(?:\.js)?['"]\s*;?\s*\n/,
+    ''
+  )
+  next = next.replace(
+    /import\s+\{\s*zodTableMap\s*\}\s+from\s+['"]\.\/_zodvex\/tableMap\.lazy(?:\.js)?['"]\s*;?\s*\n/,
+    ''
+  )
+  // Rewrite the initZodvex import to point at the codegen-bundled wrapper.
+  next = next.replace(
+    /import\s+\{\s*initZodvex\s*\}\s+from\s+['"]zodvex(?:\/mini)?\/server['"]/,
+    "import { initZodvex } from './_zodvex/server'"
+  )
+
+  return next
+}
+
+/** Split a call's argument source on top-level commas (ignoring commas
+ *  nested inside (), {}, []). String literals are not parsed — acceptable
+ *  for the canonical functions.ts shapes this codemod targets. */
+function splitTopLevelArgs(s: string): string[] {
+  const args: string[] = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (c === '(' || c === '{' || c === '[') depth++
+    else if (c === ')' || c === '}' || c === ']') depth--
+    else if (c === ',' && depth === 0) {
+      args.push(s.slice(start, i))
+      start = i + 1
+    }
+  }
+  args.push(s.slice(start))
+  return args
+}
+
 function applyImportUpdates(content: string): string {
   const importRe = /import\s*\{([^}]+)\}\s*from\s*(['"]zodvex(?:\/[^'"]*)?['"])/g
 
@@ -310,6 +462,8 @@ export function migrate(dir: string, options: MigrateOptions): MigrateResult {
     content = applyIdentifierRenames(content)
     content = applyZidTransform(content)
     content = applyImportUpdates(content)
+    content = applySchemaRewrite(content)
+    content = applyInitZodvexConsolidation(content)
 
     const changed = content !== original
 

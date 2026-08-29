@@ -425,6 +425,26 @@ describe('createZodDbReader', () => {
     expect(user).not.toBeNull()
     expect(user?.createdAt).toBeInstanceOf(Date)
   })
+
+  it('throws for a defineZodvexSchema token, whose zod tableMap lives in codegen output', async () => {
+    // defineZodvexSchema used to attach a truthy empty {} tableMap, which
+    // sailed past this guard and produced silent zero-codec reads.
+    const { defineZodvexSchema } = await import('../src/internal/schema')
+    const thin = defineZodvexSchema({} as any)
+    expect(() => createZodDbReader(createMockDbReader(tableData) as any, thin as any)).toThrow(
+      /_zodvex\/server/
+    )
+  })
+
+  it('throws a clear error for a schema without __zodTableMap (thin defineSchema(tables))', () => {
+    // A codegen-era plain schema.ts (`defineSchema(tables)`) carries no
+    // __zodTableMap; the codec-aware token from _zodvex/server does. Without
+    // this guard the failure surfaced as a bare TypeError deep inside
+    // resolveTableName on the first db call.
+    expect(() => createZodDbReader(createMockDbReader(tableData) as any, {} as any)).toThrow(
+      /_zodvex\/server/
+    )
+  })
 })
 
 describe('typed overloads', () => {

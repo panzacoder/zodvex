@@ -124,6 +124,26 @@ describe('encodePartialDoc', () => {
     expect(result).toEqual({ name: 'Updated Name', updatedAt: 1700000000000 })
   })
 
+  it('forwards keys outside the schema shape (INTENTIONAL 0.8 breaking change: strip → loose)', () => {
+    // 0.7.x silently STRIPPED unknown patch keys before Convex saw them.
+    // 0.8 forwards them: minimal codec-paths descriptors hold only codec
+    // fields, so stripping would eat every non-codec field of a patch.
+    // Consequence for legacy full-shape users: a stray key now reaches
+    // db.patch and is judged by Convex's own schema validation instead of
+    // being silently dropped. Pinned here; documented in the CHANGELOG.
+    const schema = z.object({
+      name: z.string(),
+      updatedAt: zx.date()
+    })
+
+    const result = encodePartialDoc(schema, {
+      updatedAt: new Date(1700000000000),
+      uiOnlyFlag: true
+    } as any)
+
+    expect(result).toEqual({ updatedAt: 1700000000000, uiOnlyFlag: true })
+  })
+
   it('preserves top-level undefined so patch can delete the field (issue #82)', () => {
     const schema = z.object({
       name: z.string(),

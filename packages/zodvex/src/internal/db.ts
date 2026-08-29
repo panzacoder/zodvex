@@ -743,11 +743,28 @@ export class ZodvexDatabaseWriter<
 
 /**
  * Creates a ZodvexDatabaseReader from a Convex DatabaseReader and a schema
- * with __zodTableMap (as returned by defineZodSchema).
+ * with __zodTableMap.
  *
- * When the schema carries __decodedDocs (from defineZodSchema), DD is inferred
- * automatically, providing decoded types on query terminal methods.
+ * Accepts either:
+ *   - a legacy schema from `defineZodSchema(...)`
+ *   - the codec-aware schema re-export from `_zodvex/server.ts`
+ *
+ * When the schema carries `__decodedDocs`, DD is inferred automatically,
+ * providing decoded types on query terminal methods.
  */
+function assertHasTableMap(
+  schema: { __zodTableMap?: ZodTableMap },
+  caller: string
+): asserts schema is { __zodTableMap: ZodTableMap } {
+  if (!schema.__zodTableMap) {
+    throw new Error(
+      `[zodvex] ${caller}: schema has no __zodTableMap. With codegen (thin ` +
+        `defineSchema(tables) schema.ts), import the codec-aware token instead: ` +
+        `\`import { schema } from './_zodvex/server'\` — not \`../schema\`.`
+    )
+  }
+}
+
 export function createZodDbReader<
   DataModel extends GenericDataModel,
   DD extends Record<string, any> = Record<string, any>
@@ -755,15 +772,13 @@ export function createZodDbReader<
   db: GenericDatabaseReader<DataModel>,
   schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD }
 ): ZodvexDatabaseReader<DataModel, DD> {
+  assertHasTableMap(schema, 'createZodDbReader')
   return new ZodvexDatabaseReader(db, schema.__zodTableMap) as ZodvexDatabaseReader<DataModel, DD>
 }
 
 /**
  * Creates a ZodvexDatabaseWriter from a Convex DatabaseWriter and a schema
- * with __zodTableMap (as returned by defineZodSchema).
- *
- * When the schema carries __decodedDocs (from defineZodSchema), DD is inferred
- * automatically, providing decoded types on query terminal methods.
+ * with __zodTableMap (legacy or codec-aware re-export).
  */
 export function createZodDbWriter<
   DataModel extends GenericDataModel,
@@ -772,6 +787,7 @@ export function createZodDbWriter<
   db: GenericDatabaseWriter<DataModel>,
   schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD }
 ): ZodvexDatabaseWriter<DataModel, DD> {
+  assertHasTableMap(schema, 'createZodDbWriter')
   return new ZodvexDatabaseWriter(db, schema.__zodTableMap) as ZodvexDatabaseWriter<DataModel, DD>
 }
 

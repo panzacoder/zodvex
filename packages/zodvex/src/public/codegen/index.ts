@@ -10,6 +10,7 @@ export {
   type CodecForGeneration,
   generateApiFile,
   generateClientFile,
+  generateModelDescriptors,
   generateSchemaFile,
   generateServerFile
 } from './generate'

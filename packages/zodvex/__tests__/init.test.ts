@@ -12,6 +12,35 @@ import {
 
 const functionNameSymbol = Symbol.for('functionName')
 
+describe('thin-schema (defineZodvexSchema) guards', () => {
+  const mockServer = {
+    query: (fn: any) => fn,
+    mutation: (fn: any) => fn,
+    action: (fn: any) => fn,
+    internalQuery: (fn: any) => fn,
+    internalMutation: (fn: any) => fn,
+    internalAction: (fn: any) => fn
+  } as any
+
+  it('initZodvex refuses a thin schema without options.tableMap (silent zero-codec trap)', async () => {
+    const { defineZodvexSchema } = await import('../src/internal/schema')
+    const thin = defineZodvexSchema({} as any)
+    expect(() => initZodvex(thin as any, mockServer)).toThrow(/_zodvex\/server|tableMap/)
+  })
+
+  it('initZodvex accepts a thin schema when options.tableMap is provided', async () => {
+    const { defineZodvexSchema } = await import('../src/internal/schema')
+    const thin = defineZodvexSchema({} as any)
+    expect(() => initZodvex(thin as any, mockServer, { tableMap: () => ({}) as any })).not.toThrow()
+  })
+
+  it('initZodvex accepts a legitimately codec-free defineZodSchema schema', async () => {
+    const { defineZodSchema } = await import('../src/internal/schema')
+    const plain = defineZodSchema({})
+    expect(() => initZodvex(plain as any, mockServer)).not.toThrow()
+  })
+})
+
 describe('composeCustomizations', () => {
   // Minimal codec customization mock — wraps ctx.db
   const mockCodecCust = {
@@ -709,6 +738,262 @@ describe('initZodvex with registry', () => {
 
     // No registry -> no encoding -> Date passes through unchanged
     expect(captured[2].dueAt).toBeInstanceOf(Date)
+  })
+
+  // --- Async registry thunks (codegen lazy-loader shape) ---
+  // The registry option accepts () => AnyRegistry | Promise<AnyRegistry>.
+  // The resolved value is cached and shared by the action and mutation
+  // customizations.
+
+  it('za handler decodes results with an async registry thunk', async () => {
+    const ts = 1700000000000
+    const { za } = initZodvex(mockSchema, mockServer as any, {
+      registry: async () => registry
+    })
+
+    const fn = za({
+      handler: async (ctx: any) => ctx.runQuery(fakeRef('tasks:get'))
+    })
+
+    const rawCtx = {
+      runQuery: async () => ({ _id: 'abc', title: 'Test', createdAt: ts }),
+      runMutation: async () => undefined,
+      runAction: async () => undefined,
+      auth: { getUserIdentity: async () => null }
+    }
+
+    const result: any = await fn.handler(rawCtx, {})
+
+    expect(result.createdAt).toBeInstanceOf(Date)
+    expect(result.createdAt.getTime()).toBe(ts)
+  })
+
+  it('zm scheduler encodes codec args with an async registry thunk', async () => {
+    const { zm } = initZodvex(mockSchema, mockServer as any, {
+      registry: async () => schedulerRegistry
+    })
+
+    let captured: any[] = []
+    const dueAt = new Date('2030-01-01T00:00:00Z')
+
+    const fn = zm({
+      handler: async (ctx: any) => {
+        await ctx.scheduler.runAfter(1000, fakeRef('tasks:reminder'), {
+          taskId: 't1',
+          dueAt
+        })
+      }
+    })
+
+    const rawCtx = {
+      db: createMockDbWriter(userTableData).db,
+      scheduler: {
+        runAfter: async (...a: any[]) => {
+          captured = a
+          return 'job-1'
+        },
+        runAt: async () => 'job',
+        cancel: async () => undefined
+      }
+    }
+
+    await fn.handler(rawCtx, {})
+
+    expect(captured[2]).toEqual({ taskId: 't1', dueAt: dueAt.getTime() })
+  })
+
+  // --- schedulerRegistry: the V8-safe mutation-path registry ---
+  // Generated server.ts passes the full registry as a lazy (dynamic-import)
+  // thunk for actions and a static args-only registry for mutations. The
+  // mutation path must use schedulerRegistry and must NEVER execute the
+  // (potentially dynamic-import-backed) `registry` thunk.
+
+  it('zm scheduler uses schedulerRegistry and never calls the registry thunk', async () => {
+    let registryCalls = 0
+    const { zm } = initZodvex(mockSchema, mockServer as any, {
+      registry: () => {
+        registryCalls++
+        return schedulerRegistry
+      },
+      schedulerRegistry: () => schedulerRegistry
+    })
+
+    let captured: any[] = []
+    const dueAt = new Date('2030-01-01T00:00:00Z')
+
+    const fn = zm({
+      handler: async (ctx: any) => {
+        await ctx.scheduler.runAfter(1000, fakeRef('tasks:reminder'), {
+          taskId: 't1',
+          dueAt
+        })
+      }
+    })
+
+    const rawCtx = {
+      db: createMockDbWriter(userTableData).db,
+      scheduler: {
+        runAfter: async (...a: any[]) => {
+          captured = a
+          return 'job-1'
+        },
+        runAt: async () => 'job',
+        cancel: async () => undefined
+      }
+    }
+
+    await fn.handler(rawCtx, {})
+
+    // Encoding happened via schedulerRegistry...
+    expect(captured[2]).toEqual({ taskId: 't1', dueAt: dueAt.getTime() })
+    // ...and the full-registry thunk was never executed on the mutation path.
+    expect(registryCalls).toBe(0)
+  })
+
+  it('za still uses the full registry when schedulerRegistry is also provided', async () => {
+    const ts = 1700000000000
+    const { za } = initZodvex(mockSchema, mockServer as any, {
+      registry: async () => registry,
+      schedulerRegistry: () => ({}) // args-only registry has no returns — actions must not use it
+    })
+
+    const fn = za({
+      handler: async (ctx: any) => ctx.runQuery(fakeRef('tasks:get'))
+    })
+
+    const rawCtx = {
+      runQuery: async () => ({ _id: 'abc', title: 'Test', createdAt: ts }),
+      runMutation: async () => undefined,
+      runAction: async () => undefined,
+      auth: { getUserIdentity: async () => null }
+    }
+
+    const result: any = await fn.handler(rawCtx, {})
+
+    // Result decoding requires the FULL registry's returns schema.
+    expect(result.createdAt).toBeInstanceOf(Date)
+  })
+
+  it('async registry thunk resolves once and is cached across requests', async () => {
+    let calls = 0
+    const { za } = initZodvex(mockSchema, mockServer as any, {
+      registry: async () => {
+        calls++
+        return registry
+      }
+    })
+
+    const fn = za({
+      handler: async (ctx: any) => ctx.runQuery(fakeRef('tasks:get'))
+    })
+
+    const rawCtx = {
+      runQuery: async () => ({ _id: 'abc', title: 'Test', createdAt: 1700000000000 }),
+      runMutation: async () => undefined,
+      runAction: async () => undefined,
+      auth: { getUserIdentity: async () => null }
+    }
+
+    await fn.handler(rawCtx, {})
+    await fn.handler(rawCtx, {})
+
+    expect(calls).toBe(1)
+  })
+
+  describe('returnsRegistry (run* decode parity in the codegen shape)', () => {
+    const ts = 1700000000000
+    const returnsRegistry = {
+      'tasks:get': { returns: z.object({ createdAt: zx.date() }) }
+    }
+    const argsRegistry = {
+      'tasks:reminder': { args: z.object({ dueAt: zx.date() }) }
+    }
+
+    it('zm handler ctx.runQuery DECODES results (the 0.7.x parity gap)', async () => {
+      const { zm } = initZodvex(mockSchema, mockServer as any, {
+        schedulerRegistry: () => argsRegistry,
+        returnsRegistry: () => returnsRegistry
+      })
+
+      let decoded: any
+      const fn = zm({
+        handler: async (ctx: any) => {
+          decoded = await ctx.runQuery(fakeRef('tasks:get'), {})
+        }
+      })
+
+      await fn.handler(
+        {
+          db: createMockDbWriter(userTableData).db,
+          runQuery: async () => ({ createdAt: ts }),
+          runMutation: async () => undefined,
+          scheduler: { runAfter: async () => 'job', runAt: async () => 'job' }
+        },
+        {}
+      )
+
+      expect(decoded.createdAt).toBeInstanceOf(Date)
+      expect(decoded.createdAt.getTime()).toBe(ts)
+    })
+
+    it('zm scheduler encoding still works alongside returnsRegistry', async () => {
+      const { zm } = initZodvex(mockSchema, mockServer as any, {
+        schedulerRegistry: () => argsRegistry,
+        returnsRegistry: () => returnsRegistry
+      })
+
+      let captured: any[] = []
+      const dueAt = new Date('2030-01-01T00:00:00Z')
+      const fn = zm({
+        handler: async (ctx: any) => {
+          await ctx.scheduler.runAfter(5, fakeRef('tasks:reminder'), { dueAt })
+        }
+      })
+
+      await fn.handler(
+        {
+          db: createMockDbWriter(userTableData).db,
+          scheduler: {
+            runAfter: async (...a: any[]) => {
+              captured = a
+              return 'job'
+            },
+            runAt: async () => 'job'
+          }
+        },
+        {}
+      )
+
+      expect(captured[2]).toEqual({ dueAt: dueAt.getTime() })
+    })
+
+    it('za actions decode via the minimal registries when no full registry is given', async () => {
+      // Codec-only-everywhere: the codegen shape wires actions with the
+      // same static args+returns registries as mutations.
+      const { za } = initZodvex(mockSchema, mockServer as any, {
+        schedulerRegistry: () => argsRegistry,
+        returnsRegistry: () => returnsRegistry
+      })
+
+      let decoded: any
+      const fn = za({
+        handler: async (ctx: any) => {
+          decoded = await ctx.runQuery(fakeRef('tasks:get'), {})
+        }
+      })
+
+      await fn.handler(
+        {
+          runQuery: async () => ({ createdAt: ts }),
+          runMutation: async () => undefined,
+          runAction: async () => undefined,
+          auth: { getUserIdentity: async () => null }
+        },
+        {}
+      )
+
+      expect(decoded.createdAt).toBeInstanceOf(Date)
+    })
   })
 })
 

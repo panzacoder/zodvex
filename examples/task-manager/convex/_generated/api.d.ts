@@ -8,9 +8,6 @@
  * @module
  */
 
-import type * as _zodvex_api from "../_zodvex/api.js";
-import type * as _zodvex_client from "../_zodvex/client.js";
-import type * as _zodvex_server from "../_zodvex/server.js";
 import type * as actions from "../actions.js";
 import type * as activities from "../activities.js";
 import type * as api_reports from "../api/reports.js";
@@ -42,9 +39,6 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "_zodvex/api": typeof _zodvex_api;
-  "_zodvex/client": typeof _zodvex_client;
-  "_zodvex/server": typeof _zodvex_server;
   actions: typeof actions;
   activities: typeof activities;
   "api/reports": typeof api_reports;
@@ -97,51 +91,5 @@ export declare const internal: FilterApi<
 >;
 
 export declare const components: {
-  actionRetrier: {
-    public: {
-      cancel: FunctionReference<
-        "mutation",
-        "internal",
-        { runId: string },
-        boolean
-      >;
-      cleanup: FunctionReference<
-        "mutation",
-        "internal",
-        { runId: string },
-        any
-      >;
-      start: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          functionArgs: any;
-          functionHandle: string;
-          options: {
-            base: number;
-            initialBackoffMs: number;
-            logLevel: "DEBUG" | "INFO" | "WARN" | "ERROR";
-            maxFailures: number;
-            onComplete?: string;
-            runAfter?: number;
-            runAt?: number;
-          };
-        },
-        string
-      >;
-      status: FunctionReference<
-        "query",
-        "internal",
-        { runId: string },
-        | { type: "inProgress" }
-        | {
-            result:
-              | { returnValue: any; type: "success" }
-              | { error: string; type: "failed" }
-              | { type: "canceled" };
-            type: "completed";
-          }
-      >;
-    };
-  };
+  actionRetrier: import("@convex-dev/action-retrier/_generated/component.js").ComponentApi<"actionRetrier">;
 };

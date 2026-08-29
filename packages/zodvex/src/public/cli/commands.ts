@@ -6,14 +6,19 @@ import { discoverModules } from '../codegen/discover'
 import {
   generateApiFile,
   generateClientFile,
+  generateModelDescriptors,
   generateSchemaFile,
-  generateServerFile
+  generateServerFile,
+  generateTablesFile
 } from '../codegen/generate'
 
 /**
  * One-shot codegen. Discovers modules, generates files.
  */
-export async function generate(convexDir?: string, options?: { mini?: boolean }): Promise<void> {
+export async function generate(
+  convexDir?: string,
+  options?: { mini?: boolean; quiet?: boolean }
+): Promise<void> {
   const resolved = resolveConvexDir(convexDir)
   const zodvexDir = path.join(resolved, '_zodvex')
 
@@ -28,8 +33,12 @@ export async function generate(convexDir?: string, options?: { mini?: boolean })
   let result: Awaited<ReturnType<typeof discoverModules>>
   let schemaContent: ReturnType<typeof generateSchemaFile>
   let apiContent: ReturnType<typeof generateApiFile>
+  let argsApiContent: ReturnType<typeof generateApiFile>
+  let returnsApiContent: ReturnType<typeof generateApiFile>
   let clientContent: ReturnType<typeof generateClientFile>
   let serverContent: ReturnType<typeof generateServerFile>
+  let tablesContent: ReturnType<typeof generateTablesFile>
+  let descriptors: ReturnType<typeof generateModelDescriptors>
   try {
     result = await discoverModules(resolved)
 
@@ -42,11 +51,61 @@ export async function generate(convexDir?: string, options?: { mini?: boolean })
       result.functionCodecs,
       { mini: options?.mini }
     )
+    // Args-only registry for the mutation scheduler path: mutations run in
+    // the Q/M V8 sandbox (no dynamic import), but only consult `args`
+    // schemas — this file carries no `returns`, so it stays light enough to
+    // import statically into every endpoint bundle.
+    argsApiContent = generateApiFile(
+      result.functions,
+      result.models,
+      result.codecs,
+      result.modelCodecs,
+      result.functionCodecs,
+      { mini: options?.mini, argsOnly: true }
+    )
+    // Minimal returns registry for run* result decode (mutations AND
+    // actions under 0.8's codec-only semantics) — statically imported by
+    // server.ts, kept light the same way api.args.js is.
+    returnsApiContent = generateApiFile(
+      result.functions,
+      result.models,
+      result.codecs,
+      result.modelCodecs,
+      result.functionCodecs,
+      { mini: options?.mini, returnsOnly: true }
+    )
     clientContent = generateClientFile({ mini: options?.mini })
-    serverContent = generateServerFile()
+    // server.ts now consolidates context types + the split registry (lazy
+    // full for actions, static args-only for mutations) + static tableMap +
+    // a pre-wired initZodvex. Replaces the prior server.js/server.d.ts pair
+    // AND the separate api.lazy.{js,d.ts} + tableMap.lazy.{js,d.ts} files
+    // (now stale; cleaned up below).
+    serverContent = generateServerFile(result.models, { mini: options?.mini })
+    tablesContent = generateTablesFile(result.models)
+    // Per-table codec descriptors (_zodvex/models/) — the central tableMap at
+    // O(codec fields) cost. See generateModelDescriptors.
+    descriptors = generateModelDescriptors(result.models, result.codecs, {
+      mini: options?.mini
+    })
   } catch (err) {
     restoreStubbedApi()
     throw err
+  }
+  if (!options?.quiet) {
+    for (const fb of descriptors.fallbacks) {
+      console.warn(
+        `[zodvex] Note: table '${fb.tableName}' descriptor falls back to its full model (${fb.reason}). ` +
+          `That table costs its model graph in every endpoint bundle; the rest stay light.`
+      )
+    }
+    for (const fb of descriptors.insertFallbacks) {
+      console.warn(
+        `[zodvex] Note: table '${fb.tableName}' has a non-serializable refinement (${fb.reason}), so its ` +
+          `WRITE path (db.insert/patch/replace) imports the full model to enforce it; reads stay light. ` +
+          `Built-in checks (.email/.min/.regex/…) are carried inline without this cost. ` +
+          `See docs/guide/codegen.md (models/ — doc vs insert).`
+      )
+    }
   }
 
   fs.mkdirSync(zodvexDir, { recursive: true })
@@ -54,16 +113,165 @@ export async function generate(convexDir?: string, options?: { mini?: boolean })
   writeIfChanged(path.join(zodvexDir, 'schema.d.ts'), schemaContent.dts)
   writeIfChanged(path.join(zodvexDir, 'api.js'), apiContent.js)
   writeIfChanged(path.join(zodvexDir, 'api.d.ts'), apiContent.dts)
+  writeIfChanged(path.join(zodvexDir, 'api.args.js'), argsApiContent.js)
+  writeIfChanged(path.join(zodvexDir, 'api.args.d.ts'), argsApiContent.dts)
+  writeIfChanged(path.join(zodvexDir, 'api.returns.js'), returnsApiContent.js)
+  writeIfChanged(path.join(zodvexDir, 'api.returns.d.ts'), returnsApiContent.dts)
+  // tables.ts and server.ts are emitted as TypeScript so per-table /
+  // per-schema types flow through — see the corresponding generators
+  // for rationale.
+  writeIfChanged(path.join(zodvexDir, 'tables.ts'), tablesContent.js)
+  writeIfChanged(path.join(zodvexDir, 'server.ts'), serverContent.js)
+
+  // _zodvex/models/: write current descriptors, then remove orphans from
+  // renamed/deleted tables so the index never imports a missing file.
+  const modelsDir = path.join(zodvexDir, 'models')
+  fs.mkdirSync(modelsDir, { recursive: true })
+  const expected = new Set(['index.js', 'index.d.ts'])
+  for (const f of descriptors.files) {
+    writeIfChanged(path.join(modelsDir, `${f.name}.js`), f.js)
+    writeIfChanged(path.join(modelsDir, `${f.name}.d.ts`), f.dts)
+    expected.add(`${f.name}.js`)
+    expected.add(`${f.name}.d.ts`)
+  }
+  writeIfChanged(path.join(modelsDir, 'index.js'), descriptors.indexJs)
+  writeIfChanged(path.join(modelsDir, 'index.d.ts'), descriptors.indexDts)
+  for (const entry of fs.readdirSync(modelsDir)) {
+    if (!expected.has(entry)) {
+      try {
+        fs.unlinkSync(path.join(modelsDir, entry))
+      } catch {
+        // best-effort cleanup
+      }
+    }
+  }
   writeIfChanged(path.join(zodvexDir, 'client.js'), clientContent.js)
   writeIfChanged(path.join(zodvexDir, 'client.d.ts'), clientContent.dts)
-  writeIfChanged(path.join(zodvexDir, 'server.js'), serverContent.js)
-  writeIfChanged(path.join(zodvexDir, 'server.d.ts'), serverContent.dts)
+
+  // Marker file: Convex's bundler skips any subdirectory of convex/ that
+  // contains a `convex.config.ts` (it treats those as nested component
+  // definitions). We don't actually register _zodvex/ as a component —
+  // the file's presence alone makes Convex's entrypoint walker skip
+  // the directory.
+  writeIfChanged(path.join(zodvexDir, 'convex.config.ts'), CONVEX_SKIP_MARKER)
+
+  // Remove legacy artifacts from prior zodvex versions. server.ts now
+  // subsumes server.js + server.d.ts + api.lazy.* + tableMap.lazy.*;
+  // tables.ts subsumes the older tables.js + tables.d.ts pair.
+  for (const stale of [
+    'api.lazy.js',
+    'api.lazy.d.ts',
+    'tableMap.lazy.js',
+    'tableMap.lazy.d.ts',
+    'server.js',
+    'server.d.ts',
+    'tables.js',
+    'tables.d.ts'
+  ]) {
+    const p = path.join(zodvexDir, stale)
+    try {
+      fs.unlinkSync(p)
+    } catch {
+      /* not present */
+    }
+  }
 
   const totalCodecs =
     result.codecs.length + result.modelCodecs.length + result.functionCodecs.length
-  console.log(
-    `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s), ${totalCodecs} codec(s)`
-  )
+  if (!options?.quiet) {
+    console.log(
+      `[zodvex] Generated ${result.models.length} model(s), ${result.functions.length} function(s), ${totalCodecs} codec(s)`
+    )
+  }
+}
+
+/**
+ * Recursively snapshot a directory into a Map of relative-path -> content.
+ * A missing directory yields an empty map.
+ */
+function snapshotDir(dir: string): Map<string, string> {
+  const out = new Map<string, string>()
+  const walk = (d: string, prefix: string): void => {
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(d, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      const rel = prefix ? `${prefix}/${e.name}` : e.name
+      const abs = path.join(d, e.name)
+      if (e.isDirectory()) walk(abs, rel)
+      else out.set(rel, fs.readFileSync(abs, 'utf-8'))
+    }
+  }
+  walk(dir, '')
+  return out
+}
+
+/**
+ * `zodvex generate --check`: verifies the committed `_zodvex/` output matches
+ * what `generate` would produce right now, WITHOUT leaving the tree modified.
+ *
+ * It runs the real `generate` flow (so the check can never drift from the
+ * generator), snapshots `_zodvex/` before and after, diffs, then restores the
+ * prior state. Returns the sorted list of stale relative paths — empty means
+ * up to date.
+ *
+ * The failure this catches: a model/schema edited without re-running
+ * `zodvex generate`. Because the codec descriptors are generated (the live
+ * models are deliberately NOT loaded at runtime), a stale descriptor would
+ * silently stop decoding the changed table's codec fields. Drop
+ * `zodvex generate --check` into CI / a pre-deploy step to make that loud.
+ */
+export async function generateCheck(
+  convexDir?: string,
+  options?: { mini?: boolean }
+): Promise<string[]> {
+  const resolved = resolveConvexDir(convexDir)
+  const zodvexDir = path.join(resolved, '_zodvex')
+
+  const before = snapshotDir(zodvexDir)
+  let after: Map<string, string>
+  try {
+    await generate(resolved, { mini: options?.mini, quiet: true })
+    after = snapshotDir(zodvexDir)
+  } catch (err) {
+    // generate() restores what IT stubbed, but --check must be
+    // non-destructive under ANY failure — restore the full snapshot.
+    restoreSnapshot(zodvexDir, before)
+    throw err
+  }
+
+  const stale: string[] = []
+  for (const rel of new Set([...before.keys(), ...after.keys()])) {
+    if (before.get(rel) !== after.get(rel)) stale.push(rel)
+  }
+  stale.sort()
+
+  // Restore the pre-check state — `--check` must be non-destructive.
+  restoreSnapshot(zodvexDir, before)
+
+  return stale
+}
+
+/** Put a directory back to a snapshotDir() state: delete files the snapshot
+ *  lacks, rewrite everything it has. */
+function restoreSnapshot(zodvexDir: string, snapshot: Map<string, string>): void {
+  for (const rel of snapshotDir(zodvexDir).keys()) {
+    if (!snapshot.has(rel)) {
+      try {
+        fs.unlinkSync(path.join(zodvexDir, rel))
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+  for (const [rel, content] of snapshot) {
+    const abs = path.join(zodvexDir, rel)
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
+    fs.writeFileSync(abs, content)
+  }
 }
 
 /**
@@ -134,14 +342,80 @@ export function regenerate(resolved: string, options?: { mini?: boolean }): Prom
   })
 }
 
-/** Writes minimal stub _zodvex/api.js + api.d.ts before discovery to break circular imports.
- *  Previous generations may contain stale imports that cause cycles during re-discovery.
- *
- *  Returns a restore closure that puts the pre-existing files back (or removes
- *  the stubs if there were none) — called when generation fails so a failed
- *  run doesn't leave the gutted stub in place of a good registry (#104). */
+// NOOP marker: presence of this file makes Convex's CLI walker skip the
+// _zodvex/ directory during entrypoint discovery (see `looksLikeNestedComponent`
+// in convex/dist/esm/bundler/index.js). Only `fs.exists` is checked, so the
+// file's content is irrelevant — a comment is sufficient.
+const CONVEX_SKIP_MARKER = `// NOOP — prevents Convex from importing the zod-only code into the runtime isolate.
+// See https://github.com/panzacoder/zodvex for context.
+`
+
+/**
+ * Writes minimal stubs before discovery so user modules that import from
+ * `./_zodvex/...` resolve on first-ever run (chicken-and-egg). `api.{js,d.ts}`
+ * is overwritten each generate (heavy registry) — a restore closure is
+ * returned that puts the pre-existing files back (or removes the stubs if
+ * there were none), called when generation fails so a failed run doesn't
+ * leave the gutted stub in place of a good registry (#104). `tables.ts` and
+ * `server.ts` are STAMPED ONLY IF MISSING — overwriting a real schema
+ * mid-generate would cause the convex dev watcher to observe "all tables
+ * removed" — so they never need restoring.
+ */
 function writeStubApi(zodvexDir: string): () => void {
-  const stubTargets = ['api.js', 'api.d.ts'].map(name => {
+  // EVERY file this function unconditionally overwrites MUST be in this
+  // list, or a failed generate leaves its empty stub behind — valid JS
+  // that deploys fine and silently disables codec decoding (the #104
+  // class, worse: models/index.js is the entire runtime tableMap).
+  const stubs: Array<{ name: string; content: string }> = [
+    {
+      name: 'api.js',
+      content:
+        '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport const zodvexRegistry = {}\n'
+    },
+    {
+      name: 'api.d.ts',
+      content:
+        '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport declare const zodvexRegistry: Record<string, any>\n'
+    },
+    // models/index.js is statically imported by the real server.ts (the
+    // descriptor tableMap), so it must resolve during re-discovery too.
+    {
+      name: path.join('models', 'index.js'),
+      content:
+        "// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport const zodvexTableMap = {}\nexport const zodvexTableMapFingerprint = ''\n"
+    },
+    {
+      name: path.join('models', 'index.d.ts'),
+      content:
+        '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport declare const zodvexTableMap: Record<string, any>\nexport declare const zodvexTableMapFingerprint: string\n'
+    },
+    // api.args.js is statically imported by the real server.ts (mutation
+    // scheduler registry), so it must resolve during re-discovery too.
+    {
+      name: 'api.args.js',
+      content:
+        '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport const zodvexArgsRegistry = {}\n'
+    },
+    {
+      name: 'api.args.d.ts',
+      content:
+        '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport declare const zodvexArgsRegistry: Record<string, any>\n'
+    },
+    // api.returns.js is statically imported by the real server.ts (run*
+    // result decode), so it must resolve during re-discovery too.
+    {
+      name: 'api.returns.js',
+      content:
+        '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport const zodvexReturnsRegistry = {}\n'
+    },
+    {
+      name: 'api.returns.d.ts',
+      content:
+        '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport declare const zodvexReturnsRegistry: Record<string, any>\n'
+    }
+  ]
+
+  const stubTargets = stubs.map(({ name }) => {
     const filePath = path.join(zodvexDir, name)
     let original: string | null
     try {
@@ -153,16 +427,43 @@ function writeStubApi(zodvexDir: string): () => void {
   })
 
   fs.mkdirSync(zodvexDir, { recursive: true })
+  fs.mkdirSync(path.join(zodvexDir, 'models'), { recursive: true })
+  for (const { name, content } of stubs) {
+    fs.writeFileSync(path.join(zodvexDir, name), content)
+  }
 
-  fs.writeFileSync(
-    path.join(zodvexDir, 'api.js'),
-    '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport const zodvexRegistry = {}\n'
+  writeIfMissing(
+    path.join(zodvexDir, 'tables.ts'),
+    "// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport default {} as Record<string, import('convex/server').TableDefinition>\nexport type DecodedDocs = Record<string, any>\n"
   )
 
-  fs.writeFileSync(
-    path.join(zodvexDir, 'api.d.ts'),
-    '// AUTO-GENERATED by zodvex — do not edit\n// Stub created for codegen bootstrap\n\nexport declare const zodvexRegistry: Record<string, any>\n'
+  // server.ts stub matches the shape codegen will later emit:
+  // `initZodvex(server, options?)`. It MUST delegate to the real library
+  // initZodvex (not return the raw convex builders): discovery reads
+  // function meta that only zodvex's wrappers attach, and on a checkout
+  // where _zodvex/ is gitignored this stub IS what functions.ts imports on
+  // run one — a passthrough here made the first generate discover zero
+  // functions and ship empty registries. The empty tableMap keeps the stub
+  // inert; the real wrapper (lazy registry/tableMap) lands at the end of
+  // generate().
+  writeIfMissing(
+    path.join(zodvexDir, 'server.ts'),
+    `// AUTO-GENERATED by zodvex — do not edit
+// Stub created for codegen bootstrap. Real content is emitted at the end
+// of \`zodvex generate\`.
+import { initZodvex as _libInitZodvex } from 'zodvex/server'
+export function initZodvex(server: any, options?: any): any {
+  return _libInitZodvex({ __zodTableMap: {} } as any, server, { wrapDb: false, ...options })
+}
+export type QueryCtx = any
+export type MutationCtx = any
+export type ActionCtx = any
+`
   )
+
+  // Marker file written on bootstrap as well, since Convex's walker reads
+  // it before any of zodvex's regular `writeIfChanged` calls would land.
+  writeIfMissing(path.join(zodvexDir, 'convex.config.ts'), CONVEX_SKIP_MARKER)
 
   return () => {
     for (const { filePath, original } of stubTargets) {
@@ -177,6 +478,11 @@ function writeStubApi(zodvexDir: string): () => void {
       }
     }
   }
+}
+
+function writeIfMissing(filePath: string, content: string): void {
+  if (fs.existsSync(filePath)) return
+  fs.writeFileSync(filePath, content)
 }
 
 /** Only write if content differs from what's on disk — prevents file watcher loops. */

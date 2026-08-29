@@ -1,0 +1,113 @@
+{
+  "meta": {
+    "timestamp": "2026-06-12T18:42:11.425Z",
+    "gitSha": "41a16c06113be97997e94054cd5efc22b5095c4e",
+    "gitDirty": true,
+    "zodvexVersion": "0.7.5",
+    "convexVersion": "1.32.0",
+    "convexHelpersVersion": "0.1.113",
+    "zodVersion": "4.3.6",
+    "bunVersion": "1.3.8",
+    "deployment": "dev:first-skunk-786"
+  },
+  "config": {
+    "flavors": [
+      "zodvex",
+      "zodvex-mini"
+    ],
+    "ns": [
+      50,
+      100,
+      150,
+      200
+    ],
+    "shape": "explicit",
+    "models": null,
+    "endpoints": null,
+    "skipAfterFailure": false,
+    "doReset": true,
+    "force": false
+  },
+  "results": [
+    {
+      "flavor": "zodvex",
+      "n": 50,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 11225,
+      "endpointHeapMaxMB": 19.61,
+      "schemaHeapMB": 11.67,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 100,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 21177,
+      "endpointHeapMaxMB": 36.11,
+      "schemaHeapMB": 20.58,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 150,
+      "shape": "explicit",
+      "outcome": "oom",
+      "durationMs": 2707,
+      "endpointHeapMaxMB": 52.58,
+      "schemaHeapMB": 29.43,
+      "errorTail": "tps://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/start_push 400 : InvalidModules: Hit an error while pushing:\nLoading the pushed modules encountered the following\n    error:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "shape": "explicit",
+      "outcome": "oom",
+      "durationMs": 2764,
+      "endpointHeapMaxMB": 69.11,
+      "schemaHeapMB": 38.37,
+      "errorTail": "tps://first-skunk-786.convex.cloud\n✖ Error fetching POST  https://first-skunk-786.convex.cloud/api/deploy2/start_push 400 : InvalidModules: Hit an error while pushing:\nLoading the pushed modules encountered the following\n    error:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 50,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 9701,
+      "endpointHeapMaxMB": 9.05,
+      "schemaHeapMB": 5.83,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 100,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 14940,
+      "endpointHeapMaxMB": 15.63,
+      "schemaHeapMB": 9.5,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 150,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 22380,
+      "endpointHeapMaxMB": 22.15,
+      "schemaHeapMB": 13.22,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 33723,
+      "endpointHeapMaxMB": 28.67,
+      "schemaHeapMB": 16.9,
+      "errorTail": null
+    }
+  ]
+}

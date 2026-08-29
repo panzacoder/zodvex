@@ -355,6 +355,129 @@ type Ctx = ZodvexQueryCtx
     })
   })
 
+  describe('schema.ts rewrite safety', () => {
+    it('rewrites the exact canonical shape', () => {
+      const file = writeFile(
+        tmpDir,
+        'schema.ts',
+        `import { defineZodSchema } from 'zodvex/server'
+import { UserModel } from './models/user'
+
+export default defineZodSchema({ users: UserModel })
+`
+      )
+      migrate(tmpDir, { dryRun: false })
+      const out = readFile(file)
+      expect(out).toContain("import { defineSchema } from 'convex/server'")
+      expect(out).toContain('defineSchema(tables)')
+    })
+
+    it('NEVER wholesale-replaces a schema.ts carrying extra code (inline models)', () => {
+      const custom = `import { defineZodSchema } from 'zodvex/server'
+import { UserModel } from './models/user'
+import { defineZodModel } from 'zodvex'
+import { z } from 'zod'
+
+export const AuditModel = defineZodModel('audits', { action: z.string() })
+
+export default defineZodSchema({ users: UserModel, audits: AuditModel })
+`
+      const file = writeFile(tmpDir, 'schema.ts', custom)
+      migrate(tmpDir, { dryRun: false })
+      const out = readFile(file)
+      // The inline model must survive — replacing this file deletes the
+      // audits table from the schema and the next push proposes dropping it.
+      expect(out).toContain('AuditModel')
+      expect(out).toContain("defineZodModel('audits'")
+      expect(out).not.toContain('./_zodvex/tables')
+    })
+
+    it('leaves a schema.ts with trailing helper code untouched', () => {
+      const custom = `import { defineZodSchema } from 'zodvex/server'
+import { UserModel } from './models/user'
+
+export default defineZodSchema({ users: UserModel })
+
+export const tableNames = ['users'] as const
+`
+      const file = writeFile(tmpDir, 'schema.ts', custom)
+      migrate(tmpDir, { dryRun: false })
+      expect(readFile(file)).toContain('tableNames')
+    })
+  })
+
+  describe('functions.ts consolidation safety', () => {
+    it('never leaves an import pointing at _zodvex/api.lazy (deleted by 0.8 generate)', () => {
+      const file = writeFile(
+        tmpDir,
+        'functions.ts',
+        `import { initZodvex } from 'zodvex/server'
+import { zodvexRegistry } from './_zodvex/api'
+import appSchema from './schema'
+import { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
+
+export const { zq, zm, za, ziq, zim, zia } = initZodvex(
+  appSchema,
+  { query, mutation, action, internalQuery, internalMutation, internalAction },
+  { registry: () => zodvexRegistry }
+)
+`
+      )
+      migrate(tmpDir, { dryRun: false })
+      expect(readFile(file)).not.toContain('api.lazy')
+    })
+
+    it('consolidates an ALIASED schema import and drops the registry option', () => {
+      const file = writeFile(
+        tmpDir,
+        'functions.ts',
+        `import { initZodvex } from 'zodvex/server'
+import { zodvexRegistry } from './_zodvex/api'
+import appSchema from './schema'
+import { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
+
+export const { zq, zm, za, ziq, zim, zia } = initZodvex(
+  appSchema,
+  { query, mutation, action, internalQuery, internalMutation, internalAction },
+  { registry: () => zodvexRegistry }
+)
+`
+      )
+      migrate(tmpDir, { dryRun: false })
+      const out = readFile(file)
+      expect(out).toContain("import { initZodvex } from './_zodvex/server'")
+      expect(out).not.toContain('zodvexRegistry')
+      expect(out).not.toContain('appSchema,')
+    })
+
+    it('preserves the underlyingDb option through consolidation', () => {
+      const file = writeFile(
+        tmpDir,
+        'functions.ts',
+        `import { initZodvex } from 'zodvex/server'
+import { zodvexRegistry } from './_zodvex/api'
+import schema from './schema'
+import { query, mutation, action, internalQuery, internalMutation, internalAction } from './_generated/server'
+
+export const { zq, zm, za, ziq, zim, zia } = initZodvex(
+  schema,
+  { query, mutation, action, internalQuery, internalMutation, internalAction },
+  {
+    registry: () => zodvexRegistry,
+    underlyingDb: { mutation: (ctx) => triggers.wrapDB(ctx).db },
+  }
+)
+`
+      )
+      migrate(tmpDir, { dryRun: false })
+      const out = readFile(file)
+      // convex-helpers triggers silently stop firing if this is stripped.
+      expect(out).toContain('underlyingDb')
+      expect(out).toContain('triggers.wrapDB(ctx).db')
+      expect(out).not.toContain('zodvexRegistry')
+    })
+  })
+
   describe('dry-run mode', () => {
     it('reports changes without modifying files', () => {
       const filePath = writeFile(

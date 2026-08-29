@@ -4,8 +4,8 @@
   "type": "module",
   "version": "0.0.0",
   "dependencies": {
-    "convex": "^1.28.0",
-    "convex-helpers": ">=0.1.101-alpha.1",
+    "convex": "^1.41.0",
+    "convex-helpers": "^0.1.119",
     "zod": "4.3.6",
     "zodvex": "workspace:*"
   }

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { generate } from '../src/public/cli/commands'
+import { generate, generateCheck } from '../src/public/cli/commands'
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/codegen-project')
 const outputDir = path.resolve(fixtureDir, '_zodvex')
@@ -14,13 +14,19 @@ afterEach(() => {
 })
 
 describe('generate()', () => {
-  it('creates _zodvex/*.js and _zodvex/*.d.ts file pairs', async () => {
+  it('creates the expected _zodvex/ artifacts', async () => {
     await generate(fixtureDir)
 
-    for (const name of ['schema', 'api', 'client', 'server']) {
+    // .js + .d.ts pairs (no codegen-time type inference needed)
+    for (const name of ['schema', 'api', 'client']) {
       expect(fs.existsSync(path.join(outputDir, `${name}.js`))).toBe(true)
       expect(fs.existsSync(path.join(outputDir, `${name}.d.ts`))).toBe(true)
     }
+    // Single TS files where literal-type inference flows from runtime
+    expect(fs.existsSync(path.join(outputDir, 'tables.ts'))).toBe(true)
+    expect(fs.existsSync(path.join(outputDir, 'server.ts'))).toBe(true)
+    // Convex-walker skip marker
+    expect(fs.existsSync(path.join(outputDir, 'convex.config.ts'))).toBe(true)
   })
 
   it('generated schema.js contains model re-exports', async () => {
@@ -53,17 +59,80 @@ describe('generate()', () => {
     expect(content).toContain('createClient')
   })
 
-  it('generated server.d.ts contains concrete context types', async () => {
+  it('generated server.ts contains context types + pre-wired initZodvex', async () => {
     await generate(fixtureDir)
 
-    const content = fs.readFileSync(path.join(outputDir, 'server.d.ts'), 'utf-8')
+    const content = fs.readFileSync(path.join(outputDir, 'server.ts'), 'utf-8')
     expect(content).toContain('AUTO-GENERATED')
     expect(content).toContain('export type QueryCtx')
     expect(content).toContain('export type MutationCtx')
     expect(content).toContain('export type ActionCtx')
+    expect(content).toContain('export function initZodvex')
+    // Static registries: args (encode) + minimal returns (decode). The
+    // full registry (api.js) is client-only — server.ts must not
+    // reference it, even lazily.
+    expect(content).not.toContain("import('./api.js')")
+    expect(content).toContain("import { zodvexArgsRegistry as _argsRegistry } from './api.args.js'")
+    expect(content).toContain(
+      "import { zodvexReturnsRegistry as _returnsRegistry } from './api.returns.js'"
+    )
+
+    // The args-only + returns-only registry files are emitted alongside api.js.
+    const argsContent = fs.readFileSync(path.join(outputDir, 'api.args.js'), 'utf-8')
+    expect(argsContent).toContain('export const zodvexArgsRegistry')
+    expect(argsContent).not.toContain('returns:')
+    const returnsContent = fs.readFileSync(path.join(outputDir, 'api.returns.js'), 'utf-8')
+    expect(returnsContent).toContain('export const zodvexReturnsRegistry')
+    expect(returnsContent).not.toContain('args:')
   })
 
   it('throws for non-existent convex directory', async () => {
     expect(generate('/nonexistent/path')).rejects.toThrow()
+  })
+})
+
+describe('generateCheck() — staleness guard', () => {
+  it('reports up to date immediately after generate', async () => {
+    await generate(fixtureDir)
+    const stale = await generateCheck(fixtureDir)
+    expect(stale).toEqual([])
+  })
+
+  it('detects a stale (hand-edited) generated file and is non-destructive', async () => {
+    await generate(fixtureDir)
+    const target = path.join(outputDir, 'tables.ts')
+    const tampered = '// hand-edited — stale\n'
+    fs.writeFileSync(target, tampered)
+
+    const stale = await generateCheck(fixtureDir)
+    expect(stale).toContain('tables.ts')
+
+    // Non-destructive: check leaves the file exactly as it found it (the
+    // tampered content), rather than silently regenerating it.
+    expect(fs.readFileSync(target, 'utf-8')).toBe(tampered)
+  })
+
+  it('detects a missing generated file and restores it as missing', async () => {
+    await generate(fixtureDir)
+    const target = path.join(outputDir, 'models', 'index.js')
+    expect(fs.existsSync(target)).toBe(true)
+    fs.unlinkSync(target)
+
+    const stale = await generateCheck(fixtureDir)
+    expect(stale).toContain('models/index.js')
+    // Restored to the pre-check state — i.e. still missing.
+    expect(fs.existsSync(target)).toBe(false)
+  })
+
+  it('leaves an up-to-date tree byte-identical after the check', async () => {
+    await generate(fixtureDir)
+    const snap = (p: string) => fs.readFileSync(path.join(outputDir, p), 'utf-8')
+    const before = { api: snap('api.js'), tables: snap('tables.ts'), idx: snap('models/index.js') }
+
+    const stale = await generateCheck(fixtureDir)
+    expect(stale).toEqual([])
+    expect(snap('api.js')).toBe(before.api)
+    expect(snap('tables.ts')).toBe(before.tables)
+    expect(snap('models/index.js')).toBe(before.idx)
   })
 })
