@@ -6,6 +6,10 @@ on:
     paths:
       - 'site/**'
       - '.github/workflows/site.yml'
+  pull_request:
+    paths:
+      - 'site/**'
+      - '.github/workflows/site.yml'
   workflow_dispatch:
 
 permissions:
@@ -13,11 +17,14 @@ permissions:
   pages: write
   id-token: write
 
+# PR build checks get their own group so they never cancel a deploy from main.
 concurrency:
-  group: pages
+  group: ${{ github.event_name == 'pull_request' && format('site-pr-{0}', github.event.number) || 'pages' }}
   cancel-in-progress: true
 
 jobs:
+  # On pull requests this job is a build check only; the Pages steps and the
+  # deploy job run for pushes to main and manual dispatches.
   build:
     runs-on: ubuntu-latest
     steps:
@@ -33,6 +40,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Configure Pages
+        if: github.event_name != 'pull_request'
         id: pages
         uses: actions/configure-pages@v5
 
@@ -44,10 +52,12 @@ jobs:
         run: bun run build
 
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: site/dist
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

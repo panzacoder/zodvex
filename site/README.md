@@ -34,8 +34,8 @@ lockfile so Astro's dependency tree never affects the library's install or CI.
 
 ## Deploying
 
-`.github/workflows/site.yml` builds `site/` on pushes to `main` that touch it and
-deploys to GitHub Pages. `actions/configure-pages` supplies `SITE` and `BASE`, so the
+`.github/workflows/site.yml` builds `site/` as a check on pull requests that touch it,
+and on pushes to `main` builds and deploys to GitHub Pages. `actions/configure-pages` supplies `SITE` and `BASE`, so the
 build works at `https://panzacoder.github.io/zodvex/` today and on a custom domain
 (where `BASE` becomes `/`) without config changes. Enable Pages with the
 "GitHub Actions" source in the repository settings the first time.
