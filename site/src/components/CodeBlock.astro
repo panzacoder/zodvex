@@ -1,8 +1,8 @@
 ---
 /**
  * Syntax-highlighted code panel with a file-name header and per-line marks.
- * Uses Astro's built-in Shiki component with dual themes; colours are applied
- * by global.css depending on the active theme.
+ * Code panels are always dark (like the command rows on convex.dev), whatever
+ * section they sit in, so a single Shiki theme is enough.
  */
 import { Code } from 'astro:components'
 import type { ShikiTransformer } from 'shiki'
@@ -13,11 +13,9 @@ interface Props {
   file?: string
   lang?: 'ts' | 'tsx' | 'bash' | 'json'
   marks?: Record<number, Mark>
-  /** Show a small legend chip in the header: 'before' | 'after' */
-  tone?: 'before' | 'after' | 'plain'
 }
 
-const { code, file, lang = 'ts', marks = {}, tone = 'plain' } = Astro.props
+const { code, file, lang = 'ts', marks = {} } = Astro.props
 
 const markLines: ShikiTransformer = {
   name: 'zodvex:marks',
@@ -31,45 +29,41 @@ const markLines: ShikiTransformer = {
 }
 ---
 
-<figure class:list={['codeblock', `tone-${tone}`]}>
+<figure class="codeblock">
   {file && (
     <figcaption class="codeblock-head">
-      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="file">{file}</span>
     </figcaption>
   )}
-  <Code
-    code={code}
-    lang={lang}
-    themes={{ light: 'github-light', dark: 'github-dark-dimmed' }}
-    defaultColor={false}
-    transformers={[markLines]}
-  />
+  <Code code={code} lang={lang} theme="github-dark-dimmed" transformers={[markLines]} />
 </figure>
 
 <style>
   .codeblock {
     margin: 0;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
     background: var(--code-bg);
     overflow: hidden;
     min-width: 0;
+    box-shadow: 0 2px 11px rgba(0, 0, 0, 0.18);
   }
   .codeblock-head {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding: 0.55rem 0.9rem;
-    border-bottom: 1px solid var(--line);
-    font: 500 0.78rem/1 var(--font-mono);
-    color: var(--fg-2);
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font: 500 0.74rem/1 var(--font-mono);
+    color: var(--n6);
     background: var(--code-head-bg);
   }
-  .dots { display: inline-flex; gap: 4px; }
-  .dots i {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--line-strong);
+  .file::before {
+    content: '';
+    display: inline-block;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--yellow);
+    margin-right: 0.6rem;
+    vertical-align: 1px;
   }
-  .file { letter-spacing: 0.01em; }
 </style>

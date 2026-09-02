@@ -4,6 +4,13 @@ The marketing site for [zodvex](https://github.com/panzacoder/zodvex). A static
 [Astro](https://astro.build) site: one page, no client framework, Shiki-highlighted
 code with per-line marks.
 
+The design language follows convex.dev: near-black neutrals (`#141414`), warm
+off-white "seashell" light sections, the red / yellow / plum brand triad used
+sparingly, pill buttons, pixel-font micro labels, and code always on dark panels.
+Sections alternate `.theme-dark` / `.theme-light`; components only read the
+section-level tokens (`--fg`, `--fg-2`, `--line`, `--surface`, …) declared in
+`src/styles/global.css`.
+
 ```bash
 cd site
 bun install
@@ -23,7 +30,7 @@ lockfile so Astro's dependency tree never affects the library's install or CI.
   `data-before` attribute on the section, so switching needs no per-scenario JS.
 - `src/components/CodeBlock.astro` — Shiki via Astro's `<Code>` with dual themes.
 - `src/pages/index.astro` — the page, including the boundary map table and quick start.
-- `src/styles/global.css` — tokens for light/dark, Shiki theme switching, line highlights.
+- `src/styles/global.css` — palette, section themes, pill buttons, Shiki line highlights.
 
 ## Deploying
 

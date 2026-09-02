@@ -30,8 +30,8 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
   <div class="panes">
     <div class="pane pane-before">
       <div class="pane-label">
-        <span class="chip chip-before" data-before-label="convex">Convex</span>
-        <span class="chip chip-before" data-before-label="helpers">Convex + convex-helpers/zod</span>
+        <span class="tag" data-before-label="convex">Convex</span>
+        <span class="tag" data-before-label="helpers">Convex + convex-helpers/zod</span>
       </div>
 
       <div data-variant="convex">
@@ -40,7 +40,6 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
           file={scenario.convex.file}
           lang={scenario.convex.lang}
           marks={scenario.convex.marks}
-          tone="before"
         />
         {scenario.convex.notes && (
           <ul class="notes notes-before">
@@ -57,7 +56,6 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
               file={helpersSnippet.file}
               lang={helpersSnippet.lang}
               marks={helpersSnippet.marks}
-              tone="before"
             />
             {helpersSnippet.notes && (
               <ul class="notes notes-before">
@@ -75,7 +73,6 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
               file={scenario.convex.file}
               lang={scenario.convex.lang}
               marks={scenario.convex.marks}
-              tone="before"
             />
             {scenario.convex.notes && (
               <ul class="notes notes-before">
@@ -89,14 +86,13 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
 
     <div class="pane pane-after">
       <div class="pane-label">
-        <span class="chip chip-after">zodvex</span>
+        <span class="tag tag-green">zodvex</span>
       </div>
       <CodeBlock
         code={scenario.zodvex.code}
         file={scenario.zodvex.file}
         lang={scenario.zodvex.lang}
         marks={scenario.zodvex.marks}
-        tone="after"
       />
       {scenario.zodvex.notes && (
         <ul class="notes notes-after">
@@ -109,7 +105,7 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
 
 <style>
   .scenario {
-    padding: 3rem 0 1rem;
+    padding: 3rem 0 1.5rem;
     border-top: 1px solid var(--line);
     scroll-margin-top: 11rem;
   }
@@ -120,17 +116,17 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
     margin-bottom: 1.5rem;
   }
   .num {
-    font: 600 0.8rem/1 var(--font-mono);
-    color: var(--accent);
-    border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
-    border-radius: 999px;
-    padding: 0.4rem 0.6rem;
-    margin-top: 0.35rem;
+    font: 700 0.8rem/1 var(--font-pixel);
+    color: var(--fg);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    padding: 0.4rem 0.5rem;
+    margin-top: 0.3rem;
     white-space: nowrap;
   }
   h3 {
-    margin: 0 0 0.25rem;
-    font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+    margin: 0 0 0.3rem;
+    font-size: clamp(1.4rem, 2.2vw, 1.75rem);
     letter-spacing: -0.02em;
   }
   .goal { margin: 0; color: var(--fg-2); font-size: 1.02rem; }
@@ -144,24 +140,9 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
   @media (max-width: 900px) {
     .panes { grid-template-columns: minmax(0, 1fr); }
   }
-  .pane { min-width: 0; display: grid; gap: 0.75rem; }
-
-  .pane-label { display: flex; align-items: center; gap: 0.5rem; min-height: 1.6rem; }
-  .chip {
-    display: inline-flex; align-items: center; gap: 0.4rem;
-    font: 600 0.74rem/1 var(--font-mono);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    padding: 0.4rem 0.65rem;
-    border-radius: 999px;
-    border: 1px solid var(--line-strong);
-    color: var(--fg-2);
-  }
-  .chip-after {
-    color: var(--good);
-    border-color: color-mix(in oklab, var(--good) 45%, transparent);
-    background: color-mix(in oklab, var(--good) 10%, transparent);
-  }
+  .pane { min-width: 0; display: grid; gap: 0.65rem; }
+  .pane-label { display: flex; align-items: center; min-height: 1.6rem; }
+  .pane-label .tag { margin-bottom: 0; }
 
   /* Variant switching, driven by <section data-before="convex|helpers"> */
   :global([data-before='convex']) [data-variant='helpers'],
@@ -178,8 +159,8 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
     padding: 0.75rem 0.9rem;
     margin-bottom: 0.75rem;
     border: 1px dashed var(--line-strong);
-    border-radius: var(--radius);
-    background: color-mix(in oklab, var(--bg-2) 60%, transparent);
+    border-radius: 8px;
+    background: var(--surface);
   }
   .same-banner strong { color: var(--fg); }
 
@@ -189,7 +170,7 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
     display: grid;
     gap: 0.35rem;
     font-size: 0.9rem;
-    line-height: 1.5;
+    line-height: 1.45;
     color: var(--fg-2);
   }
   .notes li::marker { color: var(--bad); }

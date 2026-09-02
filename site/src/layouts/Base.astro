@@ -24,21 +24,13 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonical} />
     <meta name="twitter:card" content="summary" />
-    <meta name="theme-color" content="#0e0d14" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141414" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Silkscreen&family=Instrument+Serif:ital@1&display=swap"
     />
-    <script is:inline>
-      // Apply a saved theme before first paint to avoid a flash.
-      try {
-        const t = localStorage.getItem('zodvex-theme')
-        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t
-      } catch {}
-    </script>
   </head>
   <body>
     <slot />
