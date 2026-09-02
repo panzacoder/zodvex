@@ -19,6 +19,7 @@ This is a bun workspaces monorepo:
 - `examples/task-manager-mini/` — same app using `zod/mini` to verify mini compatibility
 - `examples/quickstart/` — minimal getting-started example
 - `examples/stress-test/` — performance/edge-case testing
+- `site/` — the marketing site (Astro, standalone lockfile, deployed to GitHub Pages by `.github/workflows/site.yml`). Not part of the bun workspace.
 - Root `package.json` — workspace root (private, not published)
 
 All commands can be run from the repo root — they delegate to `packages/zodvex/`.

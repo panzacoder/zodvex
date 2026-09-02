@@ -1,0 +1,197 @@
+---
+/**
+ * One "before / after" scenario. The *before* pane has two variants
+ * (plain Convex, Convex + convex-helpers/zod) toggled by the section-level
+ * `data-before` attribute — no per-scenario JavaScript.
+ */
+import CodeBlock from './CodeBlock.astro'
+import type { Scenario, Snippet } from '../data/scenarios'
+
+interface Props {
+  scenario: Scenario
+  index: number
+}
+
+const { scenario, index } = Astro.props
+const n = String(index + 1).padStart(2, '0')
+const helpersSnippet: Snippet | null = 'same' in scenario.helpers ? null : scenario.helpers
+const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
+---
+
+<article class="scenario" id={scenario.id}>
+  <header class="scenario-head">
+    <span class="num">{n}</span>
+    <div>
+      <h3>{scenario.title}</h3>
+      <p class="goal">{scenario.goal}</p>
+    </div>
+  </header>
+
+  <div class="panes">
+    <div class="pane pane-before">
+      <div class="pane-label">
+        <span class="chip chip-before" data-before-label="convex">Convex</span>
+        <span class="chip chip-before" data-before-label="helpers">Convex + convex-helpers/zod</span>
+      </div>
+
+      <div data-variant="convex">
+        <CodeBlock
+          code={scenario.convex.code}
+          file={scenario.convex.file}
+          lang={scenario.convex.lang}
+          marks={scenario.convex.marks}
+          tone="before"
+        />
+        {scenario.convex.notes && (
+          <ul class="notes notes-before">
+            {scenario.convex.notes.map((t) => <li>{t}</li>)}
+          </ul>
+        )}
+      </div>
+
+      <div data-variant="helpers">
+        {helpersSnippet ? (
+          <>
+            <CodeBlock
+              code={helpersSnippet.code}
+              file={helpersSnippet.file}
+              lang={helpersSnippet.lang}
+              marks={helpersSnippet.marks}
+              tone="before"
+            />
+            {helpersSnippet.notes && (
+              <ul class="notes notes-before">
+                {helpersSnippet.notes.map((t) => <li>{t}</li>)}
+              </ul>
+            )}
+          </>
+        ) : (
+          <>
+            <div class="same-banner">
+              <strong>Unchanged from plain Convex.</strong> {helpersSameWhy}
+            </div>
+            <CodeBlock
+              code={scenario.convex.code}
+              file={scenario.convex.file}
+              lang={scenario.convex.lang}
+              marks={scenario.convex.marks}
+              tone="before"
+            />
+            {scenario.convex.notes && (
+              <ul class="notes notes-before">
+                {scenario.convex.notes.map((t) => <li>{t}</li>)}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+
+    <div class="pane pane-after">
+      <div class="pane-label">
+        <span class="chip chip-after">zodvex</span>
+      </div>
+      <CodeBlock
+        code={scenario.zodvex.code}
+        file={scenario.zodvex.file}
+        lang={scenario.zodvex.lang}
+        marks={scenario.zodvex.marks}
+        tone="after"
+      />
+      {scenario.zodvex.notes && (
+        <ul class="notes notes-after">
+          {scenario.zodvex.notes.map((t) => <li>{t}</li>)}
+        </ul>
+      )}
+    </div>
+  </div>
+</article>
+
+<style>
+  .scenario {
+    padding: 3rem 0 1rem;
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 11rem;
+  }
+  .scenario-head {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+  }
+  .num {
+    font: 600 0.8rem/1 var(--font-mono);
+    color: var(--accent);
+    border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
+    border-radius: 999px;
+    padding: 0.4rem 0.6rem;
+    margin-top: 0.35rem;
+    white-space: nowrap;
+  }
+  h3 {
+    margin: 0 0 0.25rem;
+    font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+    letter-spacing: -0.02em;
+  }
+  .goal { margin: 0; color: var(--fg-2); font-size: 1.02rem; }
+
+  .panes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .panes { grid-template-columns: minmax(0, 1fr); }
+  }
+  .pane { min-width: 0; display: grid; gap: 0.75rem; }
+
+  .pane-label { display: flex; align-items: center; gap: 0.5rem; min-height: 1.6rem; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font: 600 0.74rem/1 var(--font-mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.4rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    color: var(--fg-2);
+  }
+  .chip-after {
+    color: var(--good);
+    border-color: color-mix(in oklab, var(--good) 45%, transparent);
+    background: color-mix(in oklab, var(--good) 10%, transparent);
+  }
+
+  /* Variant switching, driven by <section data-before="convex|helpers"> */
+  :global([data-before='convex']) [data-variant='helpers'],
+  :global([data-before='convex']) [data-before-label='helpers'],
+  :global([data-before='helpers']) [data-variant='convex'],
+  :global([data-before='helpers']) [data-before-label='convex'] {
+    display: none;
+  }
+
+  .same-banner {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--fg-2);
+    padding: 0.75rem 0.9rem;
+    margin-bottom: 0.75rem;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    background: color-mix(in oklab, var(--bg-2) 60%, transparent);
+  }
+  .same-banner strong { color: var(--fg); }
+
+  .notes {
+    margin: 0.85rem 0 0;
+    padding: 0 0 0 1.1rem;
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--fg-2);
+  }
+  .notes li::marker { color: var(--bad); }
+  .notes-after li::marker { color: var(--good); }
+</style>

@@ -1,0 +1,15 @@
+{
+  "name": "zodvex-site",
+  "private": true,
+  "type": "module",
+  "description": "Marketing site for zodvex — https://github.com/panzacoder/zodvex",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "astro": "^7.2.10"
+  }
+}

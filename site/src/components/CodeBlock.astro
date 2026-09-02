@@ -1,0 +1,75 @@
+---
+/**
+ * Syntax-highlighted code panel with a file-name header and per-line marks.
+ * Uses Astro's built-in Shiki component with dual themes; colours are applied
+ * by global.css depending on the active theme.
+ */
+import { Code } from 'astro:components'
+import type { ShikiTransformer } from 'shiki'
+import type { Mark } from '../data/scenarios'
+
+interface Props {
+  code: string
+  file?: string
+  lang?: 'ts' | 'tsx' | 'bash' | 'json'
+  marks?: Record<number, Mark>
+  /** Show a small legend chip in the header: 'before' | 'after' */
+  tone?: 'before' | 'after' | 'plain'
+}
+
+const { code, file, lang = 'ts', marks = {}, tone = 'plain' } = Astro.props
+
+const markLines: ShikiTransformer = {
+  name: 'zodvex:marks',
+  line(node, line) {
+    const kind = marks[line]
+    if (!kind) return
+    const existing = node.properties.class
+    const classes = Array.isArray(existing) ? existing : existing ? [String(existing)] : []
+    node.properties.class = [...classes, 'hl', `hl-${kind}`].join(' ')
+  },
+}
+---
+
+<figure class:list={['codeblock', `tone-${tone}`]}>
+  {file && (
+    <figcaption class="codeblock-head">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="file">{file}</span>
+    </figcaption>
+  )}
+  <Code
+    code={code}
+    lang={lang}
+    themes={{ light: 'github-light', dark: 'github-dark-dimmed' }}
+    defaultColor={false}
+    transformers={[markLines]}
+  />
+</figure>
+
+<style>
+  .codeblock {
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--code-bg);
+    overflow: hidden;
+    min-width: 0;
+  }
+  .codeblock-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    font: 500 0.78rem/1 var(--font-mono);
+    color: var(--fg-2);
+    background: var(--code-head-bg);
+  }
+  .dots { display: inline-flex; gap: 4px; }
+  .dots i {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--line-strong);
+  }
+  .file { letter-spacing: 0.01em; }
+</style>
