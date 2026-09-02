@@ -3,6 +3,11 @@ import Base from '../layouts/Base.astro'
 import CodeBlock from '../components/CodeBlock.astro'
 import Compare from '../components/Compare.astro'
 import { scenarios } from '../data/scenarios'
+import { dateGoal, outcomes, diyChecklist, effortLabel, tally } from '../data/cost'
+
+const dateTally = tally(dateGoal)
+const cols = ['convex', 'diy', 'zodvex'] as const
+const colName = { convex: 'Convex', diy: 'Zod + convex-helpers, by hand', zodvex: 'zodvex' }
 
 const GITHUB = 'https://github.com/panzacoder/zodvex'
 const NPM = 'https://www.npmjs.com/package/zodvex'
@@ -12,78 +17,22 @@ const title = 'zodvex — Zod v4 as your schema language for Convex'
 const description =
   'zodvex makes Zod v4 the schema language for your Convex app. Tables, function arguments, return types and the client are one set of schemas, run at every boundary. Dates, typed IDs and custom codecs survive the round trip.'
 
-type Level = 'none' | 'shape' | 'zod' | 'codec'
-interface Cell { level: Level; text: string }
-interface Row { boundary: string; convex: Cell; helpers: Cell; zodvex: Cell }
-
-const boundaryRows: Row[] = [
-  {
-    boundary: 'Client call',
-    convex: { level: 'shape', text: 'Types inferred; values are wire values' },
-    helpers: { level: 'shape', text: 'Same as Convex' },
-    zodvex: { level: 'codec', text: 'useZodQuery validates and encodes args, decodes results' },
-  },
-  {
-    boundary: 'Function args',
-    convex: { level: 'shape', text: 'Structural check (v.*)' },
-    helpers: { level: 'zod', text: 'Full Zod pipeline' },
-    zodvex: { level: 'codec', text: 'Full Zod pipeline + codec decode' },
-  },
-  {
-    boundary: 'Inside the handler',
-    convex: { level: 'shape', text: 'Wire types: numbers, plain strings' },
-    helpers: { level: 'shape', text: 'Zod output for args; wire docs from the db' },
-    zodvex: { level: 'codec', text: 'Runtime types everywhere: Date, branded IDs, your codecs' },
-  },
-  {
-    boundary: 'Database writes',
-    convex: { level: 'shape', text: "Convex's schema check" },
-    helpers: { level: 'shape', text: 'Same as Convex' },
-    zodvex: { level: 'codec', text: "Encoded through your schema, then Convex's check" },
-  },
-  {
-    boundary: 'Database reads',
-    convex: { level: 'none', text: 'Rows exactly as stored' },
-    helpers: { level: 'none', text: 'Rows exactly as stored' },
-    zodvex: { level: 'codec', text: 'Every row parsed and decoded through your model' },
-  },
-  {
-    boundary: 'Return value',
-    convex: { level: 'shape', text: 'Structural check' },
-    helpers: { level: 'zod', text: 'Full Zod pipeline' },
-    zodvex: { level: 'codec', text: 'Full Zod pipeline + codec encode' },
-  },
-  {
-    boundary: 'Row rules & audit',
-    convex: { level: 'none', text: 'Build your own' },
-    helpers: { level: 'shape', text: 'rowLevelSecurity, on wire docs' },
-    zodvex: { level: 'codec', text: '.withRules() / .audit() on decoded docs' },
-  },
-]
-
-const levelLabel: Record<Level, string> = {
-  none: 'nothing',
-  shape: 'structural',
-  zod: 'Zod',
-  codec: 'Zod + codecs',
-}
-
 const handled = [
   {
-    title: 'Full Zod at every boundary',
-    body: 'so a refinement you wrote once holds on arguments, return values, and every row the database hands back.',
+    title: 'Handlers work in your types, not wire types.',
+    body: 'A due date is a Date, a user id is a branded Id, an encrypted field is a string you can read. Convex still stores plain values.',
   },
   {
-    title: 'Codecs at the database boundary',
-    body: 'so handlers see Date objects and branded IDs while Convex stores plain, indexable values.',
+    title: 'The translation is never yours to write.',
+    body: 'Args, returns, ctx.db reads and writes, index ranges, internal calls, the scheduler and the React hooks all encode and decode through the same schema.',
   },
   {
-    title: 'Rules and audit on decoded documents',
-    body: 'so access control compares real types and lives on ctx.db instead of in every handler.',
+    title: 'Rules run everywhere the value passes.',
+    body: 'A refinement you put on a field holds on arguments, returns, writes, reads and in the form, without a guard anywhere.',
   },
   {
-    title: 'Typed client hooks from the same schemas',
-    body: 'so the UI receives exactly what the handler returned and rejects bad input before it leaves the browser.',
+    title: 'The database cannot hand you something the schema forbids.',
+    body: 'Every read is a real Zod parse, so rows that slipped in through a migration, the dashboard or older code fail loudly instead of reaching the UI.',
   },
 ]
 
@@ -334,11 +283,11 @@ const guides = [
         <div class="handled-grid">
           <div>
             <span class="tag tag-red">Handled</span>
-            <h2 class="section-title">Handled.</h2>
+            <h2 class="section-title">Domain types, end to end.</h2>
             <p class="section-lede">
-              Convex checks the shape of what enters a function. zodvex runs your whole schema at
-              every boundary, so you and your agent get it right without guards, conversions or
-              conventions.
+              Convex gives you wire types end to end: numbers, strings and plain objects, with the
+              shape checked at the function edge. zodvex gives you the types your app is actually
+              about, and owns every conversion between them and what Convex stores.
             </p>
           </div>
           <ul class="claims">
@@ -351,30 +300,108 @@ const guides = [
           </ul>
         </div>
 
+        <!-- cost of one concrete goal -->
+        <div class="cost-head">
+          <span class="tag tag-yellow">One concrete goal</span>
+          <h3 class="cost-title">What it takes to use {dateGoal.title.toLowerCase()}</h3>
+          <p class="section-lede">{dateGoal.goal} Every row is a place the value passes through, and every cell is the code that approach makes you write there.</p>
+        </div>
+
         <div class="table-scroll">
-          <table class="boundaries">
+          <table class="cost">
             <thead>
               <tr>
-                <th scope="col">Boundary</th>
-                <th scope="col">Convex</th>
-                <th scope="col">Convex + convex-helpers/zod</th>
-                <th scope="col" class="th-zodvex">zodvex</th>
+                <th scope="col">Where the value passes</th>
+                {cols.map((k) => (
+                  <th scope="col" class:list={[k === 'zodvex' && 'th-zodvex']}>{colName[k]}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {boundaryRows.map((r) => (
+              {dateGoal.rows.map((r) => (
                 <tr>
-                  <th scope="row">{r.boundary}</th>
-                  {(['convex', 'helpers', 'zodvex'] as const).map((k) => (
+                  <th scope="row">{r.step}</th>
+                  {cols.map((k) => (
                     <td class:list={[k === 'zodvex' && 'td-zodvex']}>
-                      <span class="pill" data-level={r[k].level}>{levelLabel[r[k].level]}</span>
-                      <span class="cell-text">{r[k].text}</span>
+                      <span class="effort" data-effort={r[k].effort}>{effortLabel[r[k].effort]}</span>
+                      {r[k].code && <code class="cell-code">{r[k].code}</code>}
+                      <span class="cell-text">{r[k].note}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Places you write date code</th>
+                {cols.map((k) => (
+                  <td class:list={[k === 'zodvex' && 'td-zodvex']}>
+                    <span class="tally">
+                      <b>{dateTally[k].manual}</b> by hand
+                      {dateTally[k].partial > 0 && <> · <b>{dateTally[k].partial}</b> partly</>}
+                      {k === 'zodvex' && <> · one declaration</>}
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="legend">
+          <span class="effort" data-effort="manual">by hand</span> you write it, in every function that touches the value
+          <span class="effort" data-effort="partial">partly</span> you get some of it
+          <span class="effort" data-effort="auto">automatic</span> declared once, handled everywhere
+        </p>
+
+        <!-- outcomes grid -->
+        <div class="cost-head">
+          <span class="tag">Beyond dates</span>
+          <h3 class="cost-title">The same question for everything else</h3>
+          <p class="section-lede">Dates are the simplest codec. The pattern holds for any type that is one thing in code and another in storage, and for every rule that is more than a shape.</p>
+        </div>
+
+        <div class="table-scroll">
+          <table class="cost outcomes">
+            <thead>
+              <tr>
+                <th scope="col">What you want</th>
+                {cols.map((k) => (
+                  <th scope="col" class:list={[k === 'zodvex' && 'th-zodvex']}>{colName[k]}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {outcomes.map((r) => (
+                <tr>
+                  <th scope="row">{r.outcome}</th>
+                  {cols.map((k) => (
+                    <td class:list={[k === 'zodvex' && 'td-zodvex']}>
+                      <span class="effort" data-effort={r[k].effort}>{effortLabel[r[k].effort]}</span>
+                      <span class="cell-text">{r[k].note}</span>
                     </td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+
+        <!-- what DIY actually means -->
+        <div class="diy">
+          <div>
+            <span class="tag">Building it yourself</span>
+            <h3 class="cost-title">Zod codecs get you the argument boundary. The rest is a library.</h3>
+            <p class="section-lede">
+              Zod can express "a number that is a Date in code". What it cannot do is reach into
+              Convex's database, index builder, scheduler and React hooks. A do-it-yourself version
+              that works everywhere needs all of this, and needs it to stay typed.
+            </p>
+          </div>
+          <ol class="diy-list">
+            {diyChecklist.map(([what, detail]) => (
+              <li><strong>{what}</strong><span>{detail}</span></li>
+            ))}
+          </ol>
         </div>
       </div>
     </section>
@@ -695,25 +722,57 @@ const guides = [
     margin-top: 0.1rem;
   }
 
-  .table-scroll { overflow-x: auto; margin-top: 3rem; border: 1px solid var(--line); border-radius: 12px; background: var(--n13); }
-  .boundaries { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 0.92rem; }
-  .boundaries th, .boundaries td { padding: 0.85rem 1rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-  .boundaries thead th { font: 500 0.7rem/1 var(--font-pixel); letter-spacing: 0.06em; text-transform: uppercase; color: var(--n6); background: var(--n12); }
-  .boundaries tbody th { font-weight: 600; white-space: nowrap; width: 12rem; color: var(--n-white); }
-  .boundaries tbody tr:last-child th, .boundaries tbody tr:last-child td { border-bottom: 0; }
+  .cost-head { margin-top: 4rem; }
+  .cost-title { font-size: clamp(1.4rem, 2.4vw, 1.85rem); letter-spacing: -0.02em; margin: 0 0 0.6rem; max-width: 28ch; text-wrap: balance; }
+
+  .table-scroll { overflow-x: auto; margin-top: 1.75rem; border: 1px solid var(--line); border-radius: 12px; background: var(--n13); }
+  .cost { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed; }
+  .cost th, .cost td { padding: 0.85rem 1rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  .cost thead th { font: 500 0.66rem/1.3 var(--font-pixel); letter-spacing: 0.06em; text-transform: uppercase; color: var(--n6); background: var(--n12); }
+  .cost thead th:first-child, .cost tbody th { width: 15rem; }
+  .cost tbody th { font-weight: 600; color: var(--n-white); font-size: 0.95rem; line-height: 1.35; }
+  .cost tbody tr:last-child th, .cost tbody tr:last-child td { border-bottom: 0; }
+  .cost tfoot th, .cost tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0; background: var(--n12); }
+  .cost tfoot th { font-weight: 600; color: var(--n-white); }
   .th-zodvex, .td-zodvex { background: rgba(114, 192, 67, 0.07); }
   .th-zodvex { color: var(--green-soft) !important; }
-  .cell-text { display: block; color: var(--n6); margin-top: 0.4rem; line-height: 1.45; }
-  .pill {
+  .cell-code {
+    display: block;
+    margin: 0.5rem 0 0.4rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 6px;
+    background: var(--n12);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--n2);
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+  .cell-text { display: block; color: var(--n6); margin-top: 0.4rem; line-height: 1.45; font-size: 0.86rem; }
+  .tally { color: var(--n5); }
+  .tally b { color: var(--n-white); font-weight: 700; }
+  .td-zodvex .tally b { color: var(--green-soft); }
+  .effort {
     display: inline-block;
     font: 500 0.62rem/1 var(--font-pixel);
     letter-spacing: 0.05em; text-transform: uppercase;
     padding: 0.3rem 0.45rem; border-radius: 4px;
     border: 1px solid var(--line-strong); color: var(--n6);
   }
-  .pill[data-level='shape'] { color: var(--n3); border-color: var(--n7); }
-  .pill[data-level='zod'] { color: var(--yellow); border-color: var(--yellow); }
-  .pill[data-level='codec'] { color: var(--green-soft); border-color: var(--green-soft); }
+  .effort[data-effort='manual'] { color: var(--red-soft); border-color: var(--red-soft); }
+  .effort[data-effort='partial'] { color: var(--yellow); border-color: var(--yellow); }
+  .effort[data-effort='auto'] { color: var(--green-soft); border-color: var(--green-soft); }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem; margin: 0.9rem 0 0; font-size: 0.85rem; color: var(--n6); }
+  .legend .effort { margin-left: 0.6rem; }
+  .legend .effort:first-child { margin-left: 0; }
+
+  .diy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 3rem; margin-top: 4.5rem; padding-top: 3rem; border-top: 1px solid var(--line); }
+  @media (max-width: 900px) { .diy { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; } }
+  .diy-list { margin: 0; padding: 0; list-style: none; counter-reset: diy; display: grid; gap: 0.6rem; }
+  .diy-list li { counter-increment: diy; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.25rem 0.75rem; padding: 0.9rem 1rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+  .diy-list li::before { content: counter(diy, decimal-leading-zero); font: 500 0.7rem/1.6 var(--font-pixel); color: var(--yellow); grid-row: span 2; }
+  .diy-list strong { color: var(--n-white); font-size: 0.95rem; }
+  .diy-list span { grid-column: 2; color: var(--n6); font-size: 0.88rem; line-height: 1.5; }
 
   /* compare */
   .compare { padding-bottom: 2rem; }
