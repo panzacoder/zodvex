@@ -1,0 +1,250 @@
+{
+  "meta": {
+    "timestamp": "2026-09-04T21:10:16.053Z",
+    "gitSha": "32c4d2a2f83f1ea06925754fec40fabf4923aa83",
+    "zodvexVersion": "0.7.8-beta.0",
+    "convexVersion": "1.32.0",
+    "convexHelpersVersion": "0.1.113",
+    "nodeVersion": "v22.22.2",
+    "bunVersion": "1.3.11",
+    "deployment": "dev:dutiful-llama-148",
+    "shape": "explicit",
+    "note": "Same machine, same harness (PR #81), same day. zod version is the only variable between the two series. Heap = node --expose-gc used_heap_size delta on load of the Convex-style bundle (sample=1 endpoint: activity_0000; schema.ts measured separately)."
+  },
+  "regression": [
+    {
+      "zodVersion": "4.3.6",
+      "target": 100,
+      "timestamp": "2026-09-04T20:50:56.888Z",
+      "allOk": true,
+      "outcomes": [
+        {
+          "flavor": "zodvex",
+          "deploy": "ok",
+          "durationMs": 20336,
+          "endpointHeapMaxMB": 63.27,
+          "schemaHeapMB": 34.76,
+          "ok": true,
+          "note": "zodvex (full zod), documented explicit shape (works against main)"
+        },
+        {
+          "flavor": "zodvex-mini",
+          "deploy": "ok",
+          "durationMs": 13071,
+          "endpointHeapMaxMB": 22.33,
+          "schemaHeapMB": 13.26,
+          "ok": true,
+          "note": "zodvex/mini (zod-mini); should match zodvex + slightly lighter"
+        }
+      ]
+    },
+    {
+      "zodVersion": "4.5.4",
+      "target": 100,
+      "timestamp": "2026-09-04T21:07:35.640Z",
+      "allOk": true,
+      "outcomes": [
+        {
+          "flavor": "zodvex",
+          "deploy": "ok",
+          "durationMs": 11834,
+          "endpointHeapMaxMB": 13.63,
+          "schemaHeapMB": 8.52,
+          "ok": true,
+          "note": "zodvex (full zod), documented explicit shape (works against main)"
+        },
+        {
+          "flavor": "zodvex-mini",
+          "deploy": "ok",
+          "durationMs": 10921,
+          "endpointHeapMaxMB": 11.06,
+          "schemaHeapMB": 7.06,
+          "ok": true,
+          "note": "zodvex/mini (zod-mini); should match zodvex + slightly lighter"
+        }
+      ]
+    }
+  ],
+  "heapProxy": [
+    {
+      "flavor": "zodvex",
+      "n": 100,
+      "zodVersion": "4.3.6",
+      "endpointHeapMB": 63.02,
+      "schemaHeapMB": 34.75,
+      "endpointBundleKB": 652.5,
+      "schemaBundleKB": 538.9,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 150,
+      "zodVersion": "4.3.6",
+      "endpointHeapMB": 92.58,
+      "schemaHeapMB": 50.58,
+      "endpointBundleKB": 715.7,
+      "schemaBundleKB": 568.8,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "zodVersion": "4.3.6",
+      "endpointHeapMB": 122.61,
+      "schemaHeapMB": 66.96,
+      "endpointBundleKB": 779.2,
+      "schemaBundleKB": 598.9,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 100,
+      "zodVersion": "4.3.6",
+      "endpointHeapMB": 22.2,
+      "schemaHeapMB": 13.21,
+      "endpointBundleKB": 630,
+      "schemaBundleKB": 516.4,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 150,
+      "zodVersion": "4.3.6",
+      "endpointHeapMB": 31.81,
+      "schemaHeapMB": 18.49,
+      "endpointBundleKB": 693.7,
+      "schemaBundleKB": 546.6,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "zodVersion": "4.3.6",
+      "endpointHeapMB": 41.68,
+      "schemaHeapMB": 23.98,
+      "endpointBundleKB": 757.6,
+      "schemaBundleKB": 577.1,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 100,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 13.63,
+      "schemaHeapMB": 8.52,
+      "endpointBundleKB": 811.1,
+      "schemaBundleKB": 697.5,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 150,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 18.55,
+      "schemaHeapMB": 10.99,
+      "endpointBundleKB": 874.4,
+      "schemaBundleKB": 727.4,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 23.61,
+      "schemaHeapMB": 13.61,
+      "endpointBundleKB": 937.9,
+      "schemaBundleKB": 757.6,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 400,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 43.57,
+      "schemaHeapMB": 23.82,
+      "endpointBundleKB": 1190.6,
+      "schemaBundleKB": 877.2,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 600,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 63.33,
+      "schemaHeapMB": 33.84,
+      "endpointBundleKB": 1443.7,
+      "schemaBundleKB": 996.7,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 750,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 78.45,
+      "schemaHeapMB": 41.7,
+      "endpointBundleKB": 1634.7,
+      "schemaBundleKB": 1087.9,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 100,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 11.05,
+      "schemaHeapMB": 7.06,
+      "endpointBundleKB": 783.6,
+      "schemaBundleKB": 669.9,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 150,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 14.88,
+      "schemaHeapMB": 9,
+      "endpointBundleKB": 847.2,
+      "schemaBundleKB": 700.1,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 18.84,
+      "schemaHeapMB": 11.07,
+      "endpointBundleKB": 911.1,
+      "schemaBundleKB": 730.6,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 400,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 34.44,
+      "schemaHeapMB": 19.11,
+      "endpointBundleKB": 1165.5,
+      "schemaBundleKB": 851.7,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 600,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 49.9,
+      "schemaHeapMB": 27.01,
+      "endpointBundleKB": 1420.2,
+      "schemaBundleKB": 972.6,
+      "endpoint": "activity_0000"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 750,
+      "zodVersion": "4.5.4",
+      "endpointHeapMB": 61.78,
+      "schemaHeapMB": 33.27,
+      "endpointBundleKB": 1612.5,
+      "schemaBundleKB": 1064.9,
+      "endpoint": "activity_0000"
+    }
+  ]
+}
