@@ -141,6 +141,8 @@ const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
     .panes { grid-template-columns: minmax(0, 1fr); }
   }
   .pane { min-width: 0; display: grid; gap: 0.65rem; }
+  /* grid items default to min-width:auto, which lets a wide code line stretch the page */
+  .pane > * { min-width: 0; }
   .pane-label { display: flex; align-items: center; min-height: 1.6rem; }
   .pane-label .tag { margin-bottom: 0; }
 

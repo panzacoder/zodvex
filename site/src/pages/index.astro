@@ -504,7 +504,7 @@ const guides = [
 
         <div class="start-links">
           <a class="btn btn-primary" href={`${GITHUB}/tree/main/examples/quickstart`} target="_blank" rel="noopener">Runnable quickstart</a>
-          <a class="btn" href={`${GITHUB}/tree/main/examples/task-manager`} target="_blank" rel="noopener">Full example with codegen, rules and triggers</a>
+          <a class="btn" href={`${GITHUB}/tree/main/examples/task-manager`} target="_blank" rel="noopener">Full example: codegen, rules, triggers</a>
         </div>
       </div>
     </section>
@@ -683,6 +683,7 @@ const guides = [
 
   /* overview */
   .overview { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 3rem; align-items: start; }
+  .overview > * { min-width: 0; }
   @media (max-width: 900px) { .overview { grid-template-columns: minmax(0, 1fr); } }
   .overview-copy p { color: var(--fg-2); font-size: 1.05rem; line-height: 1.55; margin: 0 0 1rem; max-width: 58ch; text-wrap: pretty; }
   .not-box {
@@ -709,6 +710,7 @@ const guides = [
 
   /* handled */
   .handled-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 3rem; align-items: start; }
+  .handled-grid > * { min-width: 0; }
   @media (max-width: 900px) { .handled-grid { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; } }
   .claims { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
   .claims li { display: flex; gap: 0.85rem; align-items: flex-start; font-size: 1.02rem; line-height: 1.45; color: var(--n4); }
@@ -767,6 +769,7 @@ const guides = [
   .legend .effort:first-child { margin-left: 0; }
 
   .diy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 3rem; margin-top: 4.5rem; padding-top: 3rem; border-top: 1px solid var(--line); }
+  .diy > * { min-width: 0; }
   @media (max-width: 900px) { .diy { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; } }
   .diy-list { margin: 0; padding: 0; list-style: none; counter-reset: diy; display: grid; gap: 0.6rem; }
   .diy-list li { counter-increment: diy; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.25rem 0.75rem; padding: 0.9rem 1rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
@@ -824,6 +827,7 @@ const guides = [
 
   /* steps */
   .steps { display: grid; gap: 2rem; margin-top: 2.25rem; }
+  .step { min-width: 0; }
   .step p { margin: 0 0 0.9rem; color: var(--fg-2); }
   .step-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
   .step-head .num { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 4px; background: var(--n12); color: var(--n-white); font: 700 0.8rem/1 var(--font-pixel); }
