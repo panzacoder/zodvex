@@ -1,0 +1,195 @@
+{
+  "meta": {
+    "timestamp": "2026-09-04T21:09:48.626Z",
+    "gitSha": "32c4d2a2f83f1ea06925754fec40fabf4923aa83",
+    "gitDirty": true,
+    "zodvexVersion": "0.7.8-beta.0",
+    "convexVersion": "1.32.0",
+    "convexHelpersVersion": "0.1.113",
+    "zodVersion": "4.5.4",
+    "bunVersion": "1.3.11",
+    "deployment": "dev:dutiful-llama-148"
+  },
+  "config": {
+    "flavors": [
+      "zodvex",
+      "zodvex-mini"
+    ],
+    "ns": [
+      200,
+      400,
+      600,
+      650,
+      700,
+      750,
+      800,
+      900
+    ],
+    "shape": "explicit",
+    "models": null,
+    "endpoints": null,
+    "skipAfterFailure": false,
+    "doReset": true,
+    "force": false,
+    "note": "Three sweep invocations merged: --flavors=zodvex,zodvex-mini --ns=200,400,600,700,750,800; then --flavors=zodvex --ns=650; then --flavors=zodvex-mini --ns=900. Same deployment, reset before every cell, Q/M healthcheck + scheduler smoke on every passing cell."
+  },
+  "summary": {
+    "zodvex": {
+      "lastOk": 600,
+      "firstOom": 650,
+      "proxyHeapAtLastOkMB": 63.33,
+      "proxyHeapAtFirstOomMB": 68.67,
+      "zod436Reference": "ok@100, oom@150 (June 2026 sweep; PR #63 hybrid search: 141)"
+    },
+    "zodvex-mini": {
+      "lastOk": 800,
+      "firstOom": 900,
+      "proxyHeapAtLastOkMB": 65.55,
+      "proxyHeapAtFirstOomMB": 73.2,
+      "zod436Reference": "ok through 200 (June 2026 sweep; not pushed further)"
+    },
+    "tooManyReads": "not reached: N=800 passed for zodvex-mini (every sweep since May 2026 failed at 800 with TooManyReads); memory binds first at 900"
+  },
+  "results": [
+    {
+      "flavor": "zodvex",
+      "n": 200,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 26688,
+      "endpointHeapMaxMB": 23.61,
+      "schemaHeapMB": 13.61,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 400,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 65594,
+      "endpointHeapMaxMB": 43.57,
+      "schemaHeapMB": 23.79,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 600,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 136975,
+      "endpointHeapMaxMB": 63.33,
+      "schemaHeapMB": 33.84,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex",
+      "n": 650,
+      "shape": "explicit",
+      "outcome": "oom",
+      "durationMs": 12020,
+      "endpointHeapMaxMB": 68.67,
+      "schemaHeapMB": 36.62,
+      "errorTail": "lama-148.convex.cloud\n\u2716 Error fetching POST  https://dutiful-llama-148.convex.cloud/api/deploy2/start_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nLoading the pushed modules encountered the following\n    error:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 700,
+      "shape": "explicit",
+      "outcome": "oom",
+      "durationMs": 10063,
+      "endpointHeapMaxMB": 73.54,
+      "schemaHeapMB": 39.04,
+      "errorTail": "lama-148.convex.cloud\n\u2716 Error fetching POST  https://dutiful-llama-148.convex.cloud/api/deploy2/start_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nLoading the pushed modules encountered the following\n    error:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 750,
+      "shape": "explicit",
+      "outcome": "oom",
+      "durationMs": 10957,
+      "endpointHeapMaxMB": 78.45,
+      "schemaHeapMB": 41.71,
+      "errorTail": "lama-148.convex.cloud\n\u2716 Error fetching POST  https://dutiful-llama-148.convex.cloud/api/deploy2/start_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nLoading the pushed modules encountered the following\n    error:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "zodvex",
+      "n": 800,
+      "shape": "explicit",
+      "outcome": "oom",
+      "durationMs": 13016,
+      "endpointHeapMaxMB": 83.31,
+      "schemaHeapMB": 44.21,
+      "errorTail": "lama-148.convex.cloud\n\u2716 Error fetching POST  https://dutiful-llama-148.convex.cloud/api/deploy2/start_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nLoading the pushed modules encountered the following\n    error:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 200,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 24419,
+      "endpointHeapMaxMB": 18.85,
+      "schemaHeapMB": 11.07,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 400,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 57098,
+      "endpointHeapMaxMB": 34.46,
+      "schemaHeapMB": 19.11,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 600,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 96862,
+      "endpointHeapMaxMB": 49.89,
+      "schemaHeapMB": 27,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 700,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 128696,
+      "endpointHeapMaxMB": 57.95,
+      "schemaHeapMB": 31.17,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 750,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 157490,
+      "endpointHeapMaxMB": 61.76,
+      "schemaHeapMB": 33.27,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 800,
+      "shape": "explicit",
+      "outcome": "ok",
+      "durationMs": 196211,
+      "endpointHeapMaxMB": 65.55,
+      "schemaHeapMB": 35.22,
+      "errorTail": null
+    },
+    {
+      "flavor": "zodvex-mini",
+      "n": 900,
+      "shape": "explicit",
+      "outcome": "oom",
+      "durationMs": 14103,
+      "endpointHeapMaxMB": 73.2,
+      "schemaHeapMB": 39.18,
+      "errorTail": "lama-148.convex.cloud\n\u2716 Error fetching POST  https://dutiful-llama-148.convex.cloud/api/deploy2/start_push 400 Bad Request: InvalidModules: Hit an error while pushing:\nLoading the pushed modules encountered the following\n    error:\nJavaScript execution ran out of memory (maximum memory usage: 64 MB)"
+    }
+  ]
+}

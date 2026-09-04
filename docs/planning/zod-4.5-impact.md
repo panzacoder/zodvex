@@ -72,23 +72,89 @@ Calibration of the proxy against real deploys (4.3.6, this machine): the real pu
 63.0 MB proxy (N=100) and OOMed at 92.6 MB proxy (N=150)**, so the 64 MB isolate's OOM cliff sits
 between ~63 and ~93 MB of proxy heap for this shape. On 4.5.4 zodvex reaches 63.3 MB at N=600 and
 78.5 MB at N=750, which predicted an OOM ceiling in the N≈600–900 band — i.e. colliding with
-Convex's own `finish_push` TooManyReads wall (N=750 ok / N=800 fails, every flavor, every prior sweep).
+Convex's own `finish_push` TooManyReads wall (N=750 ok / N=800 fails in every prior sweep; that wall
+turned out to have moved, see §0.3).
 
 ### 0.3 Ceiling sweep (real deploys, reset per cell, Q/M + scheduler smoke on every passing cell)
 
-SWEEP_TABLE_PLACEHOLDER
+`bun run sweep -- --flavors=zodvex,zodvex-mini --ns=200,400,600,700,750,800 --shape=explicit --continue`
+plus two follow-up cells (zodvex 650, zodvex-mini 900) to tighten the brackets. Every cell resets the
+deployment first (fresh "0 → N" diff), composes, measures the proxy, pushes with `convex dev --once`,
+then runs the healthcheck *and* scheduler-encoding smoke functions. Push time includes the smoke calls.
+
+| flavor (explicit shape, zod **4.5.4**) | N=200 | 400 | 600 | 650 | 700 | 750 | 800 | 900 |
+|---|---|---|---|---|---|---|---|---|
+| **zodvex** (full zod) | ✓ 27 s | ✓ 66 s | ✓ 137 s | ✗ oom | ✗ oom | ✗ oom | ✗ oom | — |
+| **zodvex-mini** | ✓ 24 s | ✓ 57 s | ✓ 97 s | — | ✓ 129 s | ✓ 157 s | ✓ 196 s | ✗ oom |
+| *zodvex on 4.3.6* (June sweep: ok@50, ok@100, **oom@150**, oom@200) | ✗ | ✗ | ✗ | | | | | |
+| *zodvex-mini on 4.3.6* (June sweep: ok through 200, not pushed further) | ✓ | — | — | | | | | |
+
+Proxy heap of the pushed endpoint per cell — zodvex: 23.6 / 43.6 / 63.3 / 68.7 / 73.5 / 78.5 / 83.3 MB;
+zodvex-mini: 18.9 / 34.5 / 49.9 / — / 58.0 / 61.8 / 65.6 / 73.2 MB. Every OOM is the push-time
+`start_push` isolate ("JavaScript execution ran out of memory (maximum memory usage: 64 MB)"), i.e. the
+same failure class as the 4.3.6 cliff at 150.
+
+Readings:
+
+- **Full-zod zodvex, explicit shape: the memory ceiling moved from 100 < N < 150 (PR #63: 141) to
+  600 ≤ N < 650** — about 4.5× more tables in the *unchanged* documented shape, no codegen.
+- **The proxy calibrates the same way on both zod versions and both flavors**: 4.3.6 passed at 63.0 MB
+  and failed at 92.6 MB; on 4.5.4 the last pass is 65.6 MB (mini, 800) and the first failure 68.7 MB
+  (zodvex, 650). The isolate's 64 MB therefore corresponds to **~66–69 MB of node heap-on-load** for
+  this shape, tight enough that the proxy predicts a cell's outcome to within ~30 models before a push.
+- **zodvex-mini clears every count through 800** and OOMs at 900 (proxy 73.2 MB), so its ceiling
+  is **800 ≤ N < 900** — memory, not reads. Mini and full zod are now close per model (0.078 vs
+  0.100 MB), so mini's extra headroom is ~25% rather than the 3× it was on 4.3.6.
+- **Convex's `finish_push` TooManyReads wall has moved.** Every sweep since May (all five flavors, harness
+  and consolidated shapes) failed at exactly N=800 with `TooManyReads`; today N=800 pushed and smoked
+  clean for zodvex-mini in 196 s. The composed table/function count per N is the same across shapes,
+  so this is a Convex-backend change between June and September, not a zod effect. The "~800-table
+  parity ceiling" that PR #80 and the results docs anchor on needs re-characterizing before it is
+  quoted again; mini's N=900 cell OOMed on memory before any read-set error, so the wall now sits
+  above both flavors' memory ceilings and cannot be located with this corpus.
+- **Bundle bytes went up as §2 predicted, push time still went down.** Per-endpoint bundle +20–24%,
+  schema bundle +26–30% (4.3.6 → 4.5.4, N=100/200), in line with §2's +26% tree-shaken estimate. The
+  N=100 push nonetheless fell from 20.3 s to 11.8 s: push-time analysis is dominated by schema
+  *construction*, which 4.5 made ~6× cheaper. At N=600 the bytes do show: full zod pushes in 137 s vs
+  mini's 97 s. No Convex cap is approached.
 
 ### 0.4 What changed vs. the 4.3.6 numbers the perf PRs were built on
 
 | number the roadmap used | 4.3.6 source | 4.3.6 value | 4.5.4 measured |
 |---|---|---|---|
-| plain-zodvex push-time OOM ceiling (explicit shape) | PR #63 hybrid search; June sweep (ok@100, oom@150) | **141** | ZODVEX_CEILING_PLACEHOLDER |
-| zodvex-mini explicit ceiling | June sweep (ok through 200, not pushed further) | ≥200 | MINI_CEILING_PLACEHOLDER |
+| plain-zodvex push-time OOM ceiling (explicit shape) | PR #63 hybrid search; June sweep (ok@100, oom@150) | **141** | **600 ≤ N < 650** (ok@600, oom@650), ≈4.5× |
+| zodvex-mini explicit ceiling | June sweep (ok through 200, not pushed further) | ≥200 | **800 ≤ N < 900** (ok@800 in 196 s, oom@900) |
 | per-model eval cost driving PR #80's design | #80 rationale "~0.2–0.3 MB at eval"; proxy slope | 0.60 MB/model (proxy) | 0.10 MB/model (proxy) |
 | PR #84 runtime ceiling (K models imported per endpoint) | ~0.3 MB/model → K≈200 | 200 | not re-run; scaling by the measured 6× puts K well past 1000, beyond any real endpoint |
-| Convex TooManyReads wall | every sweep | 750 ok / 800 fail | TMR_PLACEHOLDER |
+| Convex TooManyReads wall | every sweep | 750 ok / 800 fail | **800 passes** (zodvex-mini, 196 s): backend change, not zod; wall not reached, memory binds first at 900 |
 
-VERDICT_PLACEHOLDER
+**Does the codegen overhaul's (#80) urgency calculus change? Yes, materially — from "beta-blocking
+OOM fix" to "scale feature for the >600-table tier".**
+
+- The cliff #80 was built to avoid — full-zod, codec-enabled apps OOMing per-entrypoint analysis at
+  ~141 tables in the plain shape — is now at 600 ≤ N < 650 on zod 4.5.4, with **zero zodvex changes**.
+  Anything under ~600 tables on full zod (or 800+ on mini) already deploys at what used to be called
+  pure-Convex parity, in the documented `explicit` shape on `main`. That covers essentially every real
+  zodvex app, hotpot included by a wide margin.
+- What #80 still owns, unchanged by 4.5: **(a)** zero zod in the schema isolate — the schema heap proxy
+  still grows 0.051 MB/model on 4.5.4 (33.8 MB at N=600), so `schema.ts` itself would hit the isolate
+  somewhere past ~1100 tables; **(b)** the codec `ctx.db` wrapping story at scale — the consolidated
+  `server.ts` shape that OOMed at 150–200 on 4.3.6 (`results/server-ts-shape-findings-2026-06-12.md`)
+  scales on the same model-import term and should move ~6× too, but that is a prediction (~900–1200),
+  **not measured here**; **(c)** the args-only scheduler registry and bytes-per-table descriptors, which
+  are about bundle bytes, and 4.5 made raw-zod bundles ~25% *bigger*.
+- The before/after gap that justified shipping #80 as a gated beta has shrunk from "141 vs ~800" to
+  "~600 vs ≥800+ (wherever the moved TooManyReads wall now is)". That is not a reason to drop the
+  design; it is a reason to stop treating it as urgent. Recommended order:
+  1. **Recommend zod ≥ 4.5 to users now** (docs + examples pin; consider raising the peer floor to
+     `^4.5.0` in the next minor). It is the largest deploy-headroom win available and costs nothing.
+  2. **Re-run #80's own shapes on 4.5.4** (`--shape=consolidated`, the codec-paths sweep) before any
+     further investment, and re-characterize the moved TooManyReads wall while doing it. Only then
+     decide what #80's beta gate should be.
+  3. **#63 (compile-away)**: keep framed as bundle-bytes/parity. Its memory pitch is now "2000 vs
+     ~600" instead of "2000 vs 141"; the bytes pitch got stronger (raw zod +25%).
+  4. **#84 (dynamic import)**: findings stand; the runtime K-models-per-endpoint ceiling scales with
+     the same ~6× (from ~200 to well over 1000), even further past what any endpoint does.
 
 ### 0.5 Caveats
 
