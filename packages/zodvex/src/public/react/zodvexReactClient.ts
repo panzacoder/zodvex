@@ -120,8 +120,9 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
       localQueryResult: () => {
         const wire = innerWatch.localQueryResult()
         if (wire === lastWire) return lastDecoded
+        const decoded = wire === undefined ? undefined : this.codec.decodeResult(ref, wire)
         lastWire = wire
-        lastDecoded = wire === undefined ? undefined : this.codec.decodeResult(ref, wire)
+        lastDecoded = decoded
         return lastDecoded
       },
       journal: () => innerWatch.journal()
