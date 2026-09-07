@@ -152,7 +152,12 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
       .join(', ')
     let message = `[zodvex] Decode failed for ${path}: ${issueList}. Returning raw wire data.`
     if (warnWirePreview) {
-      const preview = JSON.stringify(wireResult) ?? String(wireResult)
+      let preview = '[unavailable]'
+      try {
+        preview = JSON.stringify(wireResult) ?? '[unavailable]'
+      } catch {
+        // Debug logging must not change warn-mode behavior for non-JSON values.
+      }
       const truncated = preview.length > 200 ? `${preview.slice(0, 200)}...` : preview
       message += ` Preview: ${truncated}`
     }

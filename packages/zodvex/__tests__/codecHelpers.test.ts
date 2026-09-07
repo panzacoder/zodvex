@@ -94,6 +94,43 @@ describe('decodeResult', () => {
     warnSpy.mockRestore()
   })
 
+  it.each([
+    ['BigInt', () => 1n],
+    ['undefined', () => undefined],
+    [
+      'cyclic object',
+      () => {
+        const value: Record<string, unknown> = {}
+        value.self = value
+        return value
+      }
+    ],
+    [
+      'throwing serialization',
+      () => ({
+        toJSON() {
+          throw new Error('cannot serialize')
+        },
+        toString() {
+          throw new Error('cannot stringify')
+        }
+      })
+    ]
+  ])('warnWirePreview preserves raw %s on decode failure', (_name, makeValue) => {
+    const codec = createBoundaryHelpers(registry, { warnWirePreview: true })
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const wire = makeValue()
+    try {
+      expect(codec.decodeResult(fakeRef('tasks:get'), wire)).toBe(wire)
+      expect(warnSpy).toHaveBeenCalledExactlyOnceWith(
+        expect.stringContaining('Preview: [unavailable]')
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   it('throw mode: throws ZodvexDecodeError on decode failure', () => {
     const codec = createBoundaryHelpers(registry, { onDecodeError: 'throw' })
     const wire = { _id: 'x', title: 123, createdAt: 1700000000000 }
