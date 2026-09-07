@@ -419,19 +419,22 @@ export type ResolveDecodedDoc<
 /** System fields auto-managed by Convex — not writable by consumers. */
 type SystemFields = '_id' | '_creationTime'
 
+/** Distribute over document unions so variant-specific fields stay writable. */
+type WithoutSystemFields<Doc> = Doc extends unknown ? Omit<Doc, SystemFields> : never
+
 /** Decoded doc without system fields — for insert and replace values. */
 type DecodedWriteValue<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>
-> = Omit<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>, SystemFields>
+> = WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>
 
 /** Partial decoded doc without system fields — for patch values. */
 type DecodedPatchValue<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>
-> = Partial<Omit<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>, SystemFields>>
+> = Partial<WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>>
 
 /**
  * Resolves a table name from a GenericId by iterating the tableMap

@@ -67,3 +67,28 @@ db.delete('events', userId)
 db.delete('plain-id')
 // @ts-expect-error Unknown tables are rejected.
 db.delete('missing', eventId)
+
+type NoticeDoc = { _id: GenericId<'notices'>; _creationTime: number } & (
+  | { kind: 'email'; subject: string; at: Date }
+  | { kind: 'push'; title: string; at: Date }
+)
+type NoticeWire = { _id: GenericId<'notices'>; _creationTime: number } & (
+  | { kind: 'email'; subject: string; at: number }
+  | { kind: 'push'; title: string; at: number }
+)
+declare const notices: ZodvexDatabaseWriter<{ notices: Table<NoticeWire> }, { notices: NoticeDoc }>
+declare const noticeId: GenericId<'notices'>
+notices.insert('notices', { kind: 'email', subject: 'Hello', at: new Date() })
+notices.insert('notices', { kind: 'push', title: 'Hello', at: new Date() })
+notices.replace(noticeId, { kind: 'email', subject: 'Hello', at: new Date() })
+notices.replace('notices', noticeId, { kind: 'push', title: 'Hello', at: new Date() })
+notices.patch(noticeId, { subject: 'Updated' })
+notices.patch('notices', noticeId, { title: 'Updated' })
+// @ts-expect-error Each union member retains its required fields.
+notices.insert('notices', { kind: 'email', at: new Date() })
+// @ts-expect-error Discriminators must match the variant's fields.
+notices.replace(noticeId, { kind: 'push', subject: 'Hello', at: new Date() })
+// @ts-expect-error Union writes require decoded codec values.
+notices.insert('notices', { kind: 'email', subject: 'Hello', at: 42 })
+// @ts-expect-error Patch field types remain checked.
+notices.patch(noticeId, { subject: 42 })
