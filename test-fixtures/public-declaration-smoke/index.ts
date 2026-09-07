@@ -47,3 +47,24 @@ export const MiniApi = initMiniZodvex(MiniSchema, {
   internalMutation,
   internalAction
 })
+
+// Keep the emitted database surface honest as well as the source type suite.
+import type { GenericId } from 'convex/values'
+import type { InferDataModel, ZodvexDatabaseWriter } from 'zodvex/server'
+
+declare const db: ZodvexDatabaseWriter<InferDataModel<typeof FullSchema>, {
+  users: z.output<typeof FullUserModel.schema.doc>
+}>
+declare const userId: GenericId<'users'>
+const decoded = db.get('users', userId)
+decoded.then(user => user?.createdAt.getTime())
+db.insert('users', { email: 'a@example.com', createdAt: new Date() })
+db.patch('users', userId, { createdAt: new Date() })
+// @ts-expect-error Unknown tables must not select a declaration fallback.
+db.insert('missing', {})
+// @ts-expect-error Both calling conventions require decoded codec values.
+db.patch(userId, { createdAt: 42 })
+// @ts-expect-error Table-first writes must not select a declaration fallback.
+db.patch('users', userId, { createdAt: 42 })
+// @ts-expect-error Replacements must supply required fields.
+db.replace('users', userId, { email: 'a@example.com' })

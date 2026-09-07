@@ -506,8 +506,10 @@ export class ZodvexDatabaseReader<
   get<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>
   ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
-  /** @internal 2-arg form for table-first lookups */
-  get(idOrTable: any, maybeId?: any): Promise<any>
+  get<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>
+  ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
   async get(idOrTable: any, maybeId?: any): Promise<any> {
     let tableName: string | null
     let doc: any
@@ -628,10 +630,8 @@ export class ZodvexDatabaseWriter<
 
   insert<TableName extends TableNamesInDataModel<DataModel>>(
     table: TableName,
-    value: DecodedWriteValue<DataModel, DecodedDocs, TableName>
+    value: DecodedWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<GenericId<TableName>>
-  /** @internal untyped fallback */
-  insert(table: any, value: any): Promise<any>
   async insert(table: any, value: any): Promise<any> {
     const schemas = this.tableMap[table as string]
     const wireValue = schemas ? encodeDoc(schemas.insert, value) : value
@@ -640,10 +640,13 @@ export class ZodvexDatabaseWriter<
 
   patch<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>,
-    value: DecodedPatchValue<DataModel, DecodedDocs, TableName>
+    value: DecodedPatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
-  /** @internal 3-arg form for table-first patches */
-  patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void>
+  patch<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>,
+    value: DecodedPatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
+  ): Promise<void>
   async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
     let id: any
@@ -673,10 +676,13 @@ export class ZodvexDatabaseWriter<
 
   replace<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>,
-    value: DecodedWriteValue<DataModel, DecodedDocs, TableName>
+    value: DecodedWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
-  /** @internal 3-arg form for table-first replaces */
-  replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void>
+  replace<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>,
+    value: DecodedWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
+  ): Promise<void>
   async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
     let id: any
@@ -705,8 +711,10 @@ export class ZodvexDatabaseWriter<
   delete<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>
   ): Promise<void>
-  /** @internal 2-arg form for table-first deletes */
-  delete(idOrTable: any, maybeId?: any): Promise<void>
+  delete<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>
+  ): Promise<void>
   async delete(idOrTable: any, maybeId?: any): Promise<void> {
     if (maybeId !== undefined) {
       // 2-arg form (table, id) is @internal in Convex types — cast required
