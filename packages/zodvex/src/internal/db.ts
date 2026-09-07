@@ -246,8 +246,13 @@ function wrapIndexRangeBuilder(inner: any, schema: $ZodType): any {
   })
 }
 
+function isFilterExpression(value: any): boolean {
+  // Convex expressions serialize to an AST; only literal operands need encoding.
+  return value != null && typeof value.serialize === 'function'
+}
+
 function extractFieldPath(expr: any): string | null {
-  if (expr && typeof expr.serialize === 'function') {
+  if (isFilterExpression(expr)) {
     const inner = expr.serialize()
     if (inner && typeof inner === 'object' && '$field' in inner) {
       return inner.$field
@@ -263,9 +268,9 @@ function wrapFilterBuilder(inner: any, schema: $ZodType): any {
         return (l: any, r: any) => {
           const lField = extractFieldPath(l)
           const rField = extractFieldPath(r)
-          if (lField && !rField) {
+          if (lField && !isFilterExpression(r)) {
             r = encodeIndexValue(schema, lField, r)
-          } else if (rField && !lField) {
+          } else if (rField && !isFilterExpression(l)) {
             l = encodeIndexValue(schema, rField, l)
           }
           return target[prop](l, r)

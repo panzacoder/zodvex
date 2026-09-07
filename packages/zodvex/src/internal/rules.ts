@@ -175,10 +175,14 @@ export function installRulesSubclasses(bases: {
     }
 
     async take(n: number): Promise<Doc[]> {
+      if (!Number.isInteger(n) || n < 0) {
+        throw new Error('take requires a non-negative integer')
+      }
       const results: Doc[] = []
+      if (n === 0) return results
       for await (const doc of this as any) {
-        if (results.length >= n) break
         results.push(doc)
+        if (results.length >= n) break
       }
       return results
     }
@@ -201,10 +205,7 @@ export function installRulesSubclasses(bases: {
     }
 
     async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
-      const iter = super[Symbol.asyncIterator]()
-      while (true) {
-        const { value, done } = await iter.next()
-        if (done) break
+      for await (const value of super[Symbol.asyncIterator]()) {
         const result = normalizeReadResult(await this.readRule(this.ctx, value), value)
         if (result !== null) yield result
       }
