@@ -841,8 +841,15 @@ describe('withSearchIndex encoding', () => {
 function createFilterCapturingMockQuery(docs: any[]) {
   const captured: { method: string; left: any; right: any }[] = []
 
+  class MockExpression {
+    constructor(private inner: any) {}
+    serialize() {
+      return this.inner
+    }
+  }
+
   function makeExpr(inner: any) {
-    return { serialize: () => inner, _isExpression: undefined }
+    return new MockExpression(inner)
   }
 
   const mockFilterBuilder: any = {

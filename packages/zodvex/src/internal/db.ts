@@ -246,13 +246,12 @@ function wrapIndexRangeBuilder(inner: any, schema: $ZodType): any {
   })
 }
 
-function isFilterExpression(value: any): boolean {
-  // Convex expressions serialize to an AST; only literal operands need encoding.
-  return value != null && typeof value.serialize === 'function'
+function isFilterExpression(value: any, expressionPrototype: object): boolean {
+  return value != null && Object.prototype.isPrototypeOf.call(expressionPrototype, value)
 }
 
-function extractFieldPath(expr: any): string | null {
-  if (isFilterExpression(expr)) {
+function extractFieldPath(expr: any, expressionPrototype: object): string | null {
+  if (isFilterExpression(expr, expressionPrototype)) {
     const inner = expr.serialize()
     if (inner && typeof inner === 'object' && '$field' in inner) {
       return inner.$field
@@ -262,15 +261,18 @@ function extractFieldPath(expr: any): string | null {
 }
 
 function wrapFilterBuilder(inner: any, schema: $ZodType): any {
+  // Use the builder's own expression type, including expressions created outside
+  // this wrapper. A codec's runtime value may also have a serialize() method.
+  const expressionPrototype = Object.getPrototypeOf(inner.field('_id'))
   return new Proxy(inner, {
     get(target, prop, receiver) {
       if (typeof prop === 'string' && ['eq', 'neq', 'lt', 'lte', 'gt', 'gte'].includes(prop)) {
         return (l: any, r: any) => {
-          const lField = extractFieldPath(l)
-          const rField = extractFieldPath(r)
-          if (lField && !isFilterExpression(r)) {
+          const lField = extractFieldPath(l, expressionPrototype)
+          const rField = extractFieldPath(r, expressionPrototype)
+          if (lField && !isFilterExpression(r, expressionPrototype)) {
             r = encodeIndexValue(schema, lField, r)
-          } else if (rField && !isFilterExpression(l)) {
+          } else if (rField && !isFilterExpression(l, expressionPrototype)) {
             l = encodeIndexValue(schema, rField, l)
           }
           return target[prop](l, r)

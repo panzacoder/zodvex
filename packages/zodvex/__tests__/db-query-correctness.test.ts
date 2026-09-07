@@ -9,6 +9,40 @@ const variants = [
   ['mini', mini.object({ score: mini.number(), enabled: mini.boolean() })]
 ] as const
 
+it('encodes codec values with serialize methods while preserving external native expressions', async () => {
+  const { filterBuilderImpl: raw } = await import(
+    '../node_modules/convex/dist/esm/server/impl/filter_builder_impl.js'
+  )
+  class Label {
+    constructor(readonly value: string) {}
+    serialize() {
+      return this.value
+    }
+  }
+  const schema = z.object({
+    label: z.codec(z.string(), z.custom<Label>(value => value instanceof Label), {
+      decode: value => new Label(value),
+      encode: value => value.value
+    }),
+    score: z.number()
+  })
+  let actual: any
+  const inner = {
+    filter(predicate: any) {
+      actual = predicate(raw)
+      return inner
+    }
+  }
+  const chain = new ZodvexQueryChain(inner, schema)
+  chain.filter((q: any) => q.eq(q.field('label'), new Label('hello')))
+  expect(actual.serialize()).toEqual({ $eq: [{ $field: 'label' }, { $literal: 'hello' }] })
+  chain.filter((q: any) => q.eq(new Label('hello'), q.field('label')))
+  expect(actual.serialize()).toEqual({ $eq: [{ $literal: 'hello' }, { $field: 'label' }] })
+  const external = raw.add(raw.field('score'), 2)
+  chain.filter((q: any) => q.eq(q.field('score'), external))
+  expect(actual.serialize()).toEqual(raw.eq(raw.field('score'), external).serialize())
+})
+
 describe.each(variants)('query correctness (%s)', (_name, schema) => {
   it('preserves arithmetic, comparison, and logical expressions on either side of comparisons', async () => {
     const { filterBuilderImpl: raw } = await import(
