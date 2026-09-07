@@ -101,3 +101,10 @@ Authoritative ceiling snapshots live in `results/`. See
 [`results/README.md`](results/README.md) for an index. Journey-of-the-PR
 snapshots (early registry experiments, deploy-only sweeps,
 spike-validation notes) live in `results/archive/`.
+
+## Zod dependency baseline (local only)
+
+`schemaBaseline.mjs` compares exact Zod 4.3.6 and 4.5.4 schema construction and
+retained heap in fresh Node processes. It makes no deployment calls. See the
+[reproduction instructions and limitations](../../docs/planning/zod-4.5-baseline.md).
+The raw output is a local diagnostic proxy, not a Convex capacity estimate.
