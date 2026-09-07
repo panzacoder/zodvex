@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Project } from 'ts-morph'
+import * as full from 'zod'
+import * as mini from 'zod/mini'
 import { transformFile, transformCode, findInternalPropertyAccess } from './transforms'
 
 function transform(code: string): string {
@@ -222,12 +224,12 @@ describe('type-aware ambiguous methods', () => {
     expect(transform('z.object({ a: z.string() }).pick({ a: true })')).toBe('z.pick(z.object({ a: z.string() }), { a: true })')
   })
 
-  it('still transforms schema.pipe() unconditionally', () => {
-    expect(transform('schema.pipe(z.number())')).toBe('z.pipe(schema, z.number())')
+  it('leaves unknown pipe receivers alone', () => {
+    expect(transform('schema.pipe(z.number())')).toBe('schema.pipe(z.number())')
   })
 
-  it('still transforms schema.brand() unconditionally', () => {
-    expect(transform('schema.brand("Email")')).toBe('z.brand(schema, "Email")')
+  it('leaves unknown brand receivers alone', () => {
+    expect(transform('schema.brand("Email")')).toBe('schema.brand("Email")')
   })
 
   it('transforms .extend() on variable assigned from z.object()', () => {
@@ -336,12 +338,12 @@ describe('combined transforms', () => {
 })
 
 describe('transformMethods — .parse() and .safeParse()', () => {
-  it('.parse(value) → z.parse(schema, value)', () => {
-    expect(transform('schema.parse(data)')).toBe('z.parse(schema, data)')
+  it('leaves parse on an unknown receiver unchanged', () => {
+    expect(transform('schema.parse(data)')).toBe('schema.parse(data)')
   })
 
-  it('.safeParse(value) → z.safeParse(schema, value)', () => {
-    expect(transform('schema.safeParse(data)')).toBe('z.safeParse(schema, data)')
+  it('leaves safeParse on an unknown receiver unchanged', () => {
+    expect(transform('schema.safeParse(data)')).toBe('schema.safeParse(data)')
   })
 
   it('.parse() with complex expression receiver', () => {
@@ -362,8 +364,8 @@ describe('transformMethods — .parse() and .safeParse()', () => {
 })
 
 describe('transformMethods — .unwrap()', () => {
-  it('.unwrap() → ._zod.def.innerType', () => {
-    expect(transform('schema.unwrap()')).toBe('schema._zod.def.innerType')
+  it('leaves unwrap on an unknown receiver unchanged', () => {
+    expect(transform('schema.unwrap()')).toBe('schema.unwrap()')
   })
 
   it('.unwrap() on z.optional() result', () => {
@@ -627,5 +629,66 @@ describe('transformCode', () => {
     expect(result.changed).toBe(false)
     expect(result.code).toBe(input)
     expect(result.code).not.toContain('zod/mini')
+  })
+})
+
+
+describe('receiver and bound regressions', () => {
+  it.each([
+    'JSON.parse(text)', 'stream.pipe(destination)', 'formatter.email(value)',
+    'builder.default(value)', 'query.transform(fn)', 'service.unwrap()',
+    'custom.refine(predicate)',
+  ])('does not rewrite non-schema call %s', source => {
+    expect(transform(source)).toBe(source)
+  })
+
+  it('does not treat parsed values as schemas', () => {
+    expect(transform('z.string().parse(text).trim()')).toBe('z.parse(z.string(), text).trim()')
+  })
+
+  it('resolves shadowed parameters and sibling scopes lexically', () => {
+    const source = `const schema = z.string();
+      function first() { const schema = z.number(); schema.min(1); }
+      function second(schema) { schema.optional(); schema.parse(value); }
+      { const schema = service; schema.default(value); }
+      schema.min(2);`
+    const result = transform(source)
+    expect(result).toContain('schema.check(z.gte(1))')
+    expect(result).toContain('schema.optional(); schema.parse(value)')
+    expect(result).toContain('schema.default(value)')
+    expect(result).toContain('schema.check(z.minLength(2))')
+  })
+
+  it('follows schema aliases', () => {
+    expect(transform('const a = z.array(z.number()); const b = a; b.min(2).max(3);'))
+      .toContain('b.check(z.minLength(2)).check(z.maxLength(3))')
+  })
+
+  it('does not override definitive negative type evidence', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', `declare const z: any;
+      const schema: { optional(): string; parse(x: string): string } = z.string();
+      schema.optional(); schema.parse('x');`)
+    transformFile(file, project.getTypeChecker())
+    expect(file.getFullText()).toContain("schema.optional(); schema.parse('x')")
+  })
+
+  it('does not mistake a locally shadowed z for the namespace', () => {
+    expect(transform('function f(z) { return z.string().optional(); }'))
+      .toBe('function f(z) { return z.string().optional(); }')
+  })
+
+  it.each([
+    ['z.array(z.number()).min(2).max(3)', [[], [1], [1, 2], [1, 2, 3, 4]]],
+    ['z.array(z.string()).min(2).max(3)', [[], ['a'], ['a', 'b'], ['a', 'b', 'c', 'd']]],
+    ['z.string().min(2).max(3)', ['', 'a', 'ab', 'abcd']],
+    ['z.number().min(2).max(3)', [1, 2, 3, 4]],
+    ['z.set(z.number()).min(2).max(3)', [new Set(), new Set([1, 2]), new Set([1, 2, 3, 4])]],
+  ])('preserves full/mini validation for %s', (source, values) => {
+    const original = new Function('z', `return ${source}`)(full)
+    const converted = new Function('z', `return ${transform(source)}`)(mini)
+    for (const value of values) {
+      expect(converted.safeParse(value).success).toBe(original.safeParse(value).success)
+    }
   })
 })

@@ -4,7 +4,7 @@
  * Each transform handles one category of method-to-function conversion.
  * Transforms are applied repeatedly until no more changes are made (fixed-point).
  */
-import { Project, type SourceFile, SyntaxKind, type CallExpression, type PropertyAccessExpression, type TypeChecker } from 'ts-morph'
+import { Project, Node, type SourceFile, SyntaxKind, type CallExpression, type PropertyAccessExpression, type TypeChecker } from 'ts-morph'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,24 +57,7 @@ export function transformWrappers(file: SourceFile, typeChecker?: TypeChecker): 
     // Skip namespace calls — `z.optional()` is a constructor, not a method chain.
     if (isNamespaceCall(obj)) continue
 
-    // Receiver gating: only rewrite when we're confident the receiver is a
-    // Zod schema. Without this, generic chains like `someUserHelper().nullable()`
-    // or string `.nullable()` (hypothetical user code) would get rewritten to
-    // `z.nullable(...)` and break at runtime. See #65.
-    let isSchema: boolean
-    if (typeChecker) {
-      const typeResult = isZodSchemaByType(call, typeChecker)
-      // true = confirmed schema, false = confirmed non-schema, null = unknown.
-      // When unknown (typically string-in mode with no project info), fall
-      // back to the syntactic heuristic, then to scope-tracking.
-      isSchema = typeResult === true || (typeResult === null && isLikelySchemaExpr(obj))
-    } else {
-      isSchema = isLikelySchemaExpr(obj)
-    }
-    if (!isSchema && isSchemaVariable(call, obj.trim())) {
-      isSchema = true
-    }
-    if (!isSchema) continue
+    if (!isSchemaReceiver(call, typeChecker)) continue
 
     // Replace `expr.optional()` → `z.optional(expr)`
     call.replaceWithText(`z.${method}(${obj})`)
@@ -88,8 +71,8 @@ export function transformWrappers(file: SourceFile, typeChecker?: TypeChecker): 
 // Transform: string/number validation methods → .check()
 // .email() → .check(z.email())
 // .url() → .check(z.url())
-// .min(n) → .check(z.minLength(n)) / .check(z.min(n))
-// .max(n) → .check(z.maxLength(n)) / .check(z.max(n))
+// .min(n) → .check(z.minLength(n)) / .check(z.gte(n))
+// .max(n) → .check(z.maxLength(n)) / .check(z.lte(n))
 // .length(n) → .check(z.length(n))
 // .regex(r) → .check(z.regex(r))
 // .trim() → .check(z.trim())
@@ -109,8 +92,8 @@ export function transformWrappers(file: SourceFile, typeChecker?: TypeChecker): 
 // Special cases:
 // .min(n) on string → z.minLength(n)
 // .max(n) on string → z.maxLength(n)
-// .min(n) on number → z.min(n) (same name but standalone)
-// .max(n) on number → z.max(n)
+// .min(n) on number → z.gte(n)
+// .max(n) on number → z.lte(n)
 // ---------------------------------------------------------------------------
 
 /** Identifiers that are Zod/zodvex namespaces, not schema expressions.
@@ -122,7 +105,7 @@ function isNamespaceCall(obj: string): boolean {
   return NAMESPACE_IDENTIFIERS.has(obj.trim())
 }
 
-/** Check methods UNIQUE to Zod that have verified standalone z.methodName() equivalents.
+/** Schema checks with verified standalone z.methodName() equivalents.
  *  EXCLUDED: ip, cidr, datetime, duration, finite, safe — no standalone functions. */
 const ZOD_ONLY_CHECK_METHODS = [
   'email', 'url', 'uuid', 'cuid', 'cuid2', 'ulid', 'nanoid',
@@ -141,74 +124,77 @@ const AMBIGUOUS_CHECK_METHODS = [
   'gt', 'gte', 'lt', 'lte',
 ] as const
 
-/** Returns true if the object expression looks like a Zod schema chain.
- *  Strips leading parens and `as <Type>` casts before matching so common
- *  idioms like `(zx.doc(model) as any)` aren't rejected. */
-function isLikelySchemaExpr(obj: string): boolean {
-  const normalized = obj
-    .trim()
-    .replace(/^\(+/, '') // strip leading open parens
-    .replace(/\s+as\s+[\w$<>,\s|&[\]]+\)*\s*$/, '') // strip trailing `as Type` (incl. unions/generics)
-    .trim()
-  // z.string(), z.number(), z.object({...}), z.array(...), etc.
-  if (normalized.match(/^z\.\w+\(/)) return true
-  // zx.id(...), zx.date(), etc.
-  if (normalized.match(/^zx\.\w+\(/)) return true
-  return false
-}
-
-/**
- * Scope-aware schema variable lookup for a specific call expression.
- * Walks up from the call to find the nearest variable declaration matching
- * the given name and checks if its initializer is a schema expression.
- * Avoids false positives from same-named variables in different scopes.
- */
-function isSchemaVariable(call: CallExpression, varName: string): boolean {
-  // Find all variable declarations in the file, closest to the call site first
-  const file = call.getSourceFile()
-  const varDecls = file.getDescendantsOfKind(SyntaxKind.VariableDeclaration)
-
-  // Find the closest declaration of this variable that comes before the call
-  let closestDecl: typeof varDecls[0] | undefined
-  for (const decl of varDecls) {
-    if (decl.getName() !== varName) continue
-    if (decl.getStart() >= call.getStart()) continue
-    // Keep the closest (last one before the call)
-    closestDecl = decl
+/** Resolve declarations through TypeScript symbols, so shadowed parameters and
+ * sibling blocks cannot inherit evidence from a same-spelled variable. */
+function schemaKind(node: Node, seen = new Set<Node>()): string | null {
+  if (seen.has(node)) return null
+  seen.add(node)
+  if (Node.isParenthesizedExpression(node) || Node.isAsExpression(node) || Node.isNonNullExpression(node)) {
+    return schemaKind(node.getExpression(), seen)
   }
-
-  if (!closestDecl) return false
-  const init = closestDecl.getInitializer()
-  if (!init) return false
-  return isLikelySchemaExpr(init.getText())
-}
-
-/**
- * Uses the TypeScript type checker to determine if the receiver of a method call
- * is a Zod schema. Checks for the `_zod` property which exists on every Zod schema
- * instance (both full zod and zod/mini).
- *
- * Returns:
- *  - `true`  — the receiver is confirmed to be a Zod schema
- *  - `false` — the receiver is confirmed to NOT be a Zod schema
- *  - `null`  — the type checker couldn't determine the type (e.g., `any`)
- *              Callers should fall back to the syntactic heuristic.
- */
-function isZodSchemaByType(call: CallExpression, typeChecker: TypeChecker): boolean | null {
-  const expr = call.getExpression()
-  if (expr.getKind() !== SyntaxKind.PropertyAccessExpression) return false
-  const receiver = (expr as PropertyAccessExpression).getExpression()
-
-  try {
-    const type = typeChecker.getTypeAtLocation(receiver)
-    // If the type resolved to `any`, the checker couldn't determine the actual type.
-    // This happens after AST mutations (e.g., z.partial(...) is not in zod's type defs)
-    // or for unresolvable expressions. Return null to signal "unknown".
-    if (type.isAny()) return null
-    return type.getProperties().some(p => p.getName() === '_zod')
-  } catch {
+  if (Node.isIdentifier(node)) {
+    for (const decl of node.getSymbol()?.getDeclarations() ?? []) {
+      if (Node.isVariableDeclaration(decl)) {
+        const init = decl.getInitializer()
+        if (init) return schemaKind(init, seen)
+      }
+      if (Node.isParameterDeclaration(decl)) {
+        const annotation = decl.getTypeNode()?.getText()
+        if (annotation && /^z\.Zod(?:Mini)?\w+/.test(annotation)) return 'schema'
+      }
+    }
     return null
   }
+  if (!Node.isCallExpression(node)) return null
+  const expr = node.getExpression()
+  if (!Node.isPropertyAccessExpression(expr)) return null
+  const receiver = expr.getExpression()
+  const name = expr.getName()
+  if (Node.isIdentifier(receiver) && NAMESPACE_IDENTIFIERS.has(receiver.getText())) {
+    // A local object named z is not a Zod namespace.
+    // Most files only import the namespace. Avoid initializing/rebuilding the
+    // type checker for every constructor unless a local binding could shadow it.
+    const localBinding = node.getSourceFile().getDescendants().some(d =>
+      (Node.isVariableDeclaration(d) || Node.isParameterDeclaration(d) || Node.isFunctionDeclaration(d) || Node.isBindingElement(d) || Node.isClassDeclaration(d) || Node.isEnumDeclaration(d)) &&
+      d.getName() === receiver.getText()
+    )
+    if (localBinding) {
+      const declarations = receiver.getSymbol()?.getDeclarations() ?? []
+      if (declarations.some(d => !Node.isImportSpecifier(d) && !Node.isNamespaceImport(d))) return null
+    }
+    if (['parse', 'safeParse', 'parseAsync', 'safeParseAsync', 'encode', 'decode'].includes(name)) return null
+    if (['string', 'number', 'bigint', 'array', 'set', 'date'].includes(name)) return name
+    return 'schema'
+  }
+  // Parsing produces values, not schemas, even when a schema starts the chain.
+  if (['parse', 'safeParse', 'parseAsync', 'safeParseAsync', 'encode', 'decode'].includes(name)) return null
+  if (name === 'array' && schemaKind(receiver, seen)) return 'array'
+  return schemaKind(receiver, seen)
+}
+
+function isSchemaReceiver(call: CallExpression, typeChecker?: TypeChecker): boolean {
+  const expr = call.getExpression()
+  if (!Node.isPropertyAccessExpression(expr)) return false
+  const receiver = expr.getExpression()
+  if (typeChecker) {
+    const type = typeChecker.getTypeAtLocation(receiver)
+    // A resolved non-schema type is definitive; syntax cannot override it.
+    if (!type.isAny() && !type.isUnknown()) return type.getProperty('_zod') !== undefined
+  }
+  return schemaKind(receiver) !== null
+}
+
+function receiverKind(call: CallExpression, typeChecker?: TypeChecker): string | null {
+  const expr = call.getExpression()
+  if (!Node.isPropertyAccessExpression(expr)) return null
+  const receiver = expr.getExpression()
+  if (typeChecker) {
+    const type = typeChecker.getTypeAtLocation(receiver)
+    const def = type.getProperty('_zod')?.getTypeAtLocation(receiver).getProperty('def')?.getTypeAtLocation(receiver)
+    const kind = def?.getProperty('type')?.getTypeAtLocation(receiver).getLiteralValue()
+    if (typeof kind === 'string') return kind
+  }
+  return schemaKind(receiver)
 }
 
 /** Methods that need renaming for string context */
@@ -223,7 +209,7 @@ const NUMBER_RENAME: Record<string, string> = {
   max: 'lte',
 }
 
-export function transformChecks(file: SourceFile): number {
+export function transformChecks(file: SourceFile, typeChecker?: TypeChecker): number {
   let count = 0
   const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).reverse()
 
@@ -241,7 +227,10 @@ export function transformChecks(file: SourceFile): number {
     const args = call.getArguments().map(a => a.getText())
     const argsStr = args.length > 0 ? args.join(', ') : ''
 
-    // Zod-unique check methods — safe to convert unconditionally
+    if (![...ZOD_ONLY_CHECK_METHODS, ...AMBIGUOUS_CHECK_METHODS, 'min', 'max'].includes(method)) continue
+    if (!isSchemaReceiver(call, typeChecker)) continue
+
+    // Schema check methods
     if ((ZOD_ONLY_CHECK_METHODS as readonly string[]).includes(method)) {
       call.replaceWithText(`${obj}.check(z.${method}(${argsStr}))`)
       count++
@@ -249,16 +238,19 @@ export function transformChecks(file: SourceFile): number {
     }
 
     // Ambiguous methods — only convert when the object is clearly a schema
-    if ((AMBIGUOUS_CHECK_METHODS as readonly string[]).includes(method) && isLikelySchemaExpr(obj)) {
+    if ((AMBIGUOUS_CHECK_METHODS as readonly string[]).includes(method)) {
       call.replaceWithText(`${obj}.check(z.${method}(${argsStr}))`)
       count++
       continue
     }
 
     // .min()/.max() — only on schema expressions, context-dependent rename
-    if ((method === 'min' || method === 'max') && isLikelySchemaExpr(obj)) {
-      const isString = obj.includes('z.string')
-      const checkName = isString ? STRING_RENAME[method] : NUMBER_RENAME[method]
+    if (method === 'min' || method === 'max') {
+      const kind = receiverKind(call, typeChecker)
+      const checkName = kind === 'string' || kind === 'array' ? STRING_RENAME[method]
+        : kind === 'number' || kind === 'bigint' ? NUMBER_RENAME[method]
+        : kind === 'set' ? (method === 'min' ? 'minSize' : 'maxSize') : null
+      if (!checkName) continue
       call.replaceWithText(`${obj}.check(z.${checkName}(${argsStr}))`)
       count++
       continue
@@ -279,18 +271,12 @@ export function transformChecks(file: SourceFile): number {
 // schema.brand(tag) → z.brand(schema, tag)
 // ---------------------------------------------------------------------------
 
-/** Methods that become z.methodName(schema, ...args) — safe to transform unconditionally.
+/** Methods that become z.methodName(schema, ...args) — only for confirmed schema receivers.
  *  `parse` and `safeParse` exist as instance methods on mini schemas at runtime, but
  *  `$ZodType` from `zod/v4/core` doesn't declare them in its interface. Transforming to
  *  the functional form `z.parse(schema, value)` works at both the type AND runtime level
  *  and is the recommended idiom in mini. */
-const UNCONDITIONAL_TOP_LEVEL = ['pipe', 'brand', 'parse', 'safeParse'] as const
-
-/** Methods that become z.methodName(schema, ...args) — only transform when receiver is
- *  confirmed as a Zod schema. These method names collide with non-Zod APIs
- *  (e.g., ConvexCodec.pick(), Lodash.extend()). Without type info, we fall back to
- *  the isLikelySchemaExpr heuristic. */
-const AMBIGUOUS_TOP_LEVEL = ['partial', 'extend', 'catchall', 'omit', 'pick'] as const
+const TOP_LEVEL_METHODS = ['pipe', 'brand', 'parse', 'safeParse', 'partial', 'extend', 'catchall', 'omit', 'pick'] as const
 
 /** schema.default(val) → z._default(schema, val) — underscore-prefixed in mini */
 const RENAMED_METHODS = new Map<string, string>([
@@ -320,32 +306,11 @@ export function transformMethods(file: SourceFile, typeChecker?: TypeChecker): n
 
     const args = call.getArguments().map(a => a.getText())
 
-    // Unconditional top-level: always safe to transform (no name collisions)
-    if ((UNCONDITIONAL_TOP_LEVEL as readonly string[]).includes(method)) {
-      const argsStr = args.length > 0 ? `, ${args.join(', ')}` : ''
-      call.replaceWithText(`z.${method}(${obj}${argsStr})`)
-      count++
-      continue
-    }
+    if (![...TOP_LEVEL_METHODS, ...RENAMED_METHODS.keys(), TRANSFORM_METHOD, 'unwrap', ...CHECK_WRAP_METHODS].includes(method)) continue
+    if (!isSchemaReceiver(call, typeChecker)) continue
 
-    // Ambiguous top-level: only transform when receiver is a Zod schema.
-    if ((AMBIGUOUS_TOP_LEVEL as readonly string[]).includes(method)) {
-      let isSchema: boolean
-      if (typeChecker) {
-        const typeResult = isZodSchemaByType(call, typeChecker)
-        // true = confirmed schema, false = confirmed non-schema, null = unknown (any)
-        // When the type checker returns null (couldn't resolve), fall back to heuristics.
-        isSchema = typeResult === true || (typeResult === null && isLikelySchemaExpr(obj))
-      } else {
-        isSchema = isLikelySchemaExpr(obj)
-      }
-      // Fall back to scope-aware variable tracking: if the receiver is a variable
-      // whose closest declaration is assigned from a schema expression, treat it as a schema.
-      if (!isSchema && isSchemaVariable(call, obj.trim())) {
-        isSchema = true
-      }
-      if (!isSchema) continue
-
+    // Top-level forms for confirmed schema receivers
+    if ((TOP_LEVEL_METHODS as readonly string[]).includes(method)) {
       const argsStr = args.length > 0 ? `, ${args.join(', ')}` : ''
       call.replaceWithText(`z.${method}(${obj}${argsStr})`)
       count++
@@ -405,7 +370,7 @@ const CONSTRUCTOR_REPLACEMENTS: Record<string, string> = {
   strict: 'strictObject',
 }
 
-export function transformConstructorReplacements(file: SourceFile): number {
+export function transformConstructorReplacements(file: SourceFile, typeChecker?: TypeChecker): number {
   let count = 0
   const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).reverse()
 
@@ -416,6 +381,9 @@ export function transformConstructorReplacements(file: SourceFile): number {
 
     const obj = getCallObject(call)
     if (!obj) continue
+
+    if (!(method in CONSTRUCTOR_REPLACEMENTS) && method !== 'datetime') continue
+    if (!isSchemaReceiver(call, typeChecker)) continue
 
     // z.object(shape).passthrough() → z.looseObject(shape)
     // z.object(shape).strict() → z.strictObject(shape)
@@ -507,9 +475,9 @@ export function transformPropertyAccessors(file: SourceFile, typeChecker?: TypeC
     let isSchema: boolean
     if (typeChecker) {
       const typeResult = isZodSchemaByTypePA(pa, typeChecker)
-      isSchema = typeResult === true || (typeResult === null && isLikelySchemaExpr(receiverText))
+      isSchema = typeResult === true || (typeResult === null && schemaKind(receiver) !== null)
     } else {
-      isSchema = isLikelySchemaExpr(receiverText)
+      isSchema = schemaKind(receiver) !== null
     }
 
     if (!isSchema) continue
@@ -545,7 +513,7 @@ export function findInternalPropertyAccess(
     if (receiverText.includes('._zod.def.') || receiverText.endsWith('._zod.def')) continue
 
     // Skip if already transformed by transformPropertyAccessors (heuristic matched)
-    if (isLikelySchemaExpr(receiverText)) continue
+    if (schemaKind(receiver) !== null) continue
 
     // If type checker says it's definitely not a schema, skip the warning
     if (typeChecker) {
@@ -884,9 +852,9 @@ export function transformFile(file: SourceFile, typeChecker?: TypeChecker): Tran
   for (let i = 0; i < 10; i++) {
     // Constructor replacements FIRST — they change z.object(shape).passthrough()
     // into z.looseObject(shape), which may then have .optional() etc. on the outside
-    const cr = transformConstructorReplacements(file)
+    const cr = transformConstructorReplacements(file, typeChecker)
     const w = transformWrappers(file, typeChecker)
-    const c = transformChecks(file)
+    const c = transformChecks(file, typeChecker)
     const m = transformMethods(file, typeChecker)
     const pa = transformPropertyAccessors(file, typeChecker)
     constructorReplacements += cr

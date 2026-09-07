@@ -8,12 +8,14 @@
   "types": "src/index.ts",
   "scripts": {
     "transform": "bun run src/cli.ts",
-    "test": "bunx vitest run"
+    "test": "vitest run"
   },
   "dependencies": {
     "ts-morph": "^25.0.0"
   },
   "devDependencies": {
-    "vite": "^8.0.3"
+    "vite": "^8.0.3",
+    "vitest": "^4.1.0",
+    "zod": "4.3.6"
   }
 }
