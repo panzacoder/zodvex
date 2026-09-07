@@ -97,8 +97,8 @@ fi
 echo ""
 
 # --- Pre-release checks ---
-echo "==> Running full validation..."
-bun run validate
+echo "==> Running local release validation..."
+bun run validate:local
 echo "All checks passed."
 echo ""
 
