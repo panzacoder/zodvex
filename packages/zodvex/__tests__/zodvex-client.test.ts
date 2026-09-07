@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import * as mini from 'zod/mini'
 import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
@@ -421,39 +422,58 @@ describe('ZodvexClient', () => {
   // ---- onPaginatedUpdate_experimental -------------------------------------
 
   describe('onPaginatedUpdate_experimental', () => {
-    it('encodes args and decodes each page item', () => {
-      const ts = 1700000000000
-      const dueDate = new Date('2026-06-15T00:00:00Z')
-      let capturedArgs: any = null
-      let decoded: any = null
-
-      mocks.paginatedImpl = (_ref: any, args: any, _options: any, callback: any) => {
-        capturedArgs = args
-        callback({
-          page: [{ _id: 'p1', title: 'Paged', createdAt: ts }],
-          isDone: true,
-          continueCursor: ''
-        })
-        return () => {
-          /* no-op */
-        }
-      }
-
-      client.onPaginatedUpdate_experimental(
-        fakeRef('tasks:create'),
-        { title: 'x', dueAt: dueDate },
-        { initialNumItems: 10 },
-        (r: any) => {
-          decoded = r
-        }
+    it.each([
+      ['full', z],
+      ['mini', mini]
+    ] as const)('supports explicit complete-page queries (%s)', async (_name, schema) => {
+      const paginationOpts = { numItems: 10, cursor: null }
+      const wire = { page: [{ createdAt: 1700000000000 }], isDone: false, continueCursor: 'next' }
+      const query = vi.fn((_ref, args) => {
+        expect(args).toEqual({ paginationOpts })
+        return wire
+      })
+      mocks.queryImpl = query
+      const paginatedClient = createZodvexClient(
+        {
+          'tasks:page': {
+            args: schema.object({
+              paginationOpts: schema.object({
+                numItems: schema.number(),
+                cursor: schema.nullable(schema.string())
+              })
+            }),
+            returns: schema.object({
+              page: schema.array(schema.object({ createdAt: zx.date() })),
+              isDone: schema.boolean(),
+              continueCursor: schema.string()
+            })
+          }
+        },
+        { url: 'https://test.convex.cloud', onDecodeError: 'throw' }
       )
+      const result = await paginatedClient.query(fakeRef('tasks:page'), { paginationOpts })
+      expect(result.page[0].createdAt.getTime()).toBe(1700000000000)
+      expect(result.continueCursor).toBe('next')
+      expect(result.isDone).toBe(false)
+      wire.continueCursor = null as any
+      await expect(
+        paginatedClient.query(fakeRef('tasks:page'), { paginationOpts })
+      ).rejects.toThrow()
+    })
 
-      // Args encoded: Date -> number
-      expect(typeof capturedArgs.dueAt).toBe('number')
-      // Each page item decoded: number -> Date
-      expect(decoded.page[0].createdAt).toBeInstanceOf(Date)
-      expect(decoded.page[0].createdAt.getTime()).toBe(ts)
-      expect(decoded.isDone).toBe(true)
+    it('fails before creating a client or subscription with an actionable diagnostic', () => {
+      const subscribe = vi.fn()
+      mocks.paginatedImpl = subscribe
+      expect(() =>
+        client.onPaginatedUpdate_experimental(
+          fakeRef('tasks:list'),
+          {},
+          { initialNumItems: 10 },
+          vi.fn()
+        )
+      ).toThrow('Use query or subscribe with explicit paginationOpts')
+      expect(subscribe).not.toHaveBeenCalled()
+      expect(mocks.instancesCreated).toBe(0)
     })
   })
 

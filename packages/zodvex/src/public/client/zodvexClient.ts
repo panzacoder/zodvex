@@ -128,8 +128,11 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
   }
 
   /**
-   * Experimental paginated subscription. Encodes args to wire and decodes each
-   * page item through the registry, mirroring {@link subscribe}.
+   * Currently unsupported: Convex's experimental subscription aggregates pages
+   * into `{ results, status, loadMore }`, discarding the page envelope required
+   * by the registered return schema. Throws before opening a subscription.
+   * Use {@link query} or {@link subscribe} with explicit `paginationOpts` instead.
+   * @deprecated Pending a codec-aware adapter for Convex's aggregate result contract.
    */
   onPaginatedUpdate_experimental<Q extends FunctionReference<'query', any, any, any>>(
     ref: Q,
@@ -143,19 +146,12 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
     }) => void,
     onError?: (e: Error) => void
   ): ReturnType<ConvexClient['onPaginatedUpdate_experimental']> {
-    const wireArgs = this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
-    return this.getConvex().onPaginatedUpdate_experimental(
-      ref,
-      wireArgs,
-      options,
-      (wireResult: any) => {
-        callback({
-          ...wireResult,
-          page: wireResult.page.map((item: any) => this.codec.decodeResult(ref, item))
-        })
-      },
-      onError
-    ) as ReturnType<ConvexClient['onPaginatedUpdate_experimental']>
+    throw new Error(
+      '[zodvex] onPaginatedUpdate_experimental is currently unsupported: ' +
+        'Convex aggregates pages into { results, status, loadMore }, but the registry ' +
+        'validates complete pagination results. Use query or subscribe with explicit ' +
+        'paginationOpts (or ZodvexReactClient.watchQuery) to decode each complete page.'
+    )
   }
 
   /**
