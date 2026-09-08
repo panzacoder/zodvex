@@ -7,7 +7,7 @@ full/mini refactor completed on April 7, 2026.
 
 **zodvex lets you use Zod v4 as your schema language for Convex** — define your tables,
 args, and return types once and use them end to end. Its standout differentiator is
-automatic validation plus a codec-aware `ctx.db` (`Date`/id/custom encode-decode at the
+automatic validation for declared function schemas and modeled reads, plus a codec-aware `ctx.db` (`Date`/id/custom encode-decode at the
 database boundary, with `.withRules()` and `.audit()`), all wired once via `initZodvex`.
 It is *not* a validator-mapper (mapping is the foundation, not the product — zodvex owns
 its mapping layer in `internal/mapping/`, with `convex-helpers` as a peer for the
@@ -213,11 +213,11 @@ The architectural rules are:
 **shared runtime layers own encode/decode behavior once; examples and wrappers
 should not paper over that behavior manually.**
 
-**the codec layer adds meaning at boundaries; it never subtracts native Convex
-capability.** If raw Convex can express something (e.g. `patch` deleting a field
-via `undefined`), the wrapped `ctx.db` must be able to express it too. A "safe
-default" that removes a native capability with no escape hatch is a bug, not a
-design choice.
+**Preserve native Convex operations where the wrapped schema contract supports them,
+and document limitations and escape hatches.** Object patches preserve top-level
+`undefined` for field deletion, while union patches currently use full encoding.
+`unwrap()` provides native database access and bypasses codecs, rules, and audit.
+See the [boundary contract](./decisions/2026-09-07-boundary-contract.md).
 
 This is why the refactor also moved index/filter handling back toward shared DB
 machinery instead of letting examples carry ad hoc `getTime()` workarounds.
