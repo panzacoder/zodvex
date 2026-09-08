@@ -121,11 +121,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.22.3
           registry-url: 'https://registry.npmjs.org'
 
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@12.0.2
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
