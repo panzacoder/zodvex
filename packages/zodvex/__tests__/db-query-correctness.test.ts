@@ -20,10 +20,14 @@ it('encodes codec values with serialize methods while preserving external native
     }
   }
   const schema = z.object({
-    label: z.codec(z.string(), z.custom<Label>(value => value instanceof Label), {
-      decode: value => new Label(value),
-      encode: value => value.value
-    }),
+    label: z.codec(
+      z.string(),
+      z.custom<Label>(value => value instanceof Label),
+      {
+        decode: value => new Label(value),
+        encode: value => value.value
+      }
+    ),
     score: z.number()
   })
   let actual: any
