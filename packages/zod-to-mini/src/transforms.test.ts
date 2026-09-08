@@ -297,6 +297,56 @@ describe('transformConstructorReplacements', () => {
 })
 
 describe('findObjectOnlyMethods (warnings)', () => {
+  it('warns for unsupported date min/max without rewriting the bounds', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const source = `import { z } from 'zod';
+const earliest = z.date().min(new Date(0));
+const latest = z.date().max(new Date(1));`
+    const file = project.createSourceFile('test.ts', source)
+    const result = transformFile(file)
+    expect(result.objectOnlyWarnings).toEqual([
+      { line: 2, method: 'min', text: 'z.date().min(new Date(0))' },
+      { line: 3, method: 'max', text: 'z.date().max(new Date(1))' },
+    ])
+    expect(file.getFullText()).toBe(source)
+    expect(result.totalChanges).toBe(0)
+  })
+
+  it('warns for date bounds resolved through type evidence', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', `declare const schema: {
+      _zod: { def: { type: 'date' } };
+      min(value: Date): unknown;
+      max(value: Date): unknown;
+    };
+    schema.min(new Date(0)); schema.max(new Date(1));`)
+    const result = transformFile(file, project.getTypeChecker())
+    expect(result.objectOnlyWarnings.map(warning => warning.method)).toEqual(['min', 'max'])
+  })
+
+  it('keeps date-bound warnings scoped to schema receivers', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', `import { z } from 'zod';
+      const date = z.date(); const alias = date;
+      alias.min(new Date(0));
+      function sibling(alias) { alias.max(value); }
+      function shadow(z) { z.date().min(value); }
+      z.date().parse(value).max(other);
+      Math.min(1, 2); z.min(value);
+      z.string().min(1); z.number().max(2);`)
+    const result = transformFile(file)
+    expect(result.objectOnlyWarnings.map(warning => warning.text)).toEqual(['alias.min(new Date(0))'])
+  })
+
+  it('does not warn against definitive non-schema type evidence for date-like initializers', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', `declare const z: any;
+      const schema: { min(value: Date): string; max(value: Date): string } = z.date();
+      schema.min(new Date(0)); schema.max(new Date(1));`)
+    const result = transformFile(file, project.getTypeChecker())
+    expect(result.objectOnlyWarnings).toEqual([])
+  })
+
   it('flags .merge() (manual migration needed)', () => {
     const project = new Project({ useInMemoryFileSystem: true })
     const file = project.createSourceFile('test.ts', 'schema.merge(other)')

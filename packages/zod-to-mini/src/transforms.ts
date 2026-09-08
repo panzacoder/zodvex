@@ -570,13 +570,17 @@ const WARN_METHODS = [
   'merge',        // use z.extend() or spread
 ] as const
 
-export function findObjectOnlyMethods(file: SourceFile): Array<{ line: number; method: string; text: string }> {
+export function findObjectOnlyMethods(file: SourceFile, typeChecker?: TypeChecker): Array<{ line: number; method: string; text: string }> {
   const results: Array<{ line: number; method: string; text: string }> = []
   const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression)
+  // Date bounds have no automatic rewrite; retain the same receiver and scope
+  // checks as transformChecks when flagging them for manual migration.
+  const bounds = analyzeCallReceivers(calls, ['min', 'max'], typeChecker)
 
   for (const call of calls) {
     const method = getMethodName(call)
-    if (!method || !(WARN_METHODS as readonly string[]).includes(method)) continue
+    if (!method) continue
+    if (!(WARN_METHODS as readonly string[]).includes(method) && bounds.get(call)?.kind !== 'date') continue
     results.push({
       line: call.getStartLineNumber(),
       method,
@@ -909,7 +913,7 @@ export function transformFile(file: SourceFile, typeChecker?: TypeChecker): Tran
   }
 
   const classRefs = transformClassRefs(file)
-  const objectOnlyWarnings = findObjectOnlyMethods(file)
+  const objectOnlyWarnings = findObjectOnlyMethods(file, typeChecker)
   const propertyAccessWarnings = findInternalPropertyAccess(file, typeChecker)
 
   // After all transforms, ensure `z` is imported if any transform emitted
