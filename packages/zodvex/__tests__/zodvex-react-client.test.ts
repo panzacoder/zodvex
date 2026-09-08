@@ -201,6 +201,30 @@ describe('ZodvexReactClient', () => {
 
   // ---- query --------------------------------------------------------------
 
+  it.each([
+    undefined,
+    false,
+    true
+  ])('forwards warnWirePreview=%s to decode warnings', async warnWirePreview => {
+    const wire = { privateValue: 'debug-only' }
+    mocks.queryImpl = () => wire
+    const previewClient = new ZodvexReactClient(registry as any, {
+      client: new MockConvexReactClient('https://test.convex.cloud') as any,
+      warnWirePreview
+    })
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(await previewClient.query(fakeRef('tasks:list'), {})).toBe(wire)
+      expect(warnSpy).toHaveBeenCalledOnce()
+      const message = warnSpy.mock.calls[0][0] as string
+      expect(message.includes('Preview:')).toBe(warnWirePreview === true)
+      expect(message.includes('debug-only')).toBe(warnWirePreview === true)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   describe('query', () => {
     it('decodes wire data through the returns schema (number -> Date)', async () => {
       const now = Date.now()

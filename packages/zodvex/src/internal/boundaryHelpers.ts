@@ -32,6 +32,15 @@ export type BoundaryHelpersOptions = {
    * - `'throw'`: throw a ZodvexDecodeError (extends z.ZodError). // zod-ok
    */
   onDecodeError?: 'warn' | 'throw'
+  /**
+   * Include a truncated preview of the raw wire data in the decode-failure
+   * `warn` log (only relevant when `onDecodeError` is `'warn'`, the default).
+   *
+   * Off by default because wire values may be sensitive — the default warn
+   * message only carries the function path and zod issue list. Enable only
+   * when debugging a decode skew and you need to see the offending values.
+   */
+  warnWirePreview?: boolean
 }
 
 /**
@@ -80,6 +89,7 @@ export function __resetRegistryMissWarnings(): void {
 
 export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryHelpersOptions) {
   const onDecodeError = options?.onDecodeError ?? 'warn'
+  const warnWirePreview = options?.warnWirePreview === true
 
   /**
    * Encode args from runtime types to wire format.
@@ -137,11 +147,21 @@ export function createBoundaryHelpers(registry: AnyRegistry, options?: BoundaryH
     }
 
     // Default: warn and return raw wire data
-    const preview = JSON.stringify(wireResult)
-    const truncated = preview.length > 200 ? `${preview.slice(0, 200)}...` : preview
-    console.warn(
-      `[zodvex] Decode failed for ${path}: ${result.error.issues.map((i: $ZodIssue) => `${i.path.join('.')}: ${i.message}`).join(', ')}. Returning raw wire data. Preview: ${truncated}`
-    )
+    const issueList = result.error.issues
+      .map((i: $ZodIssue) => `${i.path.join('.')}: ${i.message}`)
+      .join(', ')
+    let message = `[zodvex] Decode failed for ${path}: ${issueList}. Returning raw wire data.`
+    if (warnWirePreview) {
+      let preview = '[unavailable]'
+      try {
+        preview = JSON.stringify(wireResult) ?? '[unavailable]'
+      } catch {
+        // Debug logging must not change warn-mode behavior for non-JSON values.
+      }
+      const truncated = preview.length > 200 ? `${preview.slice(0, 200)}...` : preview
+      message += ` Preview: ${truncated}`
+    }
+    console.warn(message)
     return wireResult
   }
 
