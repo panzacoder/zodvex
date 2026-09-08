@@ -39,6 +39,8 @@ export {
 export {
   createZodDbReader,
   createZodDbWriter,
+  type PatchValue,
+  type WriteValue,
   ZodvexDatabaseReader,
   ZodvexDatabaseWriter,
   type ZodvexExpression,
