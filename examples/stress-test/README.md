@@ -66,7 +66,7 @@ template.
    verify Q/M handlers actually run at runtime (catches the
    dynamic-import-unsupported regression class).
 6. **Regression** (`regression.ts`) — fixed-N pass/fail run across
-   the 5 flavors with expected outcomes. The repo-root `validate`
+   the 5 flavors with expected outcomes. The repo-root `validate:network`
    runs it for the zodvex flavors only, at `--target=100
    --shape=explicit` — a deploy-parity gate at main's known-good
    level, not a ceiling search.
