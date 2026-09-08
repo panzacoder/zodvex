@@ -84,6 +84,38 @@ Pass either builder of the pair (`zm` or `zim`) — the result is identical and 
 
 > **Empty-args note (v0.7.4):** with `args: {}` (or no `args`), `input`'s args parameter types as `Record<string, never>`. v0.7.3 widened it to `{ [x: string]: unknown }`, which broke standalone customizations whose `input` params were hand-annotated `Record<string, never>`. v0.7.4 fixes that resolution whether or not you adopt `defineContext`.
 
+## Typing database helpers
+
+Use `ZodvexPatchValue<DataModel, DecodedDocs, TableName>` for patch arguments and
+`ZodvexWriteValue<DataModel, DecodedDocs, TableName>` for insert or replace arguments.
+Both are exported from `zodvex/server` and `zodvex/mini/server` and are the same
+types used by the database writer methods.
+
+For example, given your generated `DataModel`, decoded document map `DecodedDocs`,
+and `db: ZodvexDatabaseWriter<DataModel, DecodedDocs>`:
+
+```ts
+import type { TableNamesInDataModel } from 'convex/server'
+import type { GenericId } from 'convex/values'
+import type { ZodvexPatchValue } from 'zodvex/server'
+
+function patchTable<T extends TableNamesInDataModel<DataModel>>(
+  table: T,
+  id: GenericId<NoInfer<T>>,
+  patch: ZodvexPatchValue<DataModel, DecodedDocs, NoInfer<T>>
+) {
+  return db.patch(table, id, patch)
+}
+```
+
+`NoInfer<T>` makes the table argument determine the accepted ID and fields.
+Values use decoded types (such as `Date`) and omit `_id` and `_creationTime`.
+Object models accept partial patches; models whose decoded document type is a
+union require a complete variant to match their full encoding path. Tables absent
+from `DecodedDocs` use Convex document types and partial patches. See the
+[union patch limits](./polymorphic-tables.md) for schema unions that TypeScript
+cannot distinguish in the decoded type.
+
 ## Deprecated: `zCustomQueryBuilder` / `zCustomMutationBuilder`
 
 The standalone custom builders (`zCustomQueryBuilder`, `zCustomMutationBuilder`, `zCustomActionBuilder`) still work but are deprecated, migration-only APIs — use `.withContext()` on the `initZodvex` builders instead. See the [migration guide](../../MIGRATION.md).

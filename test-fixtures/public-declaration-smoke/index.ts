@@ -107,3 +107,38 @@ indexedNotices.patch(noticeId, { kind: 'push', title: 'Updated', at: new Date() 
 indexedNotices.insert('notices', { kind: 'email', at: new Date() })
 // @ts-expect-error Explicit index signatures must retain required named patch fields.
 indexedNotices.patch(noticeId, { kind: 'push', at: new Date() })
+
+// Named contracts stay usable through emitted declarations and generic wrappers.
+import type { ZodvexPatchValue, ZodvexWriteValue } from 'zodvex/server'
+import type { ZodvexPatchValue as MiniPatchValue, ZodvexWriteValue as MiniWriteValue } from 'zodvex/mini/server'
+type ConsumerModel = InferDataModel<typeof FullSchema> & InferDataModel<typeof NoticeSchema>
+type ConsumerDocs = {
+  users: z.output<typeof FullUserModel.schema.doc>
+  notices: z.output<typeof NoticeModel.schema.doc>
+}
+declare const consumerDb: ZodvexDatabaseWriter<ConsumerModel, ConsumerDocs>
+export function patchConsumer<T extends keyof ConsumerModel>(
+  table: T,
+  id: GenericId<NoInfer<T>>,
+  patch: ZodvexPatchValue<ConsumerModel, ConsumerDocs, NoInfer<T>>
+) {
+  return consumerDb.patch(table, id, patch)
+}
+export function insertConsumer<T extends keyof ConsumerModel>(
+  table: T,
+  value: ZodvexWriteValue<ConsumerModel, ConsumerDocs, NoInfer<T>>
+) {
+  return consumerDb.insert(table, value)
+}
+patchConsumer('users', userId, { createdAt: new Date() })
+patchConsumer('notices', noticeId, { kind: 'push', title: 'Updated', at: new Date() })
+// @ts-expect-error Public union patch types require a complete variant.
+patchConsumer('notices', noticeId, { title: 'Updated' })
+// @ts-expect-error Public generic wrappers preserve decoded codec inputs.
+patchConsumer('users', userId, { createdAt: 42 })
+// @ts-expect-error Required fields survive through public write-value aliases.
+insertConsumer('users', { createdAt: new Date() })
+const miniPatch: MiniPatchValue<ConsumerModel, ConsumerDocs, 'users'> = { createdAt: new Date() }
+const miniWrite: MiniWriteValue<ConsumerModel, ConsumerDocs, 'users'> = { email: 'a@example.com', createdAt: new Date() }
+patchConsumer('users', userId, miniPatch)
+insertConsumer('users', miniWrite)
