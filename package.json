@@ -20,7 +20,7 @@
     "validate": "bun run validate:local",
     "type-check:examples": "bun run --cwd packages/zodvex tsc --noEmit -p ../../examples/task-manager/convex/tsconfig.json && bun run --cwd packages/zodvex tsc --noEmit -p ../../examples/task-manager-mini/convex/tsconfig.json",
     "guard:mini-imports": "! rg -n \"zodvex/core\" examples/task-manager-mini/convex examples/task-manager-mini/src",
-    "test:codemod": "bun run --cwd packages/zod-to-mini test -- src/transforms.test.ts src/vite-plugin.test.ts",
+    "test:codemod": "bun run --cwd packages/zod-to-mini test -- --exclude src/perf.test.ts",
     "verify:generated": "git diff --exit-code -- examples/task-manager/convex/_zodvex examples/task-manager-mini/convex/_zodvex",
     "validate:local": "bun run lint && bun run type-check && bun run build && bun run type-check:examples && bun run test && bun run test:codemod && bun run verify:consumer-declarations && bun run verify:examples && bun run verify:generated",
     "validate:network": "bun run verify:examples:network && bun run --cwd examples/stress-test regression -- --target=100 --flavors=zodvex,zodvex-mini --shape=explicit"
