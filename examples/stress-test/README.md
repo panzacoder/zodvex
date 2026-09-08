@@ -10,7 +10,7 @@ deploy headroom" claim.
 # Build zodvex first (harness imports from built dist)
 cd ../.. && bun run build && cd examples/stress-test
 
-# Single-N regression gate (used by `bun run validate` at the repo root).
+# Single-N regression gate (used by `bun run validate:network` at the repo root).
 # Defaults: N=100 in the explicit shape — the level and shape zodvex main
 # passes. Thin-schema feature branches raise their own gate, e.g.
 # `--target=600 --shape=consolidated`.
