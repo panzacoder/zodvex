@@ -47,8 +47,10 @@ export {
   type ZodvexIndexFieldValue,
   type ZodvexIndexRangeBuilder,
   type ZodvexLowerBoundBuilder,
+  type ZodvexPatchValue,
   ZodvexQueryChain,
-  type ZodvexUpperBoundBuilder
+  type ZodvexUpperBoundBuilder,
+  type ZodvexWriteValue
 } from '../../internal/db'
 // One-time setup + types
 export {

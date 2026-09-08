@@ -132,3 +132,60 @@ indexedNotices.patch(noticeId, { kind: 'push', at: new Date() })
 indexedNotices.patch('notices', noticeId, { kind: 'email', at: new Date() })
 // @ts-expect-error Replacement fields remain required alongside an index signature.
 indexedNotices.replace(noticeId, { kind: 'push', at: new Date() })
+
+import type {
+  ZodvexPatchValue as MiniPatchValue,
+  ZodvexWriteValue as MiniWriteValue
+} from '../src/public/mini/server'
+// Generic consumers can name the writer contract without inspecting overloads.
+import type { ZodvexPatchValue, ZodvexWriteValue } from '../src/public/server'
+
+type DecodedDocs = { events: DecodedEvent }
+function patchTable<T extends keyof Model>(
+  table: T,
+  id: GenericId<NoInfer<T>>,
+  patch: ZodvexPatchValue<Model, DecodedDocs, NoInfer<T>>
+) {
+  return db.patch(table, id, patch)
+}
+function insertTable<T extends keyof Model>(
+  table: T,
+  value: ZodvexWriteValue<Model, DecodedDocs, NoInfer<T>>
+) {
+  return db.insert(table, value)
+}
+patchTable('events', eventId, { at: new Date() })
+patchTable('users', userId, { email: 'updated@example.com' })
+insertTable('events', { name: 'Launch', at: new Date() })
+// @ts-expect-error Named patch values retain decoded codec inputs.
+patchTable('events', eventId, { at: 42 })
+// @ts-expect-error The named contract does not widen table IDs.
+patchTable('events', userId, {})
+// @ts-expect-error Named write values retain required fields.
+insertTable('events', { at: new Date() })
+// @ts-expect-error System fields are not writable.
+const _systemPatch: ZodvexPatchValue<Model, DecodedDocs, 'events'> = { _creationTime: 0 }
+// @ts-expect-error Unknown tables cannot be named in the public contract.
+type _UnknownPatch = ZodvexPatchValue<Model, DecodedDocs, 'missing'>
+type _MiniPatch = Expect<
+  Equal<
+    MiniPatchValue<Model, DecodedDocs, 'events'>,
+    ZodvexPatchValue<Model, DecodedDocs, 'events'>
+  >
+>
+type _MiniWrite = Expect<
+  Equal<
+    MiniWriteValue<Model, DecodedDocs, 'events'>,
+    ZodvexWriteValue<Model, DecodedDocs, 'events'>
+  >
+>
+type _ObjectPatch = Expect<
+  Equal<ZodvexPatchValue<Model, DecodedDocs, 'events'>, { name?: string; at?: Date }>
+>
+type _NativePatch = Expect<Equal<ZodvexPatchValue<Model, DecodedDocs, 'users'>, { email?: string }>>
+type _UnionPatch = Expect<
+  Equal<
+    ZodvexPatchValue<{ notices: Table<NoticeWire> }, { notices: NoticeDoc }, 'notices'>,
+    ZodvexWriteValue<{ notices: Table<NoticeWire> }, { notices: NoticeDoc }, 'notices'>
+  >
+>
