@@ -187,6 +187,7 @@ Guide: [Builders — Composing with triggers](./docs/guide/builders.md#composing
 zodvex includes an optional CLI that generates typed client code:
 
 - **Typed hooks** — `useZodQuery`, `useZodMutation`, generated into `convex/_zodvex/client` — import them from there; args are encoded and results decoded automatically
+  Invalid query arguments throw during render and can be handled by a React error boundary. Pass `'skip'` explicitly while required inputs are unavailable; encoding failures no longer silently look like a loading query.
 - **Boundary helpers** — `encodeArgs`, `decodeResult` for custom client integrations
 - **Cross-function auto-codec** — `ctx.runQuery` / `ctx.runMutation` encode args + decode results, and `ctx.scheduler.runAfter` / `ctx.scheduler.runAt` encode args, via the registry. Pass natural decoded values; zodvex encodes them to wire at the call site.
 
