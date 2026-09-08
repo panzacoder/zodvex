@@ -91,15 +91,21 @@ Use `ZodvexPatchValue<DataModel, DecodedDocs, TableName>` for patch arguments an
 Both are exported from `zodvex/server` and `zodvex/mini/server` and are the same
 types used by the database writer methods.
 
-For example, given your generated `DataModel`, decoded document map `DecodedDocs`,
-and `db: ZodvexDatabaseWriter<DataModel, DecodedDocs>`:
+For example, for an app with a `users` model created by `defineZodModel`, derive
+the decoded document map from the model's document schema:
 
 ```ts
 import type { TableNamesInDataModel } from 'convex/server'
 import type { GenericId } from 'convex/values'
-import type { ZodvexPatchValue } from 'zodvex/server'
+import type { z } from 'zod'
+import type { ZodvexDatabaseWriter, ZodvexPatchValue } from 'zodvex/server'
+import type { DataModel } from './_generated/dataModel'
+import type { users } from './models/users'
+
+type DecodedDocs = { users: z.output<typeof users.schema.doc> }
 
 function patchTable<T extends TableNamesInDataModel<DataModel>>(
+  db: ZodvexDatabaseWriter<DataModel, DecodedDocs>,
   table: T,
   id: GenericId<NoInfer<T>>,
   patch: ZodvexPatchValue<DataModel, DecodedDocs, NoInfer<T>>
@@ -109,6 +115,7 @@ function patchTable<T extends TableNamesInDataModel<DataModel>>(
 ```
 
 `NoInfer<T>` makes the table argument determine the accepted ID and fields.
+Add each modeled table to `DecodedDocs` using its own `schema.doc` output type.
 Values use decoded types (such as `Date`) and omit `_id` and `_creationTime`.
 Object models accept partial patches; models whose decoded document type is a
 union require a complete variant to match their full encoding path. Tables absent
