@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { zx } from '../src/internal/zx'
 import { zodToSource } from '../src/public/codegen/zodToSource'
 
 describe('generated schema source escaping', () => {
+  it('preserves a quoted table name in generated ID validators', () => {
+    const tableName = 'a"b'
+    const source = zodToSource(zx.id(tableName))
+    const generated = new Function('zx', `return ${source}`)(zx)
+    expect(generated._tableName).toBe(tableName)
+  })
+
   it.each(['a"b', "a'b", 'a\\b', 'a\nb', '\u2028'])('round trips literal %j', value => {
     const original = z.literal(value)
     const generated = new Function('z', `return ${zodToSource(original)}`)(z)
