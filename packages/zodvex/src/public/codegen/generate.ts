@@ -690,7 +690,7 @@ export function generateClientFile(options?: { mini?: boolean }): GeneratedFile 
   ]
 
   const jsExports = [
-    'export const { useZodQuery, useZodMutation } = createZodvexHooks(zodvexRegistry)',
+    'export const { useZodQuery, useZodMutation, useQuery_experimental } = createZodvexHooks(zodvexRegistry)',
     '',
     'export const createClient = (options) =>',
     '  createZodvexClient(zodvexRegistry, options)',
@@ -713,6 +713,7 @@ export function generateClientFile(options?: { mini?: boolean }): GeneratedFile 
 
   const dtsDeclarations = [
     "export declare const useZodQuery: ZodvexHooks['useZodQuery']",
+    "export declare const useQuery_experimental: ZodvexHooks['useQuery_experimental']",
     "export declare const useZodMutation: ZodvexHooks['useZodMutation']",
     '',
     'export declare const createClient: (options: ZodvexClientOptions) => ZodvexClient',

@@ -1,9 +1,33 @@
 import type { OptionalRestArgsOrSkip } from 'convex/react'
+import * as convexReact from 'convex/react'
 import { useMutation, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
 import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
 import { createBoundaryHelpers } from '../../internal/boundaryHelpers'
 import type { AnyRegistry } from '../../internal/types'
+
+/** Query state, with failures omitted when throwOnError is enabled. */
+export type UseQueryResult<Result, ThrowOnError extends boolean = false> =
+  | { status: 'pending' }
+  | { status: 'success'; data: Result }
+  | (ThrowOnError extends true ? never : { status: 'error'; error: Error })
+
+type UseQueryOptions<
+  Query extends FunctionReference<'query', any, any, any>,
+  ThrowOnError extends boolean
+> = {
+  query: Query
+  args: FunctionArgs<Query> | 'skip'
+  throwOnError?: ThrowOnError
+}
+
+function codecError(error: unknown, operation: 'encode' | 'decode'): Error {
+  return error instanceof Error
+    ? error
+    : new Error(`Failed to ${operation} query ${operation === 'encode' ? 'arguments' : 'result'}`, {
+        cause: error
+      })
+}
 
 /**
  * Creates zodvex-aware React hooks that automatically decode query results
@@ -32,6 +56,64 @@ export function createZodvexHooks<R extends AnyRegistry>(
   options?: BoundaryHelpersOptions
 ) {
   const codec = createBoundaryHelpers(registry, options)
+  const experimentalCodec = createBoundaryHelpers(registry, {
+    ...options,
+    onDecodeError: options?.onDecodeError ?? 'throw'
+  })
+
+  /**
+   * Convex's object-form query hook with decoded arguments and results (Convex >=1.37).
+   * Codec failures return an error state unless throwOnError is true. Decoding is
+   * strict by default; explicit onDecodeError: 'warn' preserves the raw fallback.
+   */
+  function useQuery_experimental<
+    Query extends FunctionReference<'query', any, any, any>,
+    ThrowOnError extends boolean = false
+  >(
+    queryOptions: UseQueryOptions<Query, ThrowOnError>
+  ): UseQueryResult<FunctionReturnType<Query>, ThrowOnError>
+  function useQuery_experimental(
+    queryOptions: UseQueryOptions<FunctionReference<'query', any, any, any>, boolean>
+  ): UseQueryResult<any> {
+    // Optional namespace access keeps older SDK imports valid and allows tree shaking.
+    const nativeHook = (
+      convexReact as unknown as {
+        useQuery_experimental?: (
+          options: UseQueryOptions<FunctionReference<'query', any, any, any>, boolean>
+        ) => UseQueryResult<any>
+      }
+    ).useQuery_experimental
+    if (typeof nativeHook !== 'function') {
+      throw new Error(
+        'useQuery_experimental requires Convex >=1.37. Upgrade convex to use this hook.'
+      )
+    }
+    const { query, args, throwOnError } = queryOptions
+    let wireArgs: any = 'skip'
+    let encodeFailure: Error | undefined
+    if (args !== 'skip') {
+      try {
+        wireArgs = experimentalCodec.encodeArgs(query, args)
+      } catch (error) {
+        encodeFailure = codecError(error, 'encode')
+      }
+    }
+
+    // Even failed encodes call the real hook; its own synchronous errors still propagate.
+    const state = nativeHook({ query, args: wireArgs, throwOnError })
+    if (encodeFailure) {
+      if (throwOnError) throw encodeFailure
+      return { status: 'error', error: encodeFailure }
+    }
+    if (state.status !== 'success') return state
+    try {
+      return { status: 'success', data: experimentalCodec.decodeResult(query, state.data) }
+    } catch (error) {
+      const failure = codecError(error, 'decode')
+      if (throwOnError) throw failure
+      return { status: 'error', error: failure }
+    }
+  }
 
   /**
    * Drop-in replacement for Convex's `useQuery` with automatic codec decode.
@@ -114,7 +196,7 @@ export function createZodvexHooks<R extends AnyRegistry>(
     }
   }
 
-  return { useZodQuery, useZodMutation }
+  return { useZodQuery, useZodMutation, useQuery_experimental }
 }
 
 /**
