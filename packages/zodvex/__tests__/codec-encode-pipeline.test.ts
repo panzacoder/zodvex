@@ -1,6 +1,6 @@
 /**
- * Reproduces an exact consumer encode pipeline to diagnose why CustomField
- * reaches Convex's useQuery unencoded.
+ * Verifies that the consumer encode pipeline encodes valid custom fields
+ * and rejects invalid arguments before they reach Convex.
  *
  * Pipeline under test:
  *   1. zodvexCodec() creates the codec (like a consumer's custom())
