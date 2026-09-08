@@ -646,6 +646,53 @@ describe('ZodvexDatabaseWriter.withRules()', () => {
 // ============================================================================
 
 describe('ZodvexDatabaseReader.audit()', () => {
+  function auditedScan(afterRead: ReaderAuditConfig['afterRead']) {
+    const events: string[] = []
+    const inner = createMockQuery(tableData.users)
+    inner[Symbol.asyncIterator] = async function* () {
+      try {
+        for (const doc of tableData.users) {
+          events.push(`scan:${doc._id}`)
+          yield doc
+        }
+      } finally {
+        await Promise.resolve()
+        events.push('closed')
+      }
+    }
+    const rawDb = createMockDbReader(tableData)
+    rawDb.query = () => inner
+    const db = new ZodvexDatabaseReader(rawDb, tableMap)
+    return { chain: db.audit({ afterRead }).query('users' as any), events }
+  }
+
+  it('breaking audited iteration closes the underlying iterator', async () => {
+    const audited: string[] = []
+    const { chain, events } = auditedScan((_table, doc) => {
+      audited.push(doc._id)
+    })
+    for await (const doc of chain) {
+      expect(doc.createdAt).toBeInstanceOf(Date)
+      break
+    }
+    expect(events).toEqual(['scan:users:1', 'closed'])
+    expect(audited).toEqual(['users:1'])
+  })
+
+  it('a throwing afterRead callback closes the underlying iterator', async () => {
+    const failure = new Error('audit failed')
+    const { chain, events } = auditedScan(() => {
+      throw failure
+    })
+    const consume = async () => {
+      for await (const _doc of chain) {
+        // Consume the audited iterator until it reports the callback failure.
+      }
+    }
+    await expect(consume()).rejects.toBe(failure)
+    expect(events).toEqual(['scan:users:1', 'closed'])
+  })
+
   it('afterRead fires for each doc returned by get()', async () => {
     const auditLog: any[] = []
     const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)

@@ -246,8 +246,12 @@ function wrapIndexRangeBuilder(inner: any, schema: $ZodType): any {
   })
 }
 
-function extractFieldPath(expr: any): string | null {
-  if (expr && typeof expr.serialize === 'function') {
+function isFilterExpression(value: any, expressionPrototype: object): boolean {
+  return value != null && Object.prototype.isPrototypeOf.call(expressionPrototype, value)
+}
+
+function extractFieldPath(expr: any, expressionPrototype: object): string | null {
+  if (isFilterExpression(expr, expressionPrototype)) {
     const inner = expr.serialize()
     if (inner && typeof inner === 'object' && '$field' in inner) {
       return inner.$field
@@ -257,15 +261,18 @@ function extractFieldPath(expr: any): string | null {
 }
 
 function wrapFilterBuilder(inner: any, schema: $ZodType): any {
+  // Use the builder's own expression type, including expressions created outside
+  // this wrapper. A codec's runtime value may also have a serialize() method.
+  const expressionPrototype = Object.getPrototypeOf(inner.field('_id'))
   return new Proxy(inner, {
     get(target, prop, receiver) {
       if (typeof prop === 'string' && ['eq', 'neq', 'lt', 'lte', 'gt', 'gte'].includes(prop)) {
         return (l: any, r: any) => {
-          const lField = extractFieldPath(l)
-          const rField = extractFieldPath(r)
-          if (lField && !rField) {
+          const lField = extractFieldPath(l, expressionPrototype)
+          const rField = extractFieldPath(r, expressionPrototype)
+          if (lField && !isFilterExpression(r, expressionPrototype)) {
             r = encodeIndexValue(schema, lField, r)
-          } else if (rField && !lField) {
+          } else if (rField && !isFilterExpression(l, expressionPrototype)) {
             l = encodeIndexValue(schema, rField, l)
           }
           return target[prop](l, r)
@@ -419,19 +426,42 @@ export type ResolveDecodedDoc<
 /** System fields auto-managed by Convex — not writable by consumers. */
 type SystemFields = '_id' | '_creationTime'
 
+/** Preserve variant fields, including named fields alongside a string index signature. */
+type WithoutSystemFields<Doc> = Doc extends unknown
+  ? { [Key in keyof Doc as Key extends SystemFields ? never : Key]: Doc[Key] }
+  : never
+
 /** Decoded doc without system fields — for insert and replace values. */
 type DecodedWriteValue<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>
-> = Omit<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>, SystemFields>
+> = WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>
 
-/** Partial decoded doc without system fields — for patch values. */
+/** Check the whole document against each member without collapsing variant fields. */
+type IsUnion<Doc, Whole = Doc> = Doc extends unknown
+  ? [Whole] extends [Doc]
+    ? false
+    : true
+  : never
+
+/** Known decoded unions use full encoding; ordinary object documents accept partials. */
+type ModeledPatchValue<Doc> =
+  true extends IsUnion<Doc> ? WithoutSystemFields<Doc> : Partial<WithoutSystemFields<Doc>>
+
+/**
+ * Union patches need a complete variant because encodePartialDoc uses full encoding.
+ * Only decoded output types are available here: erased/collapsed schema unions cannot
+ * be detected, and runtime encoding remains authoritative. Unmodeled tables retain
+ * native partial patch values.
+ */
 type DecodedPatchValue<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>
-> = Partial<Omit<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>, SystemFields>>
+> = TableName extends keyof DecodedDocs
+  ? ModeledPatchValue<DecodedDocs[TableName]>
+  : Partial<WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>>
 
 /**
  * Resolves a table name from a GenericId by iterating the tableMap
@@ -506,8 +536,10 @@ export class ZodvexDatabaseReader<
   get<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>
   ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
-  /** @internal 2-arg form for table-first lookups */
-  get(idOrTable: any, maybeId?: any): Promise<any>
+  get<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>
+  ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
   async get(idOrTable: any, maybeId?: any): Promise<any> {
     let tableName: string | null
     let doc: any
@@ -628,10 +660,8 @@ export class ZodvexDatabaseWriter<
 
   insert<TableName extends TableNamesInDataModel<DataModel>>(
     table: TableName,
-    value: DecodedWriteValue<DataModel, DecodedDocs, TableName>
+    value: DecodedWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<GenericId<TableName>>
-  /** @internal untyped fallback */
-  insert(table: any, value: any): Promise<any>
   async insert(table: any, value: any): Promise<any> {
     const schemas = this.tableMap[table as string]
     const wireValue = schemas ? encodeDoc(schemas.insert, value) : value
@@ -640,10 +670,13 @@ export class ZodvexDatabaseWriter<
 
   patch<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>,
-    value: DecodedPatchValue<DataModel, DecodedDocs, TableName>
+    value: DecodedPatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
-  /** @internal 3-arg form for table-first patches */
-  patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void>
+  patch<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>,
+    value: DecodedPatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
+  ): Promise<void>
   async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
     let id: any
@@ -673,10 +706,13 @@ export class ZodvexDatabaseWriter<
 
   replace<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>,
-    value: DecodedWriteValue<DataModel, DecodedDocs, TableName>
+    value: DecodedWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
-  /** @internal 3-arg form for table-first replaces */
-  replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void>
+  replace<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>,
+    value: DecodedWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
+  ): Promise<void>
   async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
     let id: any
@@ -705,8 +741,10 @@ export class ZodvexDatabaseWriter<
   delete<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>
   ): Promise<void>
-  /** @internal 2-arg form for table-first deletes */
-  delete(idOrTable: any, maybeId?: any): Promise<void>
+  delete<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>
+  ): Promise<void>
   async delete(idOrTable: any, maybeId?: any): Promise<void> {
     if (maybeId !== undefined) {
       // 2-arg form (table, id) is @internal in Convex types — cast required

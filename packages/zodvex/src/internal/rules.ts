@@ -175,10 +175,14 @@ export function installRulesSubclasses(bases: {
     }
 
     async take(n: number): Promise<Doc[]> {
+      if (!Number.isInteger(n) || n < 0) {
+        throw new Error('take requires a non-negative integer')
+      }
       const results: Doc[] = []
+      if (n === 0) return results
       for await (const doc of this as any) {
-        if (results.length >= n) break
         results.push(doc)
+        if (results.length >= n) break
       }
       return results
     }
@@ -201,10 +205,7 @@ export function installRulesSubclasses(bases: {
     }
 
     async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
-      const iter = super[Symbol.asyncIterator]()
-      while (true) {
-        const { value, done } = await iter.next()
-        if (done) break
+      for await (const value of super[Symbol.asyncIterator]()) {
         const result = normalizeReadResult(await this.readRule(this.ctx, value), value)
         if (result !== null) yield result
       }
@@ -328,7 +329,12 @@ export function installRulesSubclasses(bases: {
 
       if (tableRules?.insert) {
         const transformed = await tableRules.insert(this.ctx, value)
-        return this.inner.insert(table, transformed)
+        // Rules are stored with erased table types; the codec boundary validates
+        // the transformed document against this table's insert schema.
+        return this.inner.insert(
+          table,
+          transformed as Parameters<ZodvexDatabaseWriter<DataModel, DecodedDocs>['insert']>[1]
+        )
       }
 
       if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
@@ -360,7 +366,12 @@ export function installRulesSubclasses(bases: {
 
       if (tableRules?.patch) {
         const transformed = await tableRules.patch(this.ctx, doc, value)
-        return this.inner.patch(id, transformed)
+        // Rules erase table types; the inner encoder still validates transformed
+        // patches, including the complete-variant requirement for union schemas.
+        return this.inner.patch(
+          id,
+          transformed as Parameters<ZodvexDatabaseWriter<DataModel, DecodedDocs>['patch']>[2]
+        )
       }
 
       if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
@@ -512,10 +523,7 @@ export function installRulesSubclasses(bases: {
     }
 
     async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
-      const iter = super[Symbol.asyncIterator]()
-      while (true) {
-        const { value, done } = await iter.next()
-        if (done) break
+      for await (const value of super[Symbol.asyncIterator]()) {
         await this.afterRead(this.tableName, value)
         yield value
       }

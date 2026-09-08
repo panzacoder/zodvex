@@ -10,7 +10,7 @@ deploy headroom" claim.
 # Build zodvex first (harness imports from built dist)
 cd ../.. && bun run build && cd examples/stress-test
 
-# Single-N regression gate (used by `bun run validate` at the repo root).
+# Single-N regression gate (used by `bun run validate:network` at the repo root).
 # Defaults: N=100 in the explicit shape — the level and shape zodvex main
 # passes. Thin-schema feature branches raise their own gate, e.g.
 # `--target=600 --shape=consolidated`.
@@ -66,7 +66,7 @@ template.
    verify Q/M handlers actually run at runtime (catches the
    dynamic-import-unsupported regression class).
 6. **Regression** (`regression.ts`) — fixed-N pass/fail run across
-   the 5 flavors with expected outcomes. The repo-root `validate`
+   the 5 flavors with expected outcomes. The repo-root `validate:network`
    runs it for the zodvex flavors only, at `--target=100
    --shape=explicit` — a deploy-parity gate at main's known-good
    level, not a ceiling search.

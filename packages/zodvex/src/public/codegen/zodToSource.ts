@@ -73,7 +73,7 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
         ? (schema as any).description.slice('convexId:'.length)
         : undefined)
     if (tableName) {
-      return `zx.id("${tableName}")`
+      return `zx.id(${JSON.stringify(tableName)})`
     }
   }
 
@@ -115,7 +115,15 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
   if (schema instanceof $ZodObject) {
     const shape = schema._zod.def.shape
     const fields = Object.entries(shape)
-      .map(([key, value]) => `${key}: ${zodToSource(value, ctx)}`)
+      .map(([key, value]) => {
+        const property =
+          key === '__proto__'
+            ? `[${JSON.stringify(key)}]`
+            : /^[A-Za-z_$][\w$]*$/.test(key)
+              ? key
+              : JSON.stringify(key)
+        return `${property}: ${zodToSource(value, ctx)}`
+      })
       .join(', ')
     return `z.object({ ${fields} })`
   }
@@ -128,7 +136,7 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
   // Enums
   if (schema instanceof $ZodEnum) {
     const entries = schema._zod.def.entries
-    const values = (Object.values(entries) as string[]).map((v: string) => `"${v}"`).join(', ')
+    const values = (Object.values(entries) as string[]).map(v => JSON.stringify(v)).join(', ')
     return `z.enum([${values}])`
   }
 
@@ -136,7 +144,7 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
   if (schema instanceof $ZodLiteral) {
     const values = schema._zod.def.values
     const value = values.values().next().value
-    if (typeof value === 'string') return `z.literal("${value}")`
+    if (typeof value === 'string') return `z.literal(${JSON.stringify(value)})`
     return `z.literal(${value})`
   }
 
