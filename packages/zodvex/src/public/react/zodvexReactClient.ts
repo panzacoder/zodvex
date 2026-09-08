@@ -19,7 +19,10 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
   }
 
   constructor(registry: R, options: ZodvexReactClientOptions) {
-    this.codec = createBoundaryHelpers(registry, { onDecodeError: options.onDecodeError })
+    this.codec = createBoundaryHelpers(registry, {
+      onDecodeError: options.onDecodeError,
+      warnWirePreview: options.warnWirePreview
+    })
     this.options = options
     if ('client' in options) {
       this.innerClient = options.client
@@ -120,8 +123,9 @@ export class ZodvexReactClient<R extends AnyRegistry = AnyRegistry> {
       localQueryResult: () => {
         const wire = innerWatch.localQueryResult()
         if (wire === lastWire) return lastDecoded
+        const decoded = wire === undefined ? undefined : this.codec.decodeResult(ref, wire)
         lastWire = wire
-        lastDecoded = wire === undefined ? undefined : this.codec.decodeResult(ref, wire)
+        lastDecoded = decoded
         return lastDecoded
       },
       journal: () => innerWatch.journal()

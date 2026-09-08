@@ -24,7 +24,10 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
   private pendingAuthOnChange?: (isAuthenticated: boolean) => void
 
   constructor(registry: R, options: ZodvexClientOptions) {
-    this.codec = createBoundaryHelpers(registry, { onDecodeError: options.onDecodeError })
+    this.codec = createBoundaryHelpers(registry, {
+      onDecodeError: options.onDecodeError,
+      warnWirePreview: options.warnWirePreview
+    })
     if ('client' in options) {
       this.innerClient = options.client
     } else {

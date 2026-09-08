@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import * as mini from 'zod/mini'
 import { zx } from '../src/internal/zx'
 
 // ---------------------------------------------------------------------------
@@ -201,6 +202,30 @@ describe('ZodvexReactClient', () => {
 
   // ---- query --------------------------------------------------------------
 
+  it.each([
+    undefined,
+    false,
+    true
+  ])('forwards warnWirePreview=%s to decode warnings', async warnWirePreview => {
+    const wire = { privateValue: 'debug-only' }
+    mocks.queryImpl = () => wire
+    const previewClient = new ZodvexReactClient(registry as any, {
+      client: new MockConvexReactClient('https://test.convex.cloud') as any,
+      warnWirePreview
+    })
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(await previewClient.query(fakeRef('tasks:list'), {})).toBe(wire)
+      expect(warnSpy).toHaveBeenCalledOnce()
+      const message = warnSpy.mock.calls[0][0] as string
+      expect(message.includes('Preview:')).toBe(warnWirePreview === true)
+      expect(message.includes('debug-only')).toBe(warnWirePreview === true)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   describe('query', () => {
     it('decodes wire data through the returns schema (number -> Date)', async () => {
       const now = Date.now()
@@ -363,6 +388,35 @@ describe('ZodvexReactClient', () => {
   // ---- watchQuery ---------------------------------------------------------
 
   describe('watchQuery', () => {
+    it.each([
+      ['full', z],
+      ['mini', mini]
+    ] as const)('retries failed decodes without returning stale data (%s)', (_name, schema) => {
+      let wire: unknown = { createdAt: 1700000000000 }
+      mocks.watchQueryImpl = () => ({
+        onUpdate: vi.fn(),
+        localQueryResult: () => wire,
+        journal: vi.fn()
+      })
+      const strictClient = createZodvexReactClient(
+        {
+          'tasks:get': { returns: schema.object({ createdAt: zx.date() }) }
+        },
+        { url: 'https://test.convex.cloud', onDecodeError: 'throw' }
+      )
+      const watch = strictClient.watchQuery(fakeRef('tasks:get'), {})
+      const first = watch.localQueryResult()
+      expect(first.createdAt).toBeInstanceOf(Date)
+      expect(watch.localQueryResult()).toBe(first)
+      wire = { createdAt: 'invalid' }
+      expect(() => watch.localQueryResult()).toThrow()
+      expect(() => watch.localQueryResult()).toThrow()
+      wire = { createdAt: 1800000000000 }
+      expect(watch.localQueryResult().createdAt.getTime()).toBe(1800000000000)
+      wire = undefined
+      expect(watch.localQueryResult()).toBeUndefined()
+    })
+
     it('decodes localQueryResult via codec (number -> Date)', () => {
       const ts = 1700000000000
       mocks.watchQueryImpl = () => ({

@@ -1,7 +1,6 @@
 import type { OptionalRestArgsOrSkip } from 'convex/react'
 import { useMutation, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
-import { getFunctionName } from 'convex/server'
 import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
 import { createBoundaryHelpers } from '../../internal/boundaryHelpers'
 import type { AnyRegistry } from '../../internal/types'
@@ -45,6 +44,7 @@ export function createZodvexHooks<R extends AnyRegistry>(
    * 2. Union args (composable): `useZodQuery(ref, args | 'skip')` — for wrappers
    *    and conditional skip patterns where the decision is made upstream.
    *
+   * - Invalid arguments throw during render; use a React error boundary to handle them.
    * - Loading state (`undefined`) passes through unchanged.
    * - Functions not in the registry return the raw wire result.
    */
@@ -62,20 +62,15 @@ export function createZodvexHooks<R extends AnyRegistry>(
   function useZodQuery(ref: FunctionReference<'query', any, any, any>, ...restArgs: any[]) {
     const args = restArgs[0]
 
-    // Encode args: runtime types -> wire format (e.g., Date -> timestamp).
-    // Unlike mutations (imperative, user-triggered), hooks fire synchronously
-    // during render — an encode error would crash the page. On failure, warn
-    // and auto-skip the query (return undefined = loading state).
+    // Always call useQuery, including failed encodes, to preserve hook order.
+    // Then surface the error to React's error boundary instead of appearing to load forever.
     let wireArgs: any = 'skip'
+    let encodeFailure: { error: unknown } | undefined
     if (args !== 'skip') {
       try {
         wireArgs = codec.encodeArgs(ref, args)
-      } catch (err) {
-        const path = getFunctionName(ref)
-        console.debug(
-          `[zodvex] Encode args failed for ${path}, auto-skipping query: ${err instanceof Error ? err.message : String(err)}`
-        )
-        // wireArgs stays 'skip' — DO NOT early-return, useQuery must run every render
+      } catch (error) {
+        encodeFailure = { error }
       }
     }
 
@@ -83,6 +78,8 @@ export function createZodvexHooks<R extends AnyRegistry>(
       ref,
       ...((wireArgs === 'skip' ? ['skip'] : [wireArgs]) as OptionalRestArgsOrSkip<typeof ref>)
     )
+
+    if (encodeFailure) throw encodeFailure.error
 
     // Loading state — Convex returns undefined while the subscription is pending
     if (wireResult === undefined) return undefined

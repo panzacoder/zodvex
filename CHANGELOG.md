@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Decode-failure `warn` logs no longer include a raw-wire preview.** The default `onDecodeError: 'warn'` message previously appended `Preview: <JSON.stringify(wireResult)>` (truncated to 200 chars) to every decode failure — copying potentially sensitive wire values into browser/server logs. The message now stops at the function path and zod issue list. Opt back into the preview for debugging by passing `warnWirePreview: true` to `createZodvexClient` / `createZodvexReactClient` / `createBoundaryHelpers` (#111).
+
 ## [0.7.6] - 2026-06-12
 
 ### Added
