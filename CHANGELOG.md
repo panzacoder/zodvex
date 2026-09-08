@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Generated clients and `createZodvexHooks` expose `useQuery_experimental`, with decoded arguments/results, explicit query states, and strict codec error handling. Calling the new hook requires Convex >=1.37; existing hooks remain compatible with older SDKs.
+
 ## [0.7.8] - 2026-09-08
 
 ### Added

@@ -33,6 +33,7 @@ describe('generateStubs', () => {
     const content = fs.readFileSync(path.join(tmpDir, '_zodvex', 'client.ts'), 'utf-8')
     expect(content).toContain('useZodQuery')
     expect(content).toContain('useZodMutation')
+    expect(content).toContain('useQuery_experimental')
     expect(content).toContain('createClient')
   })
 

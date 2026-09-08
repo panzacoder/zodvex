@@ -150,7 +150,7 @@ Exports React hooks and client utilities pre-bound to the registry:
 
 ```typescript
 // _zodvex/client.js (generated)
-export const { useZodQuery, useZodMutation } = createZodvexHooks(zodvexRegistry)
+export const { useZodQuery, useZodMutation, useQuery_experimental } = createZodvexHooks(zodvexRegistry)
 
 export const createClient = (options) => createZodvexClient(zodvexRegistry, options)
 export const createReactClient = (options) => createZodvexReactClient(zodvexRegistry, options)
@@ -174,6 +174,28 @@ function TaskDetail({ id }: { id: string }) {
 ```
 
 `encodeArgs` and `decodeResult` are lower-level helpers for non-hook use cases (e.g. form submit handlers, non-React clients).
+
+### `useQuery_experimental` — explicit query states
+
+The generated client also exports Convex's object-form query hook with codec support:
+
+```tsx
+import { useQuery_experimental } from '../convex/_zodvex/client'
+import { api } from '../convex/_zodvex/api'
+
+function Tasks() {
+  const result = useQuery_experimental({ query: api.tasks.list, args: {} })
+  if (result.status === 'pending') return <p>Loading…</p>
+  if (result.status === 'error') return <p>{result.error.message}</p>
+  return <pre>{JSON.stringify(result.data)}</pre>
+}
+```
+
+Arguments use decoded types (such as `Date`), and successful results are decoded through the registry. Pass `args: 'skip'` to suspend the query. Set `throwOnError: true` to throw failures to a React error boundary; the result type then contains only `pending` and `success`.
+
+This hook requires **Convex 1.37 or newer**. Older SDKs can still import the generated client and use the existing hooks; only calling `useQuery_experimental` requires upgrading. Bundlers may warn about the unavailable export on older SDKs; projects that treat such warnings as errors should also upgrade. The name follows Convex's experimental API naming and does not require a prerelease version of Zodvex.
+
+By default, argument encoding and result decoding failures become an `error` state. Native query failures follow Convex's `throwOnError` setting; configuration errors such as a missing provider still throw. Unlike `useZodQuery`, this hook decodes strictly by default when a return schema exists. Missing registry entries or schemas pass through unchanged. A custom factory created with `createZodvexHooks(registry, { onDecodeError: 'warn' })` explicitly opts into warning and returning the raw wire result on decode failure.
 
 ### `ZodvexClient` / `ZodvexReactClient` — codec-aware drop-in clients
 

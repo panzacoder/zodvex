@@ -154,3 +154,19 @@ export function prefixedConsumer<T extends keyof ConsumerModel>(
   const miniWrite: MiniPrefixedWriteValue<ConsumerModel, ConsumerDocs, NoInfer<T>> = value
   return [patchConsumer(table, id, miniPatch), insertConsumer(table, miniWrite)]
 }
+
+// Query state inference must survive the published declaration boundary.
+import type { FunctionReference } from 'convex/server'
+import { createZodvexHooks } from 'zodvex/react'
+declare const dateQuery: FunctionReference<'query', 'public', { at: Date }, { at: Date }>
+const queryHooks = createZodvexHooks({})
+export function useConsumerQuery(at: Date) {
+  return queryHooks.useQuery_experimental({ query: dateQuery, args: { at } })
+}
+const queryState = useConsumerQuery(new Date())
+if (queryState.status === 'success') queryState.data.at.getTime()
+if (queryState.status === 'error') queryState.error.message
+const throwingState = queryHooks.useQuery_experimental({ query: dateQuery, args: 'skip', throwOnError: true })
+const throwingStatus: 'pending' | 'success' = throwingState.status
+// @ts-expect-error Wire values cannot replace decoded arguments.
+queryHooks.useQuery_experimental({ query: dateQuery, args: { at: 42 } })

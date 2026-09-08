@@ -14,6 +14,7 @@
       "zod": ["../../packages/zodvex/node_modules/zod"],
       "zod/*": ["../../packages/zodvex/node_modules/zod/*"],
       "zodvex": ["../../packages/zodvex/dist/index.d.ts"],
+      "zodvex/react": ["../../packages/zodvex/dist/react/index.d.ts"],
       "zodvex/server": ["../../packages/zodvex/dist/server/index.d.ts"],
       "zodvex/mini": ["../../packages/zodvex/dist/mini/index.d.ts"],
       "zodvex/mini/server": ["../../packages/zodvex/dist/mini/server/index.d.ts"]
