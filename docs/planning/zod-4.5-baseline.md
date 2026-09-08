@@ -3,7 +3,7 @@
 This baseline pins development and example dependencies to **4.5.4**, including the
 stress harness deployment manifest. The library peer range remains `^4.3.6`.
 The lockfile changes no other resolved package versions. This dependency upgrade
-does not enable Zod compilation or change zodvex's validation policy.
+does not add a `zod/compile` import or a `z.compile()` call, or change zodvex's validation policy.
 
 ## Reproduce the local proxy
 
