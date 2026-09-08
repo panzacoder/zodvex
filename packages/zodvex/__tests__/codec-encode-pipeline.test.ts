@@ -15,6 +15,7 @@ import { createBoundaryHelpers } from '../src/internal/boundaryHelpers'
 import { zodvexCodec } from '../src/internal/codec'
 import { safeEncode } from '../src/internal/normalizeCodecPaths'
 import { stripUndefined } from '../src/internal/stripUndefined'
+import { $ZodError } from '../src/internal/zod-core'
 import { extractCodec } from '../src/public/codegen/extractCodec'
 
 const functionNameSymbol = Symbol.for('functionName')
@@ -140,28 +141,9 @@ describe('Exact consumer encode pipeline reproduction', () => {
       expect(wire.email).toEqual({ value: 'test@example.com', status: 'full' })
     })
 
-    it('encodes CustomWrapper with empty string', () => {
-      // This is the exact failing case: CustomField.full('')
+    it('rejects an empty email when encoding the extracted codec', () => {
       const runtimeArgs = { email: CustomWrapper.full('') }
-
-      // Empty string fails z.string().email() validation in the wire schema
-      // Does z.encode throw here?
-      let threw = false
-      let result: any
-      try {
-        result = z.encode(argsSchema, runtimeArgs)
-      } catch (e) {
-        threw = true
-        console.log('z.encode threw:', e)
-      }
-
-      if (threw) {
-        console.log('z.encode THREW for empty email — try/catch in useZodQuery would catch this')
-      } else {
-        console.log('z.encode SUCCEEDED:', JSON.stringify(result))
-        // If it succeeded, check if the result still has CustomWrapper
-        expect(result.email).not.toBeInstanceOf(CustomWrapper)
-      }
+      expect(() => z.encode(argsSchema, runtimeArgs)).toThrow($ZodError)
     })
   })
 
@@ -174,23 +156,9 @@ describe('Exact consumer encode pipeline reproduction', () => {
       expect((wire as any).email).toEqual({ value: 'test@example.com', status: 'full' })
     })
 
-    it('handles empty email through safeEncode', () => {
+    it('rejects an empty email through safeEncode', () => {
       const runtimeArgs = { email: CustomWrapper.full('') }
-
-      let threw = false
-      let result: any
-      try {
-        result = stripUndefined(safeEncode(argsSchema, runtimeArgs))
-      } catch (e) {
-        threw = true
-        console.log('safeEncode threw:', e instanceof z.ZodError ? `ZodError: ${e.message}` : e)
-      }
-
-      if (threw) {
-        console.log('safeEncode THREW — useZodQuery try/catch would catch and auto-skip')
-      } else {
-        console.log('safeEncode SUCCEEDED:', JSON.stringify(result))
-      }
+      expect(() => safeEncode(argsSchema, runtimeArgs)).toThrow($ZodError)
     })
   })
 
@@ -205,28 +173,9 @@ describe('Exact consumer encode pipeline reproduction', () => {
       expect(result.email).not.toBeInstanceOf(CustomWrapper)
     })
 
-    it('encodes empty email through full pipeline', () => {
+    it('rejects an empty email at the registered client boundary', () => {
       const args = { email: CustomWrapper.full('') }
-
-      let threw = false
-      let result: any
-      try {
-        result = encodeArgs(fakeRef('users/index:getByEmail'), args)
-      } catch (e) {
-        threw = true
-        console.log('encodeArgs threw:', e)
-      }
-
-      console.log('encodeArgs threw:', threw, 'result:', threw ? 'N/A' : JSON.stringify(result))
-
-      if (!threw) {
-        // If it didn't throw, did it passthrough or actually encode?
-        const isPassthrough = result.email instanceof CustomWrapper
-        console.log('Is passthrough (CustomWrapper still in result):', isPassthrough)
-        if (isPassthrough) {
-          console.log('BUG: encodeArgs returned raw CustomWrapper — this causes the Convex error')
-        }
-      }
+      expect(() => encodeArgs(fakeRef('users/index:getByEmail'), args)).toThrow($ZodError)
     })
 
     it('passthrough check: unknown function path', () => {
