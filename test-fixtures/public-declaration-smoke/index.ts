@@ -68,3 +68,23 @@ db.patch(userId, { createdAt: 42 })
 db.patch('users', userId, { createdAt: 42 })
 // @ts-expect-error Replacements must supply required fields.
 db.replace('users', userId, { email: 'a@example.com' })
+
+const NoticeModel = defineZodModel('notices', z.union([
+  z.object({ kind: z.literal('email'), subject: z.string(), at: zx.date() }),
+  z.object({ kind: z.literal('push'), title: z.string(), at: zx.date() })
+]))
+const NoticeSchema = defineZodSchema({ notices: NoticeModel })
+declare const notices: ZodvexDatabaseWriter<InferDataModel<typeof NoticeSchema>, {
+  notices: z.output<typeof NoticeModel.schema.doc>
+}>
+declare const noticeId: GenericId<'notices'>
+notices.patch(noticeId, { kind: 'email', subject: 'Updated', at: new Date() })
+notices.patch('notices', noticeId, { kind: 'push', title: 'Updated', at: new Date() })
+// @ts-expect-error Emitted patch types must reflect the union encoder's full-variant requirement.
+notices.patch(noticeId, { subject: 'Updated' })
+// @ts-expect-error Table-first calls must enforce the same union patch requirement.
+notices.patch('notices', noticeId, { title: 'Updated' })
+// @ts-expect-error Named fields stay required even when model outputs include an index signature.
+notices.insert('notices', { kind: 'email', at: new Date() })
+// @ts-expect-error Union replacements retain their variant-specific required fields too.
+notices.replace(noticeId, { kind: 'push', at: new Date() })

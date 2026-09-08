@@ -365,7 +365,12 @@ export function installRulesSubclasses(bases: {
 
       if (tableRules?.patch) {
         const transformed = await tableRules.patch(this.ctx, doc, value)
-        return this.inner.patch(id, transformed)
+        // Rules erase table types; the inner encoder still validates transformed
+        // patches, including the complete-variant requirement for union schemas.
+        return this.inner.patch(
+          id,
+          transformed as Parameters<ZodvexDatabaseWriter<DataModel, DecodedDocs>['patch']>[2]
+        )
       }
 
       if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {

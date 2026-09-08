@@ -419,8 +419,10 @@ export type ResolveDecodedDoc<
 /** System fields auto-managed by Convex — not writable by consumers. */
 type SystemFields = '_id' | '_creationTime'
 
-/** Distribute over document unions so variant-specific fields stay writable. */
-type WithoutSystemFields<Doc> = Doc extends unknown ? Omit<Doc, SystemFields> : never
+/** Preserve variant fields, including named fields alongside a string index signature. */
+type WithoutSystemFields<Doc> = Doc extends unknown
+  ? { [Key in keyof Doc as Key extends SystemFields ? never : Key]: Doc[Key] }
+  : never
 
 /** Decoded doc without system fields — for insert and replace values. */
 type DecodedWriteValue<
@@ -429,12 +431,30 @@ type DecodedWriteValue<
   TableName extends TableNamesInDataModel<DataModel>
 > = WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>
 
-/** Partial decoded doc without system fields — for patch values. */
+/** Check the whole document against each member without collapsing variant fields. */
+type IsUnion<Doc, Whole = Doc> = Doc extends unknown
+  ? [Whole] extends [Doc]
+    ? false
+    : true
+  : never
+
+/** Known decoded unions use full encoding; ordinary object documents accept partials. */
+type ModeledPatchValue<Doc> =
+  true extends IsUnion<Doc> ? WithoutSystemFields<Doc> : Partial<WithoutSystemFields<Doc>>
+
+/**
+ * Union patches need a complete variant because encodePartialDoc uses full encoding.
+ * Only decoded output types are available here: erased/collapsed schema unions cannot
+ * be detected, and runtime encoding remains authoritative. Unmodeled tables retain
+ * native partial patch values.
+ */
 type DecodedPatchValue<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>
-> = Partial<WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>>
+> = TableName extends keyof DecodedDocs
+  ? ModeledPatchValue<DecodedDocs[TableName]>
+  : Partial<WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>>
 
 /**
  * Resolves a table name from a GenericId by iterating the tableMap
