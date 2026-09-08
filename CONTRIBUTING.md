@@ -94,13 +94,18 @@ bun run lint:fix       # auto-fix
 bun run format         # format only
 ```
 
-### Full validation
+### Validation
 
-`bun run validate` runs the full pre-release pipeline: lint → type-check → test →
-verify:consumer-declarations → build → verify:examples → verify:examples:network → stress-test
-ceiling search. The network step deploys the examples to real Convex dev instances, so it
-requires a configured `CONVEX_DEPLOYMENT` per example and can't run in CI. For a local,
-no-network subset use `bun run verify:examples`.
+`bun run validate` is an alias for `bun run validate:local`, the shared CI and local
+release gate: lint → type-check → build → type-check:examples → test → test:codemod →
+verify:consumer-declarations → verify:examples → verify:generated. It needs no deployment
+credentials. The Convex-specific example typechecks run after the library build.
+
+Run `bun run validate:network` explicitly to deploy and smoke-test the examples, then
+run the N=100 explicit-shape stress regression. This requires configured example
+deployments and the stress harness's dedicated disposable deployment; see
+[the stress-test setup](examples/stress-test/README.md#setup-the-harnesss-own-deployment).
+`bun run verify:examples` is the local example-only subset and requires a library build first.
 
 ## Public API surface (current)
 
@@ -159,7 +164,8 @@ We use **vitest** (`packages/zodvex/__tests__/`), including type-level assertion
 Beta releases: `bin/release-beta` (auto-increments the prerelease number, builds, tests,
 tags, pushes). A tag push triggers `.github/workflows/release.yml` → `npm publish --tag beta`.
 Stable releases are currently cut manually. Run `bun run validate` locally before trialing a
-release downstream — CI can't perform the Convex deploy step.
+release downstream; CI uses the same local gate. Run `bun run validate:network` separately
+when checking deployment behavior against configured example deployments.
 
 ## Questions?
 

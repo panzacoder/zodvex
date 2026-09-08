@@ -43,7 +43,9 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 
 ### Validation
 
-- `bun run validate` - **Full pre-release validation.** Runs lint → type-check → test → verify:consumer-declarations → build → verify:examples (local) → verify:examples:network (deploys task-manager + task-manager-mini + quickstart to their Convex dev instances and runs real HTTP smoke tests) → stress-test regression gate (real deploys of the zodvex flavors at N=100 in the explicit shape — deploy parity at main's known-good level, not a ceiling search; ceilings are explored manually via `sweep`). Requires `CONVEX_DEPLOYMENT` configured in each example's `.env.local` (one-time `npx convex dev --configure` per example) plus the stress harness's own pinned deployment in `examples/stress-test/_deploy/.env.local` (see `examples/stress-test/README.md`). Run locally before trialing a release in downstream projects — CI can't do the Convex deploy step.
+- `bun run validate:local` - Lint, type-check, build, runtime and codemod correctness tests, consumer declaration checks, local examples, and generated-file freshness. Build precedes every check that consumes `dist`. CI uses this command.
+- `bun run validate:network` - Deploy example apps and run the explicit-shape N=100 stress regression. Requires configured example deployments and the stress harness's dedicated disposable deployment; the stress harness resets its target. Run after local validation.
+- `bun run validate` - Alias for local validation. CI and `bin/release-beta` use the same local gate. Run `validate:network` explicitly when checking deployment behavior; unavailable example deployments do not block unrelated fixes. See the example and stress-test READMEs for deployment setup.
 - `bun run verify:examples` - Local-only subset (no network). Typechecks + runs vitest + regenerates codegen in both task-manager apps.
 - `bun run verify:examples:network` - Deploys schemas to real Convex and runs smoke tests. Standalone script if you want the Convex portion without the whole pipeline.
 
