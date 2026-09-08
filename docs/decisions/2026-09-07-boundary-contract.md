@@ -41,13 +41,23 @@ Audit callbacks are awaited after their corresponding inner operation. Compositi
 
 `unwrap()` deliberately returns the native database handle and bypasses codecs, rules and audit. `wrapDb: false` also opts out of database wrapping. Neither is evidence that the wrapped path preserves fewer guarantees. Tests: [rules/audit composition](../../packages/zodvex/__tests__/rules.test.ts), [underlying database](../../packages/zodvex/__tests__/underlying-db.test.ts), [initialization](../../packages/zodvex/__tests__/init.test.ts).
 
-## Separate experimental pagination limitation
+## Aggregate pagination
 
-The installed Convex 1.32.0 experimental client subscription dispatches aggregate `{ results, status, loadMore }` values, despite its callback type declaring a pagination envelope. The previous zodvex wrapper expected `.page` and attempted to decode each item with the complete function return schema. That is not a supported codec contract.
+`useZodPaginatedQuery` and `onPaginatedUpdate_experimental` delegate pagination to Convex
+and decode accumulated items using the registered return object's `page` array schema.
+They encode domain arguments using the argument object with `paginationOpts` omitted.
+No synthetic page envelope is constructed. Both the vanilla callback and the subscription's
+current-value reader decode results.
 
-The separate remediation makes `onPaginatedUpdate_experimental` fail before subscribing with an actionable diagnostic. Supported alternatives are `query`, `subscribe`, or `ZodvexReactClient.watchQuery` with explicit `paginationOpts`, which retain the complete return envelope. A future aggregate adapter must define argument encoding, item decoding, outer-schema limitations and current-value access; it must not fabricate cursors to claim complete-page validation.
+This intentionally has an item-level contract: complete return-envelope checks cannot run
+after Convex discards page metadata. Outer argument/return refinements and transforms and
+page-array checks or transforms are rejected rather than silently dropped. Item schemas
+retain their normal decoding behavior. Missing schemas pass through. Codec failures throw,
+independently of the warn-mode policy on existing ordinary query methods.
 
-Implementation and tests: [client](../../packages/zodvex/src/public/client/zodvexClient.ts), [client regressions](../../packages/zodvex/__tests__/zodvex-client.test.ts). Apply the restriction only with its separate implementation change; this document alone does not change the API.
+For complete-page parsing use `query`, `subscribe`, or `watchQuery` with explicit
+`paginationOpts`. Convex 1.45.0 still dispatches aggregate vanilla callbacks despite its
+page-envelope callback declaration; the wrapper isolates that mismatch at the SDK boundary.
 
 ## Evidence and next decision gate
 

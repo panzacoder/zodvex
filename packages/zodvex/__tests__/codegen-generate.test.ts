@@ -267,7 +267,7 @@ describe('generateClientFile', () => {
     expect(js).toContain("import { createBoundaryHelpers } from 'zodvex'")
     expect(js).toContain("import { zodvexRegistry } from './api.js'")
     expect(js).toContain(
-      'export const { useZodQuery, useZodMutation, useQuery_experimental } = createZodvexHooks(zodvexRegistry)'
+      'export const { useZodQuery, useZodMutation, useZodPaginatedQuery, useQuery_experimental } = createZodvexHooks(zodvexRegistry)'
     )
     expect(js).toContain('export const createClient = (options) =>')
     expect(js).toContain('export const createReactClient = (options) =>')
@@ -284,6 +284,9 @@ describe('generateClientFile', () => {
     expect(dts).toContain("export declare const useZodQuery: ZodvexHooks['useZodQuery']")
     expect(dts).toContain(
       "export declare const useQuery_experimental: ZodvexHooks['useQuery_experimental']"
+    )
+    expect(dts).toContain(
+      "export declare const useZodPaginatedQuery: ZodvexHooks['useZodPaginatedQuery']"
     )
     expect(dts).toContain("export declare const useZodMutation: ZodvexHooks['useZodMutation']")
     expect(dts).toContain('export declare const createClient:')

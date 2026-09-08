@@ -77,6 +77,7 @@ import { zodvexRegistry } from './api'
 
 export const useZodQuery = undefined as any
 export const useZodMutation = undefined as any
+export const useZodPaginatedQuery = undefined as any
 export const useQuery_experimental = undefined as any
 export const createClient = undefined as any
 `
