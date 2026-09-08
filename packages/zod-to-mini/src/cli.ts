@@ -76,7 +76,7 @@ for (const file of files) {
     if (result.imports > 0) console.log(`    ${result.imports} import(s) → zod/mini`)
 
     for (const warn of result.objectOnlyWarnings) {
-      console.log(`    ⚠ line ${warn.line}: .${warn.method}() — no mini equivalent, needs manual fix`)
+      console.log(`    ⚠ line ${warn.line}: .${warn.method}() — not converted automatically; needs manual fix`)
       totalWarnings++
     }
     for (const warn of result.propertyAccessWarnings) {
@@ -89,7 +89,7 @@ for (const file of files) {
 console.log('')
 console.log(`[zod-to-mini] ${totalChanges} change(s) across ${results.length} file(s)`)
 if (totalWarnings > 0) {
-  console.log(`[zod-to-mini] ${totalWarnings} warning(s) — methods with no mini equivalent`)
+  console.log(`[zod-to-mini] ${totalWarnings} warning(s) — manual migration required`)
 }
 
 if (!dryRun && totalChanges > 0) {

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Project } from 'ts-morph'
+import * as full from 'zod'
+import * as mini from 'zod/mini'
 import { transformFile, transformCode, findInternalPropertyAccess } from './transforms'
 
 function transform(code: string): string {
@@ -222,12 +224,12 @@ describe('type-aware ambiguous methods', () => {
     expect(transform('z.object({ a: z.string() }).pick({ a: true })')).toBe('z.pick(z.object({ a: z.string() }), { a: true })')
   })
 
-  it('still transforms schema.pipe() unconditionally', () => {
-    expect(transform('schema.pipe(z.number())')).toBe('z.pipe(schema, z.number())')
+  it('leaves unknown pipe receivers alone', () => {
+    expect(transform('schema.pipe(z.number())')).toBe('schema.pipe(z.number())')
   })
 
-  it('still transforms schema.brand() unconditionally', () => {
-    expect(transform('schema.brand("Email")')).toBe('z.brand(schema, "Email")')
+  it('leaves unknown brand receivers alone', () => {
+    expect(transform('schema.brand("Email")')).toBe('schema.brand("Email")')
   })
 
   it('transforms .extend() on variable assigned from z.object()', () => {
@@ -295,6 +297,56 @@ describe('transformConstructorReplacements', () => {
 })
 
 describe('findObjectOnlyMethods (warnings)', () => {
+  it('warns for unsupported date min/max without rewriting the bounds', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const source = `import { z } from 'zod';
+const earliest = z.date().min(new Date(0));
+const latest = z.date().max(new Date(1));`
+    const file = project.createSourceFile('test.ts', source)
+    const result = transformFile(file)
+    expect(result.objectOnlyWarnings).toEqual([
+      { line: 2, method: 'min', text: 'z.date().min(new Date(0))' },
+      { line: 3, method: 'max', text: 'z.date().max(new Date(1))' },
+    ])
+    expect(file.getFullText()).toBe(source)
+    expect(result.totalChanges).toBe(0)
+  })
+
+  it('warns for date bounds resolved through type evidence', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', `declare const schema: {
+      _zod: { def: { type: 'date' } };
+      min(value: Date): unknown;
+      max(value: Date): unknown;
+    };
+    schema.min(new Date(0)); schema.max(new Date(1));`)
+    const result = transformFile(file, project.getTypeChecker())
+    expect(result.objectOnlyWarnings.map(warning => warning.method)).toEqual(['min', 'max'])
+  })
+
+  it('keeps date-bound warnings scoped to schema receivers', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', `import { z } from 'zod';
+      const date = z.date(); const alias = date;
+      alias.min(new Date(0));
+      function sibling(alias) { alias.max(value); }
+      function shadow(z) { z.date().min(value); }
+      z.date().parse(value).max(other);
+      Math.min(1, 2); z.min(value);
+      z.string().min(1); z.number().max(2);`)
+    const result = transformFile(file)
+    expect(result.objectOnlyWarnings.map(warning => warning.text)).toEqual(['alias.min(new Date(0))'])
+  })
+
+  it('does not warn against definitive non-schema type evidence for date-like initializers', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', `declare const z: any;
+      const schema: { min(value: Date): string; max(value: Date): string } = z.date();
+      schema.min(new Date(0)); schema.max(new Date(1));`)
+    const result = transformFile(file, project.getTypeChecker())
+    expect(result.objectOnlyWarnings).toEqual([])
+  })
+
   it('flags .merge() (manual migration needed)', () => {
     const project = new Project({ useInMemoryFileSystem: true })
     const file = project.createSourceFile('test.ts', 'schema.merge(other)')
@@ -336,12 +388,12 @@ describe('combined transforms', () => {
 })
 
 describe('transformMethods — .parse() and .safeParse()', () => {
-  it('.parse(value) → z.parse(schema, value)', () => {
-    expect(transform('schema.parse(data)')).toBe('z.parse(schema, data)')
+  it('leaves parse on an unknown receiver unchanged', () => {
+    expect(transform('schema.parse(data)')).toBe('schema.parse(data)')
   })
 
-  it('.safeParse(value) → z.safeParse(schema, value)', () => {
-    expect(transform('schema.safeParse(data)')).toBe('z.safeParse(schema, data)')
+  it('leaves safeParse on an unknown receiver unchanged', () => {
+    expect(transform('schema.safeParse(data)')).toBe('schema.safeParse(data)')
   })
 
   it('.parse() with complex expression receiver', () => {
@@ -362,8 +414,8 @@ describe('transformMethods — .parse() and .safeParse()', () => {
 })
 
 describe('transformMethods — .unwrap()', () => {
-  it('.unwrap() → ._zod.def.innerType', () => {
-    expect(transform('schema.unwrap()')).toBe('schema._zod.def.innerType')
+  it('leaves unwrap on an unknown receiver unchanged', () => {
+    expect(transform('schema.unwrap()')).toBe('schema.unwrap()')
   })
 
   it('.unwrap() on z.optional() result', () => {
@@ -627,5 +679,108 @@ describe('transformCode', () => {
     expect(result.changed).toBe(false)
     expect(result.code).toBe(input)
     expect(result.code).not.toContain('zod/mini')
+  })
+})
+
+
+describe('batched class references', () => {
+  it('preserves nested references and runtime core import precedence across phases', () => {
+    const source = `import { z } from 'zod';
+      const prototype = z.ZodString.prototype;
+      const error = new z.ZodError([]);
+      type Error = z.ZodError;
+      type Schema = z.ZodArray<z.ZodString>;
+      type Imported = import('zod').ZodArray<z.ZodString>;`
+    const result = transform(source)
+    expect(result).toContain('z.ZodMiniString.prototype')
+    expect(result).toContain('new $ZodError([])')
+    expect(result).toContain('type Error = $ZodError')
+    expect(result).toContain('type Schema = z.ZodMiniArray<z.ZodMiniString>')
+    expect(result).toContain("type Imported = import('zod/mini').ZodMiniArray<z.ZodMiniString>")
+    expect(result.match(/import \{ \$ZodError \} from "zod\/v4\/core"/g)).toHaveLength(1)
+    expect(result).not.toContain('import type')
+  })
+})
+
+describe('receiver and bound regressions', () => {
+  it('keeps lexical alias and namespace evidence in syntax-only string transforms', () => {
+    const source = `import { z } from 'zod';
+      const schema = z.array(z.number());
+      const alias = schema;
+      function other(alias) { return alias.min(1).optional(); }
+      function shadow(z) { return z.string().optional(); }
+      alias.min(2).max(3);`
+    const result = transformCode(source)
+    expect(result.changed).toBe(true)
+    expect(result.code).toContain('alias.check(z.minLength(2)).check(z.maxLength(3))')
+    expect(result.code).toContain('return alias.min(1).optional()')
+    expect(result.code).toContain('return z.string().optional()')
+  })
+
+  it('retains negative type evidence from caller-provided string-transform projects', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const source = `declare const z: any;
+      const schema: { min(n: number): string; optional(): string } = z.string();
+      schema.min(1); schema.optional();`
+    const result = transformCode(source, { project })
+    expect(result.code).toContain('schema.min(1); schema.optional();')
+  })
+
+  it.each([
+    'JSON.parse(text)', 'stream.pipe(destination)', 'formatter.email(value)',
+    'builder.default(value)', 'query.transform(fn)', 'service.unwrap()',
+    'custom.refine(predicate)',
+  ])('does not rewrite non-schema call %s', source => {
+    expect(transform(source)).toBe(source)
+  })
+
+  it('does not treat parsed values as schemas', () => {
+    expect(transform('z.string().parse(text).trim()')).toBe('z.parse(z.string(), text).trim()')
+  })
+
+  it('resolves shadowed parameters and sibling scopes lexically', () => {
+    const source = `const schema = z.string();
+      function first() { const schema = z.number(); schema.min(1); }
+      function second(schema) { schema.optional(); schema.parse(value); }
+      { const schema = service; schema.default(value); }
+      schema.min(2);`
+    const result = transform(source)
+    expect(result).toContain('schema.check(z.gte(1))')
+    expect(result).toContain('schema.optional(); schema.parse(value)')
+    expect(result).toContain('schema.default(value)')
+    expect(result).toContain('schema.check(z.minLength(2))')
+  })
+
+  it('follows schema aliases', () => {
+    expect(transform('const a = z.array(z.number()); const b = a; b.min(2).max(3);'))
+      .toContain('b.check(z.minLength(2)).check(z.maxLength(3))')
+  })
+
+  it('does not override definitive negative type evidence', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const file = project.createSourceFile('test.ts', `declare const z: any;
+      const schema: { optional(): string; parse(x: string): string } = z.string();
+      schema.optional(); schema.parse('x');`)
+    transformFile(file, project.getTypeChecker())
+    expect(file.getFullText()).toContain("schema.optional(); schema.parse('x')")
+  })
+
+  it('does not mistake a locally shadowed z for the namespace', () => {
+    expect(transform('function f(z) { return z.string().optional(); }'))
+      .toBe('function f(z) { return z.string().optional(); }')
+  })
+
+  it.each([
+    ['z.array(z.number()).min(2).max(3)', [[], [1], [1, 2], [1, 2, 3, 4]]],
+    ['z.array(z.string()).min(2).max(3)', [[], ['a'], ['a', 'b'], ['a', 'b', 'c', 'd']]],
+    ['z.string().min(2).max(3)', ['', 'a', 'ab', 'abcd']],
+    ['z.number().min(2).max(3)', [1, 2, 3, 4]],
+    ['z.set(z.number()).min(2).max(3)', [new Set(), new Set([1, 2]), new Set([1, 2, 3, 4])]],
+  ])('preserves full/mini validation for %s', (source, values) => {
+    const original = new Function('z', `return ${source}`)(full)
+    const converted = new Function('z', `return ${transform(source)}`)(mini)
+    for (const value of values) {
+      expect(converted.safeParse(value).success).toBe(original.safeParse(value).success)
+    }
   })
 })
