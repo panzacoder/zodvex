@@ -182,7 +182,9 @@ function TaskDetail({ id }: { id: string }) {
 - **`ZodvexClient`** (↔ `ConvexClient`): `query`, `mutate` (alias `mutation`), `action`, `subscribe` (alias `onUpdate`), `onPaginatedUpdate_experimental`, `getAuth`, `setAuth` (accepts a token string *or* an `AuthTokenFetcher` + `onChange`), `connectionState`, `subscribeToConnectionState`, `closed` / `disabled`, `close`. The inner client is reachable via the `convex` getter.
 - **`ZodvexReactClient`** (↔ `ConvexReactClient`): `query`, `mutation`, `action`, `watchQuery`, `prewarmQuery`, `setAuth`, `clearAuth`, `connectionState`, `subscribeToConnectionState`, `url`, `logger`, `close`.
 
-The data methods (`query` / `mutate` / `action` / `subscribe` / `watchQuery` / paginated) are codec-wrapped; the auth, connection, and lifecycle methods are thin pass-throughs to the underlying Convex client.
+The data methods (`query` / `mutate` / `action` / `subscribe` / `watchQuery`) are codec-wrapped; the auth, connection, and lifecycle methods are thin pass-throughs to the underlying Convex client.
+
+`onPaginatedUpdate_experimental` is currently unavailable and throws before subscribing. Convex aggregates pages into a client result that does not preserve the page envelope required by the declared codec. Use the underlying Convex client directly when you need its experimental pagination API; that path does not apply Zodvex codecs.
 
 ## Bootstrapping note
 
