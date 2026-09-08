@@ -84,7 +84,26 @@ notices.patch('notices', noticeId, { kind: 'push', title: 'Updated', at: new Dat
 notices.patch(noticeId, { subject: 'Updated' })
 // @ts-expect-error Table-first calls must enforce the same union patch requirement.
 notices.patch('notices', noticeId, { title: 'Updated' })
-// @ts-expect-error Named fields stay required even when model outputs include an index signature.
+// @ts-expect-error The model-inferred email variant requires subject.
 notices.insert('notices', { kind: 'email', at: new Date() })
 // @ts-expect-error Union replacements retain their variant-specific required fields too.
 notices.replace(noticeId, { kind: 'push', at: new Date() })
+
+// Exercise string index signatures explicitly, independently of model inference.
+type IndexedNoticeDoc = {
+  [key: string]: unknown
+  _id: GenericId<'notices'>
+  _creationTime: number
+} & (
+  | { kind: 'email'; subject: string; at: Date }
+  | { kind: 'push'; title: string; at: Date }
+)
+declare const indexedNotices: ZodvexDatabaseWriter<InferDataModel<typeof NoticeSchema>, {
+  notices: IndexedNoticeDoc
+}>
+indexedNotices.insert('notices', { kind: 'email', subject: 'Hello', at: new Date() })
+indexedNotices.patch(noticeId, { kind: 'push', title: 'Updated', at: new Date() })
+// @ts-expect-error Explicit index signatures must retain required named insert fields.
+indexedNotices.insert('notices', { kind: 'email', at: new Date() })
+// @ts-expect-error Explicit index signatures must retain required named patch fields.
+indexedNotices.patch(noticeId, { kind: 'push', at: new Date() })

@@ -113,3 +113,22 @@ type ObjectDoc = EventDoc & { state: 'draft' | 'published' }
 declare const objects: ZodvexDatabaseWriter<{ events: Table<ObjectDoc> }, { events: ObjectDoc }>
 objects.patch(eventId, { state: 'published' })
 objects.patch('events', eventId, {})
+
+// Explicit index signatures must not erase the variants' named required fields.
+type IndexedNoticeDoc = NoticeDoc & { [key: string]: unknown }
+declare const indexedNotices: ZodvexDatabaseWriter<
+  { notices: Table<NoticeWire> },
+  { notices: IndexedNoticeDoc }
+>
+indexedNotices.insert('notices', { kind: 'email', subject: 'Hello', at: new Date() })
+indexedNotices.patch(noticeId, { kind: 'push', title: 'Updated', at: new Date() })
+indexedNotices.patch('notices', noticeId, { kind: 'email', subject: 'Updated', at: new Date() })
+indexedNotices.replace(noticeId, { kind: 'push', title: 'Updated', at: new Date() })
+// @ts-expect-error A string index signature does not make subject optional.
+indexedNotices.insert('notices', { kind: 'email', at: new Date() })
+// @ts-expect-error Full union patch encoding still requires title.
+indexedNotices.patch(noticeId, { kind: 'push', at: new Date() })
+// @ts-expect-error Table-first patches must retain named required fields too.
+indexedNotices.patch('notices', noticeId, { kind: 'email', at: new Date() })
+// @ts-expect-error Replacement fields remain required alongside an index signature.
+indexedNotices.replace(noticeId, { kind: 'push', at: new Date() })
