@@ -44,9 +44,10 @@ export function transformWrappers(file: SourceFile, typeChecker?: TypeChecker): 
 
   // Process innermost calls first by reversing (deepest nodes last in AST order)
   const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).reverse()
+  const receivers = analyzeCallReceivers(calls, WRAPPER_METHODS, typeChecker)
 
   for (const call of calls) {
-    if (call.wasForgotten()) continue
+    if (call.wasForgotten() || !receivers.get(call)?.schema) continue
     const method = getMethodName(call)
     if (!method || !WRAPPER_METHODS.includes(method as any)) continue
     if (call.getArguments().length > 0) continue // .optional(value) is different
@@ -57,7 +58,6 @@ export function transformWrappers(file: SourceFile, typeChecker?: TypeChecker): 
     // Skip namespace calls — `z.optional()` is a constructor, not a method chain.
     if (isNamespaceCall(obj)) continue
 
-    if (!isSchemaReceiver(call, typeChecker)) continue
 
     // Replace `expr.optional()` → `z.optional(expr)`
     call.replaceWithText(`z.${method}(${obj})`)
@@ -124,19 +124,21 @@ const AMBIGUOUS_CHECK_METHODS = [
   'gt', 'gte', 'lt', 'lte',
 ] as const
 
+type SchemaContext = Map<SourceFile, Set<string>>
+
 /** Resolve declarations through TypeScript symbols, so shadowed parameters and
  * sibling blocks cannot inherit evidence from a same-spelled variable. */
-function schemaKind(node: Node, seen = new Set<Node>()): string | null {
+function schemaKind(node: Node, seen = new Set<Node>(), context: SchemaContext = new Map()): string | null {
   if (seen.has(node)) return null
   seen.add(node)
   if (Node.isParenthesizedExpression(node) || Node.isAsExpression(node) || Node.isNonNullExpression(node)) {
-    return schemaKind(node.getExpression(), seen)
+    return schemaKind(node.getExpression(), seen, context)
   }
   if (Node.isIdentifier(node)) {
     for (const decl of node.getSymbol()?.getDeclarations() ?? []) {
       if (Node.isVariableDeclaration(decl)) {
         const init = decl.getInitializer()
-        if (init) return schemaKind(init, seen)
+        if (init) return schemaKind(init, seen, context)
       }
       if (Node.isParameterDeclaration(decl)) {
         const annotation = decl.getTypeNode()?.getText()
@@ -154,11 +156,19 @@ function schemaKind(node: Node, seen = new Set<Node>()): string | null {
     // A local object named z is not a Zod namespace.
     // Most files only import the namespace. Avoid initializing/rebuilding the
     // type checker for every constructor unless a local binding could shadow it.
-    const localBinding = node.getSourceFile().getDescendants().some(d =>
-      (Node.isVariableDeclaration(d) || Node.isParameterDeclaration(d) || Node.isFunctionDeclaration(d) || Node.isBindingElement(d) || Node.isClassDeclaration(d) || Node.isEnumDeclaration(d)) &&
-      d.getName() === receiver.getText()
-    )
-    if (localBinding) {
+    const file = node.getSourceFile()
+    let localNamespaces = context.get(file)
+    if (!localNamespaces) {
+      localNamespaces = new Set<string>()
+      for (const declaration of file.getDescendants()) {
+        if (Node.isVariableDeclaration(declaration) || Node.isParameterDeclaration(declaration) || Node.isFunctionDeclaration(declaration) || Node.isBindingElement(declaration) || Node.isClassDeclaration(declaration) || Node.isEnumDeclaration(declaration)) {
+          const name = declaration.getName()
+          if (name && NAMESPACE_IDENTIFIERS.has(name)) localNamespaces.add(name)
+        }
+      }
+      context.set(file, localNamespaces)
+    }
+    if (localNamespaces.has(receiver.getText())) {
       const declarations = receiver.getSymbol()?.getDeclarations() ?? []
       if (declarations.some(d => !Node.isImportSpecifier(d) && !Node.isNamespaceImport(d))) return null
     }
@@ -168,11 +178,11 @@ function schemaKind(node: Node, seen = new Set<Node>()): string | null {
   }
   // Parsing produces values, not schemas, even when a schema starts the chain.
   if (['parse', 'safeParse', 'parseAsync', 'safeParseAsync', 'encode', 'decode'].includes(name)) return null
-  if (name === 'array' && schemaKind(receiver, seen)) return 'array'
-  return schemaKind(receiver, seen)
+  if (name === 'array' && schemaKind(receiver, seen, context)) return 'array'
+  return schemaKind(receiver, seen, context)
 }
 
-function isSchemaReceiver(call: CallExpression, typeChecker?: TypeChecker): boolean {
+function isSchemaReceiver(call: CallExpression, typeChecker?: TypeChecker, context: SchemaContext = new Map()): boolean {
   const expr = call.getExpression()
   if (!Node.isPropertyAccessExpression(expr)) return false
   const receiver = expr.getExpression()
@@ -181,10 +191,10 @@ function isSchemaReceiver(call: CallExpression, typeChecker?: TypeChecker): bool
     // A resolved non-schema type is definitive; syntax cannot override it.
     if (!type.isAny() && !type.isUnknown()) return type.getProperty('_zod') !== undefined
   }
-  return schemaKind(receiver) !== null
+  return schemaKind(receiver, new Set(), context) !== null
 }
 
-function receiverKind(call: CallExpression, typeChecker?: TypeChecker): string | null {
+function receiverKind(call: CallExpression, typeChecker?: TypeChecker, context: SchemaContext = new Map()): string | null {
   const expr = call.getExpression()
   if (!Node.isPropertyAccessExpression(expr)) return null
   const receiver = expr.getExpression()
@@ -194,7 +204,27 @@ function receiverKind(call: CallExpression, typeChecker?: TypeChecker): string |
     const kind = def?.getProperty('type')?.getTypeAtLocation(receiver).getLiteralValue()
     if (typeof kind === 'string') return kind
   }
-  return schemaKind(receiver)
+  return schemaKind(receiver, new Set(), context)
+}
+
+/** Resolve receiver evidence before the first edit in a pass. ts-morph resets
+ * TypeScript's program after each mutation; interleaving resolution and edits
+ * otherwise rebuilds the checker for every schema method. Keep call identities
+ * (rather than receiver text) so shadowed bindings retain their own evidence. */
+function analyzeCallReceivers(calls: CallExpression[], methods: readonly string[], typeChecker?: TypeChecker) {
+  const context: SchemaContext = new Map()
+  const receivers = new Map<CallExpression, { schema: boolean; kind: string | null }>()
+  for (const call of calls) {
+    const method = getMethodName(call)
+    if (!method || !methods.includes(method)) continue
+    const obj = getCallObject(call)
+    if (!obj || isNamespaceCall(obj)) continue
+    const schema = isSchemaReceiver(call, typeChecker, context)
+    const kind = schema && (method === 'min' || method === 'max')
+      ? receiverKind(call, typeChecker, context) : null
+    receivers.set(call, { schema, kind })
+  }
+  return receivers
 }
 
 /** Methods that need renaming for string context */
@@ -212,9 +242,10 @@ const NUMBER_RENAME: Record<string, string> = {
 export function transformChecks(file: SourceFile, typeChecker?: TypeChecker): number {
   let count = 0
   const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).reverse()
+  const receivers = analyzeCallReceivers(calls, [...ZOD_ONLY_CHECK_METHODS, ...AMBIGUOUS_CHECK_METHODS, 'min', 'max'], typeChecker)
 
   for (const call of calls) {
-    if (call.wasForgotten()) continue
+    if (call.wasForgotten() || !receivers.get(call)?.schema) continue
     const method = getMethodName(call)
     if (!method) continue
 
@@ -228,7 +259,6 @@ export function transformChecks(file: SourceFile, typeChecker?: TypeChecker): nu
     const argsStr = args.length > 0 ? args.join(', ') : ''
 
     if (![...ZOD_ONLY_CHECK_METHODS, ...AMBIGUOUS_CHECK_METHODS, 'min', 'max'].includes(method)) continue
-    if (!isSchemaReceiver(call, typeChecker)) continue
 
     // Schema check methods
     if ((ZOD_ONLY_CHECK_METHODS as readonly string[]).includes(method)) {
@@ -246,7 +276,7 @@ export function transformChecks(file: SourceFile, typeChecker?: TypeChecker): nu
 
     // .min()/.max() — only on schema expressions, context-dependent rename
     if (method === 'min' || method === 'max') {
-      const kind = receiverKind(call, typeChecker)
+      const kind = receivers.get(call)?.kind
       const checkName = kind === 'string' || kind === 'array' ? STRING_RENAME[method]
         : kind === 'number' || kind === 'bigint' ? NUMBER_RENAME[method]
         : kind === 'set' ? (method === 'min' ? 'minSize' : 'maxSize') : null
@@ -292,9 +322,10 @@ const CHECK_WRAP_METHODS = ['refine', 'superRefine', 'describe'] as const
 export function transformMethods(file: SourceFile, typeChecker?: TypeChecker): number {
   let count = 0
   const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).reverse()
+  const receivers = analyzeCallReceivers(calls, [...TOP_LEVEL_METHODS, ...RENAMED_METHODS.keys(), TRANSFORM_METHOD, 'unwrap', ...CHECK_WRAP_METHODS], typeChecker)
 
   for (const call of calls) {
-    if (call.wasForgotten()) continue
+    if (call.wasForgotten() || !receivers.get(call)?.schema) continue
     const method = getMethodName(call)
     if (!method) continue
 
@@ -307,7 +338,6 @@ export function transformMethods(file: SourceFile, typeChecker?: TypeChecker): n
     const args = call.getArguments().map(a => a.getText())
 
     if (![...TOP_LEVEL_METHODS, ...RENAMED_METHODS.keys(), TRANSFORM_METHOD, 'unwrap', ...CHECK_WRAP_METHODS].includes(method)) continue
-    if (!isSchemaReceiver(call, typeChecker)) continue
 
     // Top-level forms for confirmed schema receivers
     if ((TOP_LEVEL_METHODS as readonly string[]).includes(method)) {
@@ -373,9 +403,10 @@ const CONSTRUCTOR_REPLACEMENTS: Record<string, string> = {
 export function transformConstructorReplacements(file: SourceFile, typeChecker?: TypeChecker): number {
   let count = 0
   const calls = file.getDescendantsOfKind(SyntaxKind.CallExpression).reverse()
+  const receivers = analyzeCallReceivers(calls, [...Object.keys(CONSTRUCTOR_REPLACEMENTS), 'datetime'], typeChecker)
 
   for (const call of calls) {
-    if (call.wasForgotten()) continue
+    if (call.wasForgotten() || !receivers.get(call)?.schema) continue
     const method = getMethodName(call)
     if (!method) continue
 
@@ -383,7 +414,6 @@ export function transformConstructorReplacements(file: SourceFile, typeChecker?:
     if (!obj) continue
 
     if (!(method in CONSTRUCTOR_REPLACEMENTS) && method !== 'datetime') continue
-    if (!isSchemaReceiver(call, typeChecker)) continue
 
     // z.object(shape).passthrough() → z.looseObject(shape)
     // z.object(shape).strict() → z.strictObject(shape)
@@ -658,6 +688,14 @@ export function transformClassRefs(file: SourceFile): number {
   /** Core names that appear ONLY in type positions — can use `import type` */
   const typeOnlyCoreImports = new Set<string>()
 
+  // Exact z.ClassName references cannot overlap within either phase. Apply
+  // their text edits together to avoid reparsing the file for every reference.
+  // applyTextChanges forgets descendants, so collect fresh nodes for each phase.
+  const replacements: Array<{ span: { start: number; length: number }; newText: string }> = []
+  const queueReplacement = (node: Node, newText: string) => {
+    replacements.push({ span: { start: node.getStart(), length: node.getWidth() }, newText })
+  }
+
   // --- Process runtime (PropertyAccessExpression) nodes ---
   const propAccesses = file.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)
 
@@ -668,7 +706,7 @@ export function transformClassRefs(file: SourceFile): number {
     // Check mini renames first (no import needed)
     const miniReplacement = MINI_CLASS_RENAMES[text]
     if (miniReplacement) {
-      pa.replaceWithText(miniReplacement)
+      queueReplacement(pa, miniReplacement)
       count++
       continue
     }
@@ -676,11 +714,14 @@ export function transformClassRefs(file: SourceFile): number {
     // Check core renames (need import)
     const coreReplacement = CORE_CLASS_RENAMES[text]
     if (coreReplacement) {
-      pa.replaceWithText(coreReplacement)
+      queueReplacement(pa, coreReplacement)
       runtimeCoreImports.add(coreReplacement)
       count++
     }
   }
+
+  if (replacements.length > 0) file.applyTextChanges(replacements)
+  replacements.length = 0
 
   // --- Process type-level (QualifiedName) nodes ---
   const qualNames = file.getDescendantsOfKind(SyntaxKind.QualifiedName)
@@ -692,7 +733,7 @@ export function transformClassRefs(file: SourceFile): number {
     // Check mini renames first
     const miniReplacement = MINI_CLASS_RENAMES[text]
     if (miniReplacement) {
-      qn.replaceWithText(miniReplacement)
+      queueReplacement(qn, miniReplacement)
       count++
       continue
     }
@@ -700,13 +741,15 @@ export function transformClassRefs(file: SourceFile): number {
     // Check core renames
     const coreReplacement = CORE_CLASS_RENAMES[text]
     if (coreReplacement) {
-      qn.replaceWithText(coreReplacement)
+      queueReplacement(qn, coreReplacement)
       if (!runtimeCoreImports.has(coreReplacement)) {
         typeOnlyCoreImports.add(coreReplacement)
       }
       count++
     }
   }
+
+  if (replacements.length > 0) file.applyTextChanges(replacements)
 
   // --- Process inline import type expressions (ImportType nodes) ---
   // e.g., import('zod').ZodTypeAny → import('zod/mini').ZodMiniType
@@ -918,6 +961,9 @@ export function transformCode(
   try {
     const project = options?.project ?? new Project({
       useInMemoryFileSystem: true,
+      // Syntax-only mode needs local binding symbols, not standard-library types.
+      // Loading the libs for each file dominates alias resolution in this mode.
+      skipLoadingLibFiles: true,
       compilerOptions: { strict: false },
     })
     const filename = options?.filename ?? 'transform.ts'

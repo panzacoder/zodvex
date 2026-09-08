@@ -633,7 +633,49 @@ describe('transformCode', () => {
 })
 
 
+describe('batched class references', () => {
+  it('preserves nested references and runtime core import precedence across phases', () => {
+    const source = `import { z } from 'zod';
+      const prototype = z.ZodString.prototype;
+      const error = new z.ZodError([]);
+      type Error = z.ZodError;
+      type Schema = z.ZodArray<z.ZodString>;
+      type Imported = import('zod').ZodArray<z.ZodString>;`
+    const result = transform(source)
+    expect(result).toContain('z.ZodMiniString.prototype')
+    expect(result).toContain('new $ZodError([])')
+    expect(result).toContain('type Error = $ZodError')
+    expect(result).toContain('type Schema = z.ZodMiniArray<z.ZodMiniString>')
+    expect(result).toContain("type Imported = import('zod/mini').ZodMiniArray<z.ZodMiniString>")
+    expect(result.match(/import \{ \$ZodError \} from "zod\/v4\/core"/g)).toHaveLength(1)
+    expect(result).not.toContain('import type')
+  })
+})
+
 describe('receiver and bound regressions', () => {
+  it('keeps lexical alias and namespace evidence in syntax-only string transforms', () => {
+    const source = `import { z } from 'zod';
+      const schema = z.array(z.number());
+      const alias = schema;
+      function other(alias) { return alias.min(1).optional(); }
+      function shadow(z) { return z.string().optional(); }
+      alias.min(2).max(3);`
+    const result = transformCode(source)
+    expect(result.changed).toBe(true)
+    expect(result.code).toContain('alias.check(z.minLength(2)).check(z.maxLength(3))')
+    expect(result.code).toContain('return alias.min(1).optional()')
+    expect(result.code).toContain('return z.string().optional()')
+  })
+
+  it('retains negative type evidence from caller-provided string-transform projects', () => {
+    const project = new Project({ useInMemoryFileSystem: true })
+    const source = `declare const z: any;
+      const schema: { min(n: number): string; optional(): string } = z.string();
+      schema.min(1); schema.optional();`
+    const result = transformCode(source, { project })
+    expect(result.code).toContain('schema.min(1); schema.optional();')
+  })
+
   it.each([
     'JSON.parse(text)', 'stream.pipe(destination)', 'formatter.email(value)',
     'builder.default(value)', 'query.transform(fn)', 'service.unwrap()',
