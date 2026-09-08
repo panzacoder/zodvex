@@ -71,7 +71,7 @@ The `zx.date()` codec makes the transformation explicit — you know at a glance
 
 ### Automatic Codec Handling with initZodvex
 
-When using `initZodvex`, codec encoding and decoding at the DB layer is handled automatically. You don't need to manually call encode/decode functions — dates round-trip as `Date` objects at every boundary.
+When using `initZodvex`, codec encoding and decoding at the DB layer is handled automatically. You don't need to manually call encode/decode functions — dates round-trip as `Date` objects through modeled database writes and reads.
 
 ## Deprecated: mapDateFieldToNumber
 

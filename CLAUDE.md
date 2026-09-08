@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**zodvex lets you use Zod v4 as your schema language for Convex.** You define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation: function I/O is validated automatically, `ctx.db` is codec-aware (`Date`/typed-id/custom encode-decode at the database boundary, with `.withRules()` and `.audit()` on the same wrapped db), and an optional codegen CLI shares client-safe schemas and inferred query validators.
+**zodvex lets you use Zod v4 as your schema language for Convex.** You define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation: declared function schemas run Zod parsing/encoding automatically, `ctx.db` is codec-aware (`Date`/typed-id/custom encode-decode at the database boundary, with `.withRules()` and `.audit()` on the same wrapped db), and an optional codegen CLI shares client-safe schemas and inferred query validators.
 
 The codec-aware data layer is the standout *differentiator*, but the *identity* is "Zod as your source of truth across a Convex app." zodvex is not a validator-mapper (mapping is the foundation, not the product — and zodvex ships its **own** mapping layer in `internal/mapping/`; `convex-helpers` is a peer used for the custom-function convention and streams, not the mapping) and not a middleware/function-composition framework (its "middleware" is the codec-aware db, wired once via `initZodvex`).
 
 See [`docs/positioning.md`](docs/positioning.md) for the canonical positioning statement — lead with this framing in any comparison or summary.
+
+See [`docs/decisions/2026-09-07-boundary-contract.md`](docs/decisions/2026-09-07-boundary-contract.md) for current guarantees and limits, including modeled reads, patch semantics, and the default client warn/raw decode policy. Do not summarize these as strict validation at every boundary.
 
 ## Monorepo Structure
 
