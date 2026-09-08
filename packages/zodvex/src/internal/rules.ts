@@ -513,10 +513,7 @@ export function installRulesSubclasses(bases: {
     }
 
     async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
-      const iter = super[Symbol.asyncIterator]()
-      while (true) {
-        const { value, done } = await iter.next()
-        if (done) break
+      for await (const value of super[Symbol.asyncIterator]()) {
         await this.afterRead(this.tableName, value)
         yield value
       }
