@@ -1,6 +1,7 @@
 # Boundary contract during remediation
 
-Date: 2026-09-07  
+Date: 2026-09-07
+
 Status: working decision; describes the supported implementation and explicitly identified limitations, not a new universal validation promise.
 
 ## Decision
