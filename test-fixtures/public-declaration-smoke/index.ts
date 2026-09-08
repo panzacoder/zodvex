@@ -47,3 +47,63 @@ export const MiniApi = initMiniZodvex(MiniSchema, {
   internalMutation,
   internalAction
 })
+
+// Keep the emitted database surface honest as well as the source type suite.
+import type { GenericId } from 'convex/values'
+import type { InferDataModel, ZodvexDatabaseWriter } from 'zodvex/server'
+
+declare const db: ZodvexDatabaseWriter<InferDataModel<typeof FullSchema>, {
+  users: z.output<typeof FullUserModel.schema.doc>
+}>
+declare const userId: GenericId<'users'>
+const decoded = db.get('users', userId)
+decoded.then(user => user?.createdAt.getTime())
+db.insert('users', { email: 'a@example.com', createdAt: new Date() })
+db.patch('users', userId, { createdAt: new Date() })
+// @ts-expect-error Unknown tables must not select a declaration fallback.
+db.insert('missing', {})
+// @ts-expect-error Both calling conventions require decoded codec values.
+db.patch(userId, { createdAt: 42 })
+// @ts-expect-error Table-first writes must not select a declaration fallback.
+db.patch('users', userId, { createdAt: 42 })
+// @ts-expect-error Replacements must supply required fields.
+db.replace('users', userId, { email: 'a@example.com' })
+
+const NoticeModel = defineZodModel('notices', z.union([
+  z.object({ kind: z.literal('email'), subject: z.string(), at: zx.date() }),
+  z.object({ kind: z.literal('push'), title: z.string(), at: zx.date() })
+]))
+const NoticeSchema = defineZodSchema({ notices: NoticeModel })
+declare const notices: ZodvexDatabaseWriter<InferDataModel<typeof NoticeSchema>, {
+  notices: z.output<typeof NoticeModel.schema.doc>
+}>
+declare const noticeId: GenericId<'notices'>
+notices.patch(noticeId, { kind: 'email', subject: 'Updated', at: new Date() })
+notices.patch('notices', noticeId, { kind: 'push', title: 'Updated', at: new Date() })
+// @ts-expect-error Emitted patch types must reflect the union encoder's full-variant requirement.
+notices.patch(noticeId, { subject: 'Updated' })
+// @ts-expect-error Table-first calls must enforce the same union patch requirement.
+notices.patch('notices', noticeId, { title: 'Updated' })
+// @ts-expect-error The model-inferred email variant requires subject.
+notices.insert('notices', { kind: 'email', at: new Date() })
+// @ts-expect-error Union replacements retain their variant-specific required fields too.
+notices.replace(noticeId, { kind: 'push', at: new Date() })
+
+// Exercise string index signatures explicitly, independently of model inference.
+type IndexedNoticeDoc = {
+  [key: string]: unknown
+  _id: GenericId<'notices'>
+  _creationTime: number
+} & (
+  | { kind: 'email'; subject: string; at: Date }
+  | { kind: 'push'; title: string; at: Date }
+)
+declare const indexedNotices: ZodvexDatabaseWriter<InferDataModel<typeof NoticeSchema>, {
+  notices: IndexedNoticeDoc
+}>
+indexedNotices.insert('notices', { kind: 'email', subject: 'Hello', at: new Date() })
+indexedNotices.patch(noticeId, { kind: 'push', title: 'Updated', at: new Date() })
+// @ts-expect-error Explicit index signatures must retain required named insert fields.
+indexedNotices.insert('notices', { kind: 'email', at: new Date() })
+// @ts-expect-error Explicit index signatures must retain required named patch fields.
+indexedNotices.patch(noticeId, { kind: 'push', at: new Date() })
