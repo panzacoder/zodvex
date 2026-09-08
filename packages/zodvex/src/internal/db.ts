@@ -432,7 +432,7 @@ type WithoutSystemFields<Doc> = Doc extends unknown
   : never
 
 /** Value accepted by insert and replace: decoded document without Convex-managed fields. */
-export type ZodvexWriteValue<
+export type WriteValue<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>
@@ -456,13 +456,16 @@ type ModeledPatchValue<Doc> =
  * be detected, and runtime encoding remains authoritative. Unmodeled tables retain
  * native partial patch values.
  */
-export type ZodvexPatchValue<
+export type PatchValue<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>
 > = TableName extends keyof DecodedDocs
   ? ModeledPatchValue<DecodedDocs[TableName]>
   : Partial<WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>>
+
+/** Compatibility aliases for the originally published names. */
+export type { PatchValue as ZodvexPatchValue, WriteValue as ZodvexWriteValue }
 
 /**
  * Resolves a table name from a GenericId by iterating the tableMap
@@ -661,7 +664,7 @@ export class ZodvexDatabaseWriter<
 
   insert<TableName extends TableNamesInDataModel<DataModel>>(
     table: TableName,
-    value: ZodvexWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
+    value: WriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<GenericId<TableName>>
   async insert(table: any, value: any): Promise<any> {
     const schemas = this.tableMap[table as string]
@@ -671,12 +674,12 @@ export class ZodvexDatabaseWriter<
 
   patch<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>,
-    value: ZodvexPatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
+    value: PatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
   patch<TableName extends TableNamesInDataModel<DataModel>>(
     table: TableName,
     id: GenericId<NoInfer<TableName>>,
-    value: ZodvexPatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
+    value: PatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
   async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
@@ -707,12 +710,12 @@ export class ZodvexDatabaseWriter<
 
   replace<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>,
-    value: ZodvexWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
+    value: WriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
   replace<TableName extends TableNamesInDataModel<DataModel>>(
     table: TableName,
     id: GenericId<NoInfer<TableName>>,
-    value: ZodvexWriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
+    value: WriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
   async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null

@@ -109,8 +109,8 @@ indexedNotices.insert('notices', { kind: 'email', at: new Date() })
 indexedNotices.patch(noticeId, { kind: 'push', at: new Date() })
 
 // Named contracts stay usable through emitted declarations and generic wrappers.
-import type { ZodvexPatchValue, ZodvexWriteValue } from 'zodvex/server'
-import type { ZodvexPatchValue as MiniPatchValue, ZodvexWriteValue as MiniWriteValue } from 'zodvex/mini/server'
+import type { PatchValue, WriteValue, ZodvexPatchValue, ZodvexWriteValue } from 'zodvex/server'
+import type { PatchValue as MiniPatchValue, WriteValue as MiniWriteValue, ZodvexPatchValue as MiniPrefixedPatchValue, ZodvexWriteValue as MiniPrefixedWriteValue } from 'zodvex/mini/server'
 type ConsumerModel = InferDataModel<typeof FullSchema> & InferDataModel<typeof NoticeSchema>
 type ConsumerDocs = {
   users: z.output<typeof FullUserModel.schema.doc>
@@ -120,13 +120,13 @@ declare const consumerDb: ZodvexDatabaseWriter<ConsumerModel, ConsumerDocs>
 export function patchConsumer<T extends keyof ConsumerModel>(
   table: T,
   id: GenericId<NoInfer<T>>,
-  patch: ZodvexPatchValue<ConsumerModel, ConsumerDocs, NoInfer<T>>
+  patch: PatchValue<ConsumerModel, ConsumerDocs, NoInfer<T>>
 ) {
   return consumerDb.patch(table, id, patch)
 }
 export function insertConsumer<T extends keyof ConsumerModel>(
   table: T,
-  value: ZodvexWriteValue<ConsumerModel, ConsumerDocs, NoInfer<T>>
+  value: WriteValue<ConsumerModel, ConsumerDocs, NoInfer<T>>
 ) {
   return consumerDb.insert(table, value)
 }
@@ -142,3 +142,15 @@ const miniPatch: MiniPatchValue<ConsumerModel, ConsumerDocs, 'users'> = { create
 const miniWrite: MiniWriteValue<ConsumerModel, ConsumerDocs, 'users'> = { email: 'a@example.com', createdAt: new Date() }
 patchConsumer('users', userId, miniPatch)
 insertConsumer('users', miniWrite)
+
+// Published prefixed names remain usable as exact compatibility aliases.
+export function prefixedConsumer<T extends keyof ConsumerModel>(
+  table: T,
+  id: GenericId<NoInfer<T>>,
+  patch: ZodvexPatchValue<ConsumerModel, ConsumerDocs, NoInfer<T>>,
+  value: ZodvexWriteValue<ConsumerModel, ConsumerDocs, NoInfer<T>>
+) {
+  const miniPatch: MiniPrefixedPatchValue<ConsumerModel, ConsumerDocs, NoInfer<T>> = patch
+  const miniWrite: MiniPrefixedWriteValue<ConsumerModel, ConsumerDocs, NoInfer<T>> = value
+  return [patchConsumer(table, id, miniPatch), insertConsumer(table, miniWrite)]
+}

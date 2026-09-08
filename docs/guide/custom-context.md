@@ -86,10 +86,13 @@ Pass either builder of the pair (`zm` or `zim`) — the result is identical and 
 
 ## Typing database helpers
 
-Use `ZodvexPatchValue<DataModel, DecodedDocs, TableName>` for patch arguments and
-`ZodvexWriteValue<DataModel, DecodedDocs, TableName>` for insert or replace arguments.
+Use `PatchValue<DataModel, DecodedDocs, TableName>` for patch arguments and
+`WriteValue<DataModel, DecodedDocs, TableName>` for insert or replace arguments.
 Both are exported from `zodvex/server` and `zodvex/mini/server` and are the same
 types used by the database writer methods.
+
+The earlier names `ZodvexPatchValue` and `ZodvexWriteValue` remain available as
+compatibility aliases.
 
 For example, for an app with a `users` model created by `defineZodModel`, derive
 the decoded document map from the model's document schema:
@@ -98,7 +101,7 @@ the decoded document map from the model's document schema:
 import type { TableNamesInDataModel } from 'convex/server'
 import type { GenericId } from 'convex/values'
 import type { z } from 'zod'
-import type { ZodvexDatabaseWriter, ZodvexPatchValue } from 'zodvex/server'
+import type { ZodvexDatabaseWriter, PatchValue } from 'zodvex/server'
 import type { DataModel } from './_generated/dataModel'
 import type { users } from './models/users'
 
@@ -108,7 +111,7 @@ function patchTable<T extends TableNamesInDataModel<DataModel>>(
   db: ZodvexDatabaseWriter<DataModel, DecodedDocs>,
   table: T,
   id: GenericId<NoInfer<T>>,
-  patch: ZodvexPatchValue<DataModel, DecodedDocs, NoInfer<T>>
+  patch: PatchValue<DataModel, DecodedDocs, NoInfer<T>>
 ) {
   return db.patch(table, id, patch)
 }
