@@ -1,0 +1,102 @@
+{
+  "format": "zodvex-consumer-dynamic-import-v1",
+  "runId": "2be8c5c5-a141-4099-8d60-f344386f6aac",
+  "startedAt": "2026-09-09T22:41:41.096Z",
+  "gitCommit": "1f415c47fa7659c860a3a813cb371020bde53c94",
+  "gitStatus": "?? consumer-dynamic-import/",
+  "versions": {
+    "convex": "1.32.0",
+    "convex-helpers": "0.1.113",
+    "zod": "4.5.4",
+    "zodvex": "0.7.10",
+    "esbuild": "0.27.0"
+  },
+  "zodvexBuild": {
+    "sha256": "90df46a854e5e255770945d79393018327dfddd2daf43f1107b297930c503b7d",
+    "files": 17
+  },
+  "comparisonIdentity": {
+    "fixture": {
+      "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+      "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a"
+    },
+    "collector": {
+      "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+      "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+      "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+    }
+  },
+  "runtime": {
+    "nodeCompatibility": "v22.22.3",
+    "bun": null,
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "sourceHashes": {
+    "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a",
+    "census.mjs": "8b9f7b20419cef426e820a2e3870253fb6d56d2294bc52b6b630b62f86f6467d",
+    "census.test.mjs": "427e5c413f9b62759f9de5d46922832b67f966942d1094ef5aff0ec58dc22311",
+    "compare.mjs": "b75f8c4ec23b7a46a0e0e310e838fad224b4b60991ee399aa30a8c13d9f5759e",
+    "compare.test.mjs": "151d6519a9911ec08281866661d228acaf6cd97c70418fb1c979e376ccee7951",
+    "inspect.mjs": "4cb173fad198ad04eb27241c6b14e49eaee6a5832efb04f11ee1cbdc85f94ead",
+    "inspect.test.mjs": "193cc7b7088e1f8b6d187b0dcee0bfb9840deabe8b75d0a401eab9bd28816544",
+    "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+    "mcp-client.mjs": "9b2ce572eb1aa1148944415d4f5b15733e7c8b0a30f9c90732213c5d9a5b6627",
+    "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+    "oracle.test.mjs": "45194cd2a28f40e75631044525be7dc40cf6ec0d0c7d47648fe5d38e9e0be58e",
+    "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+    "provenance.mjs": "7875eacc8c78156ce7f642d235c032ceb36146f0261385c33808d192ea8c10c0",
+    "run.mjs": "b2d8721e2eb6dc0e522874a35b691714fa9ded56ce891e126708dcd9390914d4",
+    "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+  },
+  "harnessHashes": {
+    "audit.mjs": "aed5aee50a1f13d79e7f316b69c2c7fb78cfe06471c7567c18338e3e3b0b2d3b",
+    "generate.mjs": "6edf8b721b0632b7b56f87bdb9d51ca14a53d26b882949fc12cf7284c97f3a5e",
+    "operation.ts": "e4396810900dbe2013166b96514affb2a463b3a7daa8ff222b801ced3dcf3dff",
+    "oracle.mjs": "980d074dd23fc70d8b037955954e09f1bb5111e693f46b004da73a875e3982f8",
+    "oracle.test.mjs": "116e2a4af35471845825b23109c23e1fa74aa9fa63a3672e7f19bcf5b3302e7b",
+    "run.mjs": "6dadc94dc6d71a4adf636afb19528b30340a56c19efef9c0b5a4603792c9093d",
+    "shape.ts": "ea187fb0e528a33444e652fe733ab1217d1c277d5a052e2cd4124b4e8226dec0"
+  },
+  "backend": {
+    "sha256": "c07e85501038cdf6f969e2f7f8cb81e897a64f25d08d590ebd501342eaa3906c",
+    "sourceRevision": "8bc6aa4645adfd66584034b175dbef96536938b8",
+    "flags": "--expose-gc --trace-gc-nvp",
+    "reuseIsolates": false,
+    "target": "dedicated loopback backend"
+  },
+  "historicalSource": {
+    "pr": 84,
+    "head": "284e1e54af73c6932b01041b4c4f0850bac431b8",
+    "port": "mechanism only; retired 750-model corpus not reused"
+  },
+  "cases": [
+    {
+      "unused": 0,
+      "touched": 1
+    },
+    {
+      "unused": 16,
+      "touched": 1
+    },
+    {
+      "unused": 64,
+      "touched": 1
+    },
+    {
+      "unused": 64,
+      "touched": 8
+    }
+  ],
+  "width": 32,
+  "repeats": 3,
+  "maximumCalls": 60,
+  "shape": {
+    "profile": "neutral-separate-module-codec-union-v1",
+    "topLevelFieldsPerModel": 32,
+    "nestedFieldsPerModel": 40,
+    "codecSitesPerModel": 32,
+    "schemaHelpers": true
+  },
+  "scope": "V8 action module loading with manual insert-schema decodeDoc/encodeDoc; no DB I/O, async registry integration, or query/mutation parity. Forced-GC retained object bytes exclude external memory and peak; no hosted capacity claim."
+}

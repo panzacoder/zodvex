@@ -17,6 +17,7 @@ by about 25% in both Node and local Convex.
 
 | Study | Question answered |
 | --- | --- |
+| [Historical experiment status](memory-experiments.md) | Consumer import costs and correctness of descriptors, dynamic imports and compile-away; explicit readiness warnings |
 | [Model graph memory](../../examples/stress-test/results/memory-2026-09-09/README.md) | Retained bytes for native, helpers, Full and Mini; bounded hosted query pass/OOM observations at declared shapes |
 | [Repeatability](../../examples/stress-test/results/repeatability-2026-09-09/README.md) | Variation across six unchanged-build collections using the regression comparison protocol |
 | [Historical improvements and support reports](../../examples/stress-test/results/retrospective-2026-09-09/README.md) | Zod/slim-model effects, the Convex analysis fix, and a report-only reconstruction trial |
@@ -33,6 +34,12 @@ natural import advantage of a native or helpers endpoint that imports only its
 own model. The Hotpot retrospective measures schema import, not its complete
 endpoint registry. Consumer import experiments must cover that remaining gap
 before these studies can establish the cost of unrelated application growth.
+
+The [experiment inventory](memory-experiments.md) now measures unused-model
+growth in separate-module action graphs, including a helpers endpoint importing
+only its own schema. It also tests a generated descriptor table map through the
+current database wrapper. These bounded cases close part of that gap; their
+reports identify the missing production integration and compatibility failures.
 
 ## Comparing a library change
 
