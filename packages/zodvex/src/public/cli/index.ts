@@ -14,6 +14,15 @@ async function main() {
     case 'dev':
       await dev(convexDir, { mini: miniFlag })
       break
+    case 'inspect-schema': {
+      // Preserve the runtime import so the diagnostic and child worker stay lazy.
+      // The build copies this directory beside dist/cli/index.js.
+      const { inspectSchema } = await import(
+        new URL('./inspect-schema/inspect.mjs', import.meta.url).href
+      )
+      await inspectSchema(process.argv.slice(3))
+      break
+    }
     case 'init': {
       // Dynamic import to keep init dependencies lazy
       const { init } = await import('./init')
@@ -85,6 +94,7 @@ zodvex - Convex codegen for Zod schemas
 Usage:
   zodvex generate [convex-dir] [--mini]  Generate schema and validator files
   zodvex dev [convex-dir] [--mini]       Watch mode — regenerate on changes
+  zodvex inspect-schema [schema-file]   Write a local aggregate schema report (Node 22+)
   zodvex init                            Set up zodvex in an existing Convex project
   zodvex migrate [dir]                   Migrate pre-0.6 APIs (renames + import fixes)
   zodvex migrate [dir] --dry-run         Preview changes without writing

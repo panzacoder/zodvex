@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { cp } from 'node:fs/promises'
 import path from 'node:path'
 
 const WARNING_FRAGMENT = 'imported from external module "zod/v4/core" but never used'
@@ -42,4 +43,10 @@ function run(command, args) {
 }
 
 await run(localBin('tsup'), [])
+// These native ESM files must retain their relative worker/census URLs in npm.
+await cp(
+  new URL('../src/public/cli/inspect-schema/', import.meta.url),
+  new URL('../dist/cli/inspect-schema/', import.meta.url),
+  { recursive: true }
+)
 await run(localBin('tsc'), ['--emitDeclarationOnly'])
