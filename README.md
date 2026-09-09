@@ -232,6 +232,10 @@ For zodvex's own types — `zx.id()`, `zx.date()`, `zx.codec()` — and exactly 
 
 ## Upgrading?
 
+Coming from convex-helpers and Zod 3? Use the [migration trial guide and agent
+skill](./docs/guide/migrating-from-zod3.md) to check behavior and memory evidence
+in your application.
+
 Read the [migration guide](./MIGRATION.md) for what changed in each release and why. Automated renames are available:
 
 ```bash
