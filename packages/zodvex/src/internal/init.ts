@@ -62,8 +62,6 @@ type InternalCustomization = {
   input: (ctx: any, args: any, extra?: any) => any
 }
 
-type InternalCustomFn = (builder: any, customization: any) => any
-
 type InitServerBuilders = {
   query: QueryBuilder<any, 'public'>
   mutation: MutationBuilder<any, 'public'>
@@ -328,7 +326,14 @@ export function initZodvex(
     action: actionCust
   }
 
-  return createInitBuilderBundle(server, customizations)
+  return {
+    zq: createZodvexBuilder(server.query, customizations.query, zCustomQuery),
+    zm: createZodvexBuilder(server.mutation, customizations.mutation, zCustomMutation),
+    za: createZodvexBuilder(server.action, customizations.action, zCustomAction),
+    ziq: createZodvexBuilder(server.internalQuery, customizations.query, zCustomQuery),
+    zim: createZodvexBuilder(server.internalMutation, customizations.mutation, zCustomMutation),
+    zia: createZodvexBuilder(server.internalAction, customizations.action, zCustomAction)
+  }
 }
 
 function createNoOpCustomization(): InternalCustomization {
@@ -383,44 +388,6 @@ function createMutationCustomization(
   }
 }
 
-function getInitBuilderSpecs(
-  server: InitServerBuilders,
-  customizations: {
-    query: InternalCustomization
-    mutation: InternalCustomization
-    action: InternalCustomization
-  }
-) {
-  return [
-    ['zq', server.query, customizations.query, zCustomQuery],
-    ['zm', server.mutation, customizations.mutation, zCustomMutation],
-    ['za', server.action, customizations.action, zCustomAction],
-    ['ziq', server.internalQuery, customizations.query, zCustomQuery],
-    ['zim', server.internalMutation, customizations.mutation, zCustomMutation],
-    ['zia', server.internalAction, customizations.action, zCustomAction]
-  ] as const
-}
-
-function createInitBuilderBundle(
-  server: InitServerBuilders,
-  customizations: {
-    query: InternalCustomization
-    mutation: InternalCustomization
-    action: InternalCustomization
-  }
-) {
-  const builders: Record<string, any> = {}
-
-  for (const [key, rawBuilder, customization, customFn] of getInitBuilderSpecs(
-    server,
-    customizations
-  )) {
-    builders[key] = createZodvexBuilder(rawBuilder, customization, customFn as InternalCustomFn)
-  }
-
-  return builders
-}
-
 /**
  * Composes a codec customization with a user customization.
  * Codec input runs first (wraps ctx.db), user input runs second
@@ -473,11 +440,11 @@ export function createZodvexBuilder(
   codecCust: InternalCustomization,
   customFn: (builder: any, customization: any) => any
 ) {
-  const base: any = customFn(rawBuilder as any, codecCust as any)
+  const base: any = customFn(rawBuilder, codecCust)
 
   base.withContext = (userCust: any) => {
     const composed = composeCustomizations(codecCust, userCust)
-    return customFn(rawBuilder as any, composed as any)
+    return customFn(rawBuilder, composed)
   }
 
   return base
