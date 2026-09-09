@@ -5,7 +5,12 @@ import type {
 } from 'convex/react'
 import * as convexReact from 'convex/react'
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
-import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+  PaginationOptions
+} from 'convex/server'
 import { useMemo } from 'react'
 import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
 import { createBoundaryHelpers, resolveFunctionPath } from '../../internal/boundaryHelpers'
@@ -77,7 +82,7 @@ export function createZodvexHooks<R extends AnyRegistry>(
     Query extends FunctionReference<
       'query',
       'public',
-      any,
+      { paginationOpts?: PaginationOptions },
       { page: any[]; isDone: boolean; continueCursor: string }
     >
   >(

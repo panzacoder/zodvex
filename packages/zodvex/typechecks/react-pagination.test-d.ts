@@ -19,3 +19,13 @@ useZodPaginatedQuery(makeFunctionReference<'query', {}, string>('tasks:get'), {}
 function wrap<Q extends import('convex/server').FunctionReference<'query', 'public'>>(query: Q, args: Omit<import('convex/server').FunctionArgs<Q>, 'paginationOpts'> | 'skip') {
   return useZodPaginatedQuery(query, args, {initialNumItems:10})
 }
+
+const missingPagination = makeFunctionReference<'query', {after:Date}, {page:{at:Date}[];isDone:boolean;continueCursor:string}>('tasks:missingPagination')
+// @ts-expect-error explicit domain-only args do not support pagination
+useZodPaginatedQuery(missingPagination, {after:new Date()}, {initialNumItems:10})
+const vanilla = import('../src/public/client/zodvexClient').then(({createZodvexClient}) => {
+  const client = createZodvexClient({}, {url:'https://test.convex.cloud'})
+  client.onPaginatedUpdate_experimental(ref, {after:new Date()}, {initialNumItems:10}, result => result.results[0].at.getTime())
+  // @ts-expect-error explicit domain-only args do not support pagination
+  client.onPaginatedUpdate_experimental(missingPagination, {after:new Date()}, {initialNumItems:10}, () => undefined)
+})

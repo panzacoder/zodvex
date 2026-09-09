@@ -1,6 +1,11 @@
 import type { AuthTokenFetcher, ConnectionState, MutationOptions } from 'convex/browser'
 import { ConvexClient } from 'convex/browser'
-import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+  PaginationOptions
+} from 'convex/server'
 import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
 import { createBoundaryHelpers } from '../../internal/boundaryHelpers'
 import { createPaginationCodec } from '../../internal/paginationCodec'
@@ -152,7 +157,7 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
     Q extends FunctionReference<
       'query',
       'public',
-      any,
+      { paginationOpts?: PaginationOptions },
       { page: any[]; isDone: boolean; continueCursor: string }
     >
   >(
