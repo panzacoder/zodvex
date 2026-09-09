@@ -1,0 +1,13 @@
+{
+  "validObservation": true,
+  "typecheckExitCode": 0,
+  "checks": {
+    "actualStorageAcceptsWire": true,
+    "fullRejectsInvalidDecodedValue": true,
+    "descriptorLeaksRawWireValue": true,
+    "rowsCleaned": true,
+    "codecOperations": true,
+    "fullOrdinaryPatch": true,
+    "descriptorOrdinaryPatchGap": true
+  }
+}

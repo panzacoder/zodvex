@@ -1,0 +1,52 @@
+[
+  {
+    "name": "plain",
+    "status": "returned",
+    "type": "String",
+    "value": "control",
+    "wire": "control"
+  },
+  {
+    "name": "dateArg",
+    "status": "returned",
+    "type": "Boolean",
+    "value": false,
+    "wire": false
+  },
+  {
+    "name": "classArg",
+    "status": "returned",
+    "type": "Boolean",
+    "value": false,
+    "wire": false
+  },
+  {
+    "name": "dateReturn",
+    "status": "returned",
+    "type": "Date",
+    "value": "1970-01-01T00:00:01.000Z",
+    "wireError": "Error: Date \"1970-01-01T00:00:01.000Z\" is not a supported Convex type."
+  },
+  {
+    "name": "classReturn",
+    "status": "returned",
+    "type": "Ticket",
+    "value": {
+      "value": "ticket-1"
+    },
+    "wireError": "Error: Ticket {\"value\":\"ticket-1\"} is not a supported Convex type."
+  },
+  {
+    "name": "refineArg",
+    "status": "returned",
+    "type": "String",
+    "value": "invalid",
+    "wire": "invalid"
+  },
+  {
+    "name": "defaultArg",
+    "status": "returned",
+    "type": "undefined",
+    "wireError": "Error: undefined is not a valid Convex value. To learn about Convex's supported types, see https://docs.convex.dev/using/types."
+  }
+]

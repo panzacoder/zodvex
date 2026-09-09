@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "bunx tsc --noEmit -p tsconfig.json",
+    "typecheck": "bunx tsc --noEmit -p tsconfig.json && bunx tsc -p consumer-descriptors/tsconfig.json",
     "capacity": "bun run capacity/run.ts",
     "memory": "bun run memory/run.mjs"
   },
