@@ -19,6 +19,20 @@ export {
   createZodvexCustomization,
   type ZodvexUnderlyingDb
 } from '../../internal/customization'
+// Rule and audit types for .withRules() and .audit()
+export type {
+  DeleteRule,
+  InsertRule,
+  PatchRule,
+  ReaderAuditConfig,
+  ReadRule,
+  ReplaceRule,
+  TableRules,
+  WriteEvent,
+  WriterAuditConfig,
+  ZodvexRules,
+  ZodvexRulesConfig
+} from '../../internal/db'
 // Database wrappers (ZodvexDatabaseReader, ZodvexDatabaseWriter, etc.)
 export {
   createZodDbReader,
@@ -64,20 +78,6 @@ export {
   zMutationBuilder,
   zQueryBuilder
 } from '../../internal/legacy/builders'
-// Rule and audit types for .withRules() and .audit()
-export type {
-  DeleteRule,
-  InsertRule,
-  PatchRule,
-  ReaderAuditConfig,
-  ReadRule,
-  ReplaceRule,
-  TableRules,
-  WriteEvent,
-  WriterAuditConfig,
-  ZodvexRules,
-  ZodvexRulesConfig
-} from '../../internal/ruleTypes'
 // Schema definition (defineZodSchema)
 export * from '../../internal/schema'
 // Schema helpers (pure Zod, no server deps)

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { RulesQueryChain, ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
 import type {
   ReaderAuditConfig,
   TableRules,
@@ -8,7 +7,8 @@ import type {
   WriterAuditConfig,
   ZodvexRules,
   ZodvexRulesConfig
-} from '../src/internal/ruleTypes'
+} from '../src/internal/db'
+import { RulesQueryChain, ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
 import type { ZodTableSchemas } from '../src/internal/schema'
 import { zx } from '../src/internal/zx'
 
