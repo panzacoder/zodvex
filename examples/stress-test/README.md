@@ -12,6 +12,10 @@ processing documents. Neither establishes a universal table capacity.
 For ongoing work, use the [before/after comparison protocol](memory/comparison.md).
 For support, the [local schema diagnostic](memory/customer-diagnostic.md) produces
 an aggregate report from a developer's schema without deploying or uploading it.
+The [retrospective](results/retrospective-2026-09-09/README.md) measures previous
+improvements and tests report-only support with Hotpot. The
+[public guide](../../docs/guide/memory-benchmarks.md) indexes the evidence and
+explains how to compare it over time.
 
 ## Running the benchmarks
 

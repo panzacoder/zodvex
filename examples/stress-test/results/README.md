@@ -13,6 +13,7 @@ produced and are available in Git history.
 
 | File | What it is |
 |---|---|
+| [`retrospective-2026-09-09/README.md`](retrospective-2026-09-09/README.md) | Zod/slim-model history, Hotpot before/after, report-only synthetic reproduction, and pre/post Convex module-analysis experiment. |
 | [`repeatability-2026-09-09/README.md`](repeatability-2026-09-09/README.md) | Six same-build local Convex collections validating the before/after comparison protocol; exact ranges and raw evidence. |
 | [`memory-2026-09-09/README.md`](memory-2026-09-09/README.md) | Model graph retained bytes in local Convex, hosted query OOM brackets, same-count/different-weight control, and raw evidence. |
 | [`capacity-2026-09-09/README.md`](capacity-2026-09-09/README.md) | Codec operation overhead by document volume, plus a shared read-limit control; separate from graph memory capacity. |

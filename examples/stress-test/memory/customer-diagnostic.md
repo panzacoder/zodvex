@@ -22,6 +22,11 @@ request. It writes its temporary bundle into an OS temporary directory, then
 removes it. Neither bundles nor raw heap snapshots belong in the support report.
 No package release or public `zodvex` CLI command is added by this experiment.
 
+The [first report-only trial](../results/retrospective-2026-09-09/README.md)
+used Hotpot's sanitized report to construct an independent working fixture.
+Counts matched closely, while retained memory remained about 13% lower in both
+Node and local Convex. That supports manual triage, not capacity prediction.
+
 The JSON contains only:
 
 - Runtime and dependency versions.

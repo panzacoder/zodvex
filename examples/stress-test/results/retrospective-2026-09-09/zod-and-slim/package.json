@@ -1,0 +1,10 @@
+{
+  "name": "zodvex-memory-retrospective",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "convex": "1.32.0",
+    "convex-helpers": "0.1.113",
+    "zodvex": "file:./frozen-zodvex"
+  }
+}
