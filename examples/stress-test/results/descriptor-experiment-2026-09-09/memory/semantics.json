@@ -1,0 +1,338 @@
+{
+  "contractStatus": "FAILED",
+  "baselinePasses": true,
+  "mismatches": [
+    "ordinary invalid read rejected",
+    "ordinary invalid insert rejected",
+    "ordinary missing insert rejected",
+    "ordinary invalid replace rejected",
+    "ordinary read refinement retained",
+    "custom read refinement retained",
+    "ordinary read default retained",
+    "codec read default retained",
+    "ordinary read transform retained",
+    "invalid union codec read rejected",
+    "wire-valid invalid union codec rejected",
+    "unknown union discriminator rejected",
+    "wrapped operation: ordinaryPatch"
+  ],
+  "rows": [
+    {
+      "name": "valid Date read",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "invalid codec read rejected",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "ordinary invalid read rejected",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "ordinary invalid insert rejected",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "ordinary missing insert rejected",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "ordinary invalid replace rejected",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "ordinary read refinement retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "built-in insert refinement retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "custom insert refinement fallback retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      },
+      "fallbacks": [],
+      "insertFallbacks": [
+        {
+          "tableName": "probe",
+          "reason": "non-serializable check at probe.name — insert falls back to full model"
+        }
+      ]
+    },
+    {
+      "name": "custom read refinement retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": [
+        {
+          "tableName": "probe",
+          "reason": "non-serializable check at probe.name — insert falls back to full model"
+        }
+      ]
+    },
+    {
+      "name": "ordinary read default retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "codec read default retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false,
+        "error": "[\n  {\n    \"expected\": \"number\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"at\"\n    ],\n    \"message\": \"Invalid input: expected number, received undefined\"\n  }\n]"
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "ordinary read transform retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": [
+        {
+          "tableName": "probe",
+          "reason": "transform at probe.name — insert falls back to full model"
+        }
+      ]
+    },
+    {
+      "name": "valid union codec read",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "invalid union codec read rejected",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "wire-valid invalid union codec rejected",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "unknown union discriminator rejected",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "nullable optional codec retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "custom codec runtime class retained",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      },
+      "fallbacks": [],
+      "insertFallbacks": []
+    },
+    {
+      "name": "wrapped operation: wireEncoded",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      }
+    },
+    {
+      "name": "wrapped operation: decoded",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      }
+    },
+    {
+      "name": "wrapped operation: codecPatch",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      }
+    },
+    {
+      "name": "wrapped operation: ordinaryPatch",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": false
+      }
+    },
+    {
+      "name": "wrapped operation: unset",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      }
+    },
+    {
+      "name": "wrapped operation: replaceAndQuery",
+      "full": {
+        "passes": true
+      },
+      "descriptor": {
+        "passes": true
+      }
+    }
+  ],
+  "operations": {
+    "full": {
+      "wireEncoded": true,
+      "decoded": true,
+      "codecPatch": true,
+      "ordinaryPatch": true,
+      "unset": true,
+      "replaceAndQuery": true,
+      "calls": [
+        "insert",
+        "get",
+        "patch",
+        "get",
+        "patch",
+        "get",
+        "replace",
+        "take"
+      ]
+    },
+    "descriptor": {
+      "wireEncoded": true,
+      "decoded": true,
+      "codecPatch": true,
+      "ordinaryPatch": false,
+      "unset": true,
+      "replaceAndQuery": true,
+      "calls": [
+        "insert",
+        "get",
+        "patch",
+        "get",
+        "patch",
+        "get",
+        "replace",
+        "take"
+      ]
+    }
+  }
+}

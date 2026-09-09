@@ -1,0 +1,18 @@
+  [perf] ts-morph load: 0.14s
+[zodvex compile] Discovering modules in examples/stress-test/.compile-audit-8XbQ30/convex/
+  [perf] discoverModules: 0.02s
+  [perf] addSourceFileAtPath × 3: 0.02s
+  [perf]     applyTextEdits: 0.01s, 21 edits
+  [perf]     rewriteImports: 0.01s
+  [perf]     pruneUnusedSymbols: 0.00s
+  [perf]   transform endpoints.ts: 0.02s, 7 changes
+  [perf]     applyTextEdits: 0.00s, 1 edits
+  [perf]     rewriteImports: 0.00s
+  [perf]     pruneUnusedSymbols: 0.00s
+  [perf]   transform functions.ts: 0.00s, 1 changes
+  [perf] transformSourceFile × 2: 0.02s
+  [perf] pruneUnusedExportsAcrossProject: 0.00s
+  changed: endpoints.ts
+  changed: functions.ts
+  [perf] saveSync × transformedFiles: 0.00s
+  [perf] runCompile total: 0.20s

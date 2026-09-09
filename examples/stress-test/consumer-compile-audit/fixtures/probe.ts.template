@@ -1,0 +1,26 @@
+import { convexToJson } from 'convex/values'
+import * as endpoints from './convex/endpoints'
+const cases = [
+  ['plain', { value: 'control' }],
+  ['dateArg', { value: 1000 }],
+  ['classArg', { value: 'ticket-1' }],
+  ['dateReturn', {}],
+  ['classReturn', {}],
+  ['refineArg', { value: 'invalid' }],
+  ['defaultArg', {}],
+] as const
+const observations = []
+for (const [name, args] of cases) {
+  try {
+    // Convex's local registered-handler seam; this does not run native validators.
+    const fn = endpoints[name] as unknown as { _handler: (ctx: object, args: object) => Promise<unknown> }
+    const value = await fn._handler({}, args)
+    let wire: unknown
+    let wireError: string | undefined
+    try { wire = convexToJson(value as never) } catch (error) { wireError = String(error) }
+    observations.push({ name, status: 'returned', type: value === undefined ? 'undefined' : value?.constructor?.name ?? typeof value, value, wire, wireError })
+  } catch (error) {
+    observations.push({ name, status: 'threw', error: String(error) })
+  }
+}
+await Bun.write(process.argv[2], JSON.stringify(observations, null, 2) + '\n')

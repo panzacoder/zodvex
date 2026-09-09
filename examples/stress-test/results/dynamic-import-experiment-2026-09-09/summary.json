@@ -1,0 +1,249 @@
+{
+  "format": "zodvex-consumer-dynamic-import-v1",
+  "valid": true,
+  "completedAt": "2026-09-09T22:42:03.088Z",
+  "calls": 60,
+  "observations": 56,
+  "manifestSha256": "786cba6c79bc0ca67c95fbc984dd123fc5dc16ee206893176ad0cafb9270f060",
+  "callsSha256": "e37a09148f24aa9b9fc90d12f4ea0d96f74faa27aee32018f7ed126deb3a52e5",
+  "statistics": [
+    {
+      "unused": 0,
+      "touched": 1,
+      "kind": "static",
+      "repeats": 3,
+      "minimum": 4772480,
+      "median": 4772480,
+      "maximum": 4772480,
+      "initialized": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "unused": 0,
+      "touched": 1,
+      "kind": "dynamic",
+      "repeats": 3,
+      "minimum": 4776352,
+      "median": 4776352,
+      "maximum": 4776352,
+      "initialized": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "unused": 0,
+      "touched": 1,
+      "kind": "helpers",
+      "repeats": 3,
+      "minimum": 4671512,
+      "median": 4671512,
+      "maximum": 4671512,
+      "initialized": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "unused": 16,
+      "touched": 1,
+      "kind": "static",
+      "repeats": 3,
+      "minimum": 9532752,
+      "median": 9532752,
+      "maximum": 9532872,
+      "initialized": [
+        17,
+        17,
+        17
+      ]
+    },
+    {
+      "unused": 16,
+      "touched": 1,
+      "kind": "dynamic",
+      "repeats": 3,
+      "minimum": 4786720,
+      "median": 4786720,
+      "maximum": 4786720,
+      "initialized": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "unused": 64,
+      "touched": 1,
+      "kind": "static",
+      "repeats": 3,
+      "minimum": 23588568,
+      "median": 23588568,
+      "maximum": 23588608,
+      "initialized": [
+        65,
+        65,
+        65
+      ]
+    },
+    {
+      "unused": 64,
+      "touched": 1,
+      "kind": "dynamic",
+      "repeats": 3,
+      "minimum": 4817824,
+      "median": 4817824,
+      "maximum": 4817824,
+      "initialized": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "unused": 64,
+      "touched": 1,
+      "kind": "helpers",
+      "repeats": 3,
+      "minimum": 4671456,
+      "median": 4671456,
+      "maximum": 4673480,
+      "initialized": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "unused": 64,
+      "touched": 8,
+      "kind": "static",
+      "repeats": 3,
+      "minimum": 25810888,
+      "median": 25810968,
+      "maximum": 25836216,
+      "initialized": [
+        72,
+        72,
+        72
+      ]
+    },
+    {
+      "unused": 64,
+      "touched": 8,
+      "kind": "dynamic",
+      "repeats": 3,
+      "minimum": 7114576,
+      "median": 7114576,
+      "maximum": 7114576,
+      "initialized": [
+        8,
+        8,
+        8
+      ]
+    }
+  ],
+  "runtimeControls": [
+    {
+      "caseName": "unused-0-touched-1",
+      "endpoint": "static:queryProbe",
+      "status": "success",
+      "failure": null
+    },
+    {
+      "caseName": "unused-0-touched-1",
+      "endpoint": "dynamic:queryProbe",
+      "status": "error",
+      "failure": "dynamic-import-unsupported"
+    },
+    {
+      "caseName": "unused-0-touched-1",
+      "endpoint": "static:mutationProbe",
+      "status": "success",
+      "failure": null
+    },
+    {
+      "caseName": "unused-0-touched-1",
+      "endpoint": "dynamic:mutationProbe",
+      "status": "error",
+      "failure": "dynamic-import-unsupported"
+    },
+    {
+      "caseName": "unused-16-touched-1",
+      "endpoint": "static:queryProbe",
+      "status": "success",
+      "failure": null
+    },
+    {
+      "caseName": "unused-16-touched-1",
+      "endpoint": "dynamic:queryProbe",
+      "status": "error",
+      "failure": "dynamic-import-unsupported"
+    },
+    {
+      "caseName": "unused-16-touched-1",
+      "endpoint": "static:mutationProbe",
+      "status": "success",
+      "failure": null
+    },
+    {
+      "caseName": "unused-16-touched-1",
+      "endpoint": "dynamic:mutationProbe",
+      "status": "error",
+      "failure": "dynamic-import-unsupported"
+    },
+    {
+      "caseName": "unused-64-touched-1",
+      "endpoint": "static:queryProbe",
+      "status": "success",
+      "failure": null
+    },
+    {
+      "caseName": "unused-64-touched-1",
+      "endpoint": "dynamic:queryProbe",
+      "status": "error",
+      "failure": "dynamic-import-unsupported"
+    },
+    {
+      "caseName": "unused-64-touched-1",
+      "endpoint": "static:mutationProbe",
+      "status": "success",
+      "failure": null
+    },
+    {
+      "caseName": "unused-64-touched-1",
+      "endpoint": "dynamic:mutationProbe",
+      "status": "error",
+      "failure": "dynamic-import-unsupported"
+    },
+    {
+      "caseName": "unused-64-touched-8",
+      "endpoint": "static:queryProbe",
+      "status": "success",
+      "failure": null
+    },
+    {
+      "caseName": "unused-64-touched-8",
+      "endpoint": "dynamic:queryProbe",
+      "status": "error",
+      "failure": "dynamic-import-unsupported"
+    },
+    {
+      "caseName": "unused-64-touched-8",
+      "endpoint": "static:mutationProbe",
+      "status": "success",
+      "failure": null
+    },
+    {
+      "caseName": "unused-64-touched-8",
+      "endpoint": "dynamic:mutationProbe",
+      "status": "error",
+      "failure": "dynamic-import-unsupported"
+    }
+  ]
+}

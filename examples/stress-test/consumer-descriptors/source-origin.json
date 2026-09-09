@@ -1,0 +1,19 @@
+{
+  "pullRequest": 80,
+  "immutableHead": "cfc06b6ac02a1104e0b7e0de7283e510c9abeb06",
+  "foundationCommit": "1f415c47fa7659c860a3a813cb371020bde53c94",
+  "files": {
+    "generate.ts": "24f1e5418c3cd8f153ac2b3d6f666cc621104d153514e74629d4e674860ada90",
+    "discover.ts": "b6dc411f1fc8b5a1465f5963aa1dd430181817c3a0dc98ef6513ba183725f63b",
+    "zodToSource.ts": "4cf19afa0eca200a215c507fbbb455ada8e58dc2b5abe0dd43e0a46906513326"
+  },
+  "descriptorSliceSha256": "f6e2262d945066a0d08c107e9b76aa9a82b9874a567dca6af2ae1247408404a8",
+  "subtreeHelperSha256": "d3f33e99129d81bee463caff4a98d899c414dd6c570223b1f1c837614d4fb3ef",
+  "adaptation": [
+    "Extract descriptor section and exact subtree helper; omit unrelated CLI, registry and tables code",
+    "Redirect dependencies to current installed Zod/Zodvex and current branded-codec helper",
+    "Copy historical schema serializer; change import paths only",
+    "Replace generated comment header to identify experiment; no descriptor algorithm fixes"
+  ],
+  "initialFoundationCommit": "1beef6b42675e059fae9db692dedbf342ae27127"
+}
