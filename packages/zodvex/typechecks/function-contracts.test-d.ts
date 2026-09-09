@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import * as mini from 'zod/mini'
-import { parseObjectArgsOrThrow } from '../src/internal/functionContracts'
+import { parseObjectArgsOrThrow } from '../src/internal/functions/contracts'
 import type { Equal, Expect } from './test-helpers'
 
 const at = z.codec(z.string(), z.date(), {

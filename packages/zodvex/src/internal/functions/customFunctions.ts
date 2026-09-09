@@ -13,6 +13,11 @@ import {
 import { type PropertyValidators } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
+import { type ZodValidator, zodToConvexFields } from '../mapping'
+import { assertNoNativeZodDate } from '../schema/dateGuards'
+import { pick } from '../shared/object'
+import type { ExtractCtx, ExtractVisibility, Overwrite } from '../types'
+import { $ZodObject, $ZodType } from '../zod-core'
 import {
   applyCustomizationResult,
   attachFunctionMeta,
@@ -22,12 +27,7 @@ import {
   normalizeFunctionSchema,
   parseObjectArgsOrThrow,
   runCustomizationInput
-} from './functionContracts'
-import { type ZodValidator, zodToConvexFields } from './mapping'
-import { assertNoNativeZodDate } from './schema/dateGuards'
-import { pick } from './shared/object'
-import type { ExtractCtx, ExtractVisibility, Overwrite } from './types'
-import { $ZodObject, $ZodType } from './zod-core'
+} from './contracts'
 
 // Type helpers for args transformation (from zodV3 example)
 type OneArgArray<ArgsObject extends DefaultFunctionArgs = DefaultFunctionArgs> = [ArgsObject]
@@ -77,7 +77,7 @@ type ArgsOutput<ArgsValidator extends ZodValidator | $ZodObject | void> = [ArgsV
     : OneArgArray
 
 // Re-export for backwards compatibility (canonical definition in types.ts)
-export type { Overwrite } from './types'
+export type { Overwrite } from '../types'
 
 // Hack to simplify how TypeScript renders object types
 type Expand<ObjectType extends Record<any, any>> =

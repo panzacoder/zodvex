@@ -1,11 +1,11 @@
 import type { FunctionVisibility } from 'convex/server'
 import type { PropertyValidators } from 'convex/values'
 import type { Customization } from 'convex-helpers/server/customFunctions'
-import { type CustomBuilder, customFnBuilder } from './custom'
-import { attachFunctionMeta } from './functionContracts'
-import type { ExtractCtx, ExtractVisibility, InferHandlerReturns, ZodToConvexArgs } from './types'
+import { attachFunctionMeta } from '../functions/contracts'
+import { type CustomBuilder, customFnBuilder } from '../functions/customFunctions'
+import type { ExtractCtx, ExtractVisibility, InferHandlerReturns, ZodToConvexArgs } from '../types'
+import { $ZodType } from '../zod-core'
 import { zAction, zMutation, zQuery } from './wrappers'
-import { $ZodType } from './zod-core'
 
 type BuilderConfig<
   Builder extends (fn: any) => any,

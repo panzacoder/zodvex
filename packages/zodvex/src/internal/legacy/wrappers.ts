@@ -11,7 +11,7 @@ import {
   finalizeFunctionReturn,
   normalizeDirectFunctionInput,
   parseFunctionArgsOrThrow
-} from './functionContracts'
+} from '../functions/contracts'
 // Typing helpers to keep handler args/returns precise without deep remapping
 import type {
   ExtractCtx,
@@ -19,8 +19,8 @@ import type {
   InferHandlerReturns,
   InferReturns,
   ZodToConvexArgs
-} from './types'
-import { $ZodType } from './zod-core'
+} from '../types'
+import { $ZodType } from '../zod-core'
 
 function registerZodFunction<
   Builder extends (fn: any) => any,

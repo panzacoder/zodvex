@@ -1,10 +1,10 @@
 import { z } from 'zod'
-import { getObjectShape, type ZodValidator, zodToConvex, zodToConvexFields } from './mapping'
-import { attachMeta } from './meta'
-import { assertNoNativeZodDate } from './schema/dateGuards'
-import { handleZodValidationError, validateReturns } from './serverUtils'
-import { pick } from './shared/object'
-import { stripUndefined } from './stripUndefined'
+import { getObjectShape, type ZodValidator, zodToConvex, zodToConvexFields } from '../mapping'
+import { attachMeta } from '../meta'
+import { assertNoNativeZodDate } from '../schema/dateGuards'
+import { handleZodValidationError, validateReturns } from '../serverUtils'
+import { pick } from '../shared/object'
+import { stripUndefined } from '../stripUndefined'
 import {
   $ZodCustom,
   $ZodDefault,
@@ -15,7 +15,7 @@ import {
   $ZodUnion,
   safeParse,
   parse as zodParse
-} from './zod-core'
+} from '../zod-core'
 
 export type FunctionSchemaInput = $ZodType | Record<string, $ZodType> | undefined
 export type DirectFunctionInput = $ZodType | Record<string, $ZodType>

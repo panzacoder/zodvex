@@ -1,7 +1,7 @@
 import type { GenericDataModel } from 'convex/server'
 import { describe, expectTypeOf, it } from 'vitest'
 import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
-import type { ZodvexMutationCtx, ZodvexQueryCtx } from '../src/internal/init'
+import type { ZodvexMutationCtx, ZodvexQueryCtx } from '../src/internal/functions/init'
 
 // Regression coverage for #64. Before the writer-extends-reader refactor,
 // `ZodvexDatabaseWriter` composed a `private reader` and re-exposed read
