@@ -210,6 +210,7 @@ const number = (value: number | null) => value === null ? 'unavailable' : value.
 writeFileSync(join(output, 'report.md'), `# Zodvex codec workload benchmark
 
 **${validity.valid ? 'VALID: complete observations and attributable capacity outcomes.' : 'INVALID: do not use this run for comparative performance claims.'}**
+
 ${validity.reasons.map(reason => `- ${reason}`).join('\n')}
 
 Run ${run}; library commit ${metadata.gitCommit}; fixture ${fixture.fixtureHash}.

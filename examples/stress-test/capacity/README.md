@@ -9,6 +9,9 @@ The units are **documents processed, serialized bytes, and server milliseconds**
 There is no allocation-block-to-MB conversion, table-count ceiling, or deploy-until-OOM
 loop. A successful deployment is setup, not the performance result.
 
+See the [2026-09-09 baseline and raw evidence](../results/capacity-2026-09-09/README.md)
+for observed overhead, repeat runs and a shared read-limit control.
+
 ## Questions this answers
 
 1. What additional execution cost does the codec pipeline impose at useful batch sizes?
