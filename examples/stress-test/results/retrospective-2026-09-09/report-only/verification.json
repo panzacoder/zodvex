@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "node": "v22.22.3",
+  "models": 12,
+  "codecRoundTrips": 11,
+  "invalidCodecInputsRejected": 11,
+  "representativeDocumentRoundTrip": true,
+  "representativeInvalidDocumentsRejected": 3,
+  "runtimeMatchesInput": true,
+  "reportedVersionsMatchInput": true,
+  "definitionTraversalComplete": true
+}

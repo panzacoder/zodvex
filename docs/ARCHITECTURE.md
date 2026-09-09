@@ -319,7 +319,7 @@ Cheap checks that should stay runnable in CI or before a release:
 - package typecheck/tests/build
 - task-manager typecheck/test/generate
 - task-manager-mini typecheck/test/generate
-- stress-test typecheck/generate/measure/report using temp result directories
+- benchmark typecheck and local correctness tests for memory/workload measurements
 - mini import guard
 
 The repo root script for this path is `bun run verify:examples`.
@@ -336,6 +336,10 @@ These are important before a beta release, but they should stay separate from
 the cheap default verification path.
 
 The repo root script for this path is `bun run verify:examples:network`.
+
+The model graph memory and codec workload benchmarks in `examples/stress-test/`
+run separately from validation. They replace the generated table-count sweeps;
+see [the benchmark guide](../examples/stress-test/README.md) for scope and setup.
 
 ## Current Preferred Mental Model
 

@@ -1,0 +1,2654 @@
+{
+  "format": "zodvex-retrospective-analysis-v1",
+  "validatedAt": "2026-09-09T21:54:00.306Z",
+  "valid": true,
+  "validation": {
+    "collections": 18,
+    "calls": 144,
+    "forcedMajorGcEvents": 293,
+    "gcRecordCounts": {
+      "2": 139,
+      "3": 5
+    },
+    "roundsPerCell": 3,
+    "uniqueNonces": 144,
+    "independentOracle": true,
+    "bundleAndInputsHashes": true,
+    "matchedControls": true,
+    "exactNonExperimentalContract": true
+  },
+  "contract": {
+    "format": "zodvex-retrospective-memory-v1",
+    "versions": {
+      "convex": "1.32.0",
+      "convex-helpers": "0.1.113",
+      "zod": "EXPERIMENTAL_VARIABLE",
+      "zodvex": "0.7.10",
+      "esbuild": "0.27.0"
+    },
+    "runtime": {
+      "nodeCompatibility": "v24.3.0",
+      "bun": "1.3.9",
+      "platform": "darwin",
+      "arch": "arm64"
+    },
+    "backend": {
+      "binary": "/Users/jshebert/.cache/convex/binaries/precompiled-2026-05-06-8bc6aa4/convex-local-backend",
+      "sha256": "c07e85501038cdf6f969e2f7f8cb81e897a64f25d08d590ebd501342eaa3906c",
+      "sourceRevision": "8bc6aa4645adfd66584034b175dbef96536938b8",
+      "pid": 94164,
+      "launcherPid": 94155,
+      "url": "http://127.0.0.1:38920",
+      "flags": "--expose-gc --trace-gc-nvp",
+      "reuseIsolates": false
+    },
+    "sourceHashes": {
+      "bundle.mjs": "7379f4b183a42cc946d35cc0d6eabf5bbba02432d45ed52280b65d7ae1d96cb3",
+      "local.mjs": "578ab07c9709bcefe5102464c23bab3caa39c07bab782e4082057f3146c4b960",
+      "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+      "profile.mjs": "fb2dfa7e3a49ea2c55dfcd038769897f6b786a5eed7fcd333d6e6d6db0fe9ce5",
+      "provenance.mjs": "f3f64cb1d37085f5c0bcacf7b3f6a2e54e88409c1785fad14563066328a45fb1",
+      "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+    },
+    "comparisonIdentity": {
+      "fixture": {
+        "profile.mjs": "fb2dfa7e3a49ea2c55dfcd038769897f6b786a5eed7fcd333d6e6d6db0fe9ce5",
+        "bundle.mjs": "7379f4b183a42cc946d35cc0d6eabf5bbba02432d45ed52280b65d7ae1d96cb3"
+      },
+      "collector": {
+        "local.mjs": "578ab07c9709bcefe5102464c23bab3caa39c07bab782e4082057f3146c4b960",
+        "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+        "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+      }
+    },
+    "zodvexBuild": {
+      "sha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5",
+      "files": 14
+    },
+    "sourceOrigin": {
+      "gitCommit": "a0770cf0545a8477c562e5925c3866b4720dba47",
+      "gitStatus": "",
+      "versions": {
+        "convex": "1.32.0",
+        "convex-helpers": "0.1.113",
+        "zod": "4.5.4",
+        "zodvex": "0.7.10",
+        "esbuild": "0.27.0"
+      },
+      "zodvexBuild": {
+        "sha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5",
+        "files": 14
+      },
+      "comparisonIdentity": {
+        "fixture": {
+          "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+          "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a"
+        },
+        "collector": {
+          "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+          "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+          "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+        }
+      },
+      "runtime": {
+        "nodeCompatibility": "v24.3.0",
+        "bun": "1.3.9",
+        "platform": "darwin",
+        "arch": "arm64"
+      },
+      "sourceHashes": {
+        "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a",
+        "census.mjs": "492f84971644dbc2a50f44b4bd19bef6ca490947197e853bf7ffeb3b7b718609",
+        "census.test.mjs": "427e5c413f9b62759f9de5d46922832b67f966942d1094ef5aff0ec58dc22311",
+        "compare.mjs": "b75f8c4ec23b7a46a0e0e310e838fad224b4b60991ee399aa30a8c13d9f5759e",
+        "compare.test.mjs": "151d6519a9911ec08281866661d228acaf6cd97c70418fb1c979e376ccee7951",
+        "inspect-worker.mjs": "0ba33f7da3b5a39eee9489728b4f41838adf4a345c824abcc493d0af9b36e65e",
+        "inspect.mjs": "85fd71b7af5a39083d773861040057eee043e2d18e030a14d6c5c2ec2cd06125",
+        "inspect.test.mjs": "193cc7b7088e1f8b6d187b0dcee0bfb9840deabe8b75d0a401eab9bd28816544",
+        "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+        "mcp-client.mjs": "9b2ce572eb1aa1148944415d4f5b15733e7c8b0a30f9c90732213c5d9a5b6627",
+        "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+        "oracle.test.mjs": "45194cd2a28f40e75631044525be7dc40cf6ec0d0c7d47648fe5d38e9e0be58e",
+        "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+        "provenance.mjs": "7875eacc8c78156ce7f642d235c032ceb36146f0261385c33808d192ea8c10c0",
+        "run.mjs": "b2d8721e2eb6dc0e522874a35b691714fa9ded56ce891e126708dcd9390914d4",
+        "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+      }
+    },
+    "targetCount": 16,
+    "width": 32,
+    "profile": "codec-rich",
+    "entries": 0,
+    "mode": "static",
+    "diagnosticForcedGc": true,
+    "plannedCalls": 8
+  },
+  "groups": [
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "kind": "native",
+      "controlBytes": {
+        "median": 1353168,
+        "min": 1353168,
+        "max": 1353168,
+        "samples": [
+          1353168,
+          1353168,
+          1353168
+        ]
+      },
+      "targetBytes": {
+        "median": 1515672,
+        "min": 1515672,
+        "max": 1515672,
+        "samples": [
+          1515672,
+          1515672,
+          1515672
+        ]
+      },
+      "deltaBytes": {
+        "median": 162504,
+        "min": 162504,
+        "max": 162504,
+        "samples": [
+          162504,
+          162504,
+          162504
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 71198,
+        "min": 71198,
+        "max": 71198,
+        "samples": [
+          71198,
+          71198,
+          71198
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 10156.5,
+        "min": 10156.5,
+        "max": 10156.5,
+        "samples": [
+          10156.5,
+          10156.5,
+          10156.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "kind": "helpers",
+      "controlBytes": {
+        "median": 2395472,
+        "min": 2395472,
+        "max": 2395544,
+        "samples": [
+          2395544,
+          2395472,
+          2395472
+        ]
+      },
+      "targetBytes": {
+        "median": 22651336,
+        "min": 22635144,
+        "max": 22652696,
+        "samples": [
+          22635144,
+          22652696,
+          22651336
+        ]
+      },
+      "deltaBytes": {
+        "median": 20255864,
+        "min": 20239600,
+        "max": 20257224,
+        "samples": [
+          20239600,
+          20257224,
+          20255864
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 235430,
+        "min": 235430,
+        "max": 235430,
+        "samples": [
+          235430,
+          235430,
+          235430
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 1265991.5,
+        "min": 1264975,
+        "max": 1266076.5,
+        "samples": [
+          1264975,
+          1266076.5,
+          1265991.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "kind": "full",
+      "controlBytes": {
+        "median": 4307232,
+        "min": 4307232,
+        "max": 4310856,
+        "samples": [
+          4307232,
+          4310856,
+          4307232
+        ]
+      },
+      "targetBytes": {
+        "median": 29289128,
+        "min": 29286800,
+        "max": 29321672,
+        "samples": [
+          29289128,
+          29286800,
+          29321672
+        ]
+      },
+      "deltaBytes": {
+        "median": 24981896,
+        "min": 24975944,
+        "max": 25014440,
+        "samples": [
+          24981896,
+          24975944,
+          25014440
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 535840,
+        "min": 535840,
+        "max": 535840,
+        "samples": [
+          535840,
+          535840,
+          535840
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 1561368.5,
+        "min": 1560996.5,
+        "max": 1563402.5,
+        "samples": [
+          1561368.5,
+          1560996.5,
+          1563402.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "kind": "mini",
+      "controlBytes": {
+        "median": 3892008,
+        "min": 3892008,
+        "max": 3892920,
+        "samples": [
+          3892008,
+          3892008,
+          3892920
+        ]
+      },
+      "targetBytes": {
+        "median": 13580560,
+        "min": 13541568,
+        "max": 13619504,
+        "samples": [
+          13541568,
+          13580560,
+          13619504
+        ]
+      },
+      "deltaBytes": {
+        "median": 9688552,
+        "min": 9649560,
+        "max": 9726584,
+        "samples": [
+          9649560,
+          9688552,
+          9726584
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 515932,
+        "min": 515932,
+        "max": 515932,
+        "samples": [
+          515932,
+          515932,
+          515932
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 605534.5,
+        "min": 603097.5,
+        "max": 607911.5,
+        "samples": [
+          603097.5,
+          605534.5,
+          607911.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "kind": "native",
+      "controlBytes": {
+        "median": 1353168,
+        "min": 1353168,
+        "max": 1353168,
+        "samples": [
+          1353168,
+          1353168,
+          1353168
+        ]
+      },
+      "targetBytes": {
+        "median": 1515672,
+        "min": 1515672,
+        "max": 1515672,
+        "samples": [
+          1515672,
+          1515672,
+          1515672
+        ]
+      },
+      "deltaBytes": {
+        "median": 162504,
+        "min": 162504,
+        "max": 162504,
+        "samples": [
+          162504,
+          162504,
+          162504
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 71198,
+        "min": 71198,
+        "max": 71198,
+        "samples": [
+          71198,
+          71198,
+          71198
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 10156.5,
+        "min": 10156.5,
+        "max": 10156.5,
+        "samples": [
+          10156.5,
+          10156.5,
+          10156.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "kind": "helpers",
+      "controlBytes": {
+        "median": 2395472,
+        "min": 2395472,
+        "max": 2395472,
+        "samples": [
+          2395472,
+          2395472,
+          2395472
+        ]
+      },
+      "targetBytes": {
+        "median": 22652432,
+        "min": 22634992,
+        "max": 22688648,
+        "samples": [
+          22688648,
+          22634992,
+          22652432
+        ]
+      },
+      "deltaBytes": {
+        "median": 20256960,
+        "min": 20239520,
+        "max": 20293176,
+        "samples": [
+          20293176,
+          20239520,
+          20256960
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 235430,
+        "min": 235430,
+        "max": 235430,
+        "samples": [
+          235430,
+          235430,
+          235430
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 1266060,
+        "min": 1264970,
+        "max": 1268323.5,
+        "samples": [
+          1268323.5,
+          1264970,
+          1266060
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "kind": "full",
+      "controlBytes": {
+        "median": 4110032,
+        "min": 4110032,
+        "max": 4110032,
+        "samples": [
+          4110032,
+          4110032,
+          4110032
+        ]
+      },
+      "targetBytes": {
+        "median": 25498408,
+        "min": 25498264,
+        "max": 25516312,
+        "samples": [
+          25498408,
+          25516312,
+          25498264
+        ]
+      },
+      "deltaBytes": {
+        "median": 21388376,
+        "min": 21388232,
+        "max": 21406280,
+        "samples": [
+          21388376,
+          21406280,
+          21388232
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 535840,
+        "min": 535840,
+        "max": 535840,
+        "samples": [
+          535840,
+          535840,
+          535840
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 1336773.5,
+        "min": 1336764.5,
+        "max": 1337892.5,
+        "samples": [
+          1336773.5,
+          1337892.5,
+          1336764.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "kind": "mini",
+      "controlBytes": {
+        "median": 3802760,
+        "min": 3802688,
+        "max": 3802760,
+        "samples": [
+          3802760,
+          3802760,
+          3802688
+        ]
+      },
+      "targetBytes": {
+        "median": 11335936,
+        "min": 11335856,
+        "max": 11371592,
+        "samples": [
+          11335936,
+          11335856,
+          11371592
+        ]
+      },
+      "deltaBytes": {
+        "median": 7533176,
+        "min": 7533096,
+        "max": 7568904,
+        "samples": [
+          7533176,
+          7533096,
+          7568904
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 515932,
+        "min": 515932,
+        "max": 515932,
+        "samples": [
+          515932,
+          515932,
+          515932
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 470823.5,
+        "min": 470818.5,
+        "max": 473056.5,
+        "samples": [
+          470823.5,
+          470818.5,
+          473056.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "kind": "native",
+      "controlBytes": {
+        "median": 1353168,
+        "min": 1353168,
+        "max": 1353168,
+        "samples": [
+          1353168,
+          1353168,
+          1353168
+        ]
+      },
+      "targetBytes": {
+        "median": 1515672,
+        "min": 1515672,
+        "max": 1515672,
+        "samples": [
+          1515672,
+          1515672,
+          1515672
+        ]
+      },
+      "deltaBytes": {
+        "median": 162504,
+        "min": 162504,
+        "max": 162504,
+        "samples": [
+          162504,
+          162504,
+          162504
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 71198,
+        "min": 71198,
+        "max": 71198,
+        "samples": [
+          71198,
+          71198,
+          71198
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 10156.5,
+        "min": 10156.5,
+        "max": 10156.5,
+        "samples": [
+          10156.5,
+          10156.5,
+          10156.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "kind": "helpers",
+      "controlBytes": {
+        "median": 2131248,
+        "min": 2131248,
+        "max": 2131248,
+        "samples": [
+          2131248,
+          2131248,
+          2131248
+        ]
+      },
+      "targetBytes": {
+        "median": 14358952,
+        "min": 14339120,
+        "max": 14401376,
+        "samples": [
+          14358952,
+          14339120,
+          14401376
+        ]
+      },
+      "deltaBytes": {
+        "median": 12227704,
+        "min": 12207872,
+        "max": 12270128,
+        "samples": [
+          12227704,
+          12207872,
+          12270128
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 201985,
+        "min": 201985,
+        "max": 201985,
+        "samples": [
+          201985,
+          201985,
+          201985
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 764231.5,
+        "min": 762992,
+        "max": 766883,
+        "samples": [
+          764231.5,
+          762992,
+          766883
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "kind": "full",
+      "controlBytes": {
+        "median": 4456936,
+        "min": 4456864,
+        "max": 4457584,
+        "samples": [
+          4456864,
+          4456936,
+          4457584
+        ]
+      },
+      "targetBytes": {
+        "median": 20120632,
+        "min": 20120232,
+        "max": 20155240,
+        "samples": [
+          20120632,
+          20120232,
+          20155240
+        ]
+      },
+      "deltaBytes": {
+        "median": 15663768,
+        "min": 15663296,
+        "max": 15697656,
+        "samples": [
+          15663768,
+          15663296,
+          15697656
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 557727,
+        "min": 557727,
+        "max": 557727,
+        "samples": [
+          557727,
+          557727,
+          557727
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 978985.5,
+        "min": 978956,
+        "max": 981103.5,
+        "samples": [
+          978985.5,
+          978956,
+          981103.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "kind": "mini",
+      "controlBytes": {
+        "median": 3946024,
+        "min": 3946024,
+        "max": 3946024,
+        "samples": [
+          3946024,
+          3946024,
+          3946024
+        ]
+      },
+      "targetBytes": {
+        "median": 13625024,
+        "min": 13599880,
+        "max": 13628344,
+        "samples": [
+          13625024,
+          13628344,
+          13599880
+        ]
+      },
+      "deltaBytes": {
+        "median": 9679000,
+        "min": 9653856,
+        "max": 9682320,
+        "samples": [
+          9679000,
+          9682320,
+          9653856
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 534988,
+        "min": 534988,
+        "max": 534988,
+        "samples": [
+          534988,
+          534988,
+          534988
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 604937.5,
+        "min": 603366,
+        "max": 605145,
+        "samples": [
+          604937.5,
+          605145,
+          603366
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "kind": "native",
+      "controlBytes": {
+        "median": 1353168,
+        "min": 1353168,
+        "max": 1353168,
+        "samples": [
+          1353168,
+          1353168,
+          1353168
+        ]
+      },
+      "targetBytes": {
+        "median": 1515672,
+        "min": 1515672,
+        "max": 1515672,
+        "samples": [
+          1515672,
+          1515672,
+          1515672
+        ]
+      },
+      "deltaBytes": {
+        "median": 162504,
+        "min": 162504,
+        "max": 162504,
+        "samples": [
+          162504,
+          162504,
+          162504
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 71198,
+        "min": 71198,
+        "max": 71198,
+        "samples": [
+          71198,
+          71198,
+          71198
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 10156.5,
+        "min": 10156.5,
+        "max": 10156.5,
+        "samples": [
+          10156.5,
+          10156.5,
+          10156.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "kind": "helpers",
+      "controlBytes": {
+        "median": 2131320,
+        "min": 2131248,
+        "max": 2131320,
+        "samples": [
+          2131320,
+          2131248,
+          2131320
+        ]
+      },
+      "targetBytes": {
+        "median": 14357032,
+        "min": 14356800,
+        "max": 14374760,
+        "samples": [
+          14357032,
+          14356800,
+          14374760
+        ]
+      },
+      "deltaBytes": {
+        "median": 12225712,
+        "min": 12225552,
+        "max": 12243440,
+        "samples": [
+          12225712,
+          12225552,
+          12243440
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 201985,
+        "min": 201985,
+        "max": 201985,
+        "samples": [
+          201985,
+          201985,
+          201985
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 764107,
+        "min": 764097,
+        "max": 765215,
+        "samples": [
+          764107,
+          764097,
+          765215
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "kind": "full",
+      "controlBytes": {
+        "median": 4297168,
+        "min": 4297096,
+        "max": 4297312,
+        "samples": [
+          4297096,
+          4297168,
+          4297312
+        ]
+      },
+      "targetBytes": {
+        "median": 17278248,
+        "min": 17278232,
+        "max": 17278720,
+        "samples": [
+          17278232,
+          17278248,
+          17278720
+        ]
+      },
+      "deltaBytes": {
+        "median": 12981136,
+        "min": 12981080,
+        "max": 12981408,
+        "samples": [
+          12981136,
+          12981080,
+          12981408
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 557727,
+        "min": 557727,
+        "max": 557727,
+        "samples": [
+          557727,
+          557727,
+          557727
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 811321,
+        "min": 811317.5,
+        "max": 811338,
+        "samples": [
+          811321,
+          811317.5,
+          811338
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "kind": "mini",
+      "controlBytes": {
+        "median": 3856896,
+        "min": 3856768,
+        "max": 3856984,
+        "samples": [
+          3856984,
+          3856768,
+          3856896
+        ]
+      },
+      "targetBytes": {
+        "median": 11389496,
+        "min": 11389336,
+        "max": 11481152,
+        "samples": [
+          11389336,
+          11481152,
+          11389496
+        ]
+      },
+      "deltaBytes": {
+        "median": 7532600,
+        "min": 7532352,
+        "max": 7624384,
+        "samples": [
+          7532352,
+          7624384,
+          7532600
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 534988,
+        "min": 534988,
+        "max": 534988,
+        "samples": [
+          534988,
+          534988,
+          534988
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 470787.5,
+        "min": 470772,
+        "max": 476524,
+        "samples": [
+          470772,
+          476524,
+          470787.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "native",
+      "controlBytes": {
+        "median": 1353168,
+        "min": 1353168,
+        "max": 1353168,
+        "samples": [
+          1353168,
+          1353168,
+          1353168
+        ]
+      },
+      "targetBytes": {
+        "median": 1515672,
+        "min": 1515672,
+        "max": 1515672,
+        "samples": [
+          1515672,
+          1515672,
+          1515672
+        ]
+      },
+      "deltaBytes": {
+        "median": 162504,
+        "min": 162504,
+        "max": 162504,
+        "samples": [
+          162504,
+          162504,
+          162504
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 71198,
+        "min": 71198,
+        "max": 71198,
+        "samples": [
+          71198,
+          71198,
+          71198
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 10156.5,
+        "min": 10156.5,
+        "max": 10156.5,
+        "samples": [
+          10156.5,
+          10156.5,
+          10156.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "helpers",
+      "controlBytes": {
+        "median": 2733656,
+        "min": 2733656,
+        "max": 2733656,
+        "samples": [
+          2733656,
+          2733656,
+          2733656
+        ]
+      },
+      "targetBytes": {
+        "median": 5185976,
+        "min": 5185976,
+        "max": 5186016,
+        "samples": [
+          5185976,
+          5185976,
+          5186016
+        ]
+      },
+      "deltaBytes": {
+        "median": 2452320,
+        "min": 2452320,
+        "max": 2452360,
+        "samples": [
+          2452320,
+          2452320,
+          2452360
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 226953,
+        "min": 226953,
+        "max": 226953,
+        "samples": [
+          226953,
+          226953,
+          226953
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 153270,
+        "min": 153270,
+        "max": 153272.5,
+        "samples": [
+          153270,
+          153270,
+          153272.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "full",
+      "controlBytes": {
+        "median": 4887944,
+        "min": 4887944,
+        "max": 4887944,
+        "samples": [
+          4887944,
+          4887944,
+          4887944
+        ]
+      },
+      "targetBytes": {
+        "median": 8320664,
+        "min": 8320664,
+        "max": 8320664,
+        "samples": [
+          8320664,
+          8320664,
+          8320664
+        ]
+      },
+      "deltaBytes": {
+        "median": 3432720,
+        "min": 3432720,
+        "max": 3432720,
+        "samples": [
+          3432720,
+          3432720,
+          3432720
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 697948,
+        "min": 697948,
+        "max": 697948,
+        "samples": [
+          697948,
+          697948,
+          697948
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 214545,
+        "min": 214545,
+        "max": 214545,
+        "samples": [
+          214545,
+          214545,
+          214545
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "mini",
+      "controlBytes": {
+        "median": 4492048,
+        "min": 4492048,
+        "max": 4492048,
+        "samples": [
+          4492048,
+          4492048,
+          4492048
+        ]
+      },
+      "targetBytes": {
+        "median": 7149568,
+        "min": 7149528,
+        "max": 7149608,
+        "samples": [
+          7149568,
+          7149608,
+          7149528
+        ]
+      },
+      "deltaBytes": {
+        "median": 2657520,
+        "min": 2657480,
+        "max": 2657560,
+        "samples": [
+          2657520,
+          2657560,
+          2657480
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 672752,
+        "min": 672752,
+        "max": 672752,
+        "samples": [
+          672752,
+          672752,
+          672752
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 166095,
+        "min": 166092.5,
+        "max": 166097.5,
+        "samples": [
+          166095,
+          166097.5,
+          166092.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "native",
+      "controlBytes": {
+        "median": 1353168,
+        "min": 1353168,
+        "max": 1353168,
+        "samples": [
+          1353168,
+          1353168,
+          1353168
+        ]
+      },
+      "targetBytes": {
+        "median": 1515672,
+        "min": 1515672,
+        "max": 1515672,
+        "samples": [
+          1515672,
+          1515672,
+          1515672
+        ]
+      },
+      "deltaBytes": {
+        "median": 162504,
+        "min": 162504,
+        "max": 162504,
+        "samples": [
+          162504,
+          162504,
+          162504
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 71198,
+        "min": 71198,
+        "max": 71198,
+        "samples": [
+          71198,
+          71198,
+          71198
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 10156.5,
+        "min": 10156.5,
+        "max": 10156.5,
+        "samples": [
+          10156.5,
+          10156.5,
+          10156.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "helpers",
+      "controlBytes": {
+        "median": 2733656,
+        "min": 2733656,
+        "max": 2733656,
+        "samples": [
+          2733656,
+          2733656,
+          2733656
+        ]
+      },
+      "targetBytes": {
+        "median": 5186056,
+        "min": 5186016,
+        "max": 5186096,
+        "samples": [
+          5186056,
+          5186096,
+          5186016
+        ]
+      },
+      "deltaBytes": {
+        "median": 2452400,
+        "min": 2452360,
+        "max": 2452440,
+        "samples": [
+          2452400,
+          2452440,
+          2452360
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 226953,
+        "min": 226953,
+        "max": 226953,
+        "samples": [
+          226953,
+          226953,
+          226953
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 153275,
+        "min": 153272.5,
+        "max": 153277.5,
+        "samples": [
+          153275,
+          153277.5,
+          153272.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "full",
+      "controlBytes": {
+        "median": 4791632,
+        "min": 4791632,
+        "max": 4791632,
+        "samples": [
+          4791632,
+          4791632,
+          4791632
+        ]
+      },
+      "targetBytes": {
+        "median": 7622864,
+        "min": 7622712,
+        "max": 7622872,
+        "samples": [
+          7622712,
+          7622864,
+          7622872
+        ]
+      },
+      "deltaBytes": {
+        "median": 2831232,
+        "min": 2831080,
+        "max": 2831240,
+        "samples": [
+          2831080,
+          2831232,
+          2831240
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 697948,
+        "min": 697948,
+        "max": 697948,
+        "samples": [
+          697948,
+          697948,
+          697948
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 176952,
+        "min": 176942.5,
+        "max": 176952.5,
+        "samples": [
+          176942.5,
+          176952,
+          176952.5
+        ]
+      }
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "mini",
+      "controlBytes": {
+        "median": 4433064,
+        "min": 4433064,
+        "max": 4433064,
+        "samples": [
+          4433064,
+          4433064,
+          4433064
+        ]
+      },
+      "targetBytes": {
+        "median": 6583584,
+        "min": 6583424,
+        "max": 6583584,
+        "samples": [
+          6583584,
+          6583424,
+          6583584
+        ]
+      },
+      "deltaBytes": {
+        "median": 2150520,
+        "min": 2150360,
+        "max": 2150520,
+        "samples": [
+          2150520,
+          2150360,
+          2150520
+        ]
+      },
+      "targetBundleBytes": {
+        "median": 672752,
+        "min": 672752,
+        "max": 672752,
+        "samples": [
+          672752,
+          672752,
+          672752
+        ]
+      },
+      "bytesPerBackgroundModel": {
+        "median": 134407.5,
+        "min": 134397.5,
+        "max": 134407.5,
+        "samples": [
+          134407.5,
+          134397.5,
+          134407.5
+        ]
+      }
+    }
+  ],
+  "zodComparisons": [
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "helpers",
+      "beforeBytes": 20255864,
+      "afterBytes": 2452320,
+      "changeBytes": -17803544,
+      "changePercent": -87.89328364368956
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "full",
+      "beforeBytes": 24981896,
+      "afterBytes": 3432720,
+      "changeBytes": -21549176,
+      "changePercent": -86.25916944014178
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "mini",
+      "beforeBytes": 9688552,
+      "afterBytes": 2657520,
+      "changeBytes": -7031032,
+      "changePercent": -72.57051414906995
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "helpers",
+      "beforeBytes": 20256960,
+      "afterBytes": 2452400,
+      "changeBytes": -17804560,
+      "changePercent": -87.89354374990127
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "full",
+      "beforeBytes": 21388376,
+      "afterBytes": 2831232,
+      "changeBytes": -18557144,
+      "changePercent": -86.76275374998083
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "mini",
+      "beforeBytes": 7533176,
+      "afterBytes": 2150520,
+      "changeBytes": -5382656,
+      "changePercent": -71.45267812672901
+    },
+    {
+      "fromZodVersion": "4.4.3",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "fromZodVersion": "4.4.3",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "helpers",
+      "beforeBytes": 12227704,
+      "afterBytes": 2452320,
+      "changeBytes": -9775384,
+      "changePercent": -79.944558684116
+    },
+    {
+      "fromZodVersion": "4.4.3",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "full",
+      "beforeBytes": 15663768,
+      "afterBytes": 3432720,
+      "changeBytes": -12231048,
+      "changePercent": -78.08496652912633
+    },
+    {
+      "fromZodVersion": "4.4.3",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "kind": "mini",
+      "beforeBytes": 9679000,
+      "afterBytes": 2657520,
+      "changeBytes": -7021480,
+      "changePercent": -72.54344457072011
+    },
+    {
+      "fromZodVersion": "4.4.3",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "fromZodVersion": "4.4.3",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "helpers",
+      "beforeBytes": 12225712,
+      "afterBytes": 2452400,
+      "changeBytes": -9773312,
+      "changePercent": -79.94063658623728
+    },
+    {
+      "fromZodVersion": "4.4.3",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "full",
+      "beforeBytes": 12981136,
+      "afterBytes": 2831232,
+      "changeBytes": -10149904,
+      "changePercent": -78.18964380313093
+    },
+    {
+      "fromZodVersion": "4.4.3",
+      "toZodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "kind": "mini",
+      "beforeBytes": 7532600,
+      "afterBytes": 2150520,
+      "changeBytes": -5382080,
+      "changePercent": -71.45049518094682
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "kind": "helpers",
+      "beforeBytes": 20255864,
+      "afterBytes": 12227704,
+      "changeBytes": -8028160,
+      "changePercent": -39.633757414642986
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "kind": "full",
+      "beforeBytes": 24981896,
+      "afterBytes": 15663768,
+      "changeBytes": -9318128,
+      "changePercent": -37.29952282244711
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "kind": "mini",
+      "beforeBytes": 9688552,
+      "afterBytes": 9679000,
+      "changeBytes": -9552,
+      "changePercent": -0.09859058402121867
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "kind": "helpers",
+      "beforeBytes": 20256960,
+      "afterBytes": 12225712,
+      "changeBytes": -8031248,
+      "changePercent": -39.646857178964666
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "kind": "full",
+      "beforeBytes": 21388376,
+      "afterBytes": 12981136,
+      "changeBytes": -8407240,
+      "changePercent": -39.307519187057494
+    },
+    {
+      "fromZodVersion": "4.3.6",
+      "toZodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "kind": "mini",
+      "beforeBytes": 7533176,
+      "afterBytes": 7532600,
+      "changeBytes": -576,
+      "changePercent": -0.007646177389186715
+    }
+  ],
+  "helperComparisons": [
+    {
+      "zodVersion": "4.3.6",
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "zodVersion": "4.3.6",
+      "kind": "helpers",
+      "beforeBytes": 20255864,
+      "afterBytes": 20256960,
+      "changeBytes": 1096,
+      "changePercent": 0.0054107788243440424
+    },
+    {
+      "zodVersion": "4.3.6",
+      "kind": "full",
+      "beforeBytes": 24981896,
+      "afterBytes": 21388376,
+      "changeBytes": -3593520,
+      "changePercent": -14.3844966771137
+    },
+    {
+      "zodVersion": "4.3.6",
+      "kind": "mini",
+      "beforeBytes": 9688552,
+      "afterBytes": 7533176,
+      "changeBytes": -2155376,
+      "changePercent": -22.246626740507768
+    },
+    {
+      "zodVersion": "4.4.3",
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "zodVersion": "4.4.3",
+      "kind": "helpers",
+      "beforeBytes": 12227704,
+      "afterBytes": 12225712,
+      "changeBytes": -1992,
+      "changePercent": -0.016290875212554567
+    },
+    {
+      "zodVersion": "4.4.3",
+      "kind": "full",
+      "beforeBytes": 15663768,
+      "afterBytes": 12981136,
+      "changeBytes": -2682632,
+      "changePercent": -17.12635171818173
+    },
+    {
+      "zodVersion": "4.4.3",
+      "kind": "mini",
+      "beforeBytes": 9679000,
+      "afterBytes": 7532600,
+      "changeBytes": -2146400,
+      "changePercent": -22.175844612046703
+    },
+    {
+      "zodVersion": "4.5.4",
+      "kind": "native",
+      "beforeBytes": 162504,
+      "afterBytes": 162504,
+      "changeBytes": 0,
+      "changePercent": 0
+    },
+    {
+      "zodVersion": "4.5.4",
+      "kind": "helpers",
+      "beforeBytes": 2452320,
+      "afterBytes": 2452400,
+      "changeBytes": 80,
+      "changePercent": 0.0032622170026641584
+    },
+    {
+      "zodVersion": "4.5.4",
+      "kind": "full",
+      "beforeBytes": 3432720,
+      "afterBytes": 2831232,
+      "changeBytes": -601488,
+      "changePercent": -17.5221981402503
+    },
+    {
+      "zodVersion": "4.5.4",
+      "kind": "mini",
+      "beforeBytes": 2657520,
+      "afterBytes": 2150520,
+      "changeBytes": -507000,
+      "changePercent": -19.07793732502483
+    }
+  ],
+  "observations": [
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "native",
+      "collection": "results/local/memory-heap-01a69868-dba3-4e32-9e57-8bcffa339f4b",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-01a69868-dba3-4e32-9e57-8bcffa339f4b",
+      "controlBytes": 2733656,
+      "targetBytes": 5186056,
+      "deltaBytes": 2452400,
+      "controlBundleBytes": 226952,
+      "targetBundleBytes": 226953
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "full",
+      "collection": "results/local/memory-heap-01a69868-dba3-4e32-9e57-8bcffa339f4b",
+      "controlBytes": 4791632,
+      "targetBytes": 7622712,
+      "deltaBytes": 2831080,
+      "controlBundleBytes": 697947,
+      "targetBundleBytes": 697948
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-01a69868-dba3-4e32-9e57-8bcffa339f4b",
+      "controlBytes": 4433064,
+      "targetBytes": 6583584,
+      "deltaBytes": 2150520,
+      "controlBundleBytes": 672751,
+      "targetBundleBytes": 672752
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "native",
+      "collection": "results/local/memory-heap-15515e09-17d5-4616-bc7b-a38c7880c259",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-15515e09-17d5-4616-bc7b-a38c7880c259",
+      "controlBytes": 2733656,
+      "targetBytes": 5185976,
+      "deltaBytes": 2452320,
+      "controlBundleBytes": 226952,
+      "targetBundleBytes": 226953
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "full",
+      "collection": "results/local/memory-heap-15515e09-17d5-4616-bc7b-a38c7880c259",
+      "controlBytes": 4887944,
+      "targetBytes": 8320664,
+      "deltaBytes": 3432720,
+      "controlBundleBytes": 697947,
+      "targetBundleBytes": 697948
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-15515e09-17d5-4616-bc7b-a38c7880c259",
+      "controlBytes": 4492048,
+      "targetBytes": 7149608,
+      "deltaBytes": 2657560,
+      "controlBundleBytes": 672751,
+      "targetBundleBytes": 672752
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "native",
+      "collection": "results/local/memory-heap-24514f3c-86d8-417e-94af-ba2b99ef24f4",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-24514f3c-86d8-417e-94af-ba2b99ef24f4",
+      "controlBytes": 2733656,
+      "targetBytes": 5186016,
+      "deltaBytes": 2452360,
+      "controlBundleBytes": 226952,
+      "targetBundleBytes": 226953
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "full",
+      "collection": "results/local/memory-heap-24514f3c-86d8-417e-94af-ba2b99ef24f4",
+      "controlBytes": 4791632,
+      "targetBytes": 7622872,
+      "deltaBytes": 2831240,
+      "controlBundleBytes": 697947,
+      "targetBundleBytes": 697948
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-24514f3c-86d8-417e-94af-ba2b99ef24f4",
+      "controlBytes": 4433064,
+      "targetBytes": 6583584,
+      "deltaBytes": 2150520,
+      "controlBundleBytes": 672751,
+      "targetBundleBytes": 672752
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "native",
+      "collection": "results/local/memory-heap-3290787b-29f2-4e64-98fb-500ddd1413e2",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-3290787b-29f2-4e64-98fb-500ddd1413e2",
+      "controlBytes": 2395472,
+      "targetBytes": 22688648,
+      "deltaBytes": 20293176,
+      "controlBundleBytes": 235429,
+      "targetBundleBytes": 235430
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "full",
+      "collection": "results/local/memory-heap-3290787b-29f2-4e64-98fb-500ddd1413e2",
+      "controlBytes": 4110032,
+      "targetBytes": 25498408,
+      "deltaBytes": 21388376,
+      "controlBundleBytes": 535839,
+      "targetBundleBytes": 535840
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-3290787b-29f2-4e64-98fb-500ddd1413e2",
+      "controlBytes": 3802760,
+      "targetBytes": 11335936,
+      "deltaBytes": 7533176,
+      "controlBundleBytes": 515931,
+      "targetBundleBytes": 515932
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "native",
+      "collection": "results/local/memory-heap-65f8cc5e-b9d8-49ee-ba0e-6c220904dbb8",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-65f8cc5e-b9d8-49ee-ba0e-6c220904dbb8",
+      "controlBytes": 2131248,
+      "targetBytes": 14401376,
+      "deltaBytes": 12270128,
+      "controlBundleBytes": 201984,
+      "targetBundleBytes": 201985
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "full",
+      "collection": "results/local/memory-heap-65f8cc5e-b9d8-49ee-ba0e-6c220904dbb8",
+      "controlBytes": 4457584,
+      "targetBytes": 20155240,
+      "deltaBytes": 15697656,
+      "controlBundleBytes": 557726,
+      "targetBundleBytes": 557727
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-65f8cc5e-b9d8-49ee-ba0e-6c220904dbb8",
+      "controlBytes": 3946024,
+      "targetBytes": 13599880,
+      "deltaBytes": 9653856,
+      "controlBundleBytes": 534987,
+      "targetBundleBytes": 534988
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "native",
+      "collection": "results/local/memory-heap-7d0e9f5f-c39b-4c5f-ba99-e67e68e3d806",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-7d0e9f5f-c39b-4c5f-ba99-e67e68e3d806",
+      "controlBytes": 2395544,
+      "targetBytes": 22635144,
+      "deltaBytes": 20239600,
+      "controlBundleBytes": 235429,
+      "targetBundleBytes": 235430
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "full",
+      "collection": "results/local/memory-heap-7d0e9f5f-c39b-4c5f-ba99-e67e68e3d806",
+      "controlBytes": 4307232,
+      "targetBytes": 29289128,
+      "deltaBytes": 24981896,
+      "controlBundleBytes": 535839,
+      "targetBundleBytes": 535840
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-7d0e9f5f-c39b-4c5f-ba99-e67e68e3d806",
+      "controlBytes": 3892008,
+      "targetBytes": 13541568,
+      "deltaBytes": 9649560,
+      "controlBundleBytes": 515931,
+      "targetBundleBytes": 515932
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "native",
+      "collection": "results/local/memory-heap-81b9b648-7ac6-474b-a87c-5fd84534d77c",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-81b9b648-7ac6-474b-a87c-5fd84534d77c",
+      "controlBytes": 2131248,
+      "targetBytes": 14356800,
+      "deltaBytes": 12225552,
+      "controlBundleBytes": 201984,
+      "targetBundleBytes": 201985
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "full",
+      "collection": "results/local/memory-heap-81b9b648-7ac6-474b-a87c-5fd84534d77c",
+      "controlBytes": 4297168,
+      "targetBytes": 17278248,
+      "deltaBytes": 12981080,
+      "controlBundleBytes": 557726,
+      "targetBundleBytes": 557727
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-81b9b648-7ac6-474b-a87c-5fd84534d77c",
+      "controlBytes": 3856768,
+      "targetBytes": 11481152,
+      "deltaBytes": 7624384,
+      "controlBundleBytes": 534987,
+      "targetBundleBytes": 534988
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "native",
+      "collection": "results/local/memory-heap-8ab8b463-7f4b-4689-bf6d-464035746371",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-8ab8b463-7f4b-4689-bf6d-464035746371",
+      "controlBytes": 2733656,
+      "targetBytes": 5185976,
+      "deltaBytes": 2452320,
+      "controlBundleBytes": 226952,
+      "targetBundleBytes": 226953
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "full",
+      "collection": "results/local/memory-heap-8ab8b463-7f4b-4689-bf6d-464035746371",
+      "controlBytes": 4887944,
+      "targetBytes": 8320664,
+      "deltaBytes": 3432720,
+      "controlBundleBytes": 697947,
+      "targetBundleBytes": 697948
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-8ab8b463-7f4b-4689-bf6d-464035746371",
+      "controlBytes": 4492048,
+      "targetBytes": 7149568,
+      "deltaBytes": 2657520,
+      "controlBundleBytes": 672751,
+      "targetBundleBytes": 672752
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "native",
+      "collection": "results/local/memory-heap-8f6ab684-d915-4b96-afb7-96709a360d6e",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-8f6ab684-d915-4b96-afb7-96709a360d6e",
+      "controlBytes": 2131248,
+      "targetBytes": 14339120,
+      "deltaBytes": 12207872,
+      "controlBundleBytes": 201984,
+      "targetBundleBytes": 201985
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "full",
+      "collection": "results/local/memory-heap-8f6ab684-d915-4b96-afb7-96709a360d6e",
+      "controlBytes": 4456936,
+      "targetBytes": 20120232,
+      "deltaBytes": 15663296,
+      "controlBundleBytes": 557726,
+      "targetBundleBytes": 557727
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-8f6ab684-d915-4b96-afb7-96709a360d6e",
+      "controlBytes": 3946024,
+      "targetBytes": 13628344,
+      "deltaBytes": 9682320,
+      "controlBundleBytes": 534987,
+      "targetBundleBytes": 534988
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "native",
+      "collection": "results/local/memory-heap-9680b400-9e84-4995-9fbc-aea434fe16ba",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-9680b400-9e84-4995-9fbc-aea434fe16ba",
+      "controlBytes": 2733656,
+      "targetBytes": 5186016,
+      "deltaBytes": 2452360,
+      "controlBundleBytes": 226952,
+      "targetBundleBytes": 226953
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "full",
+      "collection": "results/local/memory-heap-9680b400-9e84-4995-9fbc-aea434fe16ba",
+      "controlBytes": 4887944,
+      "targetBytes": 8320664,
+      "deltaBytes": 3432720,
+      "controlBundleBytes": 697947,
+      "targetBundleBytes": 697948
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-9680b400-9e84-4995-9fbc-aea434fe16ba",
+      "controlBytes": 4492048,
+      "targetBytes": 7149528,
+      "deltaBytes": 2657480,
+      "controlBundleBytes": 672751,
+      "targetBundleBytes": 672752
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "native",
+      "collection": "results/local/memory-heap-a7e61b15-a76f-47ca-b354-00e30629cd57",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-a7e61b15-a76f-47ca-b354-00e30629cd57",
+      "controlBytes": 2131320,
+      "targetBytes": 14357032,
+      "deltaBytes": 12225712,
+      "controlBundleBytes": 201984,
+      "targetBundleBytes": 201985
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "full",
+      "collection": "results/local/memory-heap-a7e61b15-a76f-47ca-b354-00e30629cd57",
+      "controlBytes": 4297096,
+      "targetBytes": 17278232,
+      "deltaBytes": 12981136,
+      "controlBundleBytes": 557726,
+      "targetBundleBytes": 557727
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 1,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-a7e61b15-a76f-47ca-b354-00e30629cd57",
+      "controlBytes": 3856984,
+      "targetBytes": 11389336,
+      "deltaBytes": 7532352,
+      "controlBundleBytes": 534987,
+      "targetBundleBytes": 534988
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "native",
+      "collection": "results/local/memory-heap-aa0e8512-9b00-46ae-89ea-ee6b86e92c84",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-aa0e8512-9b00-46ae-89ea-ee6b86e92c84",
+      "controlBytes": 2395472,
+      "targetBytes": 22652696,
+      "deltaBytes": 20257224,
+      "controlBundleBytes": 235429,
+      "targetBundleBytes": 235430
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "full",
+      "collection": "results/local/memory-heap-aa0e8512-9b00-46ae-89ea-ee6b86e92c84",
+      "controlBytes": 4310856,
+      "targetBytes": 29286800,
+      "deltaBytes": 24975944,
+      "controlBundleBytes": 535839,
+      "targetBundleBytes": 535840
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 2,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-aa0e8512-9b00-46ae-89ea-ee6b86e92c84",
+      "controlBytes": 3892008,
+      "targetBytes": 13580560,
+      "deltaBytes": 9688552,
+      "controlBundleBytes": 515931,
+      "targetBundleBytes": 515932
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "native",
+      "collection": "results/local/memory-heap-b89b0d26-ebf3-4642-aea8-dfcdfcf2f476",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-b89b0d26-ebf3-4642-aea8-dfcdfcf2f476",
+      "controlBytes": 2395472,
+      "targetBytes": 22634992,
+      "deltaBytes": 20239520,
+      "controlBundleBytes": 235429,
+      "targetBundleBytes": 235430
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "full",
+      "collection": "results/local/memory-heap-b89b0d26-ebf3-4642-aea8-dfcdfcf2f476",
+      "controlBytes": 4110032,
+      "targetBytes": 25516312,
+      "deltaBytes": 21406280,
+      "controlBundleBytes": 535839,
+      "targetBundleBytes": 535840
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-b89b0d26-ebf3-4642-aea8-dfcdfcf2f476",
+      "controlBytes": 3802760,
+      "targetBytes": 11335856,
+      "deltaBytes": 7533096,
+      "controlBundleBytes": 515931,
+      "targetBundleBytes": 515932
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "native",
+      "collection": "results/local/memory-heap-c5972b70-6d7e-4763-b140-386500e1902f",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-c5972b70-6d7e-4763-b140-386500e1902f",
+      "controlBytes": 2395472,
+      "targetBytes": 22652432,
+      "deltaBytes": 20256960,
+      "controlBundleBytes": 235429,
+      "targetBundleBytes": 235430
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "full",
+      "collection": "results/local/memory-heap-c5972b70-6d7e-4763-b140-386500e1902f",
+      "controlBytes": 4110032,
+      "targetBytes": 25498264,
+      "deltaBytes": 21388232,
+      "controlBundleBytes": 535839,
+      "targetBundleBytes": 535840
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-c5972b70-6d7e-4763-b140-386500e1902f",
+      "controlBytes": 3802688,
+      "targetBytes": 11371592,
+      "deltaBytes": 7568904,
+      "controlBundleBytes": 515931,
+      "targetBundleBytes": 515932
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "native",
+      "collection": "results/local/memory-heap-d2aae1bb-1a0e-400c-89bd-1c6f7ac9adc6",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-d2aae1bb-1a0e-400c-89bd-1c6f7ac9adc6",
+      "controlBytes": 2395472,
+      "targetBytes": 22651336,
+      "deltaBytes": 20255864,
+      "controlBundleBytes": 235429,
+      "targetBundleBytes": 235430
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "full",
+      "collection": "results/local/memory-heap-d2aae1bb-1a0e-400c-89bd-1c6f7ac9adc6",
+      "controlBytes": 4307232,
+      "targetBytes": 29321672,
+      "deltaBytes": 25014440,
+      "controlBundleBytes": 535839,
+      "targetBundleBytes": 535840
+    },
+    {
+      "zodVersion": "4.3.6",
+      "schemaHelpers": true,
+      "round": 3,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-d2aae1bb-1a0e-400c-89bd-1c6f7ac9adc6",
+      "controlBytes": 3892920,
+      "targetBytes": 13619504,
+      "deltaBytes": 9726584,
+      "controlBundleBytes": 515931,
+      "targetBundleBytes": 515932
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "native",
+      "collection": "results/local/memory-heap-e1832b86-ed07-4c29-a6bb-41102ba9cb6a",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-e1832b86-ed07-4c29-a6bb-41102ba9cb6a",
+      "controlBytes": 2131320,
+      "targetBytes": 14374760,
+      "deltaBytes": 12243440,
+      "controlBundleBytes": 201984,
+      "targetBundleBytes": 201985
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "full",
+      "collection": "results/local/memory-heap-e1832b86-ed07-4c29-a6bb-41102ba9cb6a",
+      "controlBytes": 4297312,
+      "targetBytes": 17278720,
+      "deltaBytes": 12981408,
+      "controlBundleBytes": 557726,
+      "targetBundleBytes": 557727
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": false,
+      "round": 3,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-e1832b86-ed07-4c29-a6bb-41102ba9cb6a",
+      "controlBytes": 3856896,
+      "targetBytes": 11389496,
+      "deltaBytes": 7532600,
+      "controlBundleBytes": 534987,
+      "targetBundleBytes": 534988
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "native",
+      "collection": "results/local/memory-heap-ec43fbb2-9029-42a9-b754-03190cbd2c24",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-ec43fbb2-9029-42a9-b754-03190cbd2c24",
+      "controlBytes": 2733656,
+      "targetBytes": 5186096,
+      "deltaBytes": 2452440,
+      "controlBundleBytes": 226952,
+      "targetBundleBytes": 226953
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "full",
+      "collection": "results/local/memory-heap-ec43fbb2-9029-42a9-b754-03190cbd2c24",
+      "controlBytes": 4791632,
+      "targetBytes": 7622864,
+      "deltaBytes": 2831232,
+      "controlBundleBytes": 697947,
+      "targetBundleBytes": 697948
+    },
+    {
+      "zodVersion": "4.5.4",
+      "schemaHelpers": false,
+      "round": 2,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-ec43fbb2-9029-42a9-b754-03190cbd2c24",
+      "controlBytes": 4433064,
+      "targetBytes": 6583424,
+      "deltaBytes": 2150360,
+      "controlBundleBytes": 672751,
+      "targetBundleBytes": 672752
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "native",
+      "collection": "results/local/memory-heap-f0797979-5b68-43fc-b709-e0ba32588081",
+      "controlBytes": 1353168,
+      "targetBytes": 1515672,
+      "deltaBytes": 162504,
+      "controlBundleBytes": 71197,
+      "targetBundleBytes": 71198
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "helpers",
+      "collection": "results/local/memory-heap-f0797979-5b68-43fc-b709-e0ba32588081",
+      "controlBytes": 2131248,
+      "targetBytes": 14358952,
+      "deltaBytes": 12227704,
+      "controlBundleBytes": 201984,
+      "targetBundleBytes": 201985
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "full",
+      "collection": "results/local/memory-heap-f0797979-5b68-43fc-b709-e0ba32588081",
+      "controlBytes": 4456864,
+      "targetBytes": 20120632,
+      "deltaBytes": 15663768,
+      "controlBundleBytes": 557726,
+      "targetBundleBytes": 557727
+    },
+    {
+      "zodVersion": "4.4.3",
+      "schemaHelpers": true,
+      "round": 1,
+      "kind": "mini",
+      "collection": "results/local/memory-heap-f0797979-5b68-43fc-b709-e0ba32588081",
+      "controlBytes": 3946024,
+      "targetBytes": 13625024,
+      "deltaBytes": 9679000,
+      "controlBundleBytes": 534987,
+      "targetBundleBytes": 534988
+    }
+  ]
+}

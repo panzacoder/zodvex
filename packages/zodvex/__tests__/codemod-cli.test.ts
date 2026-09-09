@@ -8,7 +8,11 @@
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// These integration tests load TypeScript and transform an entire example app.
+// Allow cold compiler startup on CI; elapsed time is not a performance assertion.
+vi.setConfig({ testTimeout: 20000 })
 
 const TASK_MANAGER_CONVEX = join(__dirname, '../../../examples/task-manager/convex')
 

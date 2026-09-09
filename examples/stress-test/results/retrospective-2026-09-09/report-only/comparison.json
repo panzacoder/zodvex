@@ -1,0 +1,296 @@
+[
+  {
+    "metric": "census.models",
+    "input": 12,
+    "synthetic": 12,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemaRoots",
+    "input": 24,
+    "synthetic": 24,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.uniqueSchemas",
+    "input": 353,
+    "synthetic": 351,
+    "delta": -2,
+    "percentDelta": -0.57
+  },
+  {
+    "metric": "census.repeatedSchemaReferences",
+    "input": 138,
+    "synthetic": 132,
+    "delta": -6,
+    "percentDelta": -4.35
+  },
+  {
+    "metric": "census.objectFieldSlots",
+    "input": 314,
+    "synthetic": 312,
+    "delta": -2,
+    "percentDelta": -0.64
+  },
+  {
+    "metric": "census.codecs",
+    "input": 11,
+    "synthetic": 11,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.uniqueChecks",
+    "input": 49,
+    "synthetic": 52,
+    "delta": 3,
+    "percentDelta": 6.12
+  },
+  {
+    "metric": "census.explicitCallbackReferences",
+    "input": 89,
+    "synthetic": 81,
+    "delta": -8,
+    "percentDelta": -8.99
+  },
+  {
+    "metric": "census.unresolvedLazySchemas",
+    "input": 0,
+    "synthetic": 0,
+    "delta": 0,
+    "percentDelta": null
+  },
+  {
+    "metric": "census.fieldAccessorsSkipped",
+    "input": 0,
+    "synthetic": 0,
+    "delta": 0,
+    "percentDelta": null
+  },
+  {
+    "metric": "census.shapeGettersEvaluated",
+    "input": 12,
+    "synthetic": 12,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.unrecognizedSchemaKinds",
+    "input": 0,
+    "synthetic": 0,
+    "delta": 0,
+    "percentDelta": null
+  },
+  {
+    "metric": "census.implementations.classic",
+    "input": 353,
+    "synthetic": 351,
+    "delta": -2,
+    "percentDelta": -0.57
+  },
+  {
+    "metric": "census.implementations.mini",
+    "input": 0,
+    "synthetic": 0,
+    "delta": 0,
+    "percentDelta": null
+  },
+  {
+    "metric": "census.implementations.core",
+    "input": 0,
+    "synthetic": 0,
+    "delta": 0,
+    "percentDelta": null
+  },
+  {
+    "metric": "census.schemasByKind.array",
+    "input": 2,
+    "synthetic": 2,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.boolean",
+    "input": 5,
+    "synthetic": 5,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.custom",
+    "input": 33,
+    "synthetic": 33,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.enum",
+    "input": 15,
+    "synthetic": 15,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.literal",
+    "input": 21,
+    "synthetic": 20,
+    "delta": -1,
+    "percentDelta": -4.76
+  },
+  {
+    "metric": "census.schemasByKind.never",
+    "input": 8,
+    "synthetic": 8,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.null",
+    "input": 9,
+    "synthetic": 9,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.nullable",
+    "input": 9,
+    "synthetic": 10,
+    "delta": 1,
+    "percentDelta": 11.11
+  },
+  {
+    "metric": "census.schemasByKind.number",
+    "input": 36,
+    "synthetic": 34,
+    "delta": -2,
+    "percentDelta": -5.56
+  },
+  {
+    "metric": "census.schemasByKind.object",
+    "input": 56,
+    "synthetic": 56,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.optional",
+    "input": 55,
+    "synthetic": 57,
+    "delta": 2,
+    "percentDelta": 3.64
+  },
+  {
+    "metric": "census.schemasByKind.pipe",
+    "input": 11,
+    "synthetic": 11,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.string",
+    "input": 78,
+    "synthetic": 76,
+    "delta": -2,
+    "percentDelta": -2.56
+  },
+  {
+    "metric": "census.schemasByKind.union",
+    "input": 13,
+    "synthetic": 13,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "census.schemasByKind.unknown",
+    "input": 2,
+    "synthetic": 2,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "localImport.repetitions",
+    "input": 3,
+    "synthetic": 3,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "localImport.heapUsed.medianDeltaBytes",
+    "input": 6120856,
+    "synthetic": 5299640,
+    "delta": -821216,
+    "percentDelta": -13.42
+  },
+  {
+    "metric": "localImport.heapUsed.minDeltaBytes",
+    "input": 6115048,
+    "synthetic": 5298064,
+    "delta": -816984,
+    "percentDelta": -13.36
+  },
+  {
+    "metric": "localImport.heapUsed.maxDeltaBytes",
+    "input": 6121360,
+    "synthetic": 5304800,
+    "delta": -816560,
+    "percentDelta": -13.34
+  },
+  {
+    "metric": "localImport.external.medianDeltaBytes",
+    "input": 3446,
+    "synthetic": 3446,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "localImport.external.minDeltaBytes",
+    "input": 3446,
+    "synthetic": 3446,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "localImport.external.maxDeltaBytes",
+    "input": 3446,
+    "synthetic": 3446,
+    "delta": 0,
+    "percentDelta": 0
+  },
+  {
+    "metric": "localImport.arrayBuffers.medianDeltaBytes",
+    "input": 0,
+    "synthetic": 0,
+    "delta": 0,
+    "percentDelta": null
+  },
+  {
+    "metric": "localImport.arrayBuffers.minDeltaBytes",
+    "input": 0,
+    "synthetic": 0,
+    "delta": 0,
+    "percentDelta": null
+  },
+  {
+    "metric": "localImport.arrayBuffers.maxDeltaBytes",
+    "input": 0,
+    "synthetic": 0,
+    "delta": 0,
+    "percentDelta": null
+  },
+  {
+    "metric": "localImport.bundledBytes",
+    "input": 723610,
+    "synthetic": 655051,
+    "delta": -68559,
+    "percentDelta": -9.47
+  },
+  {
+    "metric": "localImport.bundledModules",
+    "input": 156,
+    "synthetic": 130,
+    "delta": -26,
+    "percentDelta": -16.67
+  }
+]

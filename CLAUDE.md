@@ -20,7 +20,7 @@ This is a bun workspaces monorepo:
 - `examples/task-manager/` — full example app using zodvex via `workspace:*`
 - `examples/task-manager-mini/` — same app using `zod/mini` to verify mini compatibility
 - `examples/quickstart/` — minimal getting-started example
-- `examples/stress-test/` — performance/edge-case testing
+- `examples/stress-test/` — model graph memory and codec workload benchmarks
 - Root `package.json` — workspace root (private, not published)
 
 All commands can be run from the repo root — they delegate to `packages/zodvex/`.
@@ -46,9 +46,9 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 ### Validation
 
 - `bun run validate:local` - Lint, type-check, build, runtime and codemod correctness tests, consumer declaration checks, local examples, and generated-file freshness. Build precedes every check that consumes `dist`. CI uses this command.
-- `bun run validate:network` - Deploy example apps and run the explicit-shape N=100 stress regression. Requires configured example deployments and the stress harness's dedicated disposable deployment; the stress harness resets its target. Run after local validation.
+- `bun run validate:network` - Deploy example apps and run their smoke tests. Requires configured example deployments. Run after local validation. Memory and workload benchmarks are separate, explicit experiments; see `examples/stress-test/README.md`.
 - `bun run validate` - Alias for local validation. CI and `bin/release-beta` use the same local gate. Run `validate:network` explicitly when checking deployment behavior; unavailable example deployments do not block unrelated fixes. See the example and stress-test READMEs for deployment setup.
-- `bun run verify:examples` - Local-only subset (no network). Typechecks + runs vitest + regenerates codegen in both task-manager apps.
+- `bun run verify:examples` - Local-only subset (no network). Typechecks and tests the benchmarks, then typechecks, runs vitest, and regenerates codegen in both task-manager apps.
 - `bun run verify:examples:network` - Deploys schemas to real Convex and runs smoke tests. Standalone script if you want the Convex portion without the whole pipeline.
 
 ### Releasing

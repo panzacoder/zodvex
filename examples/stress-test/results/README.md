@@ -4,10 +4,19 @@ These snapshots cover different dates, fixtures, and runtimes; read each result
 with its recorded scope. Local Node measurements do not establish Convex deployment
 capacity. Earlier intermediate snapshots live in `archive/`.
 
+The table-count sweep harness was retired on 2026-09-09; these recorded results
+remain historical evidence. Use the [current benchmark guide](../README.md) for
+memory and workload experiments. Old commands below identify how snapshots were
+produced and are available in Git history.
+
 ## Where to start
 
 | File | What it is |
 |---|---|
+| [`retrospective-2026-09-09/README.md`](retrospective-2026-09-09/README.md) | Zod/slim-model history, Hotpot before/after, report-only synthetic reproduction, and pre/post Convex module-analysis experiment. |
+| [`repeatability-2026-09-09/README.md`](repeatability-2026-09-09/README.md) | Six same-build local Convex collections validating the before/after comparison protocol; exact ranges and raw evidence. |
+| [`memory-2026-09-09/README.md`](memory-2026-09-09/README.md) | Model graph retained bytes in local Convex, hosted query OOM brackets, same-count/different-weight control, and raw evidence. |
+| [`capacity-2026-09-09/README.md`](capacity-2026-09-09/README.md) | Codec operation overhead by document volume, plus a shared read-limit control; separate from graph memory capacity. |
 | [`schema-baseline-2026-09-07.json`](schema-baseline-2026-09-07.json) | Zod 4.3.6/4.5.4 local Node construction and retained-heap proxy. See the [methodology](../../../../docs/planning/zod-4.5-baseline.md); no deployment-capacity claim. |
 | [`ceilings-and-regression-2026-05-13.md`](ceilings-and-regression-2026-05-13.md) | **Historical May analysis**: Explains the two ceilings (OOM vs TooManyReads), the fresh-diff methodology, why the regression target is N=600, and the heap-as-proxy caveat. |
 | [`sweep-static-tablemap-2026-05-14.md`](sweep-static-tablemap-2026-05-14.md) | **May deployment sweep**: 5 flavors × 7 N values. Every cell deploys *and* runs a Q/M smoke call. Replaces the deploy-only `sweep-2026-05-13.md` (archived). |

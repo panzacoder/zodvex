@@ -1,0 +1,73 @@
+{
+  "format": "zodvex-local-schema-report-v1",
+  "runtime": {
+    "node": "v22.22.3",
+    "v8": "12.4.254.21-node.56",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "versions": {
+    "convex": "1.45.0",
+    "zod": "4.4.3",
+    "zodvex": "0.7.10",
+    "esbuild": "0.27.0"
+  },
+  "census": {
+    "models": 12,
+    "schemaRoots": 24,
+    "uniqueSchemas": 351,
+    "repeatedSchemaReferences": 132,
+    "objectFieldSlots": 312,
+    "codecs": 11,
+    "uniqueChecks": 52,
+    "explicitCallbackReferences": 81,
+    "unresolvedLazySchemas": 0,
+    "fieldAccessorsSkipped": 0,
+    "shapeGettersEvaluated": 12,
+    "unrecognizedSchemaKinds": 0,
+    "definitionTraversalComplete": true,
+    "implementations": {
+      "classic": 351,
+      "mini": 0,
+      "core": 0
+    },
+    "schemasByKind": {
+      "array": 2,
+      "boolean": 5,
+      "custom": 33,
+      "enum": 15,
+      "literal": 20,
+      "never": 8,
+      "null": 9,
+      "nullable": 10,
+      "number": 34,
+      "object": 56,
+      "optional": 57,
+      "pipe": 11,
+      "string": 76,
+      "union": 13,
+      "unknown": 2
+    }
+  },
+  "localImport": {
+    "repetitions": 3,
+    "heapUsed": {
+      "medianDeltaBytes": 5299640,
+      "minDeltaBytes": 5298064,
+      "maxDeltaBytes": 5304800
+    },
+    "external": {
+      "medianDeltaBytes": 3446,
+      "minDeltaBytes": 3446,
+      "maxDeltaBytes": 3446
+    },
+    "arrayBuffers": {
+      "medianDeltaBytes": 0,
+      "minDeltaBytes": 0,
+      "maxDeltaBytes": 0
+    },
+    "bundledBytes": 655051,
+    "bundledModules": 130
+  },
+  "scope": "Definition census covers exported doc/insert schemas; local Node import deltas include bundled dependencies and reachable module state. Not Convex heap bytes, runtime peak, or a capacity prediction. External includes ArrayBuffers; do not add them."
+}

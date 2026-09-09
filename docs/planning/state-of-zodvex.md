@@ -281,7 +281,9 @@ API sketches), `opt-in-client-library-codegen`, `codegen-static-analysis`,
 ### Loose ends (verified)
 - `TODO.md` references `CLEANUP_AUDIT.md` — **confirmed dead pointer** (file does not exist); fix
   or drop the reference in `TODO.md`.
-- `examples/stress-test/seeds/` (`models/`, `endpoints/`) — **present**; migration completed.
+- `examples/stress-test/seeds/` (`models/`, `endpoints/`) — migration completed, then
+  retired with the table-count sweep harness on 2026-09-09. The `memory/` and
+  `capacity/` benchmarks now cover graph memory and document workload separately.
 - `transform/` module — **removed** (no `internal/transform*`); the `as-any-cast-remediation`
   follow-up landed.
 

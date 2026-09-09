@@ -1,0 +1,143 @@
+--- canonical/bundle.mjs
++++ memory/bundle.mjs
+@@ -1,7 +1,15 @@
++import { readFileSync, realpathSync } from "node:fs";
++import { resolve } from "node:path";
++import { createHash } from "node:crypto";
+ import { createRequire } from "node:module";
+ import { fileURLToPath } from "node:url";
+ const root = fileURLToPath(new URL("..", import.meta.url));
+ const require = createRequire(root + "/package.json");
++const version = process.env.ZOD_RETRO_VERSION;
++if (!["4.3.6", "4.4.3", "4.5.4"].includes(version)) throw new Error("Explicit retrospective Zod version required");
++const zodRoot = realpathSync(root + "/versions/" + version + "/node_modules/zod");
++const schemaHelpers = process.env.ZOD_RETRO_HELPERS;
++if (!["on", "off"].includes(schemaHelpers)) throw new Error("Explicit schema helper mode required");
+ const esbuild = createRequire(require.resolve("convex/package.json"))(
+ 	"esbuild",
+ );
+@@ -21,7 +29,7 @@
+  ${modeled ? `import {defineZodModel} from '${mini ? "zodvex/mini" : "zodvex"}'; import {defineZodSchema,initZodvex} from '${mini ? "zodvex/mini/server" : "zodvex/server"}';` : ""}
+  ${kind === "helpers" ? `import {zCustomQuery} from 'convex-helpers/server/zod4'; import {NoOp} from 'convex-helpers/server/customFunctions';` : ""}`;
+ 	const setup = `const server={query:queryGeneric,mutation:mutationGeneric,action:actionGeneric,internalQuery:internalQueryGeneric,internalMutation:internalMutationGeneric,internalAction:internalActionGeneric};
+- const api={kind:${JSON.stringify(kind)},server,${native ? "v,defineTable,defineSchema,makeBuilders:()=>server" : `s:{${["number", "string", "boolean", "optional", "nullable", "object", "array", "union", "date", "codec", "instanceof", "parse", "encode"].map((k) => `${JSON.stringify(k)}:z.${k}`).join(",")}},${modeled ? "defineZodModel,defineZodSchema,initZodvex" : `makeBuilders:()=>({query:zCustomQuery(server.query,NoOp)})`}`}};
++ const api={kind:${JSON.stringify(kind)},schemaHelpers:${schemaHelpers === "on"},server,${native ? "v,defineTable,defineSchema,makeBuilders:()=>server" : `s:{${["number", "string", "boolean", "optional", "nullable", "object", "array", "union", "date", "codec", "instanceof", "parse", "encode"].map((k) => `${JSON.stringify(k)}:z.${k}`).join(",")}},${modeled ? "defineZodModel,defineZodSchema,initZodvex" : `makeBuilders:()=>({query:zCustomQuery(server.query,NoOp)})`}`}};
+  const build=createGraphFactory(api);
+  const dimensions=${JSON.stringify(dimensions)};
+  ${mode === "static" ? "const graph=build(dimensions);" : ""}`;
+@@ -40,6 +48,7 @@
+ 			sourcefile: "graphProbe.ts",
+ 			loader: "ts",
+ 		},
++		alias: { zod: zodRoot },
+ 		bundle: true,
+ 		platform: "browser",
+ 		format: "esm",
+@@ -67,5 +76,14 @@
+ 		throw new Error("Mini imports classic");
+ 	if (kind === "helpers" && inputs.some((k) => k.includes("/zodvex/")))
+ 		throw new Error("Helpers imports Zodvex");
+-	return { source, bytes: Buffer.byteLength(source), inputs };
++	const inputEvidence = inputs.map((path) => {
++        if (path === "graphProbe.ts") return { path: "<stdin:graphProbe.ts>", sha256: createHash("sha256").update(imports + setup + body).digest("hex") };
++        const absolute = realpathSync(resolve(path));
++        if (absolute.includes("/node_modules/zod/") && !absolute.startsWith(zodRoot + "/"))
++            throw new Error("Mixed Zod versions: " + absolute);
++        return { path: absolute, sha256: createHash("sha256").update(readFileSync(absolute)).digest("hex") };
++    });
++    if (!native && !inputEvidence.some((input) => input.path.startsWith(zodRoot + "/")))
++        throw new Error("Expected chosen Zod package in bundle");
++    return { source, bytes: Buffer.byteLength(source), inputs: inputEvidence };
+ }
+--- canonical/local.mjs
++++ memory/local.mjs
+@@ -47,7 +47,7 @@
+ const output = out + "calls.jsonl";
+ const provenance = captureProvenance();
+ const manifest = {
+-	format: "zodvex-local-memory-v1",
++	format: "zodvex-retrospective-memory-v1",
+ 	runId: randomUUID(),
+ 	startedAt: new Date().toISOString(),
+ 	...provenance,
+@@ -68,12 +68,13 @@
+ 	for (const kind of ["native", "helpers", "full", "mini"]) {
+ 		const dimensions = { count, width, profile, entries: 0 };
+ 		const id = crypto.randomUUID();
+-		const { source, bytes } = await bundleProbe(kind, dimensions, {
++		const { source, bytes, inputs } = await bundleProbe(kind, dimensions, {
+ 			mode: "static",
+ 			gc: "after-operation",
+ 			nonce: id,
+ 		});
+ 		writeFileSync(out + "sources/" + id + ".js", source);
++		writeFileSync(out + "sources/" + id + ".inputs.json", JSON.stringify(inputs, null, 2));
+ 		const offset = readFileSync(log).length;
+ 		const response = await fetch(metadata.url + "/api/run_test_function", {
+ 			method: "POST",
+@@ -137,6 +138,7 @@
+ 		const row = {
+ 			timestamp: new Date().toISOString(),
+ 			bundleHash: sha256(source),
++			inputsHash: sha256(JSON.stringify(inputs, null, 2)),
+ 			verificationError,
+ 			id,
+ 			kind,
+--- canonical/profile.mjs
++++ memory/profile.mjs
+@@ -101,8 +101,7 @@
+ 		const add = (name, fields) => {
+ 			if (modeled) {
+ 				counters.fields += Object.keys(fields).length;
+-				models[name] = api.defineZodModel(name, fields); // default schema helpers ON
+-				sourceSchemas[name] = models[name].schema.insert;
++				models[name] = api.defineZodModel(name, fields, api.schemaHelpers ? undefined : { schemaHelpers: false });
+ 			} else {
+ 				sourceSchemas[name] = object(fields);
+ 				models[name] = native
+@@ -126,11 +125,13 @@
+ 			: native
+ 				? api.defineSchema(models)
+ 				: null;
++		// Slim models omit .schema; retain the same table-map insert alias for both modes.
++		if (modeled) for (const name of Object.keys(models)) sourceSchemas[name] = schema.__zodTableMap[name].insert;
+ 		const names = Object.keys(models);
+ 		const registry = {};
+ 		for (let i = 0; i < entries; i++) {
+ 			const name = names[i % names.length];
+-			const doc = modeled ? models[name].schema.doc : sourceSchemas[name];
++			const doc = modeled ? schema.__zodTableMap[name].doc : sourceSchemas[name];
+ 			const args = object({
+ 				id: make("string"),
+ 				label: make("optional", make("string")),
+--- canonical/provenance.mjs
++++ memory/provenance.mjs
+@@ -37,7 +37,7 @@
+ 		["convex", "convex-helpers", "zod", "zodvex"].map((name) => [
+ 			name,
+ 			JSON.parse(
+-				readFileSync(join(root, "node_modules", name, "package.json"), "utf8"),
++				readFileSync(name === "zod" ? join(root, "versions", process.env.ZOD_RETRO_VERSION, "node_modules/zod/package.json") : join(root, "node_modules", name, "package.json"), "utf8"),
+ 			).version,
+ 		]),
+ 	);
+@@ -50,17 +50,9 @@
+ 			.sort()
+ 			.map((name) => [name, sha256(readFileSync(join(here, name)))]),
+ 	);
+-	const git = (args) => {
+-		const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+-		if (result.status !== 0)
+-			throw new Error(
+-				`Cannot capture benchmark git provenance: ${result.error?.message || result.stderr.trim()}`,
+-			);
+-		return result.stdout.trim();
+-	};
+ 	return {
+-		gitCommit: git(["rev-parse", "HEAD"]),
+-		gitStatus: git(["status", "--short"]),
++		sourceOrigin: JSON.parse(readFileSync(join(root, "source-origin.json"), "utf8")),
++		retrospective: { zodVersion: process.env.ZOD_RETRO_VERSION, schemaHelpers: process.env.ZOD_RETRO_HELPERS === "on", round: Number(process.env.ZOD_RETRO_ROUND) },
+ 		versions,
+ 		zodvexBuild: digestBuild(join(root, "node_modules/zodvex/dist")),
+ 		comparisonIdentity: {
