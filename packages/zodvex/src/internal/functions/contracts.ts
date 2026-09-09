@@ -5,6 +5,7 @@ import { assertNoNativeZodDate } from '../schema/dateGuards'
 import { handleZodValidationError, validateReturns } from '../serverUtils'
 import { pick } from '../shared/object'
 import { stripUndefined } from '../stripUndefined'
+import type { Overwrite } from '../types'
 import {
   $ZodCustom,
   $ZodDefault,
@@ -20,15 +21,25 @@ import {
 export type FunctionSchemaInput = $ZodType | Record<string, $ZodType> | undefined
 export type DirectFunctionInput = $ZodType | Record<string, $ZodType>
 
-export type CustomInputResult = {
+export type CustomInputResult<Ctx = unknown> = {
   ctx?: Record<string, unknown>
   args?: Record<string, unknown>
-  onSuccess?: (params: { ctx: unknown; args: unknown; result: unknown }) => unknown
+  onSuccess?: (params: { ctx: Ctx; args: Record<string, unknown>; result: unknown }) => unknown
 }
 
-export function normalizeFunctionSchema(input: FunctionSchemaInput): $ZodType | undefined {
-  if (!input) return undefined
-  return input instanceof $ZodType ? input : z.object(input)
+type NormalizedFunctionSchema<S extends FunctionSchemaInput> = S extends $ZodType
+  ? S
+  : S extends Record<string, $ZodType>
+    ? z.ZodObject<S> // zod-ok: raw shapes are constructed using full Zod
+    : undefined
+
+export function normalizeFunctionSchema<S extends FunctionSchemaInput>(
+  input: S
+): NormalizedFunctionSchema<S> {
+  const normalized = !input ? undefined : input instanceof $ZodType ? input : z.object(input)
+  // The runtime branches exactly match the conditional type. TypeScript cannot
+  // narrow the generic S itself when narrowing its value with instanceof.
+  return normalized as NormalizedFunctionSchema<S>
 }
 
 function normalizeFunctionMetaArgs(input: FunctionSchemaInput): z.ZodObject<any> | undefined {
@@ -108,26 +119,38 @@ export function normalizeDirectFunctionInput(input: DirectFunctionInput): {
   }
 }
 
-export function normalizeCustomArgsValidator(args: ZodValidator | $ZodObject): {
-  argsValidator: ZodValidator
-  argsSchema: $ZodObject
-} {
+type NormalizedCustomArgs<S extends ZodValidator | $ZodObject> = S extends $ZodObject
+  ? { argsValidator: S['_zod']['def']['shape']; argsSchema: S }
+  : S extends ZodValidator
+    ? { argsValidator: S; argsSchema: z.ZodObject<S> } // zod-ok: raw shape construction
+    : never
+
+export function normalizeCustomArgsValidator<S extends ZodValidator | $ZodObject>(
+  args: S
+): NormalizedCustomArgs<S> {
+  let normalized: { argsValidator: ZodValidator; argsSchema: $ZodObject }
   if (args instanceof $ZodType) {
     if (args instanceof $ZodObject) {
-      return {
-        argsSchema: args as unknown as $ZodObject,
-        argsValidator: args._zod.def.shape as any
+      normalized = {
+        argsSchema: args,
+        argsValidator: args._zod.def.shape
       }
+    } else {
+      throw new Error(
+        'Unsupported non-object Zod schema for args; please provide an args schema using z.object({...}), e.g. z.object({ foo: z.string() })'
+      )
     }
-    throw new Error(
-      'Unsupported non-object Zod schema for args; please provide an args schema using z.object({...}), e.g. z.object({ foo: z.string() })'
-    )
+  } else {
+    const shape: ZodValidator = args
+    normalized = {
+      argsValidator: shape,
+      argsSchema: z.object(shape)
+    }
   }
-
-  return {
-    argsValidator: args,
-    argsSchema: z.object(args)
-  }
+  // Objects retain their original identity/configuration; raw shapes become
+  // full Zod objects. This assertion connects those checked runtime branches
+  // to S, which instanceof does not narrow at the generic type level.
+  return normalized as NormalizedCustomArgs<S>
 }
 
 export function createConvexReturnsValidator(
@@ -169,46 +192,109 @@ export function parseObjectArgsOrThrow<S extends $ZodObject>(
   return parsed.data
 }
 
-export async function runCustomizationInput(
-  customInput: (ctx: unknown, args: unknown, extra?: unknown) => unknown,
-  ctx: unknown,
+export async function runCustomizationInput<
+  Ctx,
+  Args,
+  Extra,
+  Result extends CustomInputResult<Ctx> | undefined
+>(
+  customInput: (ctx: Ctx, args: Args, extra: Extra) => Result | Promise<Result>,
+  ctx: Ctx,
   allArgs: Record<string, unknown>,
   inputArgs: Record<string, unknown>,
-  extra: Record<string, unknown>,
+  extra: Extra,
   argsSchema?: $ZodObject
-): Promise<CustomInputResult | undefined> {
-  // Cast justification: customInput expects ObjectType<CustomArgsValidator>, but pick()
-  // returns Partial<T>. The cast is safe because inputArgs keys are derived from
-  // CustomArgsValidator at the type level.
-  const picked = pick(allArgs, Object.keys(inputArgs)) as Record<string, unknown>
+): Promise<Result> {
+  const picked = pick(allArgs, Object.keys(inputArgs))
   // #72: when the customization declared its args as zod, decode them (codec
   // transforms applied) before the customization's `input` runs — symmetric
   // with how consumer args are decoded via parseObjectArgsOrThrow.
   const customArgs = argsSchema ? parseObjectArgsOrThrow(argsSchema, picked) : picked
-  return (await customInput(ctx, customArgs as any, extra)) as CustomInputResult | undefined
+  // inputArgs selects the customization's declared keys. Zod declarations are
+  // parsed here; legacy declarations were validated by Convex at registration.
+  // This is the wire-to-decoded boundary whose Args type the caller supplies.
+  return await customInput(ctx, customArgs as Args, extra)
 }
 
-export function applyCustomizationResult(
-  ctx: Record<string, unknown>,
-  baseArgs: Record<string, unknown>,
-  added?: CustomInputResult
-): { finalCtx: Record<string, unknown>; finalArgs: Record<string, unknown> } {
+type RequiredKeys<T> = {
+  // biome-ignore lint/complexity/noBannedTypes: empty-object assignability detects optional keys
+  [K in keyof T]-?: {} extends Pick<T, K> ? never : K
+}[keyof T]
+
+// Optional patch keys may be absent (retaining a base value) or explicitly
+// undefined (overwriting it). Preserve both possibilities and key optionality.
+type SpreadPatch<Base, Patch> = Omit<Base, keyof Patch> &
+  Pick<Patch, RequiredKeys<Patch>> & {
+    [K in keyof Base as K extends keyof Patch
+      ? K extends RequiredKeys<Patch>
+        ? never
+        : K
+      : never]: Base[K] | Patch[K & keyof Patch]
+  } & {
+    [K in keyof Patch as K extends keyof Base
+      ? never
+      : K extends RequiredKeys<Patch>
+        ? never
+        : K]?: Patch[K]
+  }
+
+type MergePatch<Base, Patch> =
+  Patch extends Record<string, unknown>
+    ? Patch extends Required<Patch>
+      ? Overwrite<Base, Patch>
+      : SpreadPatch<Base, Patch>
+    : Base
+
+type ResultPatch<Added, Key extends 'ctx' | 'args'> = Added extends undefined
+  ? undefined
+  : Key extends keyof Added
+    ? Added[Key]
+    : undefined
+
+type AddedResult<Input extends unknown[]> = Input extends [infer Added] ? Added : undefined
+
+export function applyCustomizationResult<
+  Ctx extends Record<string, unknown>,
+  Args extends Record<string, unknown>,
+  Input extends [] | [added: Pick<CustomInputResult, 'ctx' | 'args'> | undefined]
+>(
+  ctx: Ctx,
+  baseArgs: Args,
+  ...customization: Input
+): {
+  finalCtx: MergePatch<Ctx, ResultPatch<AddedResult<Input>, 'ctx'>>
+  finalArgs: MergePatch<Args, ResultPatch<AddedResult<Input>, 'args'>>
+} {
+  const added = customization[0]
   const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
   const addedArgs = added?.args ?? {}
+  // Generic object spread is inferred as intersection by TypeScript, whereas
+  // runtime spread overwrites keys. The mapped types model that operation,
+  // including absent results, absent patches, and optional individual keys.
   return {
     finalCtx,
     finalArgs: { ...baseArgs, ...addedArgs }
+  } as {
+    finalCtx: MergePatch<Ctx, ResultPatch<AddedResult<Input>, 'ctx'>>
+    finalArgs: MergePatch<Args, ResultPatch<AddedResult<Input>, 'args'>>
   }
 }
 
-export async function finalizeFunctionReturn(
+export async function finalizeFunctionReturn<Ctx>(
   result: unknown,
-  options?: {
-    ctx?: Record<string, unknown>
-    args?: Record<string, unknown>
-    added?: CustomInputResult
-    returns?: $ZodType
-  }
+  options?:
+    | {
+        ctx: Ctx
+        args: Record<string, unknown>
+        added?: CustomInputResult<Ctx>
+        returns?: $ZodType
+      }
+    | {
+        ctx?: undefined
+        args?: Record<string, unknown>
+        added?: undefined
+        returns?: $ZodType
+      }
 ): Promise<unknown> {
   if (options?.added?.onSuccess) {
     await options.added.onSuccess({

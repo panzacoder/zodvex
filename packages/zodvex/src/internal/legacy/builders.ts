@@ -190,7 +190,7 @@ export function zCustomQueryBuilder<
   Visibility,
   ExtraArgs
 > {
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+  return customFnBuilder<Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs, any>(
     query,
     customization
   )
@@ -245,7 +245,7 @@ export function zCustomMutationBuilder<
   Visibility,
   ExtraArgs
 > {
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+  return customFnBuilder<Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs, any>(
     mutation,
     customization
   )
@@ -301,7 +301,7 @@ export function zCustomActionBuilder<
   Visibility,
   ExtraArgs
 > {
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+  return customFnBuilder<Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs, any>(
     action,
     customization
   )
