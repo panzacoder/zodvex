@@ -242,6 +242,8 @@ Its callback receives `{ results, status, loadMore }`, matching Convex's runtime
 its returned subscription decodes `getCurrentValue()` too. Call the subscription itself
 or `.unsubscribe()` to stop it. `.getQueryLogs()` returns `undefined` on SDK versions
 without that method. This corrects the previous, non-working page-envelope signature.
+Provide `onError` when sharing a vanilla client across subscriptions: without it, a decode
+failure throws from Convex's callback loop and can interrupt sibling callbacks in that update.
 
 ## Bootstrapping note
 
