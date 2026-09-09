@@ -89,7 +89,7 @@
   "files": ["dist", "src", "README.md", "LICENSE"],
   "scripts": {
     "build": "node ./scripts/build.mjs",
-    "dev": "bun run tsup --watch",
+    "dev": "bun run tsup --watch src",
     "type-check": "bun run tsc -p tsconfig.typecheck.json",
     "test": "vitest run",
     "lint": "bun x biome check src __tests__",

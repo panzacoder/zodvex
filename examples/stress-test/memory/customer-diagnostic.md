@@ -5,10 +5,13 @@ schema without sending the schema to us or using a Convex deployment. It is a
 starting point for a support conversation, **not a prediction that an application
 will fit in a hosted isolate**.
 
-Use Node 22+ and a checkout containing this script. The application must have its
-normal dependencies installed, including Convex. The script resolves the bundler
-from the application's installed Convex package; it does not require installing
-the benchmark workspace or running codegen.
+Customers can run `zodvex inspect-schema [schema-file]` with Node 22+; the input
+defaults to `convex/schema.ts`. See the [customer guide](../../../docs/guide/schema-diagnostics.md).
+The application must have its normal dependencies installed, including Convex.
+The diagnostic resolves the bundler from the application's installed Convex
+package; it does not require installing the benchmark workspace or running codegen.
+
+The existing source-checkout command remains available:
 
 ```sh
 cd /path/to/your-project
@@ -20,7 +23,9 @@ The input must default-export the result of `defineZodSchema`. Review and share
 only `schema-report.json`. The script makes no upload, account lookup or deployment
 request. It writes its temporary bundle into an OS temporary directory, then
 removes it. Neither bundles nor raw heap snapshots belong in the support report.
-No package release or public `zodvex` CLI command is added by this experiment.
+This source bridge delegates to the canonical implementation in
+`packages/zodvex/src/public/cli/inspect-schema/` without requiring a package build.
+The build copies the same inspector, worker, and census into the CLI distribution.
 
 The [first report-only trial](../results/retrospective-2026-09-09/README.md)
 used Hotpot's sanitized report to construct an independent working fixture.
