@@ -11,6 +11,7 @@
  */
 
 import { z } from 'zod'
+import { id, type ZxId } from './schema/id'
 import {
   $ZodArray,
   $ZodDiscriminatedUnion,
@@ -21,7 +22,6 @@ import {
   $ZodUnion,
   clone
 } from './zod-core'
-import { type ZxId, zx } from './zx'
 
 // ============================================================================
 // Types
@@ -201,7 +201,7 @@ export function addSystemFields<TableName extends string>(
       if (variant instanceof $ZodObject) {
         const newShape = {
           ...variant._zod.def.shape,
-          _id: zx.id(tableName),
+          _id: id(tableName),
           _creationTime: z.number()
         }
         // Clone preserves the original's class + reinitializes with merged def
@@ -215,7 +215,7 @@ export function addSystemFields<TableName extends string>(
 
   // Handle object schemas — clone preserves class, checks, catchall, error
   if (schema instanceof $ZodObject) {
-    const newShape = { ...schema._zod.def.shape, _id: zx.id(tableName), _creationTime: z.number() }
+    const newShape = { ...schema._zod.def.shape, _id: id(tableName), _creationTime: z.number() }
     return clone(schema, { ...schema._zod.def, shape: newShape })
   }
 

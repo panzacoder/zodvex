@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { id } from './schema/id'
 import {
   addSystemFields,
   createUnionFromOptions,
@@ -6,7 +7,6 @@ import {
   isZodUnion
 } from './schemaHelpers'
 import { $ZodNullable, $ZodObject, $ZodOptional, type $ZodShape, $ZodType } from './zod-core'
-import { zx } from './zx'
 
 // Return type alias so helper signatures don't expose full zod internals everywhere.
 type AnyOptional = z.ZodOptional<any> // zod-ok
@@ -47,7 +47,7 @@ export function createUpdateObjectSchema<Name extends string>(
   shape: Record<string, $ZodType>
 ): z.ZodObject<any> {
   return z.object({
-    _id: zx.id(name),
+    _id: id(name),
     _creationTime: z.optional(z.number()),
     ...createPartialShape(shape)
   })
