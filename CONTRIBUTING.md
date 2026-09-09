@@ -60,7 +60,7 @@ zodvex/
 │   ├── task-manager/         # full example (uses zodvex via workspace:*)
 │   ├── task-manager-mini/    # same app on zod/mini (verifies mini compatibility)
 │   ├── quickstart/           # minimal getting-started ("codecs without codegen")
-│   └── stress-test/          # performance / OOM ceiling harness
+│   └── stress-test/          # model graph memory / codec workload benchmarks
 └── package.json              # private workspace root (not published)
 ```
 
@@ -101,10 +101,10 @@ release gate: lint → type-check → build → type-check:examples → test →
 verify:consumer-declarations → verify:examples → verify:generated. It needs no deployment
 credentials. The Convex-specific example typechecks run after the library build.
 
-Run `bun run validate:network` explicitly to deploy and smoke-test the examples, then
-run the N=100 explicit-shape stress regression. This requires configured example
-deployments and the stress harness's dedicated disposable deployment; see
-[the stress-test setup](examples/stress-test/README.md#setup-the-harnesss-own-deployment).
+Run `bun run validate:network` explicitly to deploy and smoke-test the examples.
+This requires configured example deployments. Model graph memory and codec workload
+benchmarks are separate experiments with their own setup and bounded runs; see
+[the benchmark guide](examples/stress-test/README.md).
 `bun run verify:examples` is the local example-only subset and requires a library build first.
 
 ## Public API surface (current)

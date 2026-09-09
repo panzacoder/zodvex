@@ -6,9 +6,10 @@ import {
 } from "node:fs";
 import { bundleProbe } from "./bundle.mjs";
 import { fileURLToPath } from "node:url";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { assertGraphResult } from "./oracle.mjs";
-import { captureProvenance } from "./provenance.mjs";
+import { captureProvenance, sha256 } from "./provenance.mjs";
 const [dir, countText = "128", widthText = "32", profile = "codec-rich"] =
 	process.argv.slice(2);
 const targetCount = Number(countText),
@@ -44,23 +45,25 @@ const out = fileURLToPath(
 );
 mkdirSync(out + "sources", { recursive: true });
 const output = out + "calls.jsonl";
-writeFileSync(
-	out + "manifest.json",
-	JSON.stringify(
-		{
-			startedAt: new Date().toISOString(),
-			...captureProvenance(),
-			metadata,
-			targetCount,
-			width,
-			profile,
-			scope:
-				"Retained local Convex V8 object bytes after forced GC, not external/peak/hosted memory",
-		},
-		null,
-		2,
-	),
-);
+const provenance = captureProvenance();
+const manifest = {
+	format: "zodvex-local-memory-v1",
+	runId: randomUUID(),
+	startedAt: new Date().toISOString(),
+	...provenance,
+	metadata,
+	targetCount,
+	width,
+	profile,
+	entries: 0,
+	mode: "static",
+	diagnosticForcedGc: true,
+	plannedCalls: 8,
+	scope:
+		"Retained local Convex V8 object bytes after forced GC, not external/peak/hosted memory",
+};
+writeFileSync(out + "manifest.json", JSON.stringify(manifest, null, 2));
+const observations = [];
 for (const count of [0, targetCount])
 	for (const kind of ["native", "helpers", "full", "mini"]) {
 		const dimensions = { count, width, profile, entries: 0 };
@@ -115,6 +118,7 @@ for (const count of [0, targetCount])
 		}
 		const valid =
 			!verificationError &&
+			response.ok &&
 			raw.status === "success" &&
 			raw.value?.nonce === id &&
 			records.length >= 2 &&
@@ -132,7 +136,7 @@ for (const count of [0, targetCount])
 		};
 		const row = {
 			timestamp: new Date().toISOString(),
-			bundleHash: createHash("sha256").update(source).digest("hex"),
+			bundleHash: sha256(source),
 			verificationError,
 			id,
 			kind,
@@ -151,6 +155,7 @@ for (const count of [0, targetCount])
 			gc: records,
 		};
 		appendFileSync(output, JSON.stringify(row) + "\n");
+		observations.push(row);
 		writeFileSync(out + `gc-${id}.log`, excerpt);
 		console.log(
 			JSON.stringify({
@@ -165,4 +170,46 @@ for (const count of [0, targetCount])
 		if (!valid) throw new Error("Invalid Convex heap diagnostic");
 	}
 
+// Do not certify a collection if its library, dependencies or measurement code
+// changed while it was running. Individual observations remain available.
+const finalProvenance = captureProvenance();
+for (const key of ["zodvexBuild", "versions", "runtime", "comparisonIdentity"])
+	if (!isDeepStrictEqual(provenance[key], finalProvenance[key]))
+		throw new Error(
+			`${key} changed during collection; rerun with a stable build`,
+		);
+writeFileSync(
+	out + "summary.json",
+	JSON.stringify(
+		{
+			format: manifest.format,
+			runId: manifest.runId,
+			completedAt: new Date().toISOString(),
+			valid: true,
+			plannedCalls: manifest.plannedCalls,
+			observedCalls: observations.length,
+			manifestSha256: sha256(readFileSync(out + "manifest.json")),
+			callsSha256: sha256(readFileSync(output)),
+			deltas: ["native", "helpers", "full", "mini"].map((kind) => {
+				const control = observations.find(
+					(row) => row.kind === kind && row.count === 0,
+				);
+				const target = observations.find(
+					(row) => row.kind === kind && row.count === targetCount,
+				);
+				const deltaBytes =
+					target.totalRetainedObjectBytes - control.totalRetainedObjectBytes;
+				return {
+					kind,
+					controlBytes: control.totalRetainedObjectBytes,
+					targetBytes: target.totalRetainedObjectBytes,
+					deltaBytes,
+					bytesPerModel: deltaBytes / targetCount,
+				};
+			}),
+		},
+		null,
+		2,
+	),
+);
 console.log("Evidence: " + out);

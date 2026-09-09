@@ -4,9 +4,6 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "regression": "bun run regression.ts",
-    "sweep": "bun run sweep.ts",
-    "bench": "bun run bench.ts",
     "test": "vitest run",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json",
     "capacity": "bun run capacity/run.ts",
@@ -15,9 +12,7 @@
   "dependencies": {
     "convex": "^1.28.0",
     "convex-helpers": ">=0.1.101-alpha.1",
-    "esbuild": "^0.25.0",
     "zod": "4.5.4",
-    "zod-to-mini": "workspace:*",
     "zodvex": "workspace:*"
   },
   "devDependencies": {

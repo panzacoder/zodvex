@@ -9,6 +9,11 @@ answers the separate question of operation overhead as document volume grows.
 actual hosted query OOM in Full where the same graph dimensions pass in helpers,
 Mini and native Convex. A smaller model shape passes at the same model count.
 
+Use the [comparison protocol](comparison.md) to evaluate builds over time, and the
+[local customer diagnostic](customer-diagnostic.md) to collect aggregate schema
+information without uploading a developer's schema. These establish measurements
+before choosing a library or Convex runtime optimization.
+
 ## Two measurements
 
 1. **Retained graph weight:** run an official local Convex backend with V8 GC
@@ -63,7 +68,7 @@ workload benchmark covers that pipeline.
 
 Install the repository's frozen dependencies and build the library. Use normal
 Convex CLI account login and the harness's configured dedicated development project
-in `_deploy/.env.local` (see the [existing setup instructions](../README.md#setup-the-harnesss-own-deployment)).
+in `_deploy/.env.local` (see the [setup instructions](../README.md#dedicated-development-deployment)).
 Then, from `examples/stress-test`:
 
 ```sh
