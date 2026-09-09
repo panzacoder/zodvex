@@ -193,7 +193,7 @@ export function zCustomQueryBuilder<
   return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     query,
     customization
-  ) as any
+  )
 }
 
 /**
@@ -248,7 +248,7 @@ export function zCustomMutationBuilder<
   return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     mutation,
     customization
-  ) as any
+  )
 }
 
 /**
@@ -304,5 +304,5 @@ export function zCustomActionBuilder<
   return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     action,
     customization
-  ) as any
+  )
 }

@@ -353,7 +353,7 @@ export function zCustomQuery<
     CustomCtx,
     CustomMadeArgs,
     ExtraArgs
-  >(query, customization) as any
+  >(query, customization)
 }
 
 // Overload 1: With constraint - preferred to preserve DataModel types
@@ -392,7 +392,7 @@ export function zCustomMutation<
   return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     mutation,
     customization
-  ) as any
+  )
 }
 
 // Overload 1: With constraint - preferred to preserve DataModel types
@@ -431,5 +431,5 @@ export function zCustomAction<
   return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     action,
     customization
-  ) as any
+  )
 }
