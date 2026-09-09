@@ -1,0 +1,180 @@
+---
+/**
+ * One "before / after" scenario. The *before* pane has two variants
+ * (plain Convex, Convex + convex-helpers/zod) toggled by the section-level
+ * `data-before` attribute — no per-scenario JavaScript.
+ */
+import CodeBlock from './CodeBlock.astro'
+import type { Scenario, Snippet } from '../data/scenarios'
+
+interface Props {
+  scenario: Scenario
+  index: number
+}
+
+const { scenario, index } = Astro.props
+const n = String(index + 1).padStart(2, '0')
+const helpersSnippet: Snippet | null = 'same' in scenario.helpers ? null : scenario.helpers
+const helpersSameWhy = 'same' in scenario.helpers ? scenario.helpers.why : null
+---
+
+<article class="scenario" id={scenario.id}>
+  <header class="scenario-head">
+    <span class="num">{n}</span>
+    <div>
+      <h3>{scenario.title}</h3>
+      <p class="goal">{scenario.goal}</p>
+    </div>
+  </header>
+
+  <div class="panes">
+    <div class="pane pane-before">
+      <div class="pane-label">
+        <span class="tag" data-before-label="convex">Convex</span>
+        <span class="tag" data-before-label="helpers">Convex + convex-helpers/zod</span>
+      </div>
+
+      <div data-variant="convex">
+        <CodeBlock
+          code={scenario.convex.code}
+          file={scenario.convex.file}
+          lang={scenario.convex.lang}
+          marks={scenario.convex.marks}
+        />
+        {scenario.convex.notes && (
+          <ul class="notes notes-before">
+            {scenario.convex.notes.map((t) => <li>{t}</li>)}
+          </ul>
+        )}
+      </div>
+
+      <div data-variant="helpers">
+        {helpersSnippet ? (
+          <>
+            <CodeBlock
+              code={helpersSnippet.code}
+              file={helpersSnippet.file}
+              lang={helpersSnippet.lang}
+              marks={helpersSnippet.marks}
+            />
+            {helpersSnippet.notes && (
+              <ul class="notes notes-before">
+                {helpersSnippet.notes.map((t) => <li>{t}</li>)}
+              </ul>
+            )}
+          </>
+        ) : (
+          <>
+            <div class="same-banner">
+              <strong>Unchanged from plain Convex.</strong> {helpersSameWhy}
+            </div>
+            <CodeBlock
+              code={scenario.convex.code}
+              file={scenario.convex.file}
+              lang={scenario.convex.lang}
+              marks={scenario.convex.marks}
+            />
+            {scenario.convex.notes && (
+              <ul class="notes notes-before">
+                {scenario.convex.notes.map((t) => <li>{t}</li>)}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+
+    <div class="pane pane-after">
+      <div class="pane-label">
+        <span class="tag tag-green">zodvex</span>
+      </div>
+      <CodeBlock
+        code={scenario.zodvex.code}
+        file={scenario.zodvex.file}
+        lang={scenario.zodvex.lang}
+        marks={scenario.zodvex.marks}
+      />
+      {scenario.zodvex.notes && (
+        <ul class="notes notes-after">
+          {scenario.zodvex.notes.map((t) => <li>{t}</li>)}
+        </ul>
+      )}
+    </div>
+  </div>
+</article>
+
+<style>
+  .scenario {
+    padding: 3rem 0 1.5rem;
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 11rem;
+  }
+  .scenario-head {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+  }
+  .num {
+    font: 700 0.8rem/1 var(--font-pixel);
+    color: var(--fg);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    padding: 0.4rem 0.5rem;
+    margin-top: 0.3rem;
+    white-space: nowrap;
+  }
+  h3 {
+    margin: 0 0 0.3rem;
+    font-size: clamp(1.4rem, 2.2vw, 1.75rem);
+    letter-spacing: -0.02em;
+  }
+  .goal { margin: 0; color: var(--fg-2); font-size: 1.02rem; }
+
+  .panes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .panes { grid-template-columns: minmax(0, 1fr); }
+  }
+  .pane { min-width: 0; display: grid; gap: 0.65rem; }
+  /* grid items default to min-width:auto, which lets a wide code line stretch the page */
+  .pane > * { min-width: 0; }
+  .pane-label { display: flex; align-items: center; min-height: 1.6rem; }
+  .pane-label .tag { margin-bottom: 0; }
+
+  /* Variant switching, driven by <section data-before="convex|helpers"> */
+  :global([data-before='convex']) [data-variant='helpers'],
+  :global([data-before='convex']) [data-before-label='helpers'],
+  :global([data-before='helpers']) [data-variant='convex'],
+  :global([data-before='helpers']) [data-before-label='convex'] {
+    display: none;
+  }
+
+  .same-banner {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--fg-2);
+    padding: 0.75rem 0.9rem;
+    margin-bottom: 0.75rem;
+    border: 1px dashed var(--line-strong);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .same-banner strong { color: var(--fg); }
+
+  .notes {
+    margin: 0.85rem 0 0;
+    padding: 0 0 0 1.1rem;
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--fg-2);
+  }
+  .notes li::marker { color: var(--bad); }
+  .notes-after li::marker { color: var(--good); }
+</style>
