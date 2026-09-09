@@ -158,15 +158,15 @@ export function parseFunctionArgsOrThrow(zodSchema: $ZodType, argsObject: unknow
   }
 }
 
-export function parseObjectArgsOrThrow(
-  argsSchema: $ZodObject,
+export function parseObjectArgsOrThrow<S extends $ZodObject>(
+  argsSchema: S,
   rawArgs: Record<string, unknown>
-): Record<string, unknown> {
+): z.output<S> {
   const parsed = safeParse(argsSchema, rawArgs)
   if (!parsed.success) {
     handleZodValidationError(parsed.error, 'args')
   }
-  return parsed.data as Record<string, unknown>
+  return parsed.data
 }
 
 export async function runCustomizationInput(
