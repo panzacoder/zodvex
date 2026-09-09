@@ -14,27 +14,25 @@
 export { customCtx } from 'convex-helpers/server/customFunctions'
 // Action context wrapping (auto-codec for runQuery/runMutation in actions)
 export { createZodvexActionCtx } from '../../internal/actionCtx'
-// Function builders (named — all deprecated)
-export {
-  zActionBuilder,
-  zCustomActionBuilder,
-  zCustomMutationBuilder,
-  zCustomQueryBuilder,
-  zMutationBuilder,
-  zQueryBuilder
-} from '../../internal/builders'
-// Custom function utilities (named — hide customFnBuilder, Overwrite re-export)
-export {
-  type CustomBuilder,
-  zCustomAction,
-  zCustomMutation,
-  zCustomQuery
-} from '../../internal/custom'
 // Codec customization (manual composition escape hatch)
 export {
   createZodvexCustomization,
   type ZodvexUnderlyingDb
 } from '../../internal/customization'
+// Rule and audit types for .withRules() and .audit()
+export type {
+  DeleteRule,
+  InsertRule,
+  PatchRule,
+  ReaderAuditConfig,
+  ReadRule,
+  ReplaceRule,
+  TableRules,
+  WriteEvent,
+  WriterAuditConfig,
+  ZodvexRules,
+  ZodvexRulesConfig
+} from '../../internal/db'
 // Database wrappers (ZodvexDatabaseReader, ZodvexDatabaseWriter, etc.)
 export {
   createZodDbReader,
@@ -54,6 +52,13 @@ export {
   type ZodvexUpperBoundBuilder,
   type ZodvexWriteValue
 } from '../../internal/db'
+// Custom function utilities (named — hide customFnBuilder, Overwrite re-export)
+export {
+  type CustomBuilder,
+  zCustomAction,
+  zCustomMutation,
+  zCustomQuery
+} from '../../internal/functions/customFunctions'
 // One-time setup + types
 export {
   defineContext,
@@ -63,23 +68,16 @@ export {
   type ZodvexCustomization,
   type ZodvexMutationCtx,
   type ZodvexQueryCtx
-} from '../../internal/init'
-// Rule and audit types for .withRules() and .audit()
-//
-// Rule and audit types (re-exported from ruleTypes.ts via rules.ts)
-export type {
-  DeleteRule,
-  InsertRule,
-  PatchRule,
-  ReaderAuditConfig,
-  ReadRule,
-  ReplaceRule,
-  TableRules,
-  WriteEvent,
-  WriterAuditConfig,
-  ZodvexRules,
-  ZodvexRulesConfig
-} from '../../internal/rules'
+} from '../../internal/functions/init'
+// Function builders (named — all deprecated)
+export {
+  zActionBuilder,
+  zCustomActionBuilder,
+  zCustomMutationBuilder,
+  zCustomQueryBuilder,
+  zMutationBuilder,
+  zQueryBuilder
+} from '../../internal/legacy/builders'
 // Schema definition (defineZodSchema)
 export * from '../../internal/schema'
 // Schema helpers (pure Zod, no server deps)

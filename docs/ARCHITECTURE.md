@@ -147,7 +147,7 @@ It does not rediscover model shape independently.**
 ### Shared Contract Compilation
 
 All function registration flows now share the same contract machinery in
-`src/internal/functionContracts.ts`.
+`src/internal/functions/contracts.ts`.
 
 That layer owns:
 
@@ -159,14 +159,17 @@ That layer owns:
 - metadata attachment
 - customization input merging
 
-### Thin Public Builders
+### Function Builders and Legacy Helpers
 
-The public entrypoints are now mostly shells over that shared contract layer:
+Modern custom builders and runtime initialization live alongside the shared contracts:
 
-- `src/internal/wrappers.ts`
-- `src/internal/builders.ts`
-- `src/internal/custom.ts`
-- `src/internal/init.ts`
+- `src/internal/functions/customFunctions.ts`
+- `src/internal/functions/init.ts`
+
+The older direct wrappers and deprecated builder factories live in
+`src/internal/legacy/wrappers.ts` and `src/internal/legacy/builders.ts`. This private
+implementation directory is separate from the public `src/legacy/index.ts`
+package entrypoint; its modules still import only other internal modules.
 
 That means `zQuery`, `zMutation`, `zAction`, the legacy builder helpers, custom
 builders, and `initZodvex()` all share the same behavioral core instead of

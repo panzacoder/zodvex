@@ -2,7 +2,7 @@ import { Triggers } from 'convex-helpers/server/triggers'
 import { describe, expect, it } from 'vitest'
 import { createZodvexCustomization } from '../src/internal/customization'
 import { createZodDbWriter, ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
-import { initZodvex } from '../src/internal/init'
+import { initZodvex } from '../src/internal/functions/init'
 import {
   createMockDbReader,
   createMockDbWriter,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zActionBuilder, zMutationBuilder, zQueryBuilder } from '../src/internal/builders'
-import { zCustomQuery } from '../src/internal/custom'
+import { zCustomQuery } from '../src/internal/functions/customFunctions'
+import { zActionBuilder, zMutationBuilder, zQueryBuilder } from '../src/internal/legacy/builders'
 import { readMeta, type ZodvexFunctionMeta } from '../src/internal/meta'
 
 // Mock builder that just returns whatever function config it receives
