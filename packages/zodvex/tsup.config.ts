@@ -1,5 +1,6 @@
 import { defineConfig } from 'tsup'
 import type { Plugin } from 'esbuild'
+import { cp } from 'node:fs/promises'
 
 const shared = {
   format: ['esm'] as const,
@@ -48,6 +49,14 @@ export default defineConfig([
     external,
     outDir: 'dist',
     clean: true,
+    async onSuccess() {
+      // Preserve the native ESM files' relative worker/census URLs in every build.
+      await cp(
+        new URL('./src/public/cli/inspect-schema/', import.meta.url),
+        new URL('./dist/cli/inspect-schema/', import.meta.url),
+        { recursive: true }
+      )
+    },
   },
   // Mini entrypoint — 'zod' imports rewritten to 'zod/mini' at build time.
   // noExternal prevents tsup from auto-externalizing 'zod' so the esbuild

@@ -17,10 +17,15 @@ async function main() {
     case 'inspect-schema': {
       // Preserve the runtime import so the diagnostic and child worker stay lazy.
       // The build copies this directory beside dist/cli/index.js.
-      const { inspectSchema } = await import(
-        new URL('./inspect-schema/inspect.mjs', import.meta.url).href
-      )
-      await inspectSchema(process.argv.slice(3))
+      try {
+        const { inspectSchema } = await import(
+          new URL('./inspect-schema/inspect.mjs', import.meta.url).href
+        )
+        await inspectSchema(process.argv.slice(3))
+      } catch {
+        console.error('Local schema diagnostic failed; no report was produced')
+        process.exitCode = 1
+      }
       break
     }
     case 'init': {
