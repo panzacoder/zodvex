@@ -1,5 +1,11 @@
 # Measuring schema memory
 
+The goal is to preserve memory for application work as a schema grows, while
+keeping Zodvex's codec behavior and validation guarantees. Compare the memory
+needed for the same operation, then measure how much unrelated models add to an
+endpoint that never uses them. A smaller heap is an improvement only when the
+required behavior still works.
+
 Zodvex's memory cost depends on the schema graph an endpoint imports and retains.
 Table count, source size and bundle bytes are useful context, but none is a
 general memory limit. In the
@@ -20,6 +26,13 @@ The studies include machine-readable results, exact measurement scope, pinned
 dependencies and backend identities, and reproduction material. Private
 application examples expose aggregates only; public synthetic fixtures provide
 independently reproducible cases.
+
+The model-graph study intentionally retains the complete graph for every
+implementation. It compares representation costs, but does not measure the
+natural import advantage of a native or helpers endpoint that imports only its
+own model. The Hotpot retrospective measures schema import, not its complete
+endpoint registry. Consumer import experiments must cover that remaining gap
+before these studies can establish the cost of unrelated application growth.
 
 ## Comparing a library change
 
