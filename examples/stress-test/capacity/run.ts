@@ -165,8 +165,8 @@ try {
     for (const cell of shuffle(cells)) await sample(cell.variant, cell.limit, round, 'measured')
     console.log(`Round ${round + 1}/${rounds}: ${observations.length} calls completed.`)
   }
-  const deadline = Date.now() + 15000
-  while (observations.some(o => !completions.has(o.sample)) && !logError && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 250))
+  const collectorDeadline = Date.now() + 15000
+  while (observations.some(o => !completions.has(o.sample)) && !logError && Date.now() < collectorDeadline) await new Promise(resolve => setTimeout(resolve, 250))
 } catch (error) {
   logError = `Run aborted: ${error instanceof Error ? error.message : String(error)}`
 } finally {
