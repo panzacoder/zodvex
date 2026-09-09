@@ -65,8 +65,6 @@ export {
   zQueryBuilder
 } from '../../internal/legacy/builders'
 // Rule and audit types for .withRules() and .audit()
-//
-// Rule and audit types (re-exported from ruleTypes.ts via rules.ts)
 export type {
   DeleteRule,
   InsertRule,
@@ -79,7 +77,7 @@ export type {
   WriterAuditConfig,
   ZodvexRules,
   ZodvexRulesConfig
-} from '../../internal/rules'
+} from '../../internal/ruleTypes'
 // Schema definition (defineZodSchema)
 export * from '../../internal/schema'
 // Schema helpers (pure Zod, no server deps)

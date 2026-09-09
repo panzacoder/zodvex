@@ -508,7 +508,7 @@ export class ZodvexDatabaseReader<
     this.system = db.system
   }
 
-  /** @internal Expose for wrapper construction (rules.ts, audit subclasses) */
+  /** @internal Expose for wrapper construction (rule/audit subclasses) */
   get _internals(): { db: GenericDatabaseReader<DataModel>; tableMap: ZodTableMap } {
     return { db: this.db, tableMap: this.tableMap }
   }

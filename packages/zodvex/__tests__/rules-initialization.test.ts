@@ -1,19 +1,4 @@
-/**
- * Regression test for the rules-module lazy-load race.
- *
- * Previously, rules.ts was loaded via `dynamic import()` from db.ts to break
- * a circular dependency. This meant `.withRules()` / `.audit()` could only
- * be called AFTER the import promise resolved — and anything that wired up
- * those wrappers synchronously at mutation registration time (e.g.,
- * `zim.withContext`'s input function running at module init) would throw
- * "zodvex rules module not yet loaded".
- *
- * The base classes and rule/audit subclasses are declared in the same module.
- * Both DB and rules imports therefore expose ready constructors synchronously.
- *
- * These tests exercise calling `.audit()` and `.withRules()` the first
- * statement after import — the pattern that was previously broken.
- */
+/** Rules and audit wrappers must be usable immediately after either entrypoint loads. */
 
 import { describe, expect, it, vi } from 'vitest'
 import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
@@ -87,19 +72,21 @@ describe('rules are available synchronously at import', () => {
   })
 })
 
-// Import each internal entry first in a fresh module graph. Neither entry may
+// Import each entry first in a fresh module graph. Neither entry may
 // rely on another importer having initialized its constructors beforehand.
-it.each(['rules', 'db'] as const)('supports %s-first imports', async first => {
+it.each(['server', 'db'] as const)('supports %s-first imports', async first => {
   vi.resetModules()
   const entry =
-    first === 'rules' ? await import('../src/internal/rules') : await import('../src/internal/db')
-  if (first === 'rules') {
-    expect('RulesQueryChain' in entry && typeof entry.RulesQueryChain).toBe('function')
-  }
+    first === 'server' ? await import('../src/server') : await import('../src/internal/db')
   const { ZodvexDatabaseReader: Reader, ZodvexDatabaseWriter: Writer } = await import(
     '../src/internal/db'
   )
-  const writer = new Writer(makeMinimalWriter(), {})
+  const server = await import('../src/server')
+  expect(server.ZodvexDatabaseReader).toBe(Reader)
+  expect(server.ZodvexDatabaseWriter).toBe(Writer)
+  expect(entry.ZodvexDatabaseReader).toBe(Reader)
+  expect(entry.ZodvexDatabaseWriter).toBe(Writer)
+  const writer = new entry.ZodvexDatabaseWriter(makeMinimalWriter(), {})
   const wrapped = writer.withRules({}, {}).audit({ afterWrite: () => undefined })
   expect(wrapped).toBeInstanceOf(Writer)
   expect(wrapped).toBeInstanceOf(Reader)

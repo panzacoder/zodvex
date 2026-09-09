@@ -35,7 +35,7 @@ Implementation: [function contracts](../../packages/zodvex/src/internal/function
 
 ## Rules, audit and explicit bypasses
 
-[Rules and audit](../../packages/zodvex/src/internal/rules.ts) compose around the database wrapper. Read rules see decoded documents and can allow, hide or transform them; transformed read output is not automatically reparsed afterward. Paginated read rules filter the returned page, which may shrink. Write rules can transform supplied values before the inner encoder; patch/replace/delete rule paths also consult the existing readable document. Missing rules allow by default; `defaultPolicy: 'deny'` changes that behavior. Counting restrictions depend on the rule-bearing query path and configuration.
+[Rules and audit](../../packages/zodvex/src/internal/db.ts) compose around the database wrapper. Read rules see decoded documents and can allow, hide or transform them; transformed read output is not automatically reparsed afterward. Paginated read rules filter the returned page, which may shrink. Write rules can transform supplied values before the inner encoder; patch/replace/delete rule paths also consult the existing readable document. Missing rules allow by default; `defaultPolicy: 'deny'` changes that behavior. Counting restrictions depend on the rule-bearing query path and configuration.
 
 Audit callbacks are awaited after their corresponding inner operation. Composition order determines what they observe; an audit layer outside rules sees rules-processed results. They are not a durable external audit log or another schema-validation pass, and callback exceptions can fail the caller.
 

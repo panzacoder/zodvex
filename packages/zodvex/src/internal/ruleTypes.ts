@@ -1,7 +1,4 @@
-/**
- * Shared types used by both db.ts and rules.ts.
- * Extracted to break the circular dependency between them.
- */
+/** Public contracts for database rules and audit callbacks. */
 
 import type { GenericDataModel, TableNamesInDataModel } from 'convex/server'
 import type { GenericId } from 'convex/values'

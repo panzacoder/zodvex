@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import * as mini from 'zod/mini'
-import { ZodvexQueryChain } from '../src/internal/db'
-import { RulesQueryChain } from '../src/internal/rules'
+import { RulesQueryChain, ZodvexQueryChain } from '../src/internal/db'
 
 const variants = [
   ['full', z.object({ score: z.number(), enabled: z.boolean() })],
