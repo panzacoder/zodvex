@@ -160,84 +160,88 @@ test.each([
   }
 })
 
-test('dev builds include the diagnostic and refresh changes to its native ESM source', async () => {
-  const checkout = path.join(directory, 'dev-package')
-  mkdirSync(checkout)
-  for (const name of ['src', 'tsup.config.ts', 'tsconfig.json', 'package.json']) {
-    cpSync(path.join(packageRoot, name), path.join(checkout, name), { recursive: true })
-  }
-  symlinkSync(path.join(packageRoot, 'node_modules'), path.join(checkout, 'node_modules'), 'dir')
-  const child = spawn('bun', ['run', 'dev'], {
-    cwd: checkout,
-    detached: process.platform !== 'win32',
-    stdio: ['ignore', 'pipe', 'pipe']
-  })
-  let output = ''
-  child.stdout.on('data', chunk => {
-    output += chunk
-  })
-  child.stderr.on('data', chunk => {
-    output += chunk
-  })
-  const closed = new Promise<void>((resolve, reject) => {
-    child.on('error', reject)
-    child.on('close', () => resolve())
-  })
-  const builtDiagnostic = path.join(checkout, 'dist/cli/inspect-schema')
-  try {
-    await expect
-      .poll(
-        () => {
-          expect(child.exitCode, output).toBeNull()
-          return (
-            ['inspect.mjs', 'inspect-worker.mjs', 'census.mjs'].every(name =>
-              existsSync(path.join(builtDiagnostic, name))
-            ) && (output.match(/Watching for changes/g)?.length ?? 0) === 2
-          )
-        },
-        { timeout: 15000 }
-      )
-      .toBe(true)
-    const result = command(['inspect-schema', '--help'], {
-      cli: path.join(checkout, 'dist/cli/index.js')
+test(
+  'dev builds include the diagnostic and refresh changes to its native ESM source',
+  async () => {
+    const checkout = path.join(directory, 'dev-package')
+    mkdirSync(checkout)
+    for (const name of ['src', 'tsup.config.ts', 'tsconfig.json', 'package.json']) {
+      cpSync(path.join(packageRoot, name), path.join(checkout, name), { recursive: true })
+    }
+    symlinkSync(path.join(packageRoot, 'node_modules'), path.join(checkout, 'node_modules'), 'dir')
+    const child = spawn('bun', ['run', 'dev'], {
+      cwd: checkout,
+      detached: process.platform !== 'win32',
+      stdio: ['ignore', 'pipe', 'pipe']
     })
-    expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout).toContain('convex/schema.ts')
-    const source = path.join(checkout, 'src/public/cli/inspect-schema/census.mjs')
-    const updated = `${readFileSync(source, 'utf8')}\n// watch refresh sentinel\n`
-    writeFileSync(source, updated)
-    await expect
-      .poll(
-        () => {
-          const artifact = path.join(builtDiagnostic, 'census.mjs')
-          return existsSync(artifact) ? readFileSync(artifact, 'utf8') : ''
-        },
-        { timeout: 15000 }
-      )
-      .toBe(updated)
-    const schema = path.join(checkout, 'schema.ts')
-    writeFileSync(
-      schema,
-      `
+    let output = ''
+    child.stdout.on('data', chunk => {
+      output += chunk
+    })
+    child.stderr.on('data', chunk => {
+      output += chunk
+    })
+    const closed = new Promise<void>((resolve, reject) => {
+      child.on('error', reject)
+      child.on('close', () => resolve())
+    })
+    const builtDiagnostic = path.join(checkout, 'dist/cli/inspect-schema')
+    try {
+      await expect
+        .poll(
+          () => {
+            expect(child.exitCode, output).toBeNull()
+            return (
+              ['inspect.mjs', 'inspect-worker.mjs', 'census.mjs'].every(name =>
+                existsSync(path.join(builtDiagnostic, name))
+              ) && (output.match(/Watching for changes/g)?.length ?? 0) === 2
+            )
+          },
+          { timeout: 15000 }
+        )
+        .toBe(true)
+      const result = command(['inspect-schema', '--help'], {
+        cli: path.join(checkout, 'dist/cli/index.js')
+      })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout).toContain('convex/schema.ts')
+      const source = path.join(checkout, 'src/public/cli/inspect-schema/census.mjs')
+      const updated = `${readFileSync(source, 'utf8')}\n// watch refresh sentinel\n`
+      writeFileSync(source, updated)
+      await expect
+        .poll(
+          () => {
+            const artifact = path.join(builtDiagnostic, 'census.mjs')
+            return existsSync(artifact) ? readFileSync(artifact, 'utf8') : ''
+          },
+          { timeout: 15000 }
+        )
+        .toBe(updated)
+      const schema = path.join(checkout, 'schema.ts')
+      writeFileSync(
+        schema,
+        `
       import { defineZodModel } from 'zodvex'
       import { defineZodSchema } from 'zodvex/server'
       import { z } from 'zod'
       export default defineZodSchema({ sample: defineZodModel('sample', { value: z.string() }) })
     `
-    )
-    const report = command(['inspect-schema', schema], {
-      cli: path.join(checkout, 'dist/cli/index.js')
-    })
-    expect(report.status, report.stderr).toBe(0)
-    expect(JSON.parse(report.stdout).census.models).toBe(1)
-  } finally {
-    if (child.pid && child.exitCode === null) {
-      if (process.platform === 'win32') child.kill()
-      else process.kill(-child.pid, 'SIGTERM')
+      )
+      const report = command(['inspect-schema', schema], {
+        cli: path.join(checkout, 'dist/cli/index.js')
+      })
+      expect(report.status, report.stderr).toBe(0)
+      expect(JSON.parse(report.stdout).census.models).toBe(1)
+    } finally {
+      if (child.pid && child.exitCode === null) {
+        if (process.platform === 'win32') child.kill()
+        else process.kill(-child.pid, 'SIGTERM')
+      }
+      await closed
     }
-    await closed
-  }
-}, commandTimeout + 35000)
+  },
+  commandTimeout + 35000
+)
 
 test('inspect-schema help succeeds without resolving an application schema or dependencies', () => {
   const empty = path.join(directory, 'empty')
