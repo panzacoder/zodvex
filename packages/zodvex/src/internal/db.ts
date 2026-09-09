@@ -862,8 +862,8 @@ export type ZodvexRules<
 }
 
 /**
- * Resolves the decoded doc type for a table. Mirrors ResolveDecodedDoc from db.ts
- * but exported for consumer use in rule definitions.
+ * Resolves a modeled table's decoded document for rules. Unmodeled tables
+ * fall back to any; ResolveDecodedDoc instead falls back to the wire document.
  */
 export type ResolveDecodedDocForRules<
   DataModel extends GenericDataModel,
@@ -953,13 +953,7 @@ export class RulesQueryChain<TableInfo extends GenericTableInfo, Doc> extends Zo
   }
 
   protected createChain(inner: any): RulesQueryChain<TableInfo, Doc> {
-    return new RulesQueryChain(
-      inner,
-      (this as any).schema,
-      this.readRule,
-      this.rulesConfig,
-      this.ctx
-    )
+    return new RulesQueryChain(inner, this.schema, this.readRule, this.rulesConfig, this.ctx)
   }
 
   async first(): Promise<Doc | null> {
@@ -1022,6 +1016,30 @@ export class RulesQueryChain<TableInfo extends GenericTableInfo, Doc> extends Zo
   }
 }
 
+function resolveRulesTableName<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+>(
+  db: ZodvexDatabaseReader<DataModel, DecodedDocs>,
+  id: string,
+  rules: Record<string, TableRules<any, any>>,
+  config: ZodvexRulesConfig
+): string | null {
+  for (const tableName of Object.keys(rules)) {
+    if (db.normalizeId(tableName as TableNamesInDataModel<DataModel>, id)) {
+      return tableName
+    }
+  }
+  if ((config.defaultPolicy ?? 'allow') === 'deny') {
+    for (const tableName of Object.keys(db._internals.tableMap)) {
+      if (db.normalizeId(tableName as TableNamesInDataModel<DataModel>, id)) {
+        return tableName
+      }
+    }
+  }
+  return null
+}
+
 /**
  * Wraps a ZodvexDatabaseReader with per-table read rules.
  */
@@ -1035,9 +1053,9 @@ class RulesDatabaseReader<
     private rules: Record<string, TableRules<any, any>>,
     private rulesConfig: ZodvexRulesConfig
   ) {
-    const { db, tableMap } = (inner as any)._internals
+    const { db, tableMap } = inner._internals
     super(db, tableMap)
-    ;(this as any).system = (inner as any).system
+    this.system = inner.system
   }
 
   async get(idOrTable: any, maybeId?: any): Promise<any> {
@@ -1045,7 +1063,9 @@ class RulesDatabaseReader<
     if (doc === null) return null
 
     const tableName =
-      maybeId !== undefined ? (idOrTable as string) : this.resolveTableFromId(idOrTable)
+      maybeId !== undefined
+        ? (idOrTable as string)
+        : resolveRulesTableName(this.inner, idOrTable, this.rules, this.rulesConfig)
 
     if (!tableName) return doc
     return this.applyReadRule(tableName, doc)
@@ -1062,22 +1082,6 @@ class RulesDatabaseReader<
     const readRule = tableRules?.read ?? (async () => null)
     const passthroughSchema = z.any()
     return new RulesQueryChain(innerChain, passthroughSchema, readRule, this.rulesConfig, this.ctx)
-  }
-
-  private resolveTableFromId(id: any): string | null {
-    for (const tableName of Object.keys(this.rules)) {
-      if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
-        return tableName
-      }
-    }
-    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
-      for (const tableName of Object.keys((this.inner as any)._internals.tableMap)) {
-        if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
-          return tableName
-        }
-      }
-    }
-    return null
   }
 
   private async applyReadRule(tableName: string, doc: any): Promise<any> {
@@ -1106,10 +1110,10 @@ class RulesDatabaseWriter<
     private rules: Record<string, TableRules<any, any>>,
     private rulesConfig: ZodvexRulesConfig
   ) {
-    const { db, tableMap, reader: innerReader } = (inner as any)._internals
+    const { db, tableMap, reader: innerReader } = inner._internals
     super(db, tableMap)
-    this.rulesReader = new RulesDatabaseReader(innerReader, ctx, rules, rulesConfig) as any
-    ;(this as any).system = (inner as any).system
+    this.rulesReader = new RulesDatabaseReader(innerReader, ctx, rules, rulesConfig)
+    this.system = inner.system
   }
 
   normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
@@ -1165,7 +1169,7 @@ class RulesDatabaseWriter<
       throw new Error('no read access or doc does not exist')
     }
 
-    const tableName = this.resolveTableFromId(id)
+    const tableName = resolveRulesTableName(this.inner, id, this.rules, this.rulesConfig)
     const tableRules = tableName ? this.rules[tableName] : undefined
 
     if (tableRules?.patch) {
@@ -1202,7 +1206,7 @@ class RulesDatabaseWriter<
       throw new Error('no read access or doc does not exist')
     }
 
-    const tableName = this.resolveTableFromId(id)
+    const tableName = resolveRulesTableName(this.inner, id, this.rules, this.rulesConfig)
     const tableRules = tableName ? this.rules[tableName] : undefined
 
     if (tableRules?.replace) {
@@ -1231,7 +1235,7 @@ class RulesDatabaseWriter<
       throw new Error('no read access or doc does not exist')
     }
 
-    const tableName = this.resolveTableFromId(id)
+    const tableName = resolveRulesTableName(this.inner, id, this.rules, this.rulesConfig)
     const tableRules = tableName ? this.rules[tableName] : undefined
 
     if (tableRules?.delete) {
@@ -1244,22 +1248,6 @@ class RulesDatabaseWriter<
     }
 
     return this.inner.delete(id)
-  }
-
-  private resolveTableFromId(id: any): string | null {
-    for (const tableName of Object.keys(this.rules)) {
-      if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
-        return tableName
-      }
-    }
-    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
-      for (const tableName of Object.keys((this.inner as any)._internals.tableMap)) {
-        if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
-          return tableName
-        }
-      }
-    }
-    return null
   }
 }
 
@@ -1290,7 +1278,7 @@ class AuditQueryChain<TableInfo extends GenericTableInfo, Doc> extends ZodvexQue
   }
 
   protected createChain(inner: any): AuditQueryChain<TableInfo, Doc> {
-    return new AuditQueryChain(inner, (this as any).schema, this.afterRead, this.tableName)
+    return new AuditQueryChain(inner, this.schema, this.afterRead, this.tableName)
   }
 
   async first(): Promise<Doc | null> {
@@ -1349,7 +1337,7 @@ class AuditDatabaseReader<
   private afterRead: (table: string, doc: any) => void | Promise<void>
 
   constructor(inner: ZodvexDatabaseReader<DataModel, DecodedDocs>, config: ReaderAuditConfig) {
-    const { db, tableMap } = (inner as any)._internals
+    const { db, tableMap } = inner._internals
     super(db, tableMap)
     this.inner = inner
     this.afterRead =
@@ -1357,7 +1345,7 @@ class AuditDatabaseReader<
       (() => {
         /* noop */
       })
-    ;(this as any).system = (inner as any).system
+    this.system = inner.system
   }
 
   async get(idOrTable: any, maybeId?: any): Promise<any> {
@@ -1382,7 +1370,7 @@ class AuditDatabaseReader<
 
   private resolveTableFromId(id: any, explicitTable?: string): string | null {
     if (explicitTable) return explicitTable
-    for (const tableName of Object.keys((this as any).tableMap)) {
+    for (const tableName of Object.keys(this.tableMap)) {
       if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
         return tableName
       }
@@ -1403,15 +1391,15 @@ class AuditDatabaseWriter<
   private afterWrite: ((table: string, event: WriteEvent) => void | Promise<void>) | undefined
 
   constructor(inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>, config: WriterAuditConfig) {
-    const { db, tableMap, reader: innerReader } = (inner as any)._internals
+    const { db, tableMap, reader: innerReader } = inner._internals
     super(db, tableMap)
     this.inner = inner
     this.afterWrite = config.afterWrite as typeof this.afterWrite
 
     this.auditReader = config.afterRead
-      ? (new AuditDatabaseReader(innerReader, { afterRead: config.afterRead }) as any)
+      ? new AuditDatabaseReader(innerReader, { afterRead: config.afterRead })
       : innerReader
-    ;(this as any).system = (inner as any).system
+    this.system = inner.system
   }
 
   normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
@@ -1519,7 +1507,7 @@ class AuditDatabaseWriter<
   }
 
   private resolveTableFromId(id: any): string | null {
-    for (const tableName of Object.keys((this.inner as any)._internals.tableMap)) {
+    for (const tableName of Object.keys(this.inner._internals.tableMap)) {
       if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
         return tableName
       }
