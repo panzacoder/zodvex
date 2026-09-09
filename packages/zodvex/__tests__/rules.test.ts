@@ -884,6 +884,43 @@ describe('ZodvexDatabaseWriter.audit()', () => {
 // ============================================================================
 
 describe('edge cases', () => {
+  it.each([
+    'reader',
+    'writer'
+  ] as const)('%s applies the default policy to ID-based reads of modeled tables without rules', async kind => {
+    const { db: raw } = createMockDbWriter(tableData)
+    const db =
+      kind === 'reader'
+        ? new ZodvexDatabaseReader(raw, tableMap)
+        : new ZodvexDatabaseWriter(raw, tableMap)
+    await expect(
+      db.withRules({}, {}, { defaultPolicy: 'deny' }).get('users:1' as any)
+    ).resolves.toBeNull()
+    await expect(
+      db.withRules({}, {}, { defaultPolicy: 'allow' }).get('users:1' as any)
+    ).resolves.toMatchObject({ name: 'Alice' })
+  })
+
+  it('writer resolves rules for tables without a modeled schema', async () => {
+    const { db: raw, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(raw, {})
+    const secured = db.withRules(
+      {},
+      {
+        users: {
+          read: async (_ctx: unknown, doc: unknown) => doc,
+          patch: async (_ctx: unknown, _doc: unknown, value: { name: string }) => ({
+            ...value,
+            name: 'RULE'
+          })
+        }
+      },
+      { defaultPolicy: 'deny' }
+    )
+    await secured.patch('users:1' as any, { name: 'REQUEST' })
+    expect(calls).toEqual([{ method: 'patch', args: ['users:1', { name: 'RULE' }] }])
+  })
+
   it('defaultPolicy deny blocks ALL tables including unmentioned ones', async () => {
     const extendedData = {
       ...tableData,
