@@ -1,8 +1,14 @@
 # Stress Test Harness
 
-Measures zodvex memory footprint at scale and validates the runtime
-codepath on real Convex deploys. Backs the "zodvex matches pure-Convex
-deploy headroom" claim.
+Start with the [codec workload benchmark](capacity/README.md) for a bounded,
+repeatable comparison of native Convex, convex-helpers/Zod 4, Zodvex and Mini.
+It measures real codec operations in documents, bytes and server execution time,
+using one fixed application deployment.
+
+The older table-count sweeps below remain diagnostic tools for specific generated
+application shapes. Their results do not establish universal table capacity,
+measured isolate heap usage, or parity with native Convex. Repeated deployment and
+schema-analysis outcomes must be distinguished from runtime query behavior.
 
 ## Quick Start
 

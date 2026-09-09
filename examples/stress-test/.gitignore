@@ -23,3 +23,7 @@ results/.cell-cache.json
 # curated — promote a local run there deliberately, with a name that says
 # what it measured.
 results/local/
+
+# Generated source staged by both benchmark runners.
+_deploy/convex/*
+!_deploy/convex/convex.config.ts
