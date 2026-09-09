@@ -1,5 +1,8 @@
 # Codec workload baseline — 2026-09-09
 
+For the primary model graph memory/headroom question, see the separate
+[retained-heap and query OOM benchmark](../memory-2026-09-09/README.md).
+
 Use a named operation as the benchmark: **indexed read → decode → domain work →
 encode the full return value**. Its useful units are documents, serialized bytes,
 and server execution time. Imported schema graphs are a separate controlled input.

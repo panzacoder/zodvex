@@ -1,0 +1,269 @@
+{
+  "date": "2026-09-09",
+  "libraryCommit": "ad4a23241b7a351e2406fe555283f9e81591139a",
+  "harnessBaseCommit": "299e8891048b4eccfd790f68ab2c03d9a05ca8c7",
+  "versions": {
+    "convex": "1.32.0",
+    "convex-helpers": "0.1.113",
+    "zod": "4.5.4",
+    "esbuild": "0.27.0",
+    "bun": "1.3.9"
+  },
+  "target": "https://lovable-donkey-430.convex.cloud",
+  "localBackend": {
+    "sourceRevision": "8bc6aa4645adfd66584034b175dbef96536938b8",
+    "sha256": "c07e85501038cdf6f969e2f7f8cb81e897a64f25d08d590ebd501342eaa3906c"
+  },
+  "scope": "Counts are background models plus one fixed probe. No DB I/O. Factory-defined graph, zero registry entries. Local retained object bytes are not hosted free memory. Early boundary observations are exploratory; final controls archive exact emitted query sources.",
+  "validation": {
+    "verifiedOutputs": 90,
+    "confirmedMemoryErrors": 42,
+    "finalSourceHashesVerified": true
+  },
+  "runs": {
+    "hosted-runtime-control": {
+      "width": 32,
+      "backgroundModels": 512,
+      "calls": 12,
+      "wallSeconds": 22.963,
+      "outcomes": [
+        {
+          "kind": "full",
+          "outcome": "memory",
+          "phase": "query",
+          "count": 3
+        },
+        {
+          "kind": "helpers",
+          "outcome": "ok",
+          "phase": "query",
+          "count": 3
+        },
+        {
+          "kind": "mini",
+          "outcome": "ok",
+          "phase": "query",
+          "count": 3
+        },
+        {
+          "kind": "native",
+          "outcome": "ok",
+          "phase": "query",
+          "count": 3
+        }
+      ]
+    },
+    "hosted-width-control": {
+      "width": 8,
+      "backgroundModels": 512,
+      "calls": 3,
+      "wallSeconds": 6.889,
+      "outcomes": [
+        {
+          "kind": "full",
+          "outcome": "ok",
+          "phase": "query",
+          "count": 3
+        }
+      ]
+    },
+    "local-heap-width8": {
+      "width": 8,
+      "backgroundModels": 128,
+      "measurements": {
+        "native": {
+          "probeOnlyBytes": 1352256,
+          "with128BackgroundBytes": 1649472,
+          "backgroundDeltaBytes": 297216
+        },
+        "helpers": {
+          "probeOnlyBytes": 2731232,
+          "with128BackgroundBytes": 7811120,
+          "backgroundDeltaBytes": 5079888
+        },
+        "full": {
+          "probeOnlyBytes": 4888488,
+          "with128BackgroundBytes": 15057920,
+          "backgroundDeltaBytes": 10169432
+        },
+        "mini": {
+          "probeOnlyBytes": 4492360,
+          "with128BackgroundBytes": 12207864,
+          "backgroundDeltaBytes": 7715504
+        }
+      }
+    },
+    "local-heap-width32": {
+      "width": 32,
+      "backgroundModels": 128,
+      "measurements": {
+        "native": {
+          "probeOnlyBytes": 1352256,
+          "with128BackgroundBytes": 2388760,
+          "backgroundDeltaBytes": 1036504
+        },
+        "helpers": {
+          "probeOnlyBytes": 2731232,
+          "with128BackgroundBytes": 21421728,
+          "backgroundDeltaBytes": 18690496
+        },
+        "full": {
+          "probeOnlyBytes": 4888488,
+          "with128BackgroundBytes": 30705792,
+          "backgroundDeltaBytes": 25817304
+        },
+        "mini": {
+          "probeOnlyBytes": 4492360,
+          "with128BackgroundBytes": 24276808,
+          "backgroundDeltaBytes": 19784448
+        }
+      }
+    }
+  },
+  "exploratoryBrackets": {
+    "static": [
+      {
+        "kind": "full",
+        "passingBackgroundModels": 416,
+        "failingBackgroundModels": 448,
+        "observations": [
+          {
+            "count": 448,
+            "outcome": "memory",
+            "phase": "analysis",
+            "repetitions": 3
+          },
+          {
+            "count": 416,
+            "outcome": "ok",
+            "phase": "query",
+            "repetitions": 3
+          }
+        ]
+      },
+      {
+        "kind": "mini",
+        "passingBackgroundModels": 544,
+        "failingBackgroundModels": 576,
+        "observations": [
+          {
+            "count": 576,
+            "outcome": "memory",
+            "phase": "analysis",
+            "repetitions": 3
+          },
+          {
+            "count": 544,
+            "outcome": "ok",
+            "phase": "query",
+            "repetitions": 3
+          }
+        ]
+      },
+      {
+        "kind": "helpers",
+        "passingBackgroundModels": 576,
+        "failingBackgroundModels": 608,
+        "observations": [
+          {
+            "count": 576,
+            "outcome": "ok",
+            "phase": "query",
+            "repetitions": 3
+          },
+          {
+            "count": 608,
+            "outcome": "memory",
+            "phase": "analysis",
+            "repetitions": 3
+          }
+        ]
+      },
+      {
+        "kind": "native",
+        "passingBackgroundModels": 8192,
+        "failingBackgroundModels": null,
+        "observations": [
+          {
+            "count": 8192,
+            "outcome": "ok",
+            "phase": "query",
+            "repetitions": 1
+          }
+        ]
+      }
+    ],
+    "handler": [
+      {
+        "kind": "full",
+        "passingBackgroundModels": 416,
+        "failingBackgroundModels": 448,
+        "observations": [
+          {
+            "count": 448,
+            "outcome": "memory",
+            "phase": "query",
+            "repetitions": 3
+          },
+          {
+            "count": 416,
+            "outcome": "ok",
+            "phase": "query",
+            "repetitions": 3
+          }
+        ]
+      },
+      {
+        "kind": "mini",
+        "passingBackgroundModels": 544,
+        "failingBackgroundModels": 576,
+        "observations": [
+          {
+            "count": 576,
+            "outcome": "memory",
+            "phase": "query",
+            "repetitions": 3
+          },
+          {
+            "count": 544,
+            "outcome": "ok",
+            "phase": "query",
+            "repetitions": 3
+          }
+        ]
+      },
+      {
+        "kind": "helpers",
+        "passingBackgroundModels": 576,
+        "failingBackgroundModels": 608,
+        "observations": [
+          {
+            "count": 576,
+            "outcome": "ok",
+            "phase": "query",
+            "repetitions": 3
+          },
+          {
+            "count": 608,
+            "outcome": "memory",
+            "phase": "query",
+            "repetitions": 3
+          }
+        ]
+      },
+      {
+        "kind": "native",
+        "passingBackgroundModels": 8192,
+        "failingBackgroundModels": null,
+        "observations": [
+          {
+            "count": 8192,
+            "outcome": "ok",
+            "phase": "query",
+            "repetitions": 1
+          }
+        ]
+      }
+    ]
+  }
+}

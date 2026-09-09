@@ -1,9 +1,12 @@
 # Stress Test Harness
 
-Start with the [codec workload benchmark](capacity/README.md) for a bounded,
-repeatable comparison of native Convex, convex-helpers/Zod 4, Zodvex and Mini.
-It measures real codec operations in documents, bytes and server execution time,
-using one fixed application deployment.
+Start with the [model graph memory benchmark](memory/README.md) for retained heap
+weight and hosted query capacity at a specified model shape. Its bounded probes
+avoid broad deployment sweeps and growing database reads.
+
+The [codec workload benchmark](capacity/README.md) separately compares operation
+overhead in documents, bytes and server execution time. Both compare native
+Convex, convex-helpers/Zod 4, Zodvex and Mini.
 
 The older table-count sweeps below remain diagnostic tools for specific generated
 application shapes. Their results do not establish universal table capacity,

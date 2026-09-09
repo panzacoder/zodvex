@@ -9,7 +9,8 @@
     "bench": "bun run bench.ts",
     "test": "vitest run",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json",
-    "capacity": "bun run capacity/run.ts"
+    "capacity": "bun run capacity/run.ts",
+    "memory": "bun run memory/run.mjs"
   },
   "dependencies": {
     "convex": "^1.28.0",

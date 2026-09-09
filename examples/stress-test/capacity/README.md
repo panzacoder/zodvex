@@ -1,5 +1,8 @@
 # Codec workload benchmark
 
+For model graph memory/headroom, start with the [memory benchmark](../memory/README.md).
+This workload benchmark measures the separate cost of processing documents.
+
 This benchmark measures the cost and bounded batch capacity of **one real operation**:
 read ordered documents through an index, decode their codecs, use the runtime values,
 transform them, and encode the complete result. It compares a fixed workload across
