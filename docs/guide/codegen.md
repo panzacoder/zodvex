@@ -206,6 +206,45 @@ By default, argument encoding and result decoding failures become an `error` sta
 
 The data methods (`query` / `mutate` / `action` / `subscribe` / `watchQuery` / paginated) are codec-wrapped; the auth, connection, and lifecycle methods are thin pass-throughs to the underlying Convex client.
 
+### Paginated React queries
+
+Generated clients export `useZodPaginatedQuery`:
+
+```tsx
+import { useZodPaginatedQuery } from '../convex/_zodvex/client'
+
+const { results, status, isLoading, loadMore } = useZodPaginatedQuery(
+  api.tasks.list,
+  { after: new Date() },
+  { initialNumItems: 25 }
+)
+```
+
+Pass domain arguments or `'skip'`; Convex supplies `paginationOpts`, manages live pages,
+page splits and cursors, and accumulates results. Zodvex encodes the domain arguments
+and decodes result items using the registered `returns.page` array schema.
+
+This requires an ordinary argument object and an ordinary return object containing
+`page: z.array(itemSchema)`. Argument-object refinements, return-object refinements or
+transforms, and page-array refinements or transforms are rejected. Item schemas retain
+codecs, refinements, unions, defaults and transforms supported by normal Zod decoding.
+Functions without a relevant registry schema pass through unchanged.
+
+These aggregate APIs validate items, not the original page envelopes or their metadata.
+They do not fabricate a cursor or a page completion flag to run the return schema.
+Use `query`, `subscribe`, or `watchQuery` with explicit `paginationOpts` when you need
+client-side validation of complete pages. Codec failures always throw, even when the
+factory uses `onDecodeError: 'warn'` for its other methods. Handle React failures with
+an error boundary; invalid arguments do not start a subscription.
+
+`ZodvexClient.onPaginatedUpdate_experimental` uses the same argument and item contract.
+Its callback receives `{ results, status, loadMore }`, matching Convex's runtime, and
+its returned subscription decodes `getCurrentValue()` too. Call the subscription itself
+or `.unsubscribe()` to stop it. `.getQueryLogs()` returns `undefined` on SDK versions
+without that method. This corrects the previous, non-working page-envelope signature.
+Provide `onError` when sharing a vanilla client across subscriptions: without it, a decode
+failure throws from Convex's callback loop and can interrupt sibling callbacks in that update.
+
 ## Bootstrapping note
 
 The first time you run `zodvex generate`, your `functions.ts` likely already imports from `_zodvex/api.js` (to wire the registry). The CLI handles this chicken-and-egg problem by writing a minimal stub `api.js` before discovery runs, then overwriting it with the real generated output.

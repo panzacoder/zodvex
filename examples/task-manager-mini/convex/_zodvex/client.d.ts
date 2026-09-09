@@ -7,6 +7,7 @@ import type { ZodvexReactClientOptions, ZodvexReactClient } from 'zodvex/react'
 import type { BoundaryHelpers } from 'zodvex/mini'
 
 export declare const useZodQuery: ZodvexHooks['useZodQuery']
+export declare const useZodPaginatedQuery: ZodvexHooks['useZodPaginatedQuery']
 export declare const useQuery_experimental: ZodvexHooks['useQuery_experimental']
 export declare const useZodMutation: ZodvexHooks['useZodMutation']
 

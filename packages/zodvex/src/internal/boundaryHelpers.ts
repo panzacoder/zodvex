@@ -14,7 +14,7 @@ import { $ZodError, safeParse } from './zod-core'
  */
 const functionNameSymbol = Symbol.for('functionName')
 
-function resolveFunctionPath(ref: FunctionReference<any, any, any, any>): string | null {
+export function resolveFunctionPath(ref: FunctionReference<any, any, any, any>): string | null {
   if (typeof ref === 'string') return ref
   const name = (ref as any)[functionNameSymbol]
   if (!name) return null

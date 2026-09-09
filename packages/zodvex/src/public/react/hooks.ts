@@ -1,9 +1,20 @@
-import type { OptionalRestArgsOrSkip } from 'convex/react'
+import type {
+  OptionalRestArgsOrSkip,
+  PaginatedQueryReference,
+  UsePaginatedQueryResult
+} from 'convex/react'
 import * as convexReact from 'convex/react'
-import { useMutation, useQuery } from 'convex/react'
-import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+  PaginationOptions
+} from 'convex/server'
+import { useMemo } from 'react'
 import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
-import { createBoundaryHelpers } from '../../internal/boundaryHelpers'
+import { createBoundaryHelpers, resolveFunctionPath } from '../../internal/boundaryHelpers'
+import { createPaginationCodec } from '../../internal/paginationCodec'
 import type { AnyRegistry } from '../../internal/types'
 
 /** Query state, with failures omitted when throwOnError is enabled. */
@@ -56,10 +67,49 @@ export function createZodvexHooks<R extends AnyRegistry>(
   options?: BoundaryHelpersOptions
 ) {
   const codec = createBoundaryHelpers(registry, options)
+  const paginationCodec = createPaginationCodec(registry)
   const experimentalCodec = createBoundaryHelpers(registry, {
     ...options,
     onDecodeError: options?.onDecodeError ?? 'throw'
   })
+
+  /**
+   * Convex pagination with encoded filters and decoded items. Pagination metadata
+   * stays under Convex's control. Codec errors throw, including in warn mode.
+   * Outer object/array refinements and transforms require explicit page queries.
+   */
+  function useZodPaginatedQuery<
+    Query extends FunctionReference<
+      'query',
+      'public',
+      { paginationOpts?: PaginationOptions },
+      { page: any[]; isDone: boolean; continueCursor: string }
+    >
+  >(
+    ref: Query,
+    args: Omit<FunctionArgs<Query>, 'paginationOpts'> | 'skip',
+    paginationOptions: { initialNumItems: number }
+  ): UsePaginatedQueryResult<FunctionReturnType<Query>['page'][number]> {
+    let wireArgs: any = 'skip'
+    let encodeFailure: { error: unknown } | undefined
+    if (args !== 'skip') {
+      try {
+        wireArgs = paginationCodec.encodeArgs(ref, args)
+      } catch (error) {
+        encodeFailure = { error }
+      }
+    }
+    const state = usePaginatedQuery(ref as PaginatedQueryReference, wireArgs, paginationOptions)
+    const skipped = wireArgs === 'skip'
+    const queryKey = resolveFunctionPath(ref) ?? ref
+    const results = useMemo(
+      () => (skipped ? state.results : paginationCodec.decodeResults(ref, state.results)),
+      [queryKey, state.results, skipped]
+    )
+    // Call both hooks on failed encodes too, so a failure never changes hook order.
+    if (encodeFailure) throw encodeFailure.error
+    return { ...state, results }
+  }
 
   /**
    * Convex's object-form query hook with decoded arguments and results (Convex >=1.37).
@@ -196,7 +246,7 @@ export function createZodvexHooks<R extends AnyRegistry>(
     }
   }
 
-  return { useZodQuery, useZodMutation, useQuery_experimental }
+  return { useZodQuery, useZodMutation, useZodPaginatedQuery, useQuery_experimental }
 }
 
 /**

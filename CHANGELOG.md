@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Generated clients and `createZodvexHooks` expose `useZodPaginatedQuery`, with encoded filters and decoded accumulated items while Convex manages pagination. Aggregate pagination uses strict item decoding and rejects unsupported outer schema checks rather than silently dropping them.
+- `PaginatedResult` and `PaginatedSubscription` describe decoded vanilla pagination results and subscription controls.
+
+### Fixed
+
+- `onPaginatedUpdate_experimental` now handles Convex's actual `{ results, status, loadMore }` response instead of expecting a page envelope. Both callbacks and `getCurrentValue()` decode items; decode failures reach `onError` when supplied.
+
 ## [0.7.9] - 2026-09-08
 
 ### Added

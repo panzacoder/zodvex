@@ -7,7 +7,7 @@ import { createZodvexClient } from 'zodvex/client'
 import { createBoundaryHelpers } from 'zodvex'
 import { zodvexRegistry } from './api.js'
 
-export const { useZodQuery, useZodMutation, useQuery_experimental } = createZodvexHooks(zodvexRegistry)
+export const { useZodQuery, useZodMutation, useZodPaginatedQuery, useQuery_experimental } = createZodvexHooks(zodvexRegistry)
 
 export const createClient = (options) =>
   createZodvexClient(zodvexRegistry, options)
