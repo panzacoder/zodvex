@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
+import * as mini from 'zod/mini'
 import { stripUndefined } from '../src/internal/stripUndefined'
 import { zx } from '../src/internal/zx'
 
@@ -89,6 +90,34 @@ describe('createZodvexHooks', () => {
   // ---- useZodQuery --------------------------------------------------------
 
   describe('useZodQuery', () => {
+    it.each([
+      ['full', z],
+      ['mini', mini]
+    ] as const)('propagates even non-Error codec throws after calling the hook (%s)', (_name, schema) => {
+      const hooks = createZodvexHooks({
+        'tasks:search': {
+          args: schema.object({
+            dueAt: schema.codec(schema.number(), schema.date(), {
+              decode: value => new Date(value),
+              encode: () => {
+                throw undefined
+              }
+            })
+          })
+        }
+      })
+      let threw = false
+      try {
+        hooks.useZodQuery(fakeRef('tasks:search'), { dueAt: new Date() })
+      } catch (error) {
+        threw = true
+        expect(error).toBeUndefined()
+      }
+      expect(threw).toBe(true)
+      expect(mocks.queryArgs).toBe('skip')
+      expect(hooks.useZodQuery(fakeRef('tasks:search'), 'skip')).toBeUndefined()
+    })
+
     it('returns undefined when the query is still loading', () => {
       mocks.queryResult = undefined
       const result = useZodQuery(fakeRef('tasks:list'))
@@ -177,24 +206,14 @@ describe('createZodvexHooks', () => {
       expect(() => throwHooks.useZodQuery(fakeRef('tasks:list'))).toThrow()
     })
 
-    it('auto-skips query and logs debug when encodeArgs fails', () => {
-      // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
-      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
-      mocks.queryResult = { _id: 'x', title: 'Test', createdAt: Date.now() }
-
-      // Pass invalid args — dueAt should be a Date, passing a string triggers encode failure
-      const result = useZodQuery(fakeRef('tasks:create'), {
-        title: 'Test',
-        dueAt: 'not-a-date'
-      })
-
-      // Should auto-skip: return undefined (loading state), not throw
-      expect(result).toBeUndefined()
-      expect(debugSpy).toHaveBeenCalled()
-      const msg = debugSpy.mock.calls[0][0] as string
-      expect(msg).toContain('tasks:create')
-      expect(msg).toContain('auto-skipping')
-      debugSpy.mockRestore()
+    it('calls useQuery with skip before propagating an argument encoding failure', () => {
+      expect(() =>
+        useZodQuery(fakeRef('tasks:create'), {
+          title: 'Test',
+          dueAt: 'not-a-date'
+        })
+      ).toThrow()
+      expect(mocks.queryArgs).toBe('skip')
     })
   })
 

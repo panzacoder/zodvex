@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { zCustomQuery } from '../src/internal/custom'
-import { composeCustomizations, createZodvexBuilder, initZodvex } from '../src/internal/init'
+import { zCustomQuery } from '../src/internal/functions/customFunctions'
+import {
+  composeCustomizations,
+  createZodvexBuilder,
+  initZodvex
+} from '../src/internal/functions/init'
 import { zx } from '../src/internal/zx'
 import {
   createMockDbReader,

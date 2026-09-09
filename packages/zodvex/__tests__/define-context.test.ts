@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { defineContext, initZodvex } from '../src/internal/init'
+import { defineContext, initZodvex } from '../src/internal/functions/init'
 
 // #72 fallout: 0.7.3 retyped `.withContext()` so `input`'s args param is
 // `z.output<$ZodObject<ZArgs>>`, which widens to `{ [x: string]: unknown }` for

@@ -7,7 +7,7 @@
     "dev:once": "bunx convex dev --once",
     "build": "zodvex generate --mini && vite build",
     "deploy": "zodvex generate --mini && bunx convex deploy",
-    "generate": "zodvex generate --mini",
+    "generate": "bun ../../packages/zodvex/dist/cli/index.js generate --mini",
     "typecheck": "bunx tsc --noEmit --declaration false",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -18,7 +18,7 @@
     "convex": "^1.28.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "zod": "4.3.6",
+    "zod": "4.5.4",
     "zodvex": "workspace:*"
   },
   "devDependencies": {

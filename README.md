@@ -2,7 +2,7 @@
 
 #### [Zod](https://zod.dev/) + [Convex](https://www.convex.dev/)
 
-Use Zod v4 as your schema language for Convex — define your data once and use it end to end, with automatic validation and codecs at every boundary.
+Use Zod v4 as your schema language for Convex — define your data once and use it end to end, with automatic function validation and a codec-aware database.
 
 [![npm version](https://img.shields.io/npm/v/zodvex)](https://www.npmjs.com/package/zodvex)
 [![CI](https://github.com/panzacoder/zodvex/actions/workflows/ci.yml/badge.svg)](https://github.com/panzacoder/zodvex/actions/workflows/ci.yml)
@@ -12,20 +12,20 @@ Use Zod v4 as your schema language for Convex — define your data once and use 
 
 **Your Zod schemas are the source of truth** — tables, function arguments, and return types defined once, used database to frontend. Two things make that real:
 
-- **Functions run full Zod pipelines.** Your argument and return schemas execute as real Zod at runtime — refinements like `.min()` and `.email()`, transformations, codecs — not erased down to structural checks.
+- **Functions execute your Zod schemas.** Wrappers parse declared arguments before the handler and encode declared returns. Zod refinements and codec logic run alongside Convex’s structural checks. Parsing and encoding have different transform/default behavior; current wrappers use synchronous Zod operations.
 
-- **The database is Zod-validated, automatically.** `ctx.db` parses every read and encodes every write through your schemas: `.email()` holds at the row level where Convex's structural checks stop, and codecs live in the schema itself — handlers see `Date` objects and branded IDs while Convex stores plain values.
+- **Modeled database reads run full Zod validation.** The wrapped `ctx.db` parses modeled documents on reads and encodes insert/replace values through the model schema. Codecs live in the schema itself, so handlers can work with `Date` objects while Convex stores plain values.
 
 What you gain over Convex out of the box:
 
 | | Convex | with zodvex |
 |---|---|---|
 | Type safety | end-to-end inference | same — driven by your Zod schemas |
-| Runtime validation | structural checks | full Zod — refinements, transforms, codecs |
-| End-to-end validation | per-function validators | one Zod schema — client, functions, and db access |
-| Client calls | `useQuery(api.fn)` infers types | `useZodQuery(api.fn)` infers the runtime schema too — args encoded, results decoded (via codegen) |
+| Runtime validation | structural checks | Zod parsing/encoding for declared function schemas and modeled data |
+| End-to-end validation | per-function validators | shared Zod definitions across configured client, function, and database paths |
+| Client calls | `useQuery(api.fn)` infers types | registry args encoded and results parsed, with a configurable decode-error policy |
 | Dates & custom types | `number` timestamps | `Date` objects and custom codecs (`zx.date()`, `zx.codec()`) |
-| Rows on read | as stored | parsed & decoded through your schema |
+| Rows on read | as stored | modeled documents parsed & decoded through your schema |
 | Row-level rules & audit | build your own | `.withRules()` / `.audit()` on `ctx.db` |
 
 All of it wired once with `initZodvex` — see [Features](#features).
@@ -150,20 +150,22 @@ Two deprecated paths remain for migration only:
 
 ### Codec-Aware Database
 
-`initZodvex` wraps `ctx.db` so reads decode automatically and writes encode automatically. Codecs are opt-in per field — schemas without them get the same validation, typed IDs, and correct optional/nullable mapping through the exact same setup.
+`initZodvex` wraps `ctx.db` so modeled reads decode automatically and insert/replace values encode automatically. Codecs are opt-in per field — schemas without them get the same validation, typed IDs, and correct optional/nullable mapping through the exact same setup.
 
 - **`zx.date()`** — Date ↔ timestamp codec. Stored as `v.float64()`, used as `Date` in handlers.
 - **`zx.codec(wire, runtime, transforms)`** — Custom codecs for complex transformations (encryption, serialization, etc.).
 - **`zx.id('table')`** — Typed Convex ID validator with `GenericId<T>` branding — no wire transform (not a codec).
 
+Object patches encode supplied fields without validating the merged document or retaining outer object refinements; union patches use full encoding. Unmodeled tables and system access pass through. `unwrap()` or `wrapDb: false` bypass wrapping. See the [boundary contract](./docs/decisions/2026-09-07-boundary-contract.md).
+
 Guides: [Custom Codecs](./docs/guide/custom-codecs.md), [Date Handling](./docs/guide/date-handling.md)
 
 ### Row-Level Rules & Audit
 
-The same wrapped `ctx.db` carries per-row security and observability — both operating on decoded documents (`Date` objects, typed IDs), never wire values:
+The same wrapped `ctx.db` carries per-row rules and audit hooks. Modeled reads and supplied write values use decoded runtime types:
 
 - **`.withRules(ruleCtx, rules)`** — gate and transform reads and writes per table (`read`, `insert`, `patch`, `replace`, `delete`), with an optional deny-by-default policy.
-- **`.audit({ afterRead, afterWrite })`** — observe successful reads and writes; composes with `.withRules()`, so audit sees only what the rules allowed.
+- **`.audit({ afterRead, afterWrite })`** — observe completed inner reads and writes. Composition order determines what audit sees; an audit layer outside `.withRules()` observes the rules-processed results.
 
 Guide: [Rules & Audit](./docs/guide/rules-and-audit.md)
 
@@ -187,8 +189,11 @@ Guide: [Builders — Composing with triggers](./docs/guide/builders.md#composing
 zodvex includes an optional CLI that generates typed client code:
 
 - **Typed hooks** — `useZodQuery`, `useZodMutation`, generated into `convex/_zodvex/client` — import them from there; args are encoded and results decoded automatically
+  Invalid query arguments throw during render and can be handled by a React error boundary. Pass `'skip'` explicitly while required inputs are unavailable; encoding failures no longer silently look like a loading query.
 - **Boundary helpers** — `encodeArgs`, `decodeResult` for custom client integrations
 - **Cross-function auto-codec** — `ctx.runQuery` / `ctx.runMutation` encode args + decode results, and `ctx.scheduler.runAfter` / `ctx.scheduler.runAt` encode args, via the registry. Pass natural decoded values; zodvex encodes them to wire at the call site.
+
+Registry-backed clients and outbound helpers warn and return raw wire data when result parsing fails by default; use `onDecodeError: 'throw'` to reject failed result parses. Missing registry schemas pass through unchanged.
 
 ```bash
 zodvex generate   # one-shot generation
@@ -251,6 +256,7 @@ npx zodvex migrate ./convex --dry-run  # preview changes
 - [Streams](./docs/guide/streams.md) — `zodvexStream`, `zodvexMergedStream` for fan-out pagination
 - [AI SDK Compatibility](./docs/guide/ai-sdk.md) — Vercel AI SDK integration
 - [Codegen](./docs/guide/codegen.md) — CLI, registry, typed hooks
+- [Schema Diagnostics](./docs/guide/schema-diagnostics.md) — local aggregate reports for support
 
 ## Roadmap
 

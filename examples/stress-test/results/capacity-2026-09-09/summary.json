@@ -1,0 +1,5266 @@
+{
+  "description": "Post-run assessment using the committed validity rules. Raw records and exact generated fixtures are in evidence.tar.gz.",
+  "runs": [
+    {
+      "name": "capacity-default-final",
+      "run": "fd4c96d2-5067-48ee-ae1b-4394c7406aef",
+      "gitCommit": "dc0179e38ff51d8827ddadceb10945253df19362",
+      "fixtureHash": "5092dac18dfb0e21f03d559f7d4deb1c91f0ba60f03423c4db0445b962057acf",
+      "startedAt": "2026-09-09T18:27:11.610Z",
+      "completedAt": "2026-09-09T18:27:38.829Z",
+      "durationSeconds": 27.219,
+      "deployment": "lovable-donkey-430",
+      "versions": {
+        "convex": "1.32.0",
+        "convex-helpers": "0.1.113",
+        "zod": "4.5.4",
+        "zodvex": "0.7.10"
+      },
+      "batches": [
+        1,
+        64,
+        256
+      ],
+      "payloadBytes": 640,
+      "rounds": 7,
+      "seed": 42,
+      "calls": 176,
+      "failures": 0,
+      "validity": {
+        "valid": true,
+        "reasons": []
+      },
+      "queryReadBytes": 16591296,
+      "summaries": [
+        {
+          "variant": "native",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 7.319771,
+            "q1": 6.9272485,
+            "q3": 8.08258,
+            "min": 6.432056,
+            "max": 9.903113
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 1.935257,
+            "q1": 1.869681,
+            "q3": 2.032871,
+            "min": 1.8110279999999999,
+            "max": 3.101108
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 957,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 16.051241,
+            "q1": 15.418978,
+            "q3": 18.885716000000002,
+            "min": 14.671771,
+            "max": 28.559826
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 5.407532,
+            "q1": 5.209279,
+            "q3": 5.4999085,
+            "min": 5.025109,
+            "max": 5.772016
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 45.485161000000005,
+            "q1": 43.721042499999996,
+            "q3": 47.164613,
+            "min": 41.786979,
+            "max": 53.127719
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 15.057885,
+            "q1": 14.822535000000002,
+            "q3": 16.594628,
+            "min": 14.501307,
+            "max": 18.509469
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 14.519993999999999,
+            "q1": 13.850812000000001,
+            "q3": 16.1777875,
+            "min": 13.259415,
+            "max": 18.479934
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 8.829814,
+            "q1": 8.636428500000001,
+            "q3": 9.601346,
+            "min": 8.247421,
+            "max": 13.745854
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.14576330325088,
+            "q1": 1.8426359615074963,
+            "q3": 2.2979848664159226,
+            "min": 1.3389138344680103,
+            "max": 2.400615370152111
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 957,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 24.822439000000003,
+            "q1": 23.2962135,
+            "q3": 25.188214000000002,
+            "min": 23.029926999999997,
+            "max": 28.153076
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 14.155752000000001,
+            "q1": 13.750131,
+            "q3": 15.411046500000001,
+            "min": 13.642581000000002,
+            "max": 18.247368
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.5532879348919673,
+            "q1": 1.3406908756897837,
+            "q3": 1.5775208336845985,
+            "min": 0.8929452861512532,
+            "max": 1.5807198735585501
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 58.234484,
+            "q1": 56.889356500000005,
+            "q3": 60.7216835,
+            "min": 55.995917999999996,
+            "max": 61.607704999999996
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 29.269895,
+            "q1": 29.0337915,
+            "q3": 31.2988835,
+            "min": 28.203469,
+            "max": 33.346073
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.2954856214771096,
+            "q1": 1.2609930495595247,
+            "q3": 1.327166142649451,
+            "min": 1.063705200669353,
+            "max": 1.447820288707638
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236520,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 15.447970999999999,
+            "q1": 15.153355999999999,
+            "q3": 16.307509500000002,
+            "min": 15.074862,
+            "max": 18.054830000000003
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 10.351681,
+            "q1": 10.253092500000001,
+            "q3": 10.472683,
+            "min": 10.153633000000001,
+            "max": 10.963861999999999
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.176042753792245,
+            "q1": 2.0617558256892003,
+            "q3": 2.181896202327633,
+            "min": 1.5363976963607304,
+            "max": 2.597458417650593
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 957,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 29.423771000000002,
+            "q1": 26.612951000000002,
+            "q3": 32.6128285,
+            "min": 25.099943,
+            "max": 38.157562999999996
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 19.955485,
+            "q1": 16.6072555,
+            "q3": 20.5298105,
+            "min": 15.747032,
+            "max": 20.731153
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6107886710981294,
+            "q1": 1.554950708492807,
+            "q3": 1.9548049162353027,
+            "min": 0.9623506809880423,
+            "max": 2.6007469036969018
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59106,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 67.879333,
+            "q1": 64.35679350000001,
+            "q3": 71.327279,
+            "min": 58.168433,
+            "max": 92.957444
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 37.106101,
+            "q1": 34.1228185,
+            "q3": 37.5800285,
+            "min": 31.888063000000002,
+            "max": 39.111311
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.4378238749696064,
+            "q1": 1.4036551959035592,
+            "q3": 1.5799570428374732,
+            "min": 1.2110252465384408,
+            "max": 2.1028885991506097
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 32.272319,
+            "q1": 25.523206000000002,
+            "q3": 33.0197055,
+            "min": 25.134052,
+            "max": 33.860032999999994
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 27.21817,
+            "q1": 20.617369,
+            "q3": 27.746280499999997,
+            "min": 20.27598,
+            "max": 28.731222000000002
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 3.949801432077084,
+            "q1": 3.507576855235077,
+            "q3": 4.412344668371258,
+            "min": 3.041839671393889,
+            "max": 4.66419676148503
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 957,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 41.903967,
+            "q1": 35.396030999999994,
+            "q3": 42.8650065,
+            "min": 34.614917000000005,
+            "max": 43.44415
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 26.344293,
+            "q1": 25.7894645,
+            "q3": 32.724749,
+            "min": 25.38836,
+            "max": 33.841008
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.4233968470075946,
+            "q1": 2.1336596616172567,
+            "q3": 2.5782046924368522,
+            "min": 1.2120142818797286,
+            "max": 2.8825227711092274
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 77.23944300000001,
+            "q1": 73.67070899999999,
+            "q3": 77.31708850000001,
+            "min": 70.373734,
+            "max": 85.63670499999999
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 48.363721999999996,
+            "q1": 45.57151,
+            "q3": 49.408909,
+            "min": 42.190721,
+            "max": 51.590691
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6360902549639675,
+            "q1": 1.5334845452361987,
+            "q3": 1.8009431312080273,
+            "min": 1.4541611319695469,
+            "max": 1.9372784240208238
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 36.284214,
+            "q1": 29.1424065,
+            "q3": 37.455787,
+            "min": 28.217223,
+            "max": 40.621875
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 31.415931,
+            "q1": 23.9623475,
+            "q3": 31.6028085,
+            "min": 22.920236,
+            "max": 33.431949
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 4.6457810809437,
+            "q1": 3.8649492353742234,
+            "q3": 5.317763441994613,
+            "min": 2.9715043138455557,
+            "max": 5.857230750685836
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 957,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 40.949372,
+            "q1": 39.271874,
+            "q3": 45.494938000000005,
+            "min": 38.210814,
+            "max": 50.376239000000005
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 29.720081999999998,
+            "q1": 29.385925999999998,
+            "q3": 34.5172865,
+            "min": 29.08705,
+            "max": 40.325993
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.5246911983936995,
+            "q1": 2.425742362179573,
+            "q3": 2.6887530129412167,
+            "min": 1.3675438708905299,
+            "max": 3.0182307234757144
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 82.238369,
+            "q1": 76.55725,
+            "q3": 83.59493450000001,
+            "min": 72.25299100000001,
+            "max": 88.213616
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 53.309631,
+            "q1": 49.309546499999996,
+            "q3": 53.7312995,
+            "min": 45.558333,
+            "max": 55.406315
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.777708176900256,
+            "q1": 1.6541059391583546,
+            "q3": 1.8946338656136084,
+            "min": 1.359986695457413,
+            "max": 2.1110311898833367
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 17.285957,
+            "q1": 13.862841,
+            "q3": 17.642815499999998,
+            "min": 12.306462,
+            "max": 20.003871
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 8.153824,
+            "q1": 8.0028275,
+            "q3": 12.469589,
+            "min": 7.514838,
+            "max": 13.248844
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.019957865774126,
+            "q1": 1.77836930299918,
+            "q3": 2.5160056063344545,
+            "min": 1.5573108354698202,
+            "max": 2.753910880129153
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 957,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 24.471656000000003,
+            "q1": 22.881275,
+            "q3": 26.691966,
+            "min": 22.21604,
+            "max": 36.949416
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 14.029518,
+            "q1": 13.4577625,
+            "q3": 15.859752499999999,
+            "min": 12.983592,
+            "max": 20.223285
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6471046237095135,
+            "q1": 1.3966825902926998,
+            "q3": 1.6666253624246137,
+            "min": 0.8042916998163784,
+            "max": 1.8517830471819725
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 58.157898,
+            "q1": 56.932454,
+            "q3": 61.199383000000005,
+            "min": 55.958314,
+            "max": 83.707455
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 29.143652999999997,
+            "q1": 28.924508499999998,
+            "q3": 29.609179500000003,
+            "min": 28.482373,
+            "max": 32.73017
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.297357591013714,
+            "q1": 1.2056408715715108,
+            "q3": 1.3654753503998398,
+            "min": 1.0946808764742941,
+            "max": 2.00319470330698
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 22.691968,
+            "q1": 22.066339,
+            "q3": 27.384671,
+            "min": 20.273087,
+            "max": 39.501932
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 16.260624,
+            "q1": 16.176833000000002,
+            "q3": 22.4444095,
+            "min": 15.452506,
+            "max": 23.180647
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 3.36905135776181,
+            "q1": 3.0572319080344035,
+            "q3": 3.8474133452691683,
+            "min": 2.4535431174495748,
+            "max": 3.988839872876337
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 957,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 32.50732,
+            "q1": 32.027823,
+            "q3": 36.3227735,
+            "min": 31.036134,
+            "max": 38.201124
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 22.602888,
+            "q1": 21.818035,
+            "q3": 25.267419500000003,
+            "min": 21.642293,
+            "max": 28.711469
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.1153638507580306,
+            "q1": 1.8201104693967038,
+            "q3": 2.1398805729726025,
+            "min": 1.337582518885094,
+            "max": 2.1597523830088896
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 71.527728,
+            "q1": 68.6453185,
+            "q3": 77.028787,
+            "min": 65.303573,
+            "max": 85.931038
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 43.221791,
+            "q1": 40.804510500000006,
+            "q3": 43.4730355,
+            "min": 36.976852,
+            "max": 46.650999
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6543007171562423,
+            "q1": 1.5005981047703034,
+            "q3": 1.6913819488664217,
+            "min": 1.2688309467982242,
+            "max": 1.9439368419314305
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 28.392525,
+            "q1": 24.468296499999997,
+            "q3": 30.6895225,
+            "min": 23.696712,
+            "max": 31.440094000000002
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 20.737134,
+            "q1": 18.902361499999998,
+            "q3": 25.5691705,
+            "min": 18.390882,
+            "max": 26.169734
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 3.519225674680983,
+            "q1": 3.1787992282998427,
+            "q3": 4.154492504391619,
+            "min": 2.867030296433051,
+            "max": 4.686303726211339
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 957,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 34.669897999999996,
+            "q1": 34.0642325,
+            "q3": 37.935321,
+            "min": 33.193756,
+            "max": 41.168972999999994
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 24.833701,
+            "q1": 24.3006745,
+            "q3": 28.18617,
+            "min": 23.943715,
+            "max": 31.70767
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.1878720531885647,
+            "q1": 1.8210726800795634,
+            "q3": 2.413634996096194,
+            "min": 1.2002923267109542,
+            "max": 2.753324442576611
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 75.822986,
+            "q1": 71.8044485,
+            "q3": 79.9703065,
+            "min": 67.07536,
+            "max": 90.837457
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 47.067738,
+            "q1": 43.008348999999995,
+            "q3": 47.902078,
+            "min": 40.192848000000005,
+            "max": 53.116793
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.709794034259216,
+            "q1": 1.60130042310493,
+            "q3": 1.7324185063174613,
+            "min": 1.4207940733622315,
+            "max": 1.8979603191702372
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        }
+      ]
+    },
+    {
+      "name": "capacity-baseline-01",
+      "run": "f43c6f92-2dea-478b-aa59-39dd55a949f8",
+      "gitCommit": "ad4a23241b7a351e2406fe555283f9e81591139a",
+      "fixtureHash": "edd610ac1221e0fbeaddf15e67a9733b9faab0fff55f9efc9f1693dfa6ab6db8",
+      "startedAt": "2026-09-09T18:13:20.192Z",
+      "completedAt": "2026-09-09T18:14:51.765Z",
+      "durationSeconds": 91.573,
+      "deployment": "lovable-donkey-430",
+      "versions": {
+        "convex": "1.32.0",
+        "convex-helpers": "0.1.113",
+        "zod": "4.5.4",
+        "zodvex": "0.7.10"
+      },
+      "batches": [
+        1,
+        64,
+        256,
+        1024,
+        4096
+      ],
+      "payloadBytes": 640,
+      "rounds": 7,
+      "seed": 42,
+      "calls": 288,
+      "failures": 0,
+      "validity": {
+        "valid": true,
+        "reasons": []
+      },
+      "queryReadBytes": 281137088,
+      "summaries": [
+        {
+          "variant": "native",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 6.984461,
+            "q1": 6.9148045,
+            "q3": 7.8886725,
+            "min": 6.640932,
+            "max": 9.669974
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 2.158717,
+            "q1": 1.9362925,
+            "q3": 2.285291,
+            "min": 1.8284779999999998,
+            "max": 4.867449000000001
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 958,
+            "q1": 957.5,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 16.007645,
+            "q1": 15.2378045,
+            "q3": 17.209959499999997,
+            "min": 14.445302,
+            "max": 22.775723000000003
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 5.604647,
+            "q1": 5.4751555,
+            "q3": 5.8819930000000005,
+            "min": 5.331696,
+            "max": 6.696106
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107.5,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 43.608501000000004,
+            "q1": 43.495903999999996,
+            "q3": 44.1747455,
+            "min": 42.215855,
+            "max": 51.273352
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 15.907560000000002,
+            "q1": 15.5464025,
+            "q3": 16.041551,
+            "min": 15.269115999999999,
+            "max": 16.157811000000002
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521.5,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 1024,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 165.66384200000002,
+            "q1": 149.6405335,
+            "q3": 176.9976355,
+            "min": 145.914969,
+            "max": 188.49283
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 48.899636,
+            "q1": 48.5159465,
+            "q3": 52.348386500000004,
+            "min": 47.754110000000004,
+            "max": 58.763813
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 944800,
+            "q1": 944800,
+            "q3": 944800,
+            "min": 944800,
+            "max": 944800
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 946344,
+            "q1": 946343,
+            "q3": 946344,
+            "min": 946343,
+            "max": 946344
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 4096,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 581.991804,
+            "q1": 569.40284,
+            "q3": 634.1097689999999,
+            "min": 546.540167,
+            "max": 671.459515
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 164.79259,
+            "q1": 162.16578249999998,
+            "q3": 174.885126,
+            "min": 157.255899,
+            "max": 189.76452899999998
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 3779232,
+            "q1": 3779232,
+            "q3": 3779232,
+            "min": 3779232,
+            "max": 3779232
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 3788610,
+            "q1": 3788609.5,
+            "q3": 3788610,
+            "min": 3788609,
+            "max": 3788610
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 13.480672,
+            "q1": 13.1357475,
+            "q3": 13.652101,
+            "min": 13.049069,
+            "max": 18.785194
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 8.727409,
+            "q1": 8.5391665,
+            "q3": 8.8287275,
+            "min": 8.347043,
+            "max": 13.895849
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.9203494763387832,
+            "q1": 1.663098389429143,
+            "q3": 1.9578077645176801,
+            "min": 1.394075309819861,
+            "max": 2.828698441724746
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 958,
+            "q1": 957.5,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 26.57299,
+            "q1": 25.088186999999998,
+            "q3": 28.98938,
+            "min": 24.194240999999998,
+            "max": 32.630533
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 15.305828,
+            "q1": 15.2338905,
+            "q3": 18.746138000000002,
+            "min": 14.382258,
+            "max": 23.099006
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6754146846782378,
+            "q1": 1.472053558025995,
+            "q3": 1.6942305090642016,
+            "min": 1.3918913465831961,
+            "max": 2.1173160658046473
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107.5,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 60.525014,
+            "q1": 59.326085500000005,
+            "q3": 61.247898,
+            "min": 58.48759,
+            "max": 77.426463
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 31.306267,
+            "q1": 30.1826695,
+            "q3": 33.8216115,
+            "min": 28.726228,
+            "max": 41.562912
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.392603063469874,
+            "q1": 1.3540854023154234,
+            "q3": 1.4006336086846796,
+            "min": 1.16751177102679,
+            "max": 1.7755485544475749
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521.5,
+            "q3": 236522,
+            "min": 236520,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 1024,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 182.628773,
+            "q1": 178.02157499999998,
+            "q3": 192.58783449999999,
+            "min": 172.018842,
+            "max": 265.456364
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 77.896644,
+            "q1": 73.816609,
+            "q3": 80.230468,
+            "min": 73.694739,
+            "max": 84.055553
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1452586107489442,
+            "q1": 1.091525106828544,
+            "q3": 1.277370576052686,
+            "min": 0.9817661212248955,
+            "max": 1.4083101410276455
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 944800,
+            "q1": 944800,
+            "q3": 944800,
+            "min": 944800,
+            "max": 944800
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 946344,
+            "q1": 946343,
+            "q3": 946344,
+            "min": 946343,
+            "max": 946344
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 4096,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 629.167838,
+            "q1": 614.615955,
+            "q3": 635.9049245000001,
+            "min": 604.662695,
+            "max": 649.758023
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 215.990765,
+            "q1": 211.6937265,
+            "q3": 217.644273,
+            "min": 210.754655,
+            "max": 220.57488
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.0391560290770006,
+            "q1": 0.9949557214385691,
+            "q3": 1.1166044613007777,
+            "min": 0.9370152986811126,
+            "max": 1.1328814157930776
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 3779232,
+            "q1": 3779232,
+            "q3": 3779232,
+            "min": 3779232,
+            "max": 3779232
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 3788610,
+            "q1": 3788609.5,
+            "q3": 3788610,
+            "min": 3788609,
+            "max": 3788610
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 16.629466999999998,
+            "q1": 15.746384499999998,
+            "q3": 22.8463115,
+            "min": 15.408322,
+            "max": 45.673463999999996
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 10.847618,
+            "q1": 10.549766000000002,
+            "q3": 13.5260475,
+            "min": 10.487295000000001,
+            "max": 19.758415000000003
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.3614333048433562,
+            "q1": 2.277953205069827,
+            "q3": 3.276947623854201,
+            "min": 1.8345372033702967,
+            "max": 4.723225108981678
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 958,
+            "q1": 957.5,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 25.183543,
+            "q1": 25.136441499999997,
+            "q3": 28.726706999999998,
+            "min": 25.064841,
+            "max": 33.028118
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 16.188574,
+            "q1": 15.923675,
+            "q3": 19.0298715,
+            "min": 15.738742,
+            "max": 23.795663
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6331868797698945,
+            "q1": 1.5079750777322485,
+            "q3": 1.729994825744599,
+            "min": 1.386395047071069,
+            "max": 1.9409341727472003
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107.5,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 72.93298,
+            "q1": 63.998968500000004,
+            "q3": 77.5868615,
+            "min": 61.952937,
+            "max": 82.93591599999999
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 40.011556,
+            "q1": 36.947614,
+            "q3": 42.920001,
+            "min": 33.761579,
+            "max": 44.93779
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6724486815082222,
+            "q1": 1.4635054769202127,
+            "q3": 1.8067415806173903,
+            "min": 1.208287240514332,
+            "max": 1.874001786157908
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 1024,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 206.541366,
+            "q1": 196.178575,
+            "q3": 212.9988775,
+            "min": 185.171484,
+            "max": 298.58590499999997
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 87.369901,
+            "q1": 82.3012825,
+            "q3": 88.1880285,
+            "min": 81.417484,
+            "max": 89.167146
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.2441906196123813,
+            "q1": 1.179509255917306,
+            "q3": 1.3323554319498805,
+            "min": 0.9954350928489116,
+            "max": 2.0463007123004626
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 944800,
+            "q1": 944800,
+            "q3": 944800,
+            "min": 944800,
+            "max": 944800
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 946344,
+            "q1": 946343,
+            "q3": 946344,
+            "min": 946343,
+            "max": 946344
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 4096,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 677.286209,
+            "q1": 630.687421,
+            "q3": 686.812063,
+            "min": 629.877272,
+            "max": 711.431549
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 237.648259,
+            "q1": 235.26124950000002,
+            "q3": 242.61764699999998,
+            "min": 232.38624099999998,
+            "max": 250.255797
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1152345752531525,
+            "q1": 1.0408627809693127,
+            "q3": 1.1778122451894921,
+            "min": 0.9397083992472725,
+            "max": 1.3017003908516023
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 3779232,
+            "q1": 3779232,
+            "q3": 3779232,
+            "min": 3779232,
+            "max": 3779232
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 3788610,
+            "q1": 3788609.5,
+            "q3": 3788610,
+            "min": 3788609,
+            "max": 3788610
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 35.405554,
+            "q1": 33.048072,
+            "q3": 38.106951499999994,
+            "min": 26.289637000000003,
+            "max": 48.098152999999996
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 30.493967,
+            "q1": 25.159208,
+            "q3": 32.9791065,
+            "min": 20.813615000000002,
+            "max": 43.298375
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 4.629911737372228,
+            "q1": 4.174342573012943,
+            "q3": 5.540392357547725,
+            "min": 3.661390816562692,
+            "max": 5.939175856641808
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 958,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 45.238538,
+            "q1": 41.260985500000004,
+            "q3": 46.2717165,
+            "min": 36.69362,
+            "max": 63.293093999999996
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 35.817098,
+            "q1": 31.7084925,
+            "q3": 36.8973515,
+            "min": 27.467964000000002,
+            "max": 40.895027
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.8332112562466247,
+            "q1": 2.164656750082192,
+            "q3": 2.983129826219959,
+            "min": 2.06798765984722,
+            "max": 4.330675117125727
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107.5,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 79.22993100000001,
+            "q1": 77.4376845,
+            "q3": 81.62131600000001,
+            "min": 72.228027,
+            "max": 83.34767
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 50.561097,
+            "q1": 48.003322499999996,
+            "q3": 53.0462695,
+            "min": 43.393708000000004,
+            "max": 55.989952
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.8169057968724611,
+            "q1": 1.703629203576201,
+            "q3": 1.8591062970957373,
+            "min": 1.5699862961953412,
+            "max": 1.9112711533010498
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 1024,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 205.55266,
+            "q1": 203.577206,
+            "q3": 217.445464,
+            "min": 196.039389,
+            "max": 240.164473
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 102.665823,
+            "q1": 100.60664600000001,
+            "q3": 103.747244,
+            "min": 99.120023,
+            "max": 106.755351
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.230238478955474,
+            "q1": 1.2183705988780307,
+            "q3": 1.3980398870380353,
+            "min": 1.0400363186228356,
+            "max": 1.5989552510720442
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 944800,
+            "q1": 944800,
+            "q3": 944800,
+            "min": 944800,
+            "max": 944800
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 946344,
+            "q1": 946343,
+            "q3": 946344,
+            "min": 946343,
+            "max": 946344
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 4096,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 646.3809769999999,
+            "q1": 631.250236,
+            "q3": 657.6637129999999,
+            "min": 618.1143059999999,
+            "max": 774.580501
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 258.45043499999997,
+            "q1": 253.4714795,
+            "q3": 262.971091,
+            "min": 242.419942,
+            "max": 265.99658700000003
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.0838495118281792,
+            "q1": 1.0059771342775574,
+            "q3": 1.1689375522399166,
+            "min": 0.9391351331137217,
+            "max": 1.3703057470031776
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 3779232,
+            "q1": 3779232,
+            "q3": 3779232,
+            "min": 3779232,
+            "max": 3779232
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 3788610,
+            "q1": 3788609.5,
+            "q3": 3788610,
+            "min": 3788609,
+            "max": 3788610
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 32.275056000000006,
+            "q1": 30.650693500000003,
+            "q3": 35.73751,
+            "min": 29.744603,
+            "max": 40.441343999999994
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 26.624115,
+            "q1": 25.039753,
+            "q3": 30.1782335,
+            "min": 24.550396,
+            "max": 35.518758999999996
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 4.699345223274933,
+            "q1": 4.027753334566282,
+            "q3": 5.08897078846706,
+            "min": 3.0789156206624755,
+            "max": 5.809186627421006
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 958,
+            "q1": 957.5,
+            "q3": 958,
+            "min": 956,
+            "max": 958
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 41.625204,
+            "q1": 39.809019500000005,
+            "q3": 49.9158105,
+            "min": 39.222611,
+            "max": 53.237482
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 32.003679,
+            "q1": 30.470225499999998,
+            "q3": 39.8277425,
+            "min": 29.958905,
+            "max": 43.078686
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.7345705891091794,
+            "q1": 2.313592032033933,
+            "q3": 3.237267245687434,
+            "min": 1.8276128489971533,
+            "max": 3.4136175524103076
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107.5,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 85.53452,
+            "q1": 82.6695425,
+            "q3": 88.4020095,
+            "min": 73.395155,
+            "max": 101.763243
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 55.555293,
+            "q1": 50.873853,
+            "q3": 57.539407499999996,
+            "min": 46.778446,
+            "max": 63.53652999999999
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.9290597572878723,
+            "q1": 1.78420566591752,
+            "q3": 2.0254574758780084,
+            "min": 1.6711922208635785,
+            "max": 2.333641135131632
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521.5,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 1024,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 224.446411,
+            "q1": 206.397584,
+            "q3": 241.74311699999998,
+            "min": 202.95378,
+            "max": 289.568064
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 106.981643,
+            "q1": 105.74974750000001,
+            "q3": 107.74349000000001,
+            "min": 105.17327499999999,
+            "max": 110.429286
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.390904452030552,
+            "q1": 1.282664653125944,
+            "q3": 1.5290855918690158,
+            "min": 1.1091834153402678,
+            "max": 1.7479255612096691
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 944800,
+            "q1": 944800,
+            "q3": 944800,
+            "min": 944800,
+            "max": 944800
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 946344,
+            "q1": 946343,
+            "q3": 946344,
+            "min": 946343,
+            "max": 946344
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 4096,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 684.4394689999999,
+            "q1": 662.5494205,
+            "q3": 698.3475745,
+            "min": 641.717981,
+            "max": 713.419479
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 267.145868,
+            "q1": 257.0600925,
+            "q3": 268.67925,
+            "min": 252.27286500000002,
+            "max": 271.95401000000004
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1831699682365848,
+            "q1": 1.083943451875408,
+            "q3": 1.197602872947992,
+            "min": 1.0044943063624316,
+            "max": 1.2084837246264724
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 3779232,
+            "q1": 3779232,
+            "q3": 3779232,
+            "min": 3779232,
+            "max": 3779232
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 3788610,
+            "q1": 3788609.5,
+            "q3": 3788610,
+            "min": 3788609,
+            "max": 3788610
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 14.266366000000001,
+            "q1": 13.4308675,
+            "q3": 14.882698,
+            "min": 12.708591,
+            "max": 20.769706
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 8.525210999999999,
+            "q1": 7.7828125,
+            "q3": 9.048169999999999,
+            "min": 7.732279,
+            "max": 15.819263
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.8195521458277168,
+            "q1": 1.7048371116153294,
+            "q3": 2.178622842758278,
+            "min": 1.5092097455484368,
+            "max": 2.9834591637376304
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 958,
+            "q1": 957.5,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 24.597725,
+            "q1": 23.2873175,
+            "q3": 30.214426000000003,
+            "min": 22.679986,
+            "max": 33.411933999999995
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 14.194363,
+            "q1": 13.669191999999999,
+            "q3": 20.619163,
+            "min": 13.472655999999999,
+            "max": 22.258137
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.551822557875901,
+            "q1": 1.4664748453874017,
+            "q3": 1.748555219632649,
+            "min": 1.2840152587699034,
+            "max": 1.9529644116920386
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107.5,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 65.055528,
+            "q1": 60.20086499999999,
+            "q3": 67.443844,
+            "min": 57.350884,
+            "max": 76.232946
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 30.296810999999998,
+            "q1": 29.7294055,
+            "q3": 37.047349499999996,
+            "min": 29.262283,
+            "max": 40.015659
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.486794660899096,
+            "q1": 1.3983546611835618,
+            "q3": 1.4970462247065006,
+            "min": 1.321913681081704,
+            "max": 1.5601436702941673
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521.5,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 1024,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 188.362925,
+            "q1": 177.913892,
+            "q3": 192.0525245,
+            "min": 174.56344900000002,
+            "max": 200.56574999999998
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 81.60802000000001,
+            "q1": 79.43542,
+            "q3": 87.4406305,
+            "min": 76.901996,
+            "max": 100.064689
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.0646278348479075,
+            "q1": 1.058885317475995,
+            "q3": 1.23765063396919,
+            "min": 1.04563036391051,
+            "max": 1.263500661506379
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 944800,
+            "q1": 944800,
+            "q3": 944800,
+            "min": 944800,
+            "max": 944800
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 946344,
+            "q1": 946343.5,
+            "q3": 946344,
+            "min": 946343,
+            "max": 946344
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 4096,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 635.240921,
+            "q1": 614.64644,
+            "q3": 666.7147305,
+            "min": 599.546588,
+            "max": 716.6307589999999
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 230.369596,
+            "q1": 225.413164,
+            "q3": 233.3337795,
+            "min": 217.435799,
+            "max": 246.01088199999998
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.030163283880197,
+            "q1": 0.9973690948999219,
+            "q3": 1.1399163887516077,
+            "min": 0.9460598990841614,
+            "max": 1.311213342165938
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 3779232,
+            "q1": 3779232,
+            "q3": 3779232,
+            "min": 3779232,
+            "max": 3779232
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 3788610,
+            "q1": 3788609,
+            "q3": 3788610,
+            "min": 3788609,
+            "max": 3788610
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 21.983532,
+            "q1": 21.577122499999998,
+            "q3": 23.4668405,
+            "min": 20.922493,
+            "max": 31.335633
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 16.887082,
+            "q1": 16.439034,
+            "q3": 17.177103000000002,
+            "min": 15.979467000000001,
+            "max": 24.741712
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 3.25780337478651,
+            "q1": 3.0585337572028317,
+            "q3": 3.319429778913837,
+            "min": 2.2152043014800245,
+            "max": 3.730865991096109
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 958,
+            "q1": 957,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 32.166184,
+            "q1": 31.740007,
+            "q3": 34.8584515,
+            "min": 31.54903,
+            "max": 37.590818999999996
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 22.353544,
+            "q1": 22.210794,
+            "q3": 24.662815000000002,
+            "min": 22.104612,
+            "max": 28.481631
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.9827089493801244,
+            "q1": 1.8578277837154742,
+            "q3": 2.2837212974159242,
+            "min": 1.4798440866180187,
+            "max": 2.4640592747318797
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 80.398456,
+            "q1": 71.56588400000001,
+            "q3": 88.4088855,
+            "min": 65.611309,
+            "max": 97.655694
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 46.217844,
+            "q1": 38.907507,
+            "q3": 48.680105,
+            "min": 38.466006,
+            "max": 52.614088
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.7531717408068606,
+            "q1": 1.5923215841306473,
+            "q3": 2.0037069574240545,
+            "min": 1.5123129924340684,
+            "max": 2.194419389923162
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 1024,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 192.355558,
+            "q1": 187.5640335,
+            "q3": 195.8785785,
+            "min": 181.231938,
+            "max": 201.81569399999998
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 85.50965500000001,
+            "q1": 84.38063,
+            "q3": 92.462501,
+            "min": 82.840965,
+            "max": 98.29150200000001
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1611197451282096,
+            "q1": 1.0840666796879828,
+            "q3": 1.2581735961295277,
+            "min": 1.0256061624039794,
+            "max": 1.3459477416604186
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 944800,
+            "q1": 944800,
+            "q3": 944800,
+            "min": 944800,
+            "max": 944800
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 946344,
+            "q1": 946343.5,
+            "q3": 946344,
+            "min": 946343,
+            "max": 946344
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 4096,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 643.711025,
+            "q1": 633.566018,
+            "q3": 668.878872,
+            "min": 619.1634740000001,
+            "max": 758.457709
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 246.100918,
+            "q1": 237.606928,
+            "q3": 251.85900400000003,
+            "min": 228.762439,
+            "max": 273.51081
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1060482648996204,
+            "q1": 1.0224085871524053,
+            "q3": 1.18007059419576,
+            "min": 0.9221158687430322,
+            "max": 1.3224040531641026
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 3779232,
+            "q1": 3779232,
+            "q3": 3779232,
+            "min": 3779232,
+            "max": 3779232
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 3788610,
+            "q1": 3788609.5,
+            "q3": 3788610,
+            "min": 3788609,
+            "max": 3788610
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 1,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 31.786821,
+            "q1": 24.592654500000002,
+            "q3": 34.6488945,
+            "min": 24.176296,
+            "max": 42.341048
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 19.90652,
+            "q1": 19.4960125,
+            "q3": 29.276467,
+            "min": 19.151764,
+            "max": 36.229889
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 3.476957921305596,
+            "q1": 3.2819167470063495,
+            "q3": 5.094900165270719,
+            "min": 2.9647054229158054,
+            "max": 6.164983932708115
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 911,
+            "q1": 911,
+            "q3": 911,
+            "min": 911,
+            "max": 911
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 958,
+            "q1": 957.5,
+            "q3": 958,
+            "min": 957,
+            "max": 958
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 41.041265,
+            "q1": 37.652283499999996,
+            "q3": 42.012467,
+            "min": 34.270086,
+            "max": 48.641493000000004
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 31.960884000000004,
+            "q1": 28.303191,
+            "q3": 33.0868995,
+            "min": 24.877374,
+            "max": 35.644659000000004
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.3044092445556834,
+            "q1": 2.138265142782518,
+            "q3": 2.6949865436063467,
+            "min": 2.1130643995208414,
+            "max": 2.9190028010490883
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107.5,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 82.255059,
+            "q1": 71.3741315,
+            "q3": 85.780148,
+            "min": 67.917654,
+            "max": 88.740356
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 50.395253000000004,
+            "q1": 44.352416,
+            "q3": 52.178109000000006,
+            "min": 39.842313,
+            "max": 57.110221
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.9350268196561033,
+            "q1": 1.6162001510830808,
+            "q3": 1.9789127954742587,
+            "min": 1.3246189560612303,
+            "max": 2.034999465453603
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521.5,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 1024,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 199.070344,
+            "q1": 196.163373,
+            "q3": 204.6831075,
+            "min": 192.595852,
+            "max": 208.650152
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 97.21632,
+            "q1": 96.753154,
+            "q3": 98.5423625,
+            "min": 94.830868,
+            "max": 101.259451
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1860288982070086,
+            "q1": 1.134113786695021,
+            "q3": 1.3583108253142484,
+            "min": 1.0390031387400784,
+            "max": 1.3832167365845918
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 944800,
+            "q1": 944800,
+            "q3": 944800,
+            "min": 944800,
+            "max": 944800
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 946344,
+            "q1": 946343.5,
+            "q3": 946344,
+            "min": 946343,
+            "max": 946344
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 4096,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 648.9178009999999,
+            "q1": 641.1495809999999,
+            "q3": 666.546281,
+            "min": 619.937408,
+            "max": 690.3916909999999
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 249.284855,
+            "q1": 248.3299805,
+            "q3": 254.64182850000003,
+            "min": 244.531376,
+            "max": 257.93219
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.0935718658333544,
+            "q1": 1.052710995009665,
+            "q3": 1.1140720125748254,
+            "min": 0.9618588828843985,
+            "max": 1.2632039375799435
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 3779232,
+            "q1": 3779232,
+            "q3": 3779232,
+            "min": 3779232,
+            "max": 3779232
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 3788610,
+            "q1": 3788609.5,
+            "q3": 3788610,
+            "min": 3788609,
+            "max": 3788610
+          }
+        }
+      ]
+    },
+    {
+      "name": "capacity-baseline-02",
+      "run": "e6e121b4-0e13-4a16-a45c-9f7b91080a0f",
+      "gitCommit": "ad4a23241b7a351e2406fe555283f9e81591139a",
+      "fixtureHash": "edd610ac1221e0fbeaddf15e67a9733b9faab0fff55f9efc9f1693dfa6ab6db8",
+      "startedAt": "2026-09-09T18:16:45.824Z",
+      "completedAt": "2026-09-09T18:18:34.756Z",
+      "durationSeconds": 108.932,
+      "deployment": "lovable-donkey-430",
+      "versions": {
+        "convex": "1.32.0",
+        "convex-helpers": "0.1.113",
+        "zod": "4.5.4",
+        "zodvex": "0.7.10"
+      },
+      "batches": [
+        64,
+        256,
+        8192
+      ],
+      "payloadBytes": 640,
+      "rounds": 7,
+      "seed": 137,
+      "calls": 176,
+      "failures": 0,
+      "validity": {
+        "valid": true,
+        "reasons": []
+      },
+      "queryReadBytes": 440279968,
+      "summaries": [
+        {
+          "variant": "native",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 15.803135999999999,
+            "q1": 15.6568595,
+            "q3": 17.8259575,
+            "min": 15.056728,
+            "max": 18.874236999999997
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 6.247882,
+            "q1": 6.0843485,
+            "q3": 8.114425,
+            "min": 5.946574,
+            "max": 9.356214999999999
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 46.620971,
+            "q1": 44.38658149999999,
+            "q3": 47.817823000000004,
+            "min": 41.683341,
+            "max": 51.096258
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 18.5821,
+            "q1": 15.715039,
+            "q3": 19.3206555,
+            "min": 15.599450000000001,
+            "max": 20.123534
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 8192,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 1087.208864,
+            "q1": 1082.4413865,
+            "q3": 1110.923645,
+            "min": 1056.264144,
+            "max": 1131.585374
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 311.51619200000005,
+            "q1": 308.2828145,
+            "q3": 318.3619555,
+            "min": 303.466805,
+            "max": 319.465127
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 7558476,
+            "q1": 7558476,
+            "q3": 7558476,
+            "min": 7558476,
+            "max": 7558476
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 7578295,
+            "q1": 7578295,
+            "q3": 7578296,
+            "min": 7578295,
+            "max": 7578296
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 25.701596,
+            "q1": 24.608049,
+            "q3": 31.495892,
+            "min": 23.568169,
+            "max": 48.490717000000004
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 16.301969999999997,
+            "q1": 15.066455,
+            "q3": 21.9421505,
+            "min": 14.232263,
+            "max": 22.190826
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.572423473416922,
+            "q1": 1.5091397015368664,
+            "q3": 1.8842553655979106,
+            "min": 1.2910125055651256,
+            "max": 3.103152472156514
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 62.310964000000006,
+            "q1": 61.1842355,
+            "q3": 63.0562005,
+            "min": 55.475584000000005,
+            "max": 63.72748
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 33.834855,
+            "q1": 33.300937,
+            "q3": 35.3131135,
+            "min": 27.916631000000002,
+            "max": 36.503381000000005
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.3348919209033216,
+            "q1": 1.3013946205187217,
+            "q3": 1.421419929262798,
+            "min": 1.0857073721523796,
+            "max": 1.4796392640407592
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 8192,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 1209.7366,
+            "q1": 1171.1359095,
+            "q3": 1225.574165,
+            "min": 1151.921934,
+            "max": 1280.571921
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 376.168927,
+            "q1": 373.61311550000005,
+            "q3": 379.15923699999996,
+            "min": 364.334402,
+            "max": 399.244135
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.0911374594637273,
+            "q1": 1.081337478834634,
+            "q3": 1.1139615927199409,
+            "min": 1.047153433780596,
+            "max": 1.179816926430135
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 7558476,
+            "q1": 7558476,
+            "q3": 7558476,
+            "min": 7558476,
+            "max": 7558476
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 7578295,
+            "q1": 7578295,
+            "q3": 7578296,
+            "min": 7578295,
+            "max": 7578296
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 27.546312,
+            "q1": 26.5727785,
+            "q3": 30.947916499999998,
+            "min": 25.617355,
+            "max": 33.382780000000004
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 17.883553,
+            "q1": 16.557119,
+            "q3": 21.281256499999998,
+            "min": 15.887036,
+            "max": 24.268333
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6493133000314963,
+            "q1": 1.6303074556169728,
+            "q3": 1.9008919683574075,
+            "min": 1.3572657268211692,
+            "max": 2.1363234592810216
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 66.457295,
+            "q1": 62.91522,
+            "q3": 68.5730735,
+            "min": 60.983229,
+            "max": 80.86341700000001
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 36.389532,
+            "q1": 34.4978115,
+            "q3": 39.745515499999996,
+            "min": 32.623503,
+            "max": 41.197644
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.387537907518943,
+            "q1": 1.331718067247999,
+            "q3": 1.5120652624048048,
+            "min": 1.3048190079536353,
+            "max": 1.8577709877322919
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 8192,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 1209.4377510000002,
+            "q1": 1205.4247544999998,
+            "q3": 1236.4181064999998,
+            "min": 1148.989928,
+            "max": 1311.3069950000001
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 414.81052600000004,
+            "q1": 408.324706,
+            "q3": 415.4741925,
+            "min": 401.41966099999996,
+            "max": 426.682677
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1148836120276002,
+            "q1": 1.0889189137604243,
+            "q3": 1.1254630092249256,
+            "min": 1.036178468524989,
+            "max": 1.2414574540362322
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 7558476,
+            "q1": 7558476,
+            "q3": 7558476,
+            "min": 7558476,
+            "max": 7558476
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 7578295,
+            "q1": 7578295,
+            "q3": 7578296,
+            "min": 7578295,
+            "max": 7578296
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 43.72553,
+            "q1": 42.375635,
+            "q3": 47.1523895,
+            "min": 37.059157,
+            "max": 50.97767
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 34.581306,
+            "q1": 33.0585985,
+            "q3": 37.4317485,
+            "min": 27.147857000000002,
+            "max": 39.959334
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.604463063533719,
+            "q1": 2.516230705839083,
+            "q3": 2.7623266633714545,
+            "min": 2.3643534835341957,
+            "max": 3.1668265503817294
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 80.592071,
+            "q1": 76.0839175,
+            "q3": 80.889127,
+            "min": 70.482018,
+            "max": 83.786692
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 51.001154,
+            "q1": 47.633673,
+            "q3": 51.4475105,
+            "min": 43.091746,
+            "max": 55.699042999999996
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6906287124178485,
+            "q1": 1.6067831062918763,
+            "q3": 1.7771953807525642,
+            "min": 1.5118093100205914,
+            "max": 1.9334359738582376
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 8192,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 1225.752932,
+            "q1": 1219.8262095,
+            "q3": 1265.0372295,
+            "min": 1213.7110559999999,
+            "max": 1310.013281
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 431.800978,
+            "q1": 427.92210350000005,
+            "q3": 432.46208850000005,
+            "min": 417.347508,
+            "max": 437.485783
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1291521338444626,
+            "q1": 1.1088427416592452,
+            "q3": 1.1618547065134806,
+            "min": 1.094870581685345,
+            "max": 1.2028330518878911
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 7558476,
+            "q1": 7558476,
+            "q3": 7558476,
+            "min": 7558476,
+            "max": 7558476
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 7578295,
+            "q1": 7578295,
+            "q3": 7578296,
+            "min": 7578295,
+            "max": 7578296
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 49.448978999999994,
+            "q1": 48.138977999999994,
+            "q3": 49.692998,
+            "min": 39.626641,
+            "max": 65.82903
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 39.137898,
+            "q1": 37.9290285,
+            "q3": 39.816357499999995,
+            "min": 30.101644,
+            "max": 41.763494
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 3.134641440787449,
+            "q1": 2.8190476285606536,
+            "q3": 3.2376054376121948,
+            "min": 2.3372415899355734,
+            "max": 3.4877717176063867
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59106,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 82.205685,
+            "q1": 77.54909850000001,
+            "q3": 87.5703655,
+            "min": 72.80362799999999,
+            "max": 98.401561
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 54.915303,
+            "q1": 50.142986500000006,
+            "q3": 57.125303,
+            "min": 45.104601,
+            "max": 60.534256
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.8133380939704236,
+            "q1": 1.6441429456807803,
+            "q3": 2.0266279991886846,
+            "min": 1.429690213322471,
+            "max": 2.11451953911276
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236520,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 8192,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 1295.8151469999998,
+            "q1": 1281.0234645,
+            "q3": 1301.1261935,
+            "min": 1222.0261560000001,
+            "max": 1408.342728
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 438.865614,
+            "q1": 434.327171,
+            "q3": 443.87931199999997,
+            "min": 428.883266,
+            "max": 451.35386900000003
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1770897750955818,
+            "q1": 1.160606619721161,
+            "q3": 1.1925748500975206,
+            "min": 1.1287330707404495,
+            "max": 1.2953745822293077
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 7558476,
+            "q1": 7558476,
+            "q3": 7558476,
+            "min": 7558476,
+            "max": 7558476
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 7578295,
+            "q1": 7578295,
+            "q3": 7578296,
+            "min": 7578295,
+            "max": 7578296
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 28.315143000000003,
+            "q1": 25.5643625,
+            "q3": 31.710108500000004,
+            "min": 23.352179,
+            "max": 33.513566000000004
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 18.943274,
+            "q1": 15.4034385,
+            "q3": 21.9831405,
+            "min": 14.133130000000001,
+            "max": 22.391207
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6347001038507192,
+            "q1": 1.5726355504550698,
+            "q3": 1.840813165713473,
+            "min": 1.4776927187110205,
+            "max": 2.074867062750951
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 63.027896999999996,
+            "q1": 61.4115265,
+            "q3": 63.2826865,
+            "min": 56.689663,
+            "max": 80.16654600000001
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 33.993271,
+            "q1": 33.119134,
+            "q3": 35.873453999999995,
+            "min": 29.54128,
+            "max": 36.790695
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.3185638393947396,
+            "q1": 1.3053787942678756,
+            "q3": 1.4361086630084041,
+            "min": 1.181343964561945,
+            "max": 1.771791236117986
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236522,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 8192,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 1207.54053,
+            "q1": 1179.9430350000002,
+            "q3": 1219.3019955,
+            "min": 1153.357652,
+            "max": 1224.310082
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 400.70761799999997,
+            "q1": 399.5435095,
+            "q3": 401.8119145,
+            "min": 396.94676499999997,
+            "max": 406.96842300000003
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.0934923779824552,
+            "q1": 1.0757961117449777,
+            "q3": 1.1125511876089078,
+            "min": 1.0572739781629592,
+            "max": 1.1341623921434274
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 7558476,
+            "q1": 7558476,
+            "q3": 7558476,
+            "min": 7558476,
+            "max": 7558476
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 7578295,
+            "q1": 7578295,
+            "q3": 7578296,
+            "min": 7578295,
+            "max": 7578296
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 40.826456,
+            "q1": 32.1048675,
+            "q3": 41.1446725,
+            "min": 31.748872999999996,
+            "max": 41.913723
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 31.278986000000003,
+            "q1": 22.817937,
+            "q3": 31.470327499999996,
+            "min": 22.265169,
+            "max": 32.965195
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.1919668049153396,
+            "q1": 2.0818378940092885,
+            "q3": 2.5244603122643134,
+            "min": 1.6949457612511705,
+            "max": 2.652240859029499
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59107,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 70.624365,
+            "q1": 65.7576995,
+            "q3": 74.3584765,
+            "min": 64.065098,
+            "max": 80.169921
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 43.537065,
+            "q1": 38.350538,
+            "q3": 45.883927,
+            "min": 37.558753,
+            "max": 48.660883000000005
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.5040516818198146,
+            "q1": 1.4411463392238986,
+            "q3": 1.6402532920411836,
+            "min": 1.253811932764235,
+            "max": 1.8451932391887682
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 8192,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 1202.368076,
+            "q1": 1200.753116,
+            "q3": 1224.0586779999999,
+            "min": 1193.176125,
+            "max": 1247.4994370000002
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 423.229339,
+            "q1": 416.965327,
+            "q3": 426.5163445,
+            "min": 410.80298999999997,
+            "max": 433.304215
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.122436741543665,
+            "q1": 1.082063067335393,
+            "q3": 1.1334884978898363,
+            "min": 1.0544287266477164,
+            "max": 1.15564428200592
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 7558476,
+            "q1": 7558476,
+            "q3": 7558476,
+            "min": 7558476,
+            "max": 7558476
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 7578295,
+            "q1": 7578295,
+            "q3": 7578296,
+            "min": 7578295,
+            "max": 7578296
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 64,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 44.555828,
+            "q1": 40.3945305,
+            "q3": 45.6862965,
+            "min": 37.239981,
+            "max": 51.422402999999996
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 33.623,
+            "q1": 31.080813999999997,
+            "q3": 34.567593,
+            "min": 27.623067000000002,
+            "max": 35.065002
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 2.8936921715030297,
+            "q1": 2.268284141273722,
+            "q3": 2.9507732639522732,
+            "min": 1.991712620752319,
+            "max": 3.253936623718229
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 59040,
+            "q1": 59040,
+            "q3": 59040,
+            "min": 59040,
+            "max": 59040
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 59108,
+            "q1": 59107,
+            "q3": 59108,
+            "min": 59107,
+            "max": 59108
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 256,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 74.865526,
+            "q1": 73.528433,
+            "q3": 77.7791815,
+            "min": 67.873482,
+            "max": 79.865324
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 46.650097,
+            "q1": 46.3076355,
+            "q3": 49.861031,
+            "min": 40.711219,
+            "max": 50.412479000000005
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.6546313826987533,
+            "q1": 1.5463627540085694,
+            "q3": 1.7127907618295863,
+            "min": 1.4438100731368626,
+            "max": 1.7785371179410503
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 236192,
+            "q1": 236192,
+            "q3": 236192,
+            "min": 236192,
+            "max": 236192
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 236521,
+            "q1": 236521,
+            "q3": 236522,
+            "min": 236521,
+            "max": 236522
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 8192,
+          "attempts": 7,
+          "successes": 7,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 7,
+            "median": 1227.662092,
+            "q1": 1210.336941,
+            "q3": 1314.666455,
+            "min": 1199.098538,
+            "max": 1442.326956
+          },
+          "userExecutionMs": {
+            "count": 7,
+            "median": 428.338865,
+            "q1": 424.087034,
+            "q3": 433.46984,
+            "min": 420.873568,
+            "max": 444.318009
+          },
+          "pairedNativeRatio": {
+            "count": 7,
+            "median": 1.1291869783725383,
+            "q1": 1.1164481689591523,
+            "q3": 1.1792216895170426,
+            "min": 1.0944322744809984,
+            "max": 1.3361263741270963
+          },
+          "readBytes": {
+            "count": 7,
+            "median": 7558476,
+            "q1": 7558476,
+            "q3": 7558476,
+            "min": 7558476,
+            "max": 7558476
+          },
+          "returnedBytes": {
+            "count": 7,
+            "median": 7578295,
+            "q1": 7578295,
+            "q3": 7578296,
+            "min": 7578295,
+            "max": 7578296
+          }
+        }
+      ]
+    },
+    {
+      "name": "capacity-read-limit",
+      "run": "abcbfa6a-a6f9-484d-82e6-7844c07b9494",
+      "gitCommit": "ad4a23241b7a351e2406fe555283f9e81591139a",
+      "fixtureHash": "5092dac18dfb0e21f03d559f7d4deb1c91f0ba60f03423c4db0445b962057acf",
+      "startedAt": "2026-09-09T18:26:04.369Z",
+      "completedAt": "2026-09-09T18:26:45.269Z",
+      "durationSeconds": 40.9,
+      "deployment": "lovable-donkey-430",
+      "versions": {
+        "convex": "1.32.0",
+        "convex-helpers": "0.1.113",
+        "zod": "4.5.4",
+        "zodvex": "0.7.10"
+      },
+      "batches": [
+        64,
+        8192
+      ],
+      "payloadBytes": 2048,
+      "rounds": 3,
+      "seed": 73,
+      "calls": 56,
+      "failures": 24,
+      "validity": {
+        "valid": true,
+        "reasons": []
+      },
+      "queryReadBytes": 416628104,
+      "summaries": [
+        {
+          "variant": "native",
+          "rows": 64,
+          "attempts": 3,
+          "successes": 3,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 3,
+            "median": 19.669843,
+            "q1": 18.386468,
+            "q3": 21.8470225,
+            "min": 17.103093,
+            "max": 24.024202000000002
+          },
+          "userExecutionMs": {
+            "count": 3,
+            "median": 6.183497,
+            "q1": 6.134385,
+            "q3": 6.6736435,
+            "min": 6.085273000000001,
+            "max": 7.16379
+          },
+          "pairedNativeRatio": {
+            "count": 3,
+            "median": 1,
+            "q1": 1,
+            "q3": 1,
+            "min": 1,
+            "max": 1
+          },
+          "readBytes": {
+            "count": 3,
+            "median": 149152,
+            "q1": 149152,
+            "q3": 149152,
+            "min": 149152,
+            "max": 149152
+          },
+          "returnedBytes": {
+            "count": 3,
+            "median": 149219,
+            "q1": 149219,
+            "q3": 149219,
+            "min": 149219,
+            "max": 149219
+          }
+        },
+        {
+          "variant": "native",
+          "rows": 8192,
+          "attempts": 3,
+          "successes": 0,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [
+            "read-limit",
+            "read-limit",
+            "read-limit"
+          ],
+          "executionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "userExecutionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "pairedNativeRatio": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "readBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "returnedBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 64,
+          "attempts": 3,
+          "successes": 3,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 3,
+            "median": 25.801471,
+            "q1": 25.633222500000002,
+            "q3": 29.892734,
+            "min": 25.464974,
+            "max": 33.983997
+          },
+          "userExecutionMs": {
+            "count": 3,
+            "median": 14.973053,
+            "q1": 14.7544825,
+            "q3": 19.020927999999998,
+            "min": 14.535912,
+            "max": 23.068803
+          },
+          "pairedNativeRatio": {
+            "count": 3,
+            "median": 1.488910456137963,
+            "q1": 1.281444365106707,
+            "q3": 1.6083156310218674,
+            "min": 1.0739782740754509,
+            "max": 1.7277208059057716
+          },
+          "readBytes": {
+            "count": 3,
+            "median": 149152,
+            "q1": 149152,
+            "q3": 149152,
+            "min": 149152,
+            "max": 149152
+          },
+          "returnedBytes": {
+            "count": 3,
+            "median": 149219,
+            "q1": 149219,
+            "q3": 149219,
+            "min": 149219,
+            "max": 149219
+          }
+        },
+        {
+          "variant": "helpers",
+          "rows": 8192,
+          "attempts": 3,
+          "successes": 0,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [
+            "read-limit",
+            "read-limit",
+            "read-limit"
+          ],
+          "executionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "userExecutionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "pairedNativeRatio": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "readBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "returnedBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 64,
+          "attempts": 3,
+          "successes": 3,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 3,
+            "median": 30.349101,
+            "q1": 29.645574,
+            "q3": 32.8916805,
+            "min": 28.942047,
+            "max": 35.43426
+          },
+          "userExecutionMs": {
+            "count": 3,
+            "median": 18.216112,
+            "q1": 17.736029000000002,
+            "q3": 20.941746,
+            "min": 17.255946,
+            "max": 23.667379999999998
+          },
+          "pairedNativeRatio": {
+            "count": 3,
+            "median": 1.6922112859937086,
+            "q1": 1.4777416282420666,
+            "q3": 1.7468311851376839,
+            "min": 1.2632719704904245,
+            "max": 1.8014510842816591
+          },
+          "readBytes": {
+            "count": 3,
+            "median": 149152,
+            "q1": 149152,
+            "q3": 149152,
+            "min": 149152,
+            "max": 149152
+          },
+          "returnedBytes": {
+            "count": 3,
+            "median": 149219,
+            "q1": 149219,
+            "q3": 149219,
+            "min": 149219,
+            "max": 149219
+          }
+        },
+        {
+          "variant": "full_lean",
+          "rows": 8192,
+          "attempts": 3,
+          "successes": 0,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [
+            "read-limit",
+            "read-limit",
+            "read-limit"
+          ],
+          "executionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "userExecutionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "pairedNativeRatio": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "readBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "returnedBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 64,
+          "attempts": 3,
+          "successes": 3,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 3,
+            "median": 39.592668999999994,
+            "q1": 38.6544825,
+            "q3": 45.5948535,
+            "min": 37.716296,
+            "max": 51.597038
+          },
+          "userExecutionMs": {
+            "count": 3,
+            "median": 27.783733,
+            "q1": 27.3926845,
+            "q3": 32.9894385,
+            "min": 27.001635999999998,
+            "max": 38.195144
+          },
+          "pairedNativeRatio": {
+            "count": 3,
+            "median": 2.1477107959714954,
+            "q1": 2.0325894356697294,
+            "q3": 2.2313264179936487,
+            "min": 1.917468075367963,
+            "max": 2.3149420400158025
+          },
+          "readBytes": {
+            "count": 3,
+            "median": 149152,
+            "q1": 149152,
+            "q3": 149152,
+            "min": 149152,
+            "max": 149152
+          },
+          "returnedBytes": {
+            "count": 3,
+            "median": 149219,
+            "q1": 149219,
+            "q3": 149219,
+            "min": 149219,
+            "max": 149219
+          }
+        },
+        {
+          "variant": "full_models",
+          "rows": 8192,
+          "attempts": 3,
+          "successes": 0,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [
+            "read-limit",
+            "read-limit",
+            "read-limit"
+          ],
+          "executionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "userExecutionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "pairedNativeRatio": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "readBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "returnedBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 64,
+          "attempts": 3,
+          "successes": 3,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 3,
+            "median": 54.546967,
+            "q1": 51.9286865,
+            "q3": 54.6528885,
+            "min": 49.310406,
+            "max": 54.75881
+          },
+          "userExecutionMs": {
+            "count": 3,
+            "median": 41.668668,
+            "q1": 39.373614,
+            "q3": 41.891960999999995,
+            "min": 37.07856,
+            "max": 42.115254
+          },
+          "pairedNativeRatio": {
+            "count": 3,
+            "median": 2.7838966482853977,
+            "q1": 2.4182135461883676,
+            "q3": 2.9866004434991216,
+            "min": 2.0525304440913374,
+            "max": 3.1893042387128454
+          },
+          "readBytes": {
+            "count": 3,
+            "median": 149152,
+            "q1": 149152,
+            "q3": 149152,
+            "min": 149152,
+            "max": 149152
+          },
+          "returnedBytes": {
+            "count": 3,
+            "median": 149219,
+            "q1": 149219,
+            "q3": 149219,
+            "min": 149219,
+            "max": 149219
+          }
+        },
+        {
+          "variant": "full_registry",
+          "rows": 8192,
+          "attempts": 3,
+          "successes": 0,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [
+            "read-limit",
+            "read-limit",
+            "read-limit"
+          ],
+          "executionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "userExecutionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "pairedNativeRatio": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "readBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "returnedBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 64,
+          "attempts": 3,
+          "successes": 3,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 3,
+            "median": 32.687070999999996,
+            "q1": 31.245496499999998,
+            "q3": 35.870808999999994,
+            "min": 29.803922,
+            "max": 39.054547
+          },
+          "userExecutionMs": {
+            "count": 3,
+            "median": 19.592799,
+            "q1": 17.17072,
+            "q3": 20.2958195,
+            "min": 14.748641,
+            "max": 20.99884
+          },
+          "pairedNativeRatio": {
+            "count": 3,
+            "median": 1.661786065094673,
+            "q1": 1.4511825639124156,
+            "q3": 1.9726323366603409,
+            "min": 1.2405790627301585,
+            "max": 2.283478608226009
+          },
+          "readBytes": {
+            "count": 3,
+            "median": 149152,
+            "q1": 149152,
+            "q3": 149152,
+            "min": 149152,
+            "max": 149152
+          },
+          "returnedBytes": {
+            "count": 3,
+            "median": 149219,
+            "q1": 149219,
+            "q3": 149219,
+            "min": 149219,
+            "max": 149219
+          }
+        },
+        {
+          "variant": "mini_lean",
+          "rows": 8192,
+          "attempts": 3,
+          "successes": 0,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [
+            "read-limit",
+            "read-limit",
+            "read-limit"
+          ],
+          "executionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "userExecutionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "pairedNativeRatio": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "readBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "returnedBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 64,
+          "attempts": 3,
+          "successes": 3,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 3,
+            "median": 37.041111,
+            "q1": 35.977355,
+            "q3": 42.8968885,
+            "min": 34.913599,
+            "max": 48.752666
+          },
+          "userExecutionMs": {
+            "count": 3,
+            "median": 24.310328,
+            "q1": 24.2457955,
+            "q3": 30.078777000000002,
+            "min": 24.181263,
+            "max": 35.847226000000006
+          },
+          "pairedNativeRatio": {
+            "count": 3,
+            "median": 2.029314688579458,
+            "q1": 1.902147879928473,
+            "q3": 2.0975348974901937,
+            "min": 1.774981071277488,
+            "max": 2.1657551064009297
+          },
+          "readBytes": {
+            "count": 3,
+            "median": 149152,
+            "q1": 149152,
+            "q3": 149152,
+            "min": 149152,
+            "max": 149152
+          },
+          "returnedBytes": {
+            "count": 3,
+            "median": 149219,
+            "q1": 149219,
+            "q3": 149219,
+            "min": 149219,
+            "max": 149219
+          }
+        },
+        {
+          "variant": "mini_models",
+          "rows": 8192,
+          "attempts": 3,
+          "successes": 0,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [
+            "read-limit",
+            "read-limit",
+            "read-limit"
+          ],
+          "executionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "userExecutionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "pairedNativeRatio": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "readBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "returnedBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 64,
+          "attempts": 3,
+          "successes": 3,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [],
+          "executionMs": {
+            "count": 3,
+            "median": 43.566304,
+            "q1": 42.88413250000001,
+            "q3": 44.835021,
+            "min": 42.201961000000004,
+            "max": 46.103738
+          },
+          "userExecutionMs": {
+            "count": 3,
+            "median": 33.342332,
+            "q1": 31.3992035,
+            "q3": 33.363852,
+            "min": 29.456075000000002,
+            "max": 33.385372000000004
+          },
+          "pairedNativeRatio": {
+            "count": 3,
+            "median": 2.343879308035148,
+            "q1": 2.050261460502551,
+            "q3": 2.445577819932944,
+            "min": 1.7566436129699543,
+            "max": 2.5472763318307394
+          },
+          "readBytes": {
+            "count": 3,
+            "median": 149152,
+            "q1": 149152,
+            "q3": 149152,
+            "min": 149152,
+            "max": 149152
+          },
+          "returnedBytes": {
+            "count": 3,
+            "median": 149219,
+            "q1": 149218.5,
+            "q3": 149219,
+            "min": 149218,
+            "max": 149219
+          }
+        },
+        {
+          "variant": "mini_registry",
+          "rows": 8192,
+          "attempts": 3,
+          "successes": 0,
+          "missingTelemetry": 0,
+          "cacheHits": 0,
+          "failureClasses": [
+            "read-limit",
+            "read-limit",
+            "read-limit"
+          ],
+          "executionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "userExecutionMs": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "pairedNativeRatio": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "readBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          },
+          "returnedBytes": {
+            "count": 0,
+            "median": null,
+            "q1": null,
+            "q3": null,
+            "min": null,
+            "max": null
+          }
+        }
+      ]
+    }
+  ]
+}

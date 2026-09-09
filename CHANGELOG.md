@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.7.10] - 2026-09-08
+
+### Added
+
+- Generated clients and `createZodvexHooks` expose `useZodPaginatedQuery`, with encoded filters and decoded accumulated items while Convex manages pagination. Aggregate pagination uses strict item decoding and rejects unsupported outer schema checks rather than silently dropping them.
+- `PaginatedResult` and `PaginatedSubscription` describe decoded vanilla pagination results and subscription controls.
+
+### Fixed
+
+- `onPaginatedUpdate_experimental` now handles Convex's actual `{ results, status, loadMore }` response instead of expecting a page envelope. Both callbacks and `getCurrentValue()` decode items; decode failures reach `onError` when supplied.
+
+## [0.7.9] - 2026-09-08
+
+### Added
+
+- Generated clients and `createZodvexHooks` expose `useQuery_experimental`, with decoded arguments/results, explicit query states, and strict codec error handling. Calling the new hook requires Convex >=1.37; existing hooks remain compatible with older SDKs.
+
+## [0.7.8] - 2026-09-08
+
+### Added
+
+- `PatchValue` and `WriteValue` are public database input types from the full and mini server entrypoints. The earlier `ZodvexPatchValue` and `ZodvexWriteValue` names remain compatibility aliases.
+- `underlyingDb` composition and `db.unwrap()` allow native database wrappers such as convex-helpers triggers to sit underneath the codec layer.
+
+### Fixed
+
+- Database write signatures preserve decoded field types, table IDs, required union fields, and explicit index signatures. Generic helpers can use the public value types directly.
+- Invalid React query arguments surface encoding errors instead of appearing to load indefinitely. Watch caches recover correctly after decode failures.
+- Query expressions retain their Convex representation; bounded scans and iterators close correctly.
+- Code generation escapes schema literals and property names. The Zod-to-mini codemod preserves receiver semantics and batches migration analysis.
+- **Decode-failure `warn` logs no longer include a raw-wire preview.** The default `onDecodeError: 'warn'` message previously appended `Preview: <JSON.stringify(wireResult)>` (truncated to 200 chars) to every decode failure — copying potentially sensitive wire values into browser/server logs. The message now stops at the function path and zod issue list. Opt back into the preview for debugging by passing `warnWirePreview: true` to `createZodvexClient` / `createZodvexReactClient` / `createBoundaryHelpers` (#111).
+
+### Upgrade notes
+
+- Stricter write types may expose existing errors or require generic helpers to use `PatchValue` / `WriteValue`. Object patches remain partial; modeled unions can require a complete variant to match their encoding path.
+- Validation and type checks use a pinned Zod 4.5.4 development baseline; the published peer range is unchanged. Hotpot was also verified with Zod 4.4.3 and Convex 1.43.0.
+- This release preserves the current boundary contract. It does not include the descriptor architecture from #80 or the experimental pagination restriction from #123. See [release notes](docs/releases/v0.7.8.md).
+
 ## [0.7.6] - 2026-06-12
 
 ### Added

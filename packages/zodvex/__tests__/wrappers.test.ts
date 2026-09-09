@@ -2,7 +2,7 @@ import { v } from 'convex/values'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zid } from '../src/internal/ids'
-import { zAction, zMutation, zQuery } from '../src/internal/wrappers'
+import { zAction, zMutation, zQuery } from '../src/internal/legacy/wrappers'
 import { zx } from '../src/internal/zx'
 import { zodTable } from '../src/legacy/tables'
 

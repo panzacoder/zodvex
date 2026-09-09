@@ -1,6 +1,6 @@
 {
   "name": "zodvex",
-  "version": "0.7.8-beta.0",
+  "version": "0.7.10",
   "description": "Codec-first Zod v4 integration for Convex -- type-safe validation, encoding, DB wrapping, and codegen.",
   "keywords": ["zod", "convex", "validators", "codec", "mapping", "schema", "validation"],
   "homepage": "https://github.com/panzacoder/zodvex#readme",
@@ -89,7 +89,7 @@
   "files": ["dist", "src", "README.md", "LICENSE"],
   "scripts": {
     "build": "node ./scripts/build.mjs",
-    "dev": "bun run tsup --watch",
+    "dev": "bun run tsup --watch src",
     "type-check": "bun run tsc -p tsconfig.typecheck.json",
     "test": "vitest run",
     "lint": "bun x biome check src __tests__",
@@ -115,14 +115,18 @@
     "ts-morph": "^25.0.0"
   },
   "devDependencies": {
-    "zod-to-mini": "workspace:*",
     "@biomejs/biome": "^2.2.6",
     "@types/bun": "^1.3.0",
     "@types/node": "^24.8.0",
+    "@types/react": "19.2.14",
+    "@types/react-test-renderer": "19.1.0",
     "ai": "^6.0.6",
+    "react-test-renderer": "19.2.4",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "zod": "4.5.4",
+    "zod-to-mini": "workspace:*"
   },
   "engines": {
     "node": ">=20",

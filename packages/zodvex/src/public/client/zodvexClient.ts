@@ -1,9 +1,28 @@
 import type { AuthTokenFetcher, ConnectionState, MutationOptions } from 'convex/browser'
 import { ConvexClient } from 'convex/browser'
-import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+  PaginationOptions
+} from 'convex/server'
 import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
 import { createBoundaryHelpers } from '../../internal/boundaryHelpers'
+import { createPaginationCodec } from '../../internal/paginationCodec'
 import type { AnyRegistry } from '../../internal/types'
+
+/** Accumulated decoded items, with pagination controlled by Convex. */
+export type PaginatedResult<Item> = {
+  results: Item[]
+  status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
+  loadMore: (numItems: number) => boolean
+}
+
+export type PaginatedSubscription<Item> = (() => void) & {
+  unsubscribe: () => void
+  getCurrentValue: () => PaginatedResult<Item> | undefined
+  getQueryLogs: () => string[] | undefined
+}
 
 export type ZodvexClientOptions = (
   | { url: string; token?: string | null }
@@ -18,13 +37,18 @@ function tokenToFetcher(token: string): AuthTokenFetcher {
 
 export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
   private codec: ReturnType<typeof createBoundaryHelpers>
+  private paginationCodec: ReturnType<typeof createPaginationCodec>
   private innerClient?: ConvexClient
   private url?: string
   private pendingAuthFetcher?: AuthTokenFetcher
   private pendingAuthOnChange?: (isAuthenticated: boolean) => void
 
   constructor(registry: R, options: ZodvexClientOptions) {
-    this.codec = createBoundaryHelpers(registry, { onDecodeError: options.onDecodeError })
+    this.paginationCodec = createPaginationCodec(registry)
+    this.codec = createBoundaryHelpers(registry, {
+      onDecodeError: options.onDecodeError,
+      warnWirePreview: options.warnWirePreview
+    })
     if ('client' in options) {
       this.innerClient = options.client
     } else {
@@ -125,34 +149,62 @@ export class ZodvexClient<R extends AnyRegistry = AnyRegistry> {
   }
 
   /**
-   * Experimental paginated subscription. Encodes args to wire and decodes each
-   * page item through the registry, mirroring {@link subscribe}.
+   * Experimental Convex pagination with encoded filters and strictly decoded items.
+   * Returns accumulated results, not page envelopes. Both callbacks and current-value
+   * reads decode items; whole-page checks require explicit paginationOpts queries.
    */
-  onPaginatedUpdate_experimental<Q extends FunctionReference<'query', any, any, any>>(
+  onPaginatedUpdate_experimental<
+    Q extends FunctionReference<
+      'query',
+      'public',
+      { paginationOpts?: PaginationOptions },
+      { page: any[]; isDone: boolean; continueCursor: string }
+    >
+  >(
     ref: Q,
-    args: Q['_args'],
+    args: Omit<FunctionArgs<Q>, 'paginationOpts'>,
     options: { initialNumItems: number },
-    callback: (result: {
-      page: Q['_returnType'][]
-      isDone: boolean
-      continueCursor: string
-      [key: string]: unknown
-    }) => void,
+    callback: (result: PaginatedResult<FunctionReturnType<Q>['page'][number]>) => void,
     onError?: (e: Error) => void
-  ): ReturnType<ConvexClient['onPaginatedUpdate_experimental']> {
-    const wireArgs = this.codec.encodeArgs(ref, args) as FunctionArgs<Q>
-    return this.getConvex().onPaginatedUpdate_experimental(
+  ): PaginatedSubscription<FunctionReturnType<Q>['page'][number]> {
+    const wireArgs = this.paginationCodec.encodeArgs(ref, args)
+    const decode = (wire: PaginatedResult<unknown>) => ({
+      ...wire,
+      results: this.paginationCodec.decodeResults(ref, wire.results)
+    })
+    // Convex's experimental callback declaration describes a page envelope, but its
+    // implementation dispatches aggregate results. Keep that SDK mismatch at this boundary.
+    const nativeCallback = ((wire: PaginatedResult<unknown>) => {
+      let decoded: ReturnType<typeof decode>
+      try {
+        decoded = decode(wire)
+      } catch (error) {
+        if (!onError) throw error
+        onError(
+          error instanceof Error
+            ? error
+            : new Error('Failed to decode paginated results', { cause: error })
+        )
+        return
+      }
+      callback(decoded)
+    }) as unknown as Parameters<ConvexClient['onPaginatedUpdate_experimental']>[3]
+    const native = this.getConvex().onPaginatedUpdate_experimental(
       ref,
       wireArgs,
       options,
-      (wireResult: any) => {
-        callback({
-          ...wireResult,
-          page: wireResult.page.map((item: any) => this.codec.decodeResult(ref, item))
-        })
-      },
+      nativeCallback,
       onError
-    ) as ReturnType<ConvexClient['onPaginatedUpdate_experimental']>
+    )
+    const withLogs = native as typeof native & { getQueryLogs?: () => string[] | undefined }
+    return Object.assign(() => native(), {
+      unsubscribe: () => native.unsubscribe(),
+      getCurrentValue: () => {
+        const wire = native.getCurrentValue()
+        return wire === undefined ? undefined : decode(wire)
+      },
+      getQueryLogs: () => withLogs.getQueryLogs?.()
+    })
   }
 
   /**

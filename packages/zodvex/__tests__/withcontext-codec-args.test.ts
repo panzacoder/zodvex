@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { zCustomMutation } from '../src/internal/custom'
-import { initZodvex } from '../src/internal/init'
+import { zCustomMutation } from '../src/internal/functions/customFunctions'
+import { initZodvex } from '../src/internal/functions/init'
 import { zx } from '../src/internal/zx'
 
 // Regression coverage for #72: a `.withContext({ args: <zod> })` customization's

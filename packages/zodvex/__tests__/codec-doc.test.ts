@@ -95,6 +95,30 @@ describe('encodeDoc', () => {
 })
 
 describe('encodePartialDoc', () => {
+  it('requires a complete union variant and encodes its codec fields', () => {
+    const schema = z.union([
+      z.object({ kind: z.literal('email'), subject: z.string(), at: zx.date() }),
+      z.object({ kind: z.literal('push'), title: z.string(), at: zx.date() })
+    ])
+
+    expect(() => encodePartialDoc(schema, { subject: 'Updated' })).toThrow()
+    expect(() => encodePartialDoc(schema, { title: 'Updated' })).toThrow()
+    expect(
+      encodePartialDoc(schema, {
+        kind: 'email',
+        subject: 'Updated',
+        at: new Date(1700000000000)
+      })
+    ).toEqual({ kind: 'email', subject: 'Updated', at: 1700000000000 })
+    expect(
+      encodePartialDoc(schema, {
+        kind: 'push',
+        title: 'Updated',
+        at: new Date(1700000000000)
+      })
+    ).toEqual({ kind: 'push', title: 'Updated', at: 1700000000000 })
+  })
+
   it('encodes only the fields present in the partial', () => {
     const schema = z.object({
       name: z.string(),

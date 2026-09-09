@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
 import type {
   ReaderAuditConfig,
   TableRules,
@@ -8,8 +7,8 @@ import type {
   WriterAuditConfig,
   ZodvexRules,
   ZodvexRulesConfig
-} from '../src/internal/rules'
-import { RulesQueryChain } from '../src/internal/rules'
+} from '../src/internal/db'
+import { RulesQueryChain, ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
 import type { ZodTableSchemas } from '../src/internal/schema'
 import { zx } from '../src/internal/zx'
 
@@ -646,6 +645,53 @@ describe('ZodvexDatabaseWriter.withRules()', () => {
 // ============================================================================
 
 describe('ZodvexDatabaseReader.audit()', () => {
+  function auditedScan(afterRead: ReaderAuditConfig['afterRead']) {
+    const events: string[] = []
+    const inner = createMockQuery(tableData.users)
+    inner[Symbol.asyncIterator] = async function* () {
+      try {
+        for (const doc of tableData.users) {
+          events.push(`scan:${doc._id}`)
+          yield doc
+        }
+      } finally {
+        await Promise.resolve()
+        events.push('closed')
+      }
+    }
+    const rawDb = createMockDbReader(tableData)
+    rawDb.query = () => inner
+    const db = new ZodvexDatabaseReader(rawDb, tableMap)
+    return { chain: db.audit({ afterRead }).query('users' as any), events }
+  }
+
+  it('breaking audited iteration closes the underlying iterator', async () => {
+    const audited: string[] = []
+    const { chain, events } = auditedScan((_table, doc) => {
+      audited.push(doc._id)
+    })
+    for await (const doc of chain) {
+      expect(doc.createdAt).toBeInstanceOf(Date)
+      break
+    }
+    expect(events).toEqual(['scan:users:1', 'closed'])
+    expect(audited).toEqual(['users:1'])
+  })
+
+  it('a throwing afterRead callback closes the underlying iterator', async () => {
+    const failure = new Error('audit failed')
+    const { chain, events } = auditedScan(() => {
+      throw failure
+    })
+    const consume = async () => {
+      for await (const _doc of chain) {
+        // Consume the audited iterator until it reports the callback failure.
+      }
+    }
+    await expect(consume()).rejects.toBe(failure)
+    expect(events).toEqual(['scan:users:1', 'closed'])
+  })
+
   it('afterRead fires for each doc returned by get()', async () => {
     const auditLog: any[] = []
     const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
@@ -838,6 +884,43 @@ describe('ZodvexDatabaseWriter.audit()', () => {
 // ============================================================================
 
 describe('edge cases', () => {
+  it.each([
+    'reader',
+    'writer'
+  ] as const)('%s applies the default policy to ID-based reads of modeled tables without rules', async kind => {
+    const { db: raw } = createMockDbWriter(tableData)
+    const db =
+      kind === 'reader'
+        ? new ZodvexDatabaseReader(raw, tableMap)
+        : new ZodvexDatabaseWriter(raw, tableMap)
+    await expect(
+      db.withRules({}, {}, { defaultPolicy: 'deny' }).get('users:1' as any)
+    ).resolves.toBeNull()
+    await expect(
+      db.withRules({}, {}, { defaultPolicy: 'allow' }).get('users:1' as any)
+    ).resolves.toMatchObject({ name: 'Alice' })
+  })
+
+  it('writer resolves rules for tables without a modeled schema', async () => {
+    const { db: raw, calls } = createMockDbWriter(tableData)
+    const db = new ZodvexDatabaseWriter(raw, {})
+    const secured = db.withRules(
+      {},
+      {
+        users: {
+          read: async (_ctx: unknown, doc: unknown) => doc,
+          patch: async (_ctx: unknown, _doc: unknown, value: { name: string }) => ({
+            ...value,
+            name: 'RULE'
+          })
+        }
+      },
+      { defaultPolicy: 'deny' }
+    )
+    await secured.patch('users:1' as any, { name: 'REQUEST' })
+    expect(calls).toEqual([{ method: 'patch', args: ['users:1', { name: 'RULE' }] }])
+  })
+
   it('defaultPolicy deny blocks ALL tables including unmentioned ones', async () => {
     const extendedData = {
       ...tableData,

@@ -7,21 +7,24 @@ of truth across a Convex app.
 
 The comparison axis that matters is **Convex's own validation system**: Convex's codegen
 gives functions end-to-end type inference, and its built-in validators check structure at
-runtime. zodvex keeps that inference and deepens the runtime layer — full Zod pipelines
-(refinements, transformations, codecs) execute at every boundary instead of being erased
-to structural checks. Concretely:
+runtime. zodvex uses the same Zod definitions for runtime parsing and encoding as
+well as structural validator generation. Concretely:
 
-- **Automatic runtime validation at every boundary** — arguments, return values, *and
-  every document read at the database layer*. Validating at the db boundary (a real Zod
-  `parse` on reads), not just at function edges, is a differentiator on its own.
-- **Codec support at your application boundaries** — `zx.date()`, `zx.codec()`, and typed
-  IDs encode/decode automatically at db reads/writes, function args, and return values.
-  Handlers work with `Date` and branded IDs; the wire stays Convex-safe. Row-level rules
-  (`.withRules()`) and audit hooks (`.audit()`) ride on the same codec-aware `ctx.db`. The
-  codec layer adds meaning at these boundaries — it never subtracts native Convex capability.
+- **Automatic validation for declared function schemas and modeled reads** — wrappers
+  parse arguments and encode declared returns; the wrapped database parses modeled
+  documents through their full Zod schema.
+- **Codec support at your application boundaries** — `zx.date()` and `zx.codec()`
+  encode/decode at modeled database and declared function boundaries. `zx.id()`
+  supplies typed ID validation without a wire transform. Handlers work with runtime
+  values while Convex stores wire values. Rules and audit hooks share the wrapped
+  database; `unwrap()` provides native database access.
 - **Codegen that complements Convex's own** — a `_zodvex/` folder alongside `_generated/`
   gives client-safe schema imports and inferred validators for frontend queries, so your
   Convex functions stay the source of truth.
+
+Boundary behavior follows the operation and configuration: returns need a schema,
+patches do not validate the resulting whole document, and client decode failures
+warn and return raw data by default. See the [boundary contract](./decisions/2026-09-07-boundary-contract.md).
 
 You configure all of it once with `initZodvex` and get correct builders back.
 
@@ -49,4 +52,4 @@ changes, change it here first.
 ## One-liner
 
 > Use Zod v4 as your schema language for Convex — define your data once and use it end to
-> end, with automatic validation and codecs at every boundary.
+> end, with automatic function validation and a codec-aware database.

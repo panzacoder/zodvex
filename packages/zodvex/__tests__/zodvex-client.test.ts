@@ -176,6 +176,30 @@ describe('ZodvexClient', () => {
 
   // ---- query --------------------------------------------------------------
 
+  it.each([
+    undefined,
+    false,
+    true
+  ])('forwards warnWirePreview=%s to decode warnings', async warnWirePreview => {
+    const wire = { privateValue: 'debug-only' }
+    mocks.queryImpl = () => wire
+    const previewClient = new ZodvexClient(registry as any, {
+      url: 'https://test.convex.cloud',
+      warnWirePreview
+    })
+    // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional no-op spy
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(await previewClient.query(fakeRef('tasks:list'), {})).toBe(wire)
+      expect(warnSpy).toHaveBeenCalledOnce()
+      const message = warnSpy.mock.calls[0][0] as string
+      expect(message.includes('Preview:')).toBe(warnWirePreview === true)
+      expect(message.includes('debug-only')).toBe(warnWirePreview === true)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
   describe('query', () => {
     it('decodes wire data through the returns schema (number -> Date)', async () => {
       const now = Date.now()
@@ -397,40 +421,122 @@ describe('ZodvexClient', () => {
   // ---- onPaginatedUpdate_experimental -------------------------------------
 
   describe('onPaginatedUpdate_experimental', () => {
-    it('encodes args and decodes each page item', () => {
-      const ts = 1700000000000
-      const dueDate = new Date('2026-06-15T00:00:00Z')
-      let capturedArgs: any = null
-      let decoded: any = null
-
-      mocks.paginatedImpl = (_ref: any, args: any, _options: any, callback: any) => {
-        capturedArgs = args
-        callback({
-          page: [{ _id: 'p1', title: 'Paged', createdAt: ts }],
-          isDone: true,
-          continueCursor: ''
-        })
-        return () => {
-          /* no-op */
-        }
+    it('decodes aggregate callbacks and current values while preserving controls', () => {
+      const ref = fakeRef('tasks:page')
+      const loadMore = vi.fn(() => true)
+      const stop = vi.fn()
+      let wire: any = { results: [{ createdAt: 123 }], status: 'CanLoadMore', loadMore }
+      const native = Object.assign(stop, {
+        unsubscribe: stop,
+        getCurrentValue: () => wire,
+        getQueryLogs: () => ['query log']
+      })
+      const callback = vi.fn()
+      mocks.paginatedImpl = (_ref, args, options, onResult) => {
+        expect(args).toEqual({ after: 123 })
+        expect(options).toEqual({ initialNumItems: 10 })
+        onResult(wire)
+        return native
       }
-
-      client.onPaginatedUpdate_experimental(
-        fakeRef('tasks:create'),
-        { title: 'x', dueAt: dueDate },
-        { initialNumItems: 10 },
-        (r: any) => {
-          decoded = r
-        }
+      const client = createZodvexClient(
+        {
+          'tasks:page': {
+            args: z.object({
+              after: zx.date(),
+              paginationOpts: z.object({ cursor: z.string().nullable(), numItems: z.number() })
+            }),
+            returns: z.object({
+              page: z.array(z.object({ createdAt: zx.date() })),
+              isDone: z.boolean(),
+              continueCursor: z.string()
+            })
+          }
+        },
+        { url: 'https://test.convex.cloud' }
       )
-
-      // Args encoded: Date -> number
-      expect(typeof capturedArgs.dueAt).toBe('number')
-      // Each page item decoded: number -> Date
-      expect(decoded.page[0].createdAt).toBeInstanceOf(Date)
-      expect(decoded.page[0].createdAt.getTime()).toBe(ts)
-      expect(decoded.isDone).toBe(true)
+      const subscription = client.onPaginatedUpdate_experimental(
+        ref,
+        { after: new Date(123) },
+        { initialNumItems: 10 },
+        callback
+      )
+      expect(callback.mock.calls[0][0]).toEqual({
+        results: [{ createdAt: new Date(123) }],
+        status: 'CanLoadMore',
+        loadMore
+      })
+      expect(subscription.getCurrentValue()).toEqual(callback.mock.calls[0][0])
+      expect(subscription.getCurrentValue()!.loadMore(5)).toBe(true)
+      expect(loadMore).toHaveBeenCalledWith(5)
+      expect(subscription.getQueryLogs()).toEqual(['query log'])
+      wire = { results: [{ createdAt: 'invalid' }], status: 'Exhausted', loadMore }
+      expect(() => subscription.getCurrentValue()).toThrow()
+      wire = undefined
+      expect(subscription.getCurrentValue()).toBeUndefined()
+      subscription()
+      subscription.unsubscribe()
+      expect(stop).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it('supports older paginated handles and surfaces callback codec failures', () => {
+    const native = Object.assign(vi.fn(), {
+      unsubscribe: vi.fn(),
+      getCurrentValue: () => undefined
+    })
+    let emit: (value: unknown) => void = () => undefined
+    mocks.paginatedImpl = (_ref, _args, _options, callback) => {
+      emit = callback
+      return native
+    }
+    const client = createZodvexClient(
+      {
+        'tasks:page': { returns: z.object({ page: z.array(z.object({ createdAt: zx.date() })) }) }
+      },
+      { url: 'https://test.convex.cloud', onDecodeError: 'warn' }
+    )
+    const subscription = client.onPaginatedUpdate_experimental(
+      fakeRef('tasks:page'),
+      {},
+      { initialNumItems: 10 },
+      vi.fn()
+    )
+    expect(subscription.getQueryLogs()).toBeUndefined()
+    expect(() =>
+      emit({ results: [{ createdAt: 'bad' }], status: 'Exhausted', loadMore: () => false })
+    ).toThrow()
+  })
+
+  it('routes pagination decode failures to onError without swallowing consumer errors', () => {
+    let emit: (value: unknown) => void = () => undefined
+    mocks.paginatedImpl = (_ref, _args, _options, callback) => {
+      emit = callback
+      return Object.assign(vi.fn(), { unsubscribe: vi.fn(), getCurrentValue: () => undefined })
+    }
+    const client = createZodvexClient(
+      {
+        'tasks:page': { returns: z.object({ page: z.array(z.object({ createdAt: zx.date() })) }) }
+      },
+      { url: 'https://test.convex.cloud' }
+    )
+    const onError = vi.fn()
+    const callback = vi.fn(() => {
+      throw new Error('consumer failure')
+    })
+    client.onPaginatedUpdate_experimental(
+      fakeRef('tasks:page'),
+      {},
+      { initialNumItems: 10 },
+      callback,
+      onError
+    )
+    emit({ results: [{ createdAt: 'bad' }], status: 'Exhausted', loadMore: () => false })
+    expect(onError).toHaveBeenCalledOnce()
+    expect(callback).not.toHaveBeenCalled()
+    expect(() =>
+      emit({ results: [{ createdAt: 123 }], status: 'Exhausted', loadMore: () => false })
+    ).toThrow('consumer failure')
+    expect(onError).toHaveBeenCalledOnce()
   })
 
   // ---- subscribe ----------------------------------------------------------

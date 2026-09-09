@@ -1,0 +1,13 @@
+{
+  "name": "report-only-synthetic-schema",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "convex": "1.45.0",
+    "zod": "4.4.3",
+    "zodvex": "0.7.10"
+  },
+  "devDependencies": {
+    "node": "22.22.3"
+  }
+}

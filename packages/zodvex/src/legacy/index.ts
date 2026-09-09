@@ -15,5 +15,5 @@ export {
   zCustomQueryBuilder,
   zMutationBuilder,
   zQueryBuilder
-} from '../internal/builders'
+} from '../internal/legacy/builders'
 export { zodDoc, zodDocOrNull, zodTable } from './tables'

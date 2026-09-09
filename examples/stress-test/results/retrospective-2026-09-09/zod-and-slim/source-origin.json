@@ -1,0 +1,50 @@
+{
+  "gitCommit": "a0770cf0545a8477c562e5925c3866b4720dba47",
+  "gitStatus": "",
+  "versions": {
+    "convex": "1.32.0",
+    "convex-helpers": "0.1.113",
+    "zod": "4.5.4",
+    "zodvex": "0.7.10",
+    "esbuild": "0.27.0"
+  },
+  "zodvexBuild": {
+    "sha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5",
+    "files": 14
+  },
+  "comparisonIdentity": {
+    "fixture": {
+      "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+      "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a"
+    },
+    "collector": {
+      "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+      "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+      "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+    }
+  },
+  "runtime": {
+    "nodeCompatibility": "v24.3.0",
+    "bun": "1.3.9",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "sourceHashes": {
+    "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a",
+    "census.mjs": "492f84971644dbc2a50f44b4bd19bef6ca490947197e853bf7ffeb3b7b718609",
+    "census.test.mjs": "427e5c413f9b62759f9de5d46922832b67f966942d1094ef5aff0ec58dc22311",
+    "compare.mjs": "b75f8c4ec23b7a46a0e0e310e838fad224b4b60991ee399aa30a8c13d9f5759e",
+    "compare.test.mjs": "151d6519a9911ec08281866661d228acaf6cd97c70418fb1c979e376ccee7951",
+    "inspect-worker.mjs": "0ba33f7da3b5a39eee9489728b4f41838adf4a345c824abcc493d0af9b36e65e",
+    "inspect.mjs": "85fd71b7af5a39083d773861040057eee043e2d18e030a14d6c5c2ec2cd06125",
+    "inspect.test.mjs": "193cc7b7088e1f8b6d187b0dcee0bfb9840deabe8b75d0a401eab9bd28816544",
+    "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+    "mcp-client.mjs": "9b2ce572eb1aa1148944415d4f5b15733e7c8b0a30f9c90732213c5d9a5b6627",
+    "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+    "oracle.test.mjs": "45194cd2a28f40e75631044525be7dc40cf6ec0d0c7d47648fe5d38e9e0be58e",
+    "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+    "provenance.mjs": "7875eacc8c78156ce7f642d235c032ceb36146f0261385c33808d192ea8c10c0",
+    "run.mjs": "b2d8721e2eb6dc0e522874a35b691714fa9ded56ce891e126708dcd9390914d4",
+    "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+  }
+}

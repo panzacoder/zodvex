@@ -1,0 +1,177 @@
+{
+  "scope": "Local Convex retained object-byte deltas after forced GC; descriptive comparison, no performance gate",
+  "contract": {
+    "shape": {
+      "targetCount": 128,
+      "width": 32,
+      "profile": "codec-rich",
+      "entries": 0,
+      "mode": "static",
+      "diagnosticForcedGc": true
+    },
+    "fixture": {
+      "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+      "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a"
+    },
+    "collector": {
+      "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+      "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+      "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+    },
+    "dependencies": {
+      "convex": "1.32.0",
+      "convex-helpers": "0.1.113",
+      "zod": "4.5.4",
+      "esbuild": "0.27.0"
+    },
+    "runtime": {
+      "nodeCompatibility": "v24.3.0",
+      "bun": "1.3.9",
+      "platform": "darwin",
+      "arch": "arm64"
+    },
+    "backend": {
+      "sha256": "c07e85501038cdf6f969e2f7f8cb81e897a64f25d08d590ebd501342eaa3906c",
+      "sourceRevision": "8bc6aa4645adfd66584034b175dbef96536938b8",
+      "flags": "--expose-gc --trace-gc-nvp",
+      "reuseIsolates": false
+    }
+  },
+  "baseline": [
+    {
+      "directory": "/private/tmp/zodvex-triage-20260909/examples/stress-test/results/local/memory-heap-e49f9814-3da8-4c1c-bf9c-e12b9aba3b8b",
+      "runId": "6052a07f-87af-41f1-9ea1-a12c72a67107",
+      "startedAt": "2026-09-09T20:53:53.952Z",
+      "gitCommit": "c4ea16293383256ce108be92b846e42233426f3f",
+      "gitStatus": "M ../../CLAUDE.md\n M ../../CONTRIBUTING.md\n M ../../bun.lock\n M ../../docs/ARCHITECTURE.md\n M ../../docs/planning/state-of-zodvex.md\n M .gitignore\n M README.md\n D __tests__/fast-follows.test.ts\n D __tests__/harness-fixes.test.ts\n D bench.ts\n D bundle.ts\n D compose.ts\n D convex/.gitkeep\n D convex/README.md\n D convex/_generated/api.d.ts\n D convex/_generated/api.js\n D convex/_generated/dataModel.d.ts\n D convex/_generated/server.d.ts\n D convex/_generated/server.js\n D convex/convex.config.ts\n D convex/tsconfig.json\n D harnessMeta.ts\n D measureBundle.ts\n D measureChild.mjs\n M memory/local.mjs\n M memory/provenance.mjs\n M package.json\n D realDeploy.ts\n D regression.ts\n M results/README.md\n D seeds/convex-helpers/endpoints/activity.ts\n D seeds/convex-helpers/endpoints/comment.ts\n D seeds/convex-helpers/endpoints/document.ts\n D seeds/convex-helpers/endpoints/notification.ts\n D seeds/convex-helpers/endpoints/project.ts\n D seeds/convex-helpers/endpoints/task.ts\n D seeds/convex-helpers/endpoints/user.ts\n D seeds/convex-helpers/models/activity.ts\n D seeds/convex-helpers/models/comment.ts\n D seeds/convex-helpers/models/document.ts\n D seeds/convex-helpers/models/notification.ts\n D seeds/convex-helpers/models/project.ts\n D seeds/convex-helpers/models/task.ts\n D seeds/convex-helpers/models/user.ts\n D seeds/convex/endpoints/activity.ts\n D seeds/convex/endpoints/comment.ts\n D seeds/convex/endpoints/document.ts\n D seeds/convex/endpoints/notification.ts\n D seeds/convex/endpoints/project.ts\n D seeds/convex/endpoints/task.ts\n D seeds/convex/endpoints/user.ts\n D seeds/convex/models/activity.ts\n D seeds/convex/models/comment.ts\n D seeds/convex/models/document.ts\n D seeds/convex/models/notification.ts\n D seeds/convex/models/project.ts\n D seeds/convex/models/task.ts\n D seeds/convex/models/user.ts\n D seeds/endpoints/activity.ts\n D seeds/endpoints/comment.ts\n D seeds/endpoints/document.ts\n D seeds/endpoints/notification.ts\n D seeds/endpoints/project.ts\n D seeds/endpoints/task.ts\n D seeds/endpoints/user.ts\n D seeds/models/activity.ts\n D seeds/models/comment.ts\n D seeds/models/document.ts\n D seeds/models/notification.ts\n D seeds/models/project.ts\n D seeds/models/task.ts\n D seeds/models/user.ts\n D seeds/zodvex/endpoints/activity.ts\n D seeds/zodvex/endpoints/comment.ts\n D seeds/zodvex/endpoints/document.ts\n D seeds/zodvex/endpoints/notification.ts\n D seeds/zodvex/endpoints/project.ts\n D seeds/zodvex/endpoints/task.ts\n D seeds/zodvex/endpoints/user.ts\n D seeds/zodvex/models/activity.ts\n D seeds/zodvex/models/comment.ts\n D seeds/zodvex/models/document.ts\n D seeds/zodvex/models/notification.ts\n D seeds/zodvex/models/project.ts\n D seeds/zodvex/models/task.ts\n D seeds/zodvex/models/user.ts\n D sweep.ts\n M tsconfig.json\n M ../../package.json\n?? memory/census.mjs\n?? memory/census.test.mjs\n?? memory/compare.mjs\n?? memory/compare.test.mjs\n?? memory/comparison.md\n?? memory/inspect-worker.mjs\n?? memory/inspect.mjs",
+      "libraryVersion": "0.7.10",
+      "buildSha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5"
+    },
+    {
+      "directory": "/private/tmp/zodvex-triage-20260909/examples/stress-test/results/local/memory-heap-c6953258-d3fb-49aa-a4aa-9959fd622faa",
+      "runId": "a3cf57f0-db25-4cc8-9b38-954b50556424",
+      "startedAt": "2026-09-09T20:53:55.799Z",
+      "gitCommit": "c4ea16293383256ce108be92b846e42233426f3f",
+      "gitStatus": "M ../../CLAUDE.md\n M ../../CONTRIBUTING.md\n M ../../bun.lock\n M ../../docs/ARCHITECTURE.md\n M ../../docs/planning/state-of-zodvex.md\n M .gitignore\n M README.md\n D __tests__/fast-follows.test.ts\n D __tests__/harness-fixes.test.ts\n D bench.ts\n D bundle.ts\n D compose.ts\n D convex/.gitkeep\n D convex/README.md\n D convex/_generated/api.d.ts\n D convex/_generated/api.js\n D convex/_generated/dataModel.d.ts\n D convex/_generated/server.d.ts\n D convex/_generated/server.js\n D convex/convex.config.ts\n D convex/tsconfig.json\n D harnessMeta.ts\n D measureBundle.ts\n D measureChild.mjs\n M memory/local.mjs\n M memory/provenance.mjs\n M package.json\n D realDeploy.ts\n D regression.ts\n M results/README.md\n D seeds/convex-helpers/endpoints/activity.ts\n D seeds/convex-helpers/endpoints/comment.ts\n D seeds/convex-helpers/endpoints/document.ts\n D seeds/convex-helpers/endpoints/notification.ts\n D seeds/convex-helpers/endpoints/project.ts\n D seeds/convex-helpers/endpoints/task.ts\n D seeds/convex-helpers/endpoints/user.ts\n D seeds/convex-helpers/models/activity.ts\n D seeds/convex-helpers/models/comment.ts\n D seeds/convex-helpers/models/document.ts\n D seeds/convex-helpers/models/notification.ts\n D seeds/convex-helpers/models/project.ts\n D seeds/convex-helpers/models/task.ts\n D seeds/convex-helpers/models/user.ts\n D seeds/convex/endpoints/activity.ts\n D seeds/convex/endpoints/comment.ts\n D seeds/convex/endpoints/document.ts\n D seeds/convex/endpoints/notification.ts\n D seeds/convex/endpoints/project.ts\n D seeds/convex/endpoints/task.ts\n D seeds/convex/endpoints/user.ts\n D seeds/convex/models/activity.ts\n D seeds/convex/models/comment.ts\n D seeds/convex/models/document.ts\n D seeds/convex/models/notification.ts\n D seeds/convex/models/project.ts\n D seeds/convex/models/task.ts\n D seeds/convex/models/user.ts\n D seeds/endpoints/activity.ts\n D seeds/endpoints/comment.ts\n D seeds/endpoints/document.ts\n D seeds/endpoints/notification.ts\n D seeds/endpoints/project.ts\n D seeds/endpoints/task.ts\n D seeds/endpoints/user.ts\n D seeds/models/activity.ts\n D seeds/models/comment.ts\n D seeds/models/document.ts\n D seeds/models/notification.ts\n D seeds/models/project.ts\n D seeds/models/task.ts\n D seeds/models/user.ts\n D seeds/zodvex/endpoints/activity.ts\n D seeds/zodvex/endpoints/comment.ts\n D seeds/zodvex/endpoints/document.ts\n D seeds/zodvex/endpoints/notification.ts\n D seeds/zodvex/endpoints/project.ts\n D seeds/zodvex/endpoints/task.ts\n D seeds/zodvex/endpoints/user.ts\n D seeds/zodvex/models/activity.ts\n D seeds/zodvex/models/comment.ts\n D seeds/zodvex/models/document.ts\n D seeds/zodvex/models/notification.ts\n D seeds/zodvex/models/project.ts\n D seeds/zodvex/models/task.ts\n D seeds/zodvex/models/user.ts\n D sweep.ts\n M tsconfig.json\n M ../../package.json\n?? memory/census.mjs\n?? memory/census.test.mjs\n?? memory/compare.mjs\n?? memory/compare.test.mjs\n?? memory/comparison.md\n?? memory/inspect-worker.mjs\n?? memory/inspect.mjs",
+      "libraryVersion": "0.7.10",
+      "buildSha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5"
+    },
+    {
+      "directory": "/private/tmp/zodvex-triage-20260909/examples/stress-test/results/local/memory-heap-a3827fa6-73d8-4300-8d4b-a0f3e5e118ce",
+      "runId": "02149b1e-09f9-4f05-87da-c9921f5038e0",
+      "startedAt": "2026-09-09T20:53:57.633Z",
+      "gitCommit": "c4ea16293383256ce108be92b846e42233426f3f",
+      "gitStatus": "M ../../CLAUDE.md\n M ../../CONTRIBUTING.md\n M ../../bun.lock\n M ../../docs/ARCHITECTURE.md\n M ../../docs/planning/state-of-zodvex.md\n M .gitignore\n M README.md\n D __tests__/fast-follows.test.ts\n D __tests__/harness-fixes.test.ts\n D bench.ts\n D bundle.ts\n D compose.ts\n D convex/.gitkeep\n D convex/README.md\n D convex/_generated/api.d.ts\n D convex/_generated/api.js\n D convex/_generated/dataModel.d.ts\n D convex/_generated/server.d.ts\n D convex/_generated/server.js\n D convex/convex.config.ts\n D convex/tsconfig.json\n D harnessMeta.ts\n D measureBundle.ts\n D measureChild.mjs\n M memory/local.mjs\n M memory/provenance.mjs\n M package.json\n D realDeploy.ts\n D regression.ts\n M results/README.md\n D seeds/convex-helpers/endpoints/activity.ts\n D seeds/convex-helpers/endpoints/comment.ts\n D seeds/convex-helpers/endpoints/document.ts\n D seeds/convex-helpers/endpoints/notification.ts\n D seeds/convex-helpers/endpoints/project.ts\n D seeds/convex-helpers/endpoints/task.ts\n D seeds/convex-helpers/endpoints/user.ts\n D seeds/convex-helpers/models/activity.ts\n D seeds/convex-helpers/models/comment.ts\n D seeds/convex-helpers/models/document.ts\n D seeds/convex-helpers/models/notification.ts\n D seeds/convex-helpers/models/project.ts\n D seeds/convex-helpers/models/task.ts\n D seeds/convex-helpers/models/user.ts\n D seeds/convex/endpoints/activity.ts\n D seeds/convex/endpoints/comment.ts\n D seeds/convex/endpoints/document.ts\n D seeds/convex/endpoints/notification.ts\n D seeds/convex/endpoints/project.ts\n D seeds/convex/endpoints/task.ts\n D seeds/convex/endpoints/user.ts\n D seeds/convex/models/activity.ts\n D seeds/convex/models/comment.ts\n D seeds/convex/models/document.ts\n D seeds/convex/models/notification.ts\n D seeds/convex/models/project.ts\n D seeds/convex/models/task.ts\n D seeds/convex/models/user.ts\n D seeds/endpoints/activity.ts\n D seeds/endpoints/comment.ts\n D seeds/endpoints/document.ts\n D seeds/endpoints/notification.ts\n D seeds/endpoints/project.ts\n D seeds/endpoints/task.ts\n D seeds/endpoints/user.ts\n D seeds/models/activity.ts\n D seeds/models/comment.ts\n D seeds/models/document.ts\n D seeds/models/notification.ts\n D seeds/models/project.ts\n D seeds/models/task.ts\n D seeds/models/user.ts\n D seeds/zodvex/endpoints/activity.ts\n D seeds/zodvex/endpoints/comment.ts\n D seeds/zodvex/endpoints/document.ts\n D seeds/zodvex/endpoints/notification.ts\n D seeds/zodvex/endpoints/project.ts\n D seeds/zodvex/endpoints/task.ts\n D seeds/zodvex/endpoints/user.ts\n D seeds/zodvex/models/activity.ts\n D seeds/zodvex/models/comment.ts\n D seeds/zodvex/models/document.ts\n D seeds/zodvex/models/notification.ts\n D seeds/zodvex/models/project.ts\n D seeds/zodvex/models/task.ts\n D seeds/zodvex/models/user.ts\n D sweep.ts\n M tsconfig.json\n M ../../package.json\n?? memory/census.mjs\n?? memory/census.test.mjs\n?? memory/compare.mjs\n?? memory/compare.test.mjs\n?? memory/comparison.md\n?? memory/inspect-worker.mjs\n?? memory/inspect.mjs",
+      "libraryVersion": "0.7.10",
+      "buildSha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5"
+    }
+  ],
+  "candidate": [
+    {
+      "directory": "/private/tmp/zodvex-triage-20260909/examples/stress-test/results/local/memory-heap-bc7e1594-04fd-4235-a4dd-294b37f28898",
+      "runId": "a1dfd685-1fcb-4cf5-b45e-a37039c25148",
+      "startedAt": "2026-09-09T20:53:59.516Z",
+      "gitCommit": "c4ea16293383256ce108be92b846e42233426f3f",
+      "gitStatus": "M ../../CLAUDE.md\n M ../../CONTRIBUTING.md\n M ../../bun.lock\n M ../../docs/ARCHITECTURE.md\n M ../../docs/planning/state-of-zodvex.md\n M .gitignore\n M README.md\n D __tests__/fast-follows.test.ts\n D __tests__/harness-fixes.test.ts\n D bench.ts\n D bundle.ts\n D compose.ts\n D convex/.gitkeep\n D convex/README.md\n D convex/_generated/api.d.ts\n D convex/_generated/api.js\n D convex/_generated/dataModel.d.ts\n D convex/_generated/server.d.ts\n D convex/_generated/server.js\n D convex/convex.config.ts\n D convex/tsconfig.json\n D harnessMeta.ts\n D measureBundle.ts\n D measureChild.mjs\n M memory/local.mjs\n M memory/provenance.mjs\n M package.json\n D realDeploy.ts\n D regression.ts\n M results/README.md\n D seeds/convex-helpers/endpoints/activity.ts\n D seeds/convex-helpers/endpoints/comment.ts\n D seeds/convex-helpers/endpoints/document.ts\n D seeds/convex-helpers/endpoints/notification.ts\n D seeds/convex-helpers/endpoints/project.ts\n D seeds/convex-helpers/endpoints/task.ts\n D seeds/convex-helpers/endpoints/user.ts\n D seeds/convex-helpers/models/activity.ts\n D seeds/convex-helpers/models/comment.ts\n D seeds/convex-helpers/models/document.ts\n D seeds/convex-helpers/models/notification.ts\n D seeds/convex-helpers/models/project.ts\n D seeds/convex-helpers/models/task.ts\n D seeds/convex-helpers/models/user.ts\n D seeds/convex/endpoints/activity.ts\n D seeds/convex/endpoints/comment.ts\n D seeds/convex/endpoints/document.ts\n D seeds/convex/endpoints/notification.ts\n D seeds/convex/endpoints/project.ts\n D seeds/convex/endpoints/task.ts\n D seeds/convex/endpoints/user.ts\n D seeds/convex/models/activity.ts\n D seeds/convex/models/comment.ts\n D seeds/convex/models/document.ts\n D seeds/convex/models/notification.ts\n D seeds/convex/models/project.ts\n D seeds/convex/models/task.ts\n D seeds/convex/models/user.ts\n D seeds/endpoints/activity.ts\n D seeds/endpoints/comment.ts\n D seeds/endpoints/document.ts\n D seeds/endpoints/notification.ts\n D seeds/endpoints/project.ts\n D seeds/endpoints/task.ts\n D seeds/endpoints/user.ts\n D seeds/models/activity.ts\n D seeds/models/comment.ts\n D seeds/models/document.ts\n D seeds/models/notification.ts\n D seeds/models/project.ts\n D seeds/models/task.ts\n D seeds/models/user.ts\n D seeds/zodvex/endpoints/activity.ts\n D seeds/zodvex/endpoints/comment.ts\n D seeds/zodvex/endpoints/document.ts\n D seeds/zodvex/endpoints/notification.ts\n D seeds/zodvex/endpoints/project.ts\n D seeds/zodvex/endpoints/task.ts\n D seeds/zodvex/endpoints/user.ts\n D seeds/zodvex/models/activity.ts\n D seeds/zodvex/models/comment.ts\n D seeds/zodvex/models/document.ts\n D seeds/zodvex/models/notification.ts\n D seeds/zodvex/models/project.ts\n D seeds/zodvex/models/task.ts\n D seeds/zodvex/models/user.ts\n D sweep.ts\n M tsconfig.json\n M ../../package.json\n?? memory/census.mjs\n?? memory/census.test.mjs\n?? memory/compare.mjs\n?? memory/compare.test.mjs\n?? memory/comparison.md\n?? memory/inspect-worker.mjs\n?? memory/inspect.mjs",
+      "libraryVersion": "0.7.10",
+      "buildSha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5"
+    },
+    {
+      "directory": "/private/tmp/zodvex-triage-20260909/examples/stress-test/results/local/memory-heap-f8c6e37e-9dcb-4f45-9abd-0a642dc806f7",
+      "runId": "34e10fb8-c633-44da-9b7d-f48be3ce596b",
+      "startedAt": "2026-09-09T20:54:01.365Z",
+      "gitCommit": "c4ea16293383256ce108be92b846e42233426f3f",
+      "gitStatus": "M ../../CLAUDE.md\n M ../../CONTRIBUTING.md\n M ../../bun.lock\n M ../../docs/ARCHITECTURE.md\n M ../../docs/planning/state-of-zodvex.md\n M .gitignore\n M README.md\n D __tests__/fast-follows.test.ts\n D __tests__/harness-fixes.test.ts\n D bench.ts\n D bundle.ts\n D compose.ts\n D convex/.gitkeep\n D convex/README.md\n D convex/_generated/api.d.ts\n D convex/_generated/api.js\n D convex/_generated/dataModel.d.ts\n D convex/_generated/server.d.ts\n D convex/_generated/server.js\n D convex/convex.config.ts\n D convex/tsconfig.json\n D harnessMeta.ts\n D measureBundle.ts\n D measureChild.mjs\n M memory/local.mjs\n M memory/provenance.mjs\n M package.json\n D realDeploy.ts\n D regression.ts\n M results/README.md\n D seeds/convex-helpers/endpoints/activity.ts\n D seeds/convex-helpers/endpoints/comment.ts\n D seeds/convex-helpers/endpoints/document.ts\n D seeds/convex-helpers/endpoints/notification.ts\n D seeds/convex-helpers/endpoints/project.ts\n D seeds/convex-helpers/endpoints/task.ts\n D seeds/convex-helpers/endpoints/user.ts\n D seeds/convex-helpers/models/activity.ts\n D seeds/convex-helpers/models/comment.ts\n D seeds/convex-helpers/models/document.ts\n D seeds/convex-helpers/models/notification.ts\n D seeds/convex-helpers/models/project.ts\n D seeds/convex-helpers/models/task.ts\n D seeds/convex-helpers/models/user.ts\n D seeds/convex/endpoints/activity.ts\n D seeds/convex/endpoints/comment.ts\n D seeds/convex/endpoints/document.ts\n D seeds/convex/endpoints/notification.ts\n D seeds/convex/endpoints/project.ts\n D seeds/convex/endpoints/task.ts\n D seeds/convex/endpoints/user.ts\n D seeds/convex/models/activity.ts\n D seeds/convex/models/comment.ts\n D seeds/convex/models/document.ts\n D seeds/convex/models/notification.ts\n D seeds/convex/models/project.ts\n D seeds/convex/models/task.ts\n D seeds/convex/models/user.ts\n D seeds/endpoints/activity.ts\n D seeds/endpoints/comment.ts\n D seeds/endpoints/document.ts\n D seeds/endpoints/notification.ts\n D seeds/endpoints/project.ts\n D seeds/endpoints/task.ts\n D seeds/endpoints/user.ts\n D seeds/models/activity.ts\n D seeds/models/comment.ts\n D seeds/models/document.ts\n D seeds/models/notification.ts\n D seeds/models/project.ts\n D seeds/models/task.ts\n D seeds/models/user.ts\n D seeds/zodvex/endpoints/activity.ts\n D seeds/zodvex/endpoints/comment.ts\n D seeds/zodvex/endpoints/document.ts\n D seeds/zodvex/endpoints/notification.ts\n D seeds/zodvex/endpoints/project.ts\n D seeds/zodvex/endpoints/task.ts\n D seeds/zodvex/endpoints/user.ts\n D seeds/zodvex/models/activity.ts\n D seeds/zodvex/models/comment.ts\n D seeds/zodvex/models/document.ts\n D seeds/zodvex/models/notification.ts\n D seeds/zodvex/models/project.ts\n D seeds/zodvex/models/task.ts\n D seeds/zodvex/models/user.ts\n D sweep.ts\n M tsconfig.json\n M ../../package.json\n?? memory/census.mjs\n?? memory/census.test.mjs\n?? memory/compare.mjs\n?? memory/compare.test.mjs\n?? memory/comparison.md\n?? memory/inspect-worker.mjs\n?? memory/inspect.mjs",
+      "libraryVersion": "0.7.10",
+      "buildSha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5"
+    },
+    {
+      "directory": "/private/tmp/zodvex-triage-20260909/examples/stress-test/results/local/memory-heap-b30ebbc5-ad20-4280-8742-ad9de7ee22fd",
+      "runId": "35a94723-4fa3-47ee-8c45-63623c2abee5",
+      "startedAt": "2026-09-09T20:54:03.200Z",
+      "gitCommit": "c4ea16293383256ce108be92b846e42233426f3f",
+      "gitStatus": "M ../../CLAUDE.md\n M ../../CONTRIBUTING.md\n M ../../bun.lock\n M ../../docs/ARCHITECTURE.md\n M ../../docs/planning/state-of-zodvex.md\n M .gitignore\n M README.md\n D __tests__/fast-follows.test.ts\n D __tests__/harness-fixes.test.ts\n D bench.ts\n D bundle.ts\n D compose.ts\n D convex/.gitkeep\n D convex/README.md\n D convex/_generated/api.d.ts\n D convex/_generated/api.js\n D convex/_generated/dataModel.d.ts\n D convex/_generated/server.d.ts\n D convex/_generated/server.js\n D convex/convex.config.ts\n D convex/tsconfig.json\n D harnessMeta.ts\n D measureBundle.ts\n D measureChild.mjs\n M memory/local.mjs\n M memory/provenance.mjs\n M package.json\n D realDeploy.ts\n D regression.ts\n M results/README.md\n D seeds/convex-helpers/endpoints/activity.ts\n D seeds/convex-helpers/endpoints/comment.ts\n D seeds/convex-helpers/endpoints/document.ts\n D seeds/convex-helpers/endpoints/notification.ts\n D seeds/convex-helpers/endpoints/project.ts\n D seeds/convex-helpers/endpoints/task.ts\n D seeds/convex-helpers/endpoints/user.ts\n D seeds/convex-helpers/models/activity.ts\n D seeds/convex-helpers/models/comment.ts\n D seeds/convex-helpers/models/document.ts\n D seeds/convex-helpers/models/notification.ts\n D seeds/convex-helpers/models/project.ts\n D seeds/convex-helpers/models/task.ts\n D seeds/convex-helpers/models/user.ts\n D seeds/convex/endpoints/activity.ts\n D seeds/convex/endpoints/comment.ts\n D seeds/convex/endpoints/document.ts\n D seeds/convex/endpoints/notification.ts\n D seeds/convex/endpoints/project.ts\n D seeds/convex/endpoints/task.ts\n D seeds/convex/endpoints/user.ts\n D seeds/convex/models/activity.ts\n D seeds/convex/models/comment.ts\n D seeds/convex/models/document.ts\n D seeds/convex/models/notification.ts\n D seeds/convex/models/project.ts\n D seeds/convex/models/task.ts\n D seeds/convex/models/user.ts\n D seeds/endpoints/activity.ts\n D seeds/endpoints/comment.ts\n D seeds/endpoints/document.ts\n D seeds/endpoints/notification.ts\n D seeds/endpoints/project.ts\n D seeds/endpoints/task.ts\n D seeds/endpoints/user.ts\n D seeds/models/activity.ts\n D seeds/models/comment.ts\n D seeds/models/document.ts\n D seeds/models/notification.ts\n D seeds/models/project.ts\n D seeds/models/task.ts\n D seeds/models/user.ts\n D seeds/zodvex/endpoints/activity.ts\n D seeds/zodvex/endpoints/comment.ts\n D seeds/zodvex/endpoints/document.ts\n D seeds/zodvex/endpoints/notification.ts\n D seeds/zodvex/endpoints/project.ts\n D seeds/zodvex/endpoints/task.ts\n D seeds/zodvex/endpoints/user.ts\n D seeds/zodvex/models/activity.ts\n D seeds/zodvex/models/comment.ts\n D seeds/zodvex/models/document.ts\n D seeds/zodvex/models/notification.ts\n D seeds/zodvex/models/project.ts\n D seeds/zodvex/models/task.ts\n D seeds/zodvex/models/user.ts\n D sweep.ts\n M tsconfig.json\n M ../../package.json\n?? memory/census.mjs\n?? memory/census.test.mjs\n?? memory/compare.mjs\n?? memory/compare.test.mjs\n?? memory/comparison.md\n?? memory/inspect-worker.mjs\n?? memory/inspect.mjs",
+      "libraryVersion": "0.7.10",
+      "buildSha256": "b60e3b09b38d07580903af084865baa4e04f1801146a89c1389bb06397d5d7b5"
+    }
+  ],
+  "warnings": [],
+  "comparisons": [
+    {
+      "kind": "native",
+      "baseline": {
+        "count": 3,
+        "median": 1036504,
+        "min": 1036504,
+        "max": 1036504
+      },
+      "candidate": {
+        "count": 3,
+        "median": 1036504,
+        "min": 1036504,
+        "max": 1036504
+      },
+      "changeBytes": 0,
+      "changePercent": 0,
+      "baselineBytesPerModel": 8097.6875,
+      "candidateBytesPerModel": 8097.6875
+    },
+    {
+      "kind": "helpers",
+      "baseline": {
+        "count": 3,
+        "median": 18690416,
+        "min": 18690416,
+        "max": 18690416
+      },
+      "candidate": {
+        "count": 3,
+        "median": 18690328,
+        "min": 18690184,
+        "max": 18690336
+      },
+      "changeBytes": -88,
+      "changePercent": -0.00047082954172876626,
+      "baselineBytesPerModel": 146018.875,
+      "candidateBytesPerModel": 146018.1875
+    },
+    {
+      "kind": "full",
+      "baseline": {
+        "count": 3,
+        "median": 25817280,
+        "min": 25817256,
+        "max": 25817296
+      },
+      "candidate": {
+        "count": 3,
+        "median": 25817256,
+        "min": 25817208,
+        "max": 25817280
+      },
+      "changeBytes": -24,
+      "changePercent": -0.00009296099356709925,
+      "baselineBytesPerModel": 201697.5,
+      "candidateBytesPerModel": 201697.3125
+    },
+    {
+      "kind": "mini",
+      "baseline": {
+        "count": 3,
+        "median": 19784520,
+        "min": 19784328,
+        "max": 19784560
+      },
+      "candidate": {
+        "count": 3,
+        "median": 19784456,
+        "min": 19784416,
+        "max": 19784664
+      },
+      "changeBytes": -64,
+      "changePercent": -0.00032348522986658257,
+      "baselineBytesPerModel": 154566.5625,
+      "candidateBytesPerModel": 154566.0625
+    }
+  ]
+}

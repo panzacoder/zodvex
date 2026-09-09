@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**zodvex lets you use Zod v4 as your schema language for Convex.** You define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation: function I/O is validated automatically, `ctx.db` is codec-aware (`Date`/typed-id/custom encode-decode at the database boundary, with `.withRules()` and `.audit()` on the same wrapped db), and an optional codegen CLI shares client-safe schemas and inferred query validators.
+**zodvex lets you use Zod v4 as your schema language for Convex.** You define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation: declared function schemas run Zod parsing/encoding automatically, `ctx.db` is codec-aware (`Date`/typed-id/custom encode-decode at the database boundary, with `.withRules()` and `.audit()` on the same wrapped db), and an optional codegen CLI shares client-safe schemas and inferred query validators.
 
 The codec-aware data layer is the standout *differentiator*, but the *identity* is "Zod as your source of truth across a Convex app." zodvex is not a validator-mapper (mapping is the foundation, not the product — and zodvex ships its **own** mapping layer in `internal/mapping/`; `convex-helpers` is a peer used for the custom-function convention and streams, not the mapping) and not a middleware/function-composition framework (its "middleware" is the codec-aware db, wired once via `initZodvex`).
 
 See [`docs/positioning.md`](docs/positioning.md) for the canonical positioning statement — lead with this framing in any comparison or summary.
+
+See [`docs/decisions/2026-09-07-boundary-contract.md`](docs/decisions/2026-09-07-boundary-contract.md) for current guarantees and limits, including modeled reads, patch semantics, and the default client warn/raw decode policy. Do not summarize these as strict validation at every boundary.
 
 ## Monorepo Structure
 
@@ -18,7 +20,7 @@ This is a bun workspaces monorepo:
 - `examples/task-manager/` — full example app using zodvex via `workspace:*`
 - `examples/task-manager-mini/` — same app using `zod/mini` to verify mini compatibility
 - `examples/quickstart/` — minimal getting-started example
-- `examples/stress-test/` — performance/edge-case testing
+- `examples/stress-test/` — model graph memory and codec workload benchmarks
 - `site/` — the marketing site (Astro, standalone lockfile, deployed to GitHub Pages by `.github/workflows/site.yml`). Not part of the bun workspace.
 - Root `package.json` — workspace root (private, not published)
 
@@ -44,8 +46,10 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 
 ### Validation
 
-- `bun run validate` - **Full pre-release validation.** Runs lint → type-check → test → verify:consumer-declarations → build → verify:examples (local) → verify:examples:network (deploys task-manager + task-manager-mini + quickstart to their Convex dev instances and runs real HTTP smoke tests) → stress-test regression gate (real deploys of the zodvex flavors at N=100 in the explicit shape — deploy parity at main's known-good level, not a ceiling search; ceilings are explored manually via `sweep`). Requires `CONVEX_DEPLOYMENT` configured in each example's `.env.local` (one-time `npx convex dev --configure` per example) plus the stress harness's own pinned deployment in `examples/stress-test/_deploy/.env.local` (see `examples/stress-test/README.md`). Run locally before trialing a release in downstream projects — CI can't do the Convex deploy step.
-- `bun run verify:examples` - Local-only subset (no network). Typechecks + runs vitest + regenerates codegen in both task-manager apps.
+- `bun run validate:local` - Lint, type-check, build, runtime and codemod correctness tests, consumer declaration checks, local examples, and generated-file freshness. Build precedes every check that consumes `dist`. CI uses this command.
+- `bun run validate:network` - Deploy example apps and run their smoke tests. Requires configured example deployments. Run after local validation. Memory and workload benchmarks are separate, explicit experiments; see `examples/stress-test/README.md`.
+- `bun run validate` - Alias for local validation. CI and `bin/release-beta` use the same local gate. Run `validate:network` explicitly when checking deployment behavior; unavailable example deployments do not block unrelated fixes. See the example and stress-test READMEs for deployment setup.
+- `bun run verify:examples` - Local-only subset (no network). Typechecks and tests the benchmarks, then typechecks, runs vitest, and regenerates codegen in both task-manager apps.
 - `bun run verify:examples:network` - Deploys schemas to real Convex and runs smoke tests. Standalone script if you want the Convex portion without the whole pipeline.
 
 ### Releasing

@@ -5,10 +5,14 @@
  * The codemod runs against a temp copy so the original is never modified.
  */
 
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// These integration tests load TypeScript and transform an entire example app.
+// Allow cold compiler startup on CI; elapsed time is not a performance assertion.
+vi.setConfig({ testTimeout: 20000 })
 
 const TASK_MANAGER_CONVEX = join(__dirname, '../../../examples/task-manager/convex')
 
@@ -83,10 +87,16 @@ describe('zodvex codemod --to-mini', () => {
   })
 
   it('skips _generated and _zodvex directories', async () => {
-    // Our beforeEach already excludes these, but verify the codemod's glob
-    // pattern also excludes them by checking it doesn't crash on missing dirs
+    const source = "import { z } from 'zod'; export const schema = z.string().optional();"
+    for (const dir of ['_generated', '_zodvex']) {
+      const path = join(tempDir, 'convex', dir)
+      mkdirSync(path)
+      writeFileSync(join(path, 'sentinel.ts'), source)
+    }
     const { runToMiniCodemod } = await import('../src/public/cli/codemod')
-    await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: true })
-    // If we get here without error, the glob correctly skips missing dirs
+    await runToMiniCodemod(join(tempDir, 'convex'), { dryRun: false })
+    for (const dir of ['_generated', '_zodvex']) {
+      expect(readFileSync(join(tempDir, 'convex', dir, 'sentinel.ts'), 'utf-8')).toBe(source)
+    }
   })
 })

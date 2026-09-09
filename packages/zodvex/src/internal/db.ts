@@ -25,24 +25,8 @@ import type {
 import type { GenericId, NumericValue } from 'convex/values'
 import { z } from 'zod'
 import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
-import {
-  createAuditDatabaseReader,
-  createAuditDatabaseWriter,
-  createRulesDatabaseReader,
-  createRulesDatabaseWriter,
-  installRulesSubclasses
-} from './rules'
-import type { ReaderAuditConfig, WriterAuditConfig, ZodvexRulesConfig } from './ruleTypes'
 import type { ZodTableMap } from './schema'
 import { $ZodObject, $ZodType, $ZodUnion, encode } from './zod-core'
-
-// Note on cycle: rules.ts imports ONLY types from db.ts, so this static import
-// triggers no runtime cycle. rules.ts loads first (its top level has no
-// references to db.ts values), then db.ts declares its base classes, and
-// installRulesSubclasses (called at the end of this file) lets rules.ts
-// build its subclass chain. This replaces a prior `dynamic import()`
-// workaround whose promise could race `.withRules()` / `.audit()` calls
-// made from within `withContext`-style input functions.
 
 // ============================================================================
 // Index builder types — decoded-aware replacements for Convex's IndexRangeBuilder
@@ -246,8 +230,12 @@ function wrapIndexRangeBuilder(inner: any, schema: $ZodType): any {
   })
 }
 
-function extractFieldPath(expr: any): string | null {
-  if (expr && typeof expr.serialize === 'function') {
+function isFilterExpression(value: any, expressionPrototype: object): boolean {
+  return value != null && Object.prototype.isPrototypeOf.call(expressionPrototype, value)
+}
+
+function extractFieldPath(expr: any, expressionPrototype: object): string | null {
+  if (isFilterExpression(expr, expressionPrototype)) {
     const inner = expr.serialize()
     if (inner && typeof inner === 'object' && '$field' in inner) {
       return inner.$field
@@ -257,15 +245,18 @@ function extractFieldPath(expr: any): string | null {
 }
 
 function wrapFilterBuilder(inner: any, schema: $ZodType): any {
+  // Use the builder's own expression type, including expressions created outside
+  // this wrapper. A codec's runtime value may also have a serialize() method.
+  const expressionPrototype = Object.getPrototypeOf(inner.field('_id'))
   return new Proxy(inner, {
     get(target, prop, receiver) {
       if (typeof prop === 'string' && ['eq', 'neq', 'lt', 'lte', 'gt', 'gte'].includes(prop)) {
         return (l: any, r: any) => {
-          const lField = extractFieldPath(l)
-          const rField = extractFieldPath(r)
-          if (lField && !rField) {
+          const lField = extractFieldPath(l, expressionPrototype)
+          const rField = extractFieldPath(r, expressionPrototype)
+          if (lField && !isFilterExpression(r, expressionPrototype)) {
             r = encodeIndexValue(schema, lField, r)
-          } else if (rField && !lField) {
+          } else if (rField && !isFilterExpression(l, expressionPrototype)) {
             l = encodeIndexValue(schema, rField, l)
           }
           return target[prop](l, r)
@@ -419,19 +410,46 @@ export type ResolveDecodedDoc<
 /** System fields auto-managed by Convex — not writable by consumers. */
 type SystemFields = '_id' | '_creationTime'
 
-/** Decoded doc without system fields — for insert and replace values. */
-type DecodedWriteValue<
-  DataModel extends GenericDataModel,
-  DecodedDocs extends Record<string, any>,
-  TableName extends TableNamesInDataModel<DataModel>
-> = Omit<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>, SystemFields>
+/** Preserve variant fields, including named fields alongside a string index signature. */
+type WithoutSystemFields<Doc> = Doc extends unknown
+  ? { [Key in keyof Doc as Key extends SystemFields ? never : Key]: Doc[Key] }
+  : never
 
-/** Partial decoded doc without system fields — for patch values. */
-type DecodedPatchValue<
+/** Value accepted by insert and replace: decoded document without Convex-managed fields. */
+export type WriteValue<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>,
   TableName extends TableNamesInDataModel<DataModel>
-> = Partial<Omit<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>, SystemFields>>
+> = WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>
+
+/** Check the whole document against each member without collapsing variant fields. */
+type IsUnion<Doc, Whole = Doc> = Doc extends unknown
+  ? [Whole] extends [Doc]
+    ? false
+    : true
+  : never
+
+/** Known decoded unions use full encoding; ordinary object documents accept partials. */
+type ModeledPatchValue<Doc> =
+  true extends IsUnion<Doc> ? WithoutSystemFields<Doc> : Partial<WithoutSystemFields<Doc>>
+
+/**
+ * Value accepted by patch: partial decoded object without Convex-managed fields.
+ * Union patches need a complete variant because encodePartialDoc uses full encoding.
+ * Only decoded output types are available here: erased/collapsed schema unions cannot
+ * be detected, and runtime encoding remains authoritative. Unmodeled tables retain
+ * native partial patch values.
+ */
+export type PatchValue<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>,
+  TableName extends TableNamesInDataModel<DataModel>
+> = TableName extends keyof DecodedDocs
+  ? ModeledPatchValue<DecodedDocs[TableName]>
+  : Partial<WithoutSystemFields<ResolveDecodedDoc<DataModel, DecodedDocs, TableName>>>
+
+/** Compatibility aliases for the originally published names. */
+export type { PatchValue as ZodvexPatchValue, WriteValue as ZodvexWriteValue }
 
 /**
  * Resolves a table name from a GenericId by iterating the tableMap
@@ -479,7 +497,7 @@ export class ZodvexDatabaseReader<
     this.system = db.system
   }
 
-  /** @internal Expose for wrapper construction (rules.ts, audit subclasses) */
+  /** @internal Expose for wrapper construction (rule/audit subclasses) */
   get _internals(): { db: GenericDatabaseReader<DataModel>; tableMap: ZodTableMap } {
     return { db: this.db, tableMap: this.tableMap }
   }
@@ -506,8 +524,10 @@ export class ZodvexDatabaseReader<
   get<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>
   ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
-  /** @internal 2-arg form for table-first lookups */
-  get(idOrTable: any, maybeId?: any): Promise<any>
+  get<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>
+  ): Promise<ResolveDecodedDoc<DataModel, DecodedDocs, TableName> | null>
   async get(idOrTable: any, maybeId?: any): Promise<any> {
     let tableName: string | null
     let doc: any
@@ -560,7 +580,7 @@ export class ZodvexDatabaseReader<
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
   ): ZodvexDatabaseReader<DataModel, DecodedDocs> {
-    return createRulesDatabaseReader(this, ctx, rules, config)
+    return new RulesDatabaseReader(this, ctx, rules, config ?? {})
   }
 
   /**
@@ -569,7 +589,7 @@ export class ZodvexDatabaseReader<
    * with `.withRules()`.
    */
   audit(config: ReaderAuditConfig): ZodvexDatabaseReader<DataModel, DecodedDocs> {
-    return createAuditDatabaseReader(this, config)
+    return new AuditDatabaseReader(this, config)
   }
 }
 
@@ -628,10 +648,8 @@ export class ZodvexDatabaseWriter<
 
   insert<TableName extends TableNamesInDataModel<DataModel>>(
     table: TableName,
-    value: DecodedWriteValue<DataModel, DecodedDocs, TableName>
+    value: WriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<GenericId<TableName>>
-  /** @internal untyped fallback */
-  insert(table: any, value: any): Promise<any>
   async insert(table: any, value: any): Promise<any> {
     const schemas = this.tableMap[table as string]
     const wireValue = schemas ? encodeDoc(schemas.insert, value) : value
@@ -640,10 +658,13 @@ export class ZodvexDatabaseWriter<
 
   patch<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>,
-    value: DecodedPatchValue<DataModel, DecodedDocs, TableName>
+    value: PatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
-  /** @internal 3-arg form for table-first patches */
-  patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void>
+  patch<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>,
+    value: PatchValue<DataModel, DecodedDocs, NoInfer<TableName>>
+  ): Promise<void>
   async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
     let id: any
@@ -673,10 +694,13 @@ export class ZodvexDatabaseWriter<
 
   replace<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>,
-    value: DecodedWriteValue<DataModel, DecodedDocs, TableName>
+    value: WriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
   ): Promise<void>
-  /** @internal 3-arg form for table-first replaces */
-  replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void>
+  replace<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>,
+    value: WriteValue<DataModel, DecodedDocs, NoInfer<TableName>>
+  ): Promise<void>
   async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
     let tableName: string | null
     let id: any
@@ -705,8 +729,10 @@ export class ZodvexDatabaseWriter<
   delete<TableName extends TableNamesInDataModel<DataModel>>(
     id: GenericId<TableName>
   ): Promise<void>
-  /** @internal 2-arg form for table-first deletes */
-  delete(idOrTable: any, maybeId?: any): Promise<void>
+  delete<TableName extends TableNamesInDataModel<DataModel>>(
+    table: TableName,
+    id: GenericId<NoInfer<TableName>>
+  ): Promise<void>
   async delete(idOrTable: any, maybeId?: any): Promise<void> {
     if (maybeId !== undefined) {
       // 2-arg form (table, id) is @internal in Convex types — cast required
@@ -726,7 +752,7 @@ export class ZodvexDatabaseWriter<
     rules: Record<string, any>,
     config?: ZodvexRulesConfig
   ): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
-    return createRulesDatabaseWriter(this, ctx, rules, config)
+    return new RulesDatabaseWriter(this, ctx, rules, config ?? {})
   }
 
   /**
@@ -737,7 +763,7 @@ export class ZodvexDatabaseWriter<
    * Overrides Reader's signature so a writer chained call returns a writer.
    */
   override audit(config: WriterAuditConfig): ZodvexDatabaseWriter<DataModel, DecodedDocs> {
-    return createAuditDatabaseWriter(this, config)
+    return new AuditDatabaseWriter(this, config)
   }
 }
 
@@ -775,10 +801,717 @@ export function createZodDbWriter<
   return new ZodvexDatabaseWriter(db, schema.__zodTableMap) as ZodvexDatabaseWriter<DataModel, DD>
 }
 
-// Wire rules.ts subclasses now that base classes above are fully declared.
-// Safe to run at module scope — synchronous, idempotent, no promises.
-installRulesSubclasses({
-  ZodvexQueryChain,
-  ZodvexDatabaseReader,
-  ZodvexDatabaseWriter
-})
+/**
+ * Per-document rule function. Gates and optionally transforms documents.
+ * Return true to allow unchanged, false/null to deny, or Doc to transform.
+ * Boolean shorthand keeps simple RLS rules concise.
+ */
+export type ReadRule<Ctx, Doc> = (ctx: Ctx, doc: Doc) => Promise<Doc | null | boolean>
+
+/** Convenience type: insert doc is the decoded doc without system fields. */
+export type InsertDoc<Doc> = Omit<Doc, '_id' | '_creationTime'>
+
+/**
+ * Per-insert rule. Gates and optionally transforms the insert value.
+ * Return the value (possibly transformed) to allow. Throw to deny.
+ */
+export type InsertRule<Ctx, Doc> = (ctx: Ctx, value: InsertDoc<Doc>) => Promise<InsertDoc<Doc>>
+
+/**
+ * Per-patch rule. Receives current doc + patch value.
+ * Return the patch value (possibly transformed) to allow. Throw to deny.
+ */
+export type PatchRule<Ctx, Doc> = (ctx: Ctx, doc: Doc, value: Partial<Doc>) => Promise<Partial<Doc>>
+
+/**
+ * Per-replace rule. Receives current doc + full replacement value.
+ * Return the replacement (possibly transformed) to allow. Throw to deny.
+ */
+export type ReplaceRule<Ctx, Doc> = (ctx: Ctx, doc: Doc, value: Doc) => Promise<Doc>
+
+/**
+ * Per-delete rule. Receives current doc. Throw to deny.
+ */
+export type DeleteRule<Ctx, Doc> = (ctx: Ctx, doc: Doc) => Promise<void>
+
+/**
+ * Rules for a single table, organized by database operation.
+ */
+export type TableRules<Ctx, Doc> = {
+  read?: ReadRule<Ctx, Doc>
+  insert?: InsertRule<Ctx, Doc>
+  patch?: PatchRule<Ctx, Doc>
+  replace?: ReplaceRule<Ctx, Doc>
+  delete?: DeleteRule<Ctx, Doc>
+}
+
+/**
+ * Per-table rules for all tables in the data model.
+ * With defaultPolicy: 'deny', ALL tables are denied by default (including unmentioned ones).
+ * With defaultPolicy: 'allow' (default), unmentioned tables pass through.
+ */
+export type ZodvexRules<
+  Ctx,
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> = {
+  [T in TableNamesInDataModel<DataModel>]?: TableRules<
+    Ctx,
+    ResolveDecodedDocForRules<DataModel, DecodedDocs, T>
+  >
+}
+
+/**
+ * Resolves a modeled table's decoded document for rules. Unmodeled tables
+ * fall back to any; ResolveDecodedDoc instead falls back to the wire document.
+ */
+export type ResolveDecodedDocForRules<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>,
+  TableName extends TableNamesInDataModel<DataModel>
+> = TableName extends keyof DecodedDocs ? DecodedDocs[TableName] : any
+
+/**
+ * Configuration for .withRules().
+ */
+export type ZodvexRulesConfig = {
+  /** Default policy for all operations. 'deny' applies to ALL tables including unmentioned ones. Default: 'allow'. */
+  defaultPolicy?: 'allow' | 'deny'
+  /** Allow count() when rules are present. Default: false. */
+  allowCounting?: boolean
+}
+
+/**
+ * Describes a completed write operation for audit callbacks.
+ * Generic over Doc so audit events carry decoded types.
+ * Default `any` for untyped usage.
+ */
+export type WriteEvent<Doc = any> =
+  | { type: 'insert'; id: GenericId<any>; value: InsertDoc<Doc> }
+  | { type: 'patch'; id: GenericId<any>; doc: Doc; value: Partial<Doc> }
+  | { type: 'replace'; id: GenericId<any>; doc: Doc; value: Doc }
+  | { type: 'delete'; id: GenericId<any>; doc: Doc }
+
+/**
+ * Audit configuration for .audit() on a reader.
+ */
+export type ReaderAuditConfig = {
+  afterRead?: (table: string, doc: any) => void | Promise<void>
+}
+
+/**
+ * Audit configuration for .audit() on a writer.
+ * Generic over DataModel and DecodedDocs so afterWrite events carry decoded types.
+ */
+export type WriterAuditConfig<
+  DataModel extends GenericDataModel = GenericDataModel,
+  DecodedDocs extends Record<string, any> = Record<string, any>
+> = {
+  afterRead?: (table: string, doc: any) => void | Promise<void>
+  afterWrite?: <T extends TableNamesInDataModel<DataModel>>(
+    table: T,
+    event: WriteEvent<ResolveDecodedDocForRules<DataModel, DecodedDocs, T>>
+  ) => void | Promise<void>
+}
+
+/**
+ * Normalize a read rule result: true -> doc (pass-through), false/null -> null (deny), Doc -> Doc (transform).
+ */
+export function normalizeReadResult<Doc>(
+  result: Doc | null | boolean,
+  originalDoc: Doc
+): Doc | null {
+  if (result === true) return originalDoc
+  if (result === false) return null
+  return result
+}
+
+/**
+ * Extends ZodvexQueryChain, applying a read rule at every terminal method.
+ * Intermediate methods are inherited from the base class via createChain().
+ * Only terminals and createChain() are overridden.
+ */
+export class RulesQueryChain<TableInfo extends GenericTableInfo, Doc> extends ZodvexQueryChain<
+  TableInfo,
+  Doc
+> {
+  private readRule: ReadRule<any, Doc>
+  private rulesConfig: ZodvexRulesConfig
+  private ctx: any
+
+  constructor(
+    inner: any,
+    schema: any,
+    readRule: ReadRule<any, Doc>,
+    config: ZodvexRulesConfig,
+    ctx: any = {}
+  ) {
+    super(inner, schema)
+    this.readRule = readRule
+    this.rulesConfig = config
+    this.ctx = ctx
+  }
+
+  protected createChain(inner: any): RulesQueryChain<TableInfo, Doc> {
+    return new RulesQueryChain(inner, this.schema, this.readRule, this.rulesConfig, this.ctx)
+  }
+
+  async first(): Promise<Doc | null> {
+    for await (const doc of this as any) {
+      return doc
+    }
+    return null
+  }
+
+  async unique(): Promise<Doc | null> {
+    const doc = await super.unique()
+    if (doc === null) return null
+    return normalizeReadResult(await this.readRule(this.ctx, doc), doc)
+  }
+
+  async collect(): Promise<Doc[]> {
+    const results: Doc[] = []
+    for await (const doc of this as any) {
+      results.push(doc)
+    }
+    return results
+  }
+
+  async take(n: number): Promise<Doc[]> {
+    if (!Number.isInteger(n) || n < 0) {
+      throw new Error('take requires a non-negative integer')
+    }
+    const results: Doc[] = []
+    if (n === 0) return results
+    for await (const doc of this as any) {
+      results.push(doc)
+      if (results.length >= n) break
+    }
+    return results
+  }
+
+  async paginate(opts: PaginationOptions): Promise<PaginationResult<Doc>> {
+    const result = await super.paginate(opts)
+    const filtered: Doc[] = []
+    for (const doc of result.page) {
+      const allowed = normalizeReadResult(await this.readRule(this.ctx, doc), doc)
+      if (allowed !== null) filtered.push(allowed)
+    }
+    return { ...result, page: filtered }
+  }
+
+  async count(): Promise<number> {
+    if (!this.rulesConfig.allowCounting) {
+      throw new Error('count is not allowed with rules')
+    }
+    return super.count()
+  }
+
+  async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
+    // The base method is an async generator; its public type exposes only AsyncIterator.
+    for await (const value of super[Symbol.asyncIterator]() as AsyncIterableIterator<Doc>) {
+      const result = normalizeReadResult(await this.readRule(this.ctx, value), value)
+      if (result !== null) yield result
+    }
+  }
+}
+
+function resolveRulesTableName<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+>(
+  db: ZodvexDatabaseReader<DataModel, DecodedDocs>,
+  id: string,
+  rules: Record<string, TableRules<any, any>>,
+  config: ZodvexRulesConfig
+): string | null {
+  for (const tableName of Object.keys(rules)) {
+    if (db.normalizeId(tableName as TableNamesInDataModel<DataModel>, id)) {
+      return tableName
+    }
+  }
+  if ((config.defaultPolicy ?? 'allow') === 'deny') {
+    for (const tableName of Object.keys(db._internals.tableMap)) {
+      if (db.normalizeId(tableName as TableNamesInDataModel<DataModel>, id)) {
+        return tableName
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Wraps a ZodvexDatabaseReader with per-table read rules.
+ */
+class RulesDatabaseReader<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> extends ZodvexDatabaseReader<DataModel, DecodedDocs> {
+  constructor(
+    private inner: ZodvexDatabaseReader<DataModel, DecodedDocs>,
+    private ctx: any,
+    private rules: Record<string, TableRules<any, any>>,
+    private rulesConfig: ZodvexRulesConfig
+  ) {
+    const { db, tableMap } = inner._internals
+    super(db, tableMap)
+    this.system = inner.system
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    const doc = await this.inner.get(idOrTable, maybeId)
+    if (doc === null) return null
+
+    const tableName =
+      maybeId !== undefined
+        ? (idOrTable as string)
+        : resolveRulesTableName(this.inner, idOrTable, this.rules, this.rulesConfig)
+
+    if (!tableName) return doc
+    return this.applyReadRule(tableName, doc)
+  }
+
+  query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
+    const tableRules = this.rules[tableName as string]
+
+    if (!tableRules?.read && (this.rulesConfig.defaultPolicy ?? 'allow') === 'allow') {
+      return this.inner.query(tableName)
+    }
+
+    const innerChain = this.inner.query(tableName)
+    const readRule = tableRules?.read ?? (async () => null)
+    const passthroughSchema = z.any()
+    return new RulesQueryChain(innerChain, passthroughSchema, readRule, this.rulesConfig, this.ctx)
+  }
+
+  private async applyReadRule(tableName: string, doc: any): Promise<any> {
+    const tableRules = this.rules[tableName]
+    if (!tableRules?.read) {
+      if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') return null
+      return doc
+    }
+    const result = await tableRules.read(this.ctx, doc)
+    return normalizeReadResult(result, doc)
+  }
+}
+
+/**
+ * Wraps a ZodvexDatabaseWriter with per-table read and write rules.
+ */
+class RulesDatabaseWriter<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> extends ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+  private rulesReader: ZodvexDatabaseReader<DataModel, DecodedDocs>
+
+  constructor(
+    private inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>,
+    private ctx: any,
+    private rules: Record<string, TableRules<any, any>>,
+    private rulesConfig: ZodvexRulesConfig
+  ) {
+    const { db, tableMap, reader: innerReader } = inner._internals
+    super(db, tableMap)
+    this.rulesReader = new RulesDatabaseReader(innerReader, ctx, rules, rulesConfig)
+    this.system = inner.system
+  }
+
+  normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
+    tableName: TableName,
+    id: string
+  ): GenericId<TableName> | null {
+    return this.rulesReader.normalizeId(tableName, id)
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    return this.rulesReader.get(idOrTable, maybeId)
+  }
+
+  query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
+    return this.rulesReader.query(tableName)
+  }
+
+  async insert(table: any, value: any): Promise<any> {
+    const tableName = table as string
+    const tableRules = this.rules[tableName]
+
+    if (tableRules?.insert) {
+      const transformed = await tableRules.insert(this.ctx, value)
+      // Rules are stored with erased table types; the codec boundary validates
+      // the transformed document against this table's insert schema.
+      return this.inner.insert(
+        table,
+        transformed as Parameters<ZodvexDatabaseWriter<DataModel, DecodedDocs>['insert']>[1]
+      )
+    }
+
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      throw new Error(`insert not allowed on ${tableName}`)
+    }
+
+    return this.inner.insert(table, value)
+  }
+
+  async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+    }
+
+    const doc = await this.rulesReader.get(id)
+    if (doc === null) {
+      throw new Error('no read access or doc does not exist')
+    }
+
+    const tableName = resolveRulesTableName(this.inner, id, this.rules, this.rulesConfig)
+    const tableRules = tableName ? this.rules[tableName] : undefined
+
+    if (tableRules?.patch) {
+      const transformed = await tableRules.patch(this.ctx, doc, value)
+      // Rules erase table types; the inner encoder still validates transformed
+      // patches, including the complete-variant requirement for union schemas.
+      return this.inner.patch(
+        id,
+        transformed as Parameters<ZodvexDatabaseWriter<DataModel, DecodedDocs>['patch']>[2]
+      )
+    }
+
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      throw new Error(`patch not allowed on ${tableName}`)
+    }
+
+    return this.inner.patch(id, value)
+  }
+
+  async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+    }
+
+    const doc = await this.rulesReader.get(id)
+    if (doc === null) {
+      throw new Error('no read access or doc does not exist')
+    }
+
+    const tableName = resolveRulesTableName(this.inner, id, this.rules, this.rulesConfig)
+    const tableRules = tableName ? this.rules[tableName] : undefined
+
+    if (tableRules?.replace) {
+      const transformed = await tableRules.replace(this.ctx, doc, value)
+      return this.inner.replace(id, transformed)
+    }
+
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      throw new Error(`replace not allowed on ${tableName}`)
+    }
+
+    return this.inner.replace(id, value)
+  }
+
+  async delete(idOrTable: any, maybeId?: any): Promise<void> {
+    let id: any
+
+    if (maybeId !== undefined) {
+      id = maybeId
+    } else {
+      id = idOrTable
+    }
+
+    const doc = await this.rulesReader.get(id)
+    if (doc === null) {
+      throw new Error('no read access or doc does not exist')
+    }
+
+    const tableName = resolveRulesTableName(this.inner, id, this.rules, this.rulesConfig)
+    const tableRules = tableName ? this.rules[tableName] : undefined
+
+    if (tableRules?.delete) {
+      await tableRules.delete(this.ctx, doc)
+      return this.inner.delete(id)
+    }
+
+    if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') {
+      throw new Error(`delete not allowed on ${tableName}`)
+    }
+
+    return this.inner.delete(id)
+  }
+}
+
+// ==========================================================================
+// Audit wrapping — afterRead and afterWrite callbacks
+// ==========================================================================
+
+/**
+ * Extends ZodvexQueryChain to fire an afterRead callback for each document
+ * returned by terminal methods.
+ */
+class AuditQueryChain<TableInfo extends GenericTableInfo, Doc> extends ZodvexQueryChain<
+  TableInfo,
+  Doc
+> {
+  private afterRead: (table: string, doc: any) => void | Promise<void>
+  private tableName: string
+
+  constructor(
+    inner: any,
+    schema: any,
+    afterRead: (table: string, doc: any) => void | Promise<void>,
+    tableName: string
+  ) {
+    super(inner, schema)
+    this.afterRead = afterRead
+    this.tableName = tableName
+  }
+
+  protected createChain(inner: any): AuditQueryChain<TableInfo, Doc> {
+    return new AuditQueryChain(inner, this.schema, this.afterRead, this.tableName)
+  }
+
+  async first(): Promise<Doc | null> {
+    const doc = await super.first()
+    if (doc !== null) await this.afterRead(this.tableName, doc)
+    return doc
+  }
+
+  async unique(): Promise<Doc | null> {
+    const doc = await super.unique()
+    if (doc !== null) await this.afterRead(this.tableName, doc)
+    return doc
+  }
+
+  async collect(): Promise<Doc[]> {
+    const docs = await super.collect()
+    for (const doc of docs) {
+      await this.afterRead(this.tableName, doc)
+    }
+    return docs
+  }
+
+  async take(n: number): Promise<Doc[]> {
+    const docs = await super.take(n)
+    for (const doc of docs) {
+      await this.afterRead(this.tableName, doc)
+    }
+    return docs
+  }
+
+  async paginate(opts: PaginationOptions): Promise<PaginationResult<Doc>> {
+    const result = await super.paginate(opts)
+    for (const doc of result.page) {
+      await this.afterRead(this.tableName, doc)
+    }
+    return result
+  }
+
+  async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
+    // The base method is an async generator; its public type exposes only AsyncIterator.
+    for await (const value of super[Symbol.asyncIterator]() as AsyncIterableIterator<Doc>) {
+      await this.afterRead(this.tableName, value)
+      yield value
+    }
+  }
+}
+
+/**
+ * Wraps a ZodvexDatabaseReader with afterRead audit callbacks.
+ */
+class AuditDatabaseReader<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> extends ZodvexDatabaseReader<DataModel, DecodedDocs> {
+  private inner: ZodvexDatabaseReader<DataModel, DecodedDocs>
+  private afterRead: (table: string, doc: any) => void | Promise<void>
+
+  constructor(inner: ZodvexDatabaseReader<DataModel, DecodedDocs>, config: ReaderAuditConfig) {
+    const { db, tableMap } = inner._internals
+    super(db, tableMap)
+    this.inner = inner
+    this.afterRead =
+      config.afterRead ??
+      (() => {
+        /* noop */
+      })
+    this.system = inner.system
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    const doc = await this.inner.get(idOrTable, maybeId)
+    if (doc !== null) {
+      const tableName = this.resolveTableFromId(
+        maybeId !== undefined ? maybeId : idOrTable,
+        maybeId !== undefined ? idOrTable : undefined
+      )
+      if (tableName) {
+        await this.afterRead(tableName, doc)
+      }
+    }
+    return doc
+  }
+
+  query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
+    const innerChain = this.inner.query(tableName)
+    const passthroughSchema = z.any()
+    return new AuditQueryChain(innerChain, passthroughSchema, this.afterRead, tableName as string)
+  }
+
+  private resolveTableFromId(id: any, explicitTable?: string): string | null {
+    if (explicitTable) return explicitTable
+    for (const tableName of Object.keys(this.tableMap)) {
+      if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
+        return tableName
+      }
+    }
+    return null
+  }
+}
+
+/**
+ * Wraps a ZodvexDatabaseWriter with afterRead and afterWrite audit callbacks.
+ */
+class AuditDatabaseWriter<
+  DataModel extends GenericDataModel,
+  DecodedDocs extends Record<string, any>
+> extends ZodvexDatabaseWriter<DataModel, DecodedDocs> {
+  private inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>
+  private auditReader: ZodvexDatabaseReader<DataModel, DecodedDocs>
+  private afterWrite: ((table: string, event: WriteEvent) => void | Promise<void>) | undefined
+
+  constructor(inner: ZodvexDatabaseWriter<DataModel, DecodedDocs>, config: WriterAuditConfig) {
+    const { db, tableMap, reader: innerReader } = inner._internals
+    super(db, tableMap)
+    this.inner = inner
+    this.afterWrite = config.afterWrite as typeof this.afterWrite
+
+    this.auditReader = config.afterRead
+      ? new AuditDatabaseReader(innerReader, { afterRead: config.afterRead })
+      : innerReader
+    this.system = inner.system
+  }
+
+  normalizeId<TableName extends TableNamesInDataModel<DataModel>>(
+    tableName: TableName,
+    id: string
+  ): GenericId<TableName> | null {
+    return this.auditReader.normalizeId(tableName, id)
+  }
+
+  async get(idOrTable: any, maybeId?: any): Promise<any> {
+    return this.auditReader.get(idOrTable, maybeId)
+  }
+
+  query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
+    return this.auditReader.query(tableName)
+  }
+
+  async insert(table: any, value: any): Promise<any> {
+    const id = await this.inner.insert(table, value)
+    if (this.afterWrite) {
+      await this.afterWrite(table as string, { type: 'insert', id, value })
+    }
+    return id
+  }
+
+  async patch(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+    }
+
+    const doc = await this.inner.get(id)
+
+    if (maybeValue !== undefined) {
+      await this.inner.patch(idOrTable, idOrValue, maybeValue)
+    } else {
+      await this.inner.patch(id, value)
+    }
+
+    if (this.afterWrite) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        await this.afterWrite(tableName, { type: 'patch', id, doc, value })
+      }
+    }
+  }
+
+  async replace(idOrTable: any, idOrValue: any, maybeValue?: any): Promise<void> {
+    let id: any
+    let value: any
+
+    if (maybeValue !== undefined) {
+      id = idOrValue
+      value = maybeValue
+    } else {
+      id = idOrTable
+      value = idOrValue
+    }
+
+    const doc = await this.inner.get(id)
+
+    if (maybeValue !== undefined) {
+      await this.inner.replace(idOrTable, idOrValue, maybeValue)
+    } else {
+      await this.inner.replace(id, value)
+    }
+
+    if (this.afterWrite) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        await this.afterWrite(tableName, { type: 'replace', id, doc, value })
+      }
+    }
+  }
+
+  async delete(idOrTable: any, maybeId?: any): Promise<void> {
+    let id: any
+
+    if (maybeId !== undefined) {
+      id = maybeId
+    } else {
+      id = idOrTable
+    }
+
+    const doc = await this.inner.get(id)
+
+    if (maybeId !== undefined) {
+      await this.inner.delete(idOrTable, maybeId)
+    } else {
+      await this.inner.delete(id)
+    }
+
+    if (this.afterWrite) {
+      const tableName = this.resolveTableFromId(id)
+      if (tableName) {
+        await this.afterWrite(tableName, { type: 'delete', id, doc })
+      }
+    }
+  }
+
+  private resolveTableFromId(id: any): string | null {
+    for (const tableName of Object.keys(this.inner._internals.tableMap)) {
+      if (this.inner.normalizeId(tableName as any, id as unknown as string)) {
+        return tableName
+      }
+    }
+    return null
+  }
+}

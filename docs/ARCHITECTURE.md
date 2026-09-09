@@ -7,7 +7,7 @@ full/mini refactor completed on April 7, 2026.
 
 **zodvex lets you use Zod v4 as your schema language for Convex** — define your tables,
 args, and return types once and use them end to end. Its standout differentiator is
-automatic validation plus a codec-aware `ctx.db` (`Date`/id/custom encode-decode at the
+automatic validation for declared function schemas and modeled reads, plus a codec-aware `ctx.db` (`Date`/id/custom encode-decode at the
 database boundary, with `.withRules()` and `.audit()`), all wired once via `initZodvex`.
 It is *not* a validator-mapper (mapping is the foundation, not the product — zodvex owns
 its mapping layer in `internal/mapping/`, with `convex-helpers` as a peer for the
@@ -147,7 +147,7 @@ It does not rediscover model shape independently.**
 ### Shared Contract Compilation
 
 All function registration flows now share the same contract machinery in
-`src/internal/functionContracts.ts`.
+`src/internal/functions/contracts.ts`.
 
 That layer owns:
 
@@ -159,14 +159,17 @@ That layer owns:
 - metadata attachment
 - customization input merging
 
-### Thin Public Builders
+### Function Builders and Legacy Helpers
 
-The public entrypoints are now mostly shells over that shared contract layer:
+Modern custom builders and runtime initialization live alongside the shared contracts:
 
-- `src/internal/wrappers.ts`
-- `src/internal/builders.ts`
-- `src/internal/custom.ts`
-- `src/internal/init.ts`
+- `src/internal/functions/customFunctions.ts`
+- `src/internal/functions/init.ts`
+
+The older direct wrappers and deprecated builder factories live in
+`src/internal/legacy/wrappers.ts` and `src/internal/legacy/builders.ts`. This private
+implementation directory is separate from the public `src/legacy/index.ts`
+package entrypoint; its modules still import only other internal modules.
 
 That means `zQuery`, `zMutation`, `zAction`, the legacy builder helpers, custom
 builders, and `initZodvex()` all share the same behavioral core instead of
@@ -213,11 +216,11 @@ The architectural rules are:
 **shared runtime layers own encode/decode behavior once; examples and wrappers
 should not paper over that behavior manually.**
 
-**the codec layer adds meaning at boundaries; it never subtracts native Convex
-capability.** If raw Convex can express something (e.g. `patch` deleting a field
-via `undefined`), the wrapped `ctx.db` must be able to express it too. A "safe
-default" that removes a native capability with no escape hatch is a bug, not a
-design choice.
+**Preserve native Convex operations where the wrapped schema contract supports them,
+and document limitations and escape hatches.** Object patches preserve top-level
+`undefined` for field deletion, while union patches currently use full encoding.
+`unwrap()` provides native database access and bypasses codecs, rules, and audit.
+See the [boundary contract](./decisions/2026-09-07-boundary-contract.md).
 
 This is why the refactor also moved index/filter handling back toward shared DB
 machinery instead of letting examples carry ad hoc `getTime()` workarounds.
@@ -316,7 +319,7 @@ Cheap checks that should stay runnable in CI or before a release:
 - package typecheck/tests/build
 - task-manager typecheck/test/generate
 - task-manager-mini typecheck/test/generate
-- stress-test typecheck/generate/measure/report using temp result directories
+- benchmark typecheck and local correctness tests for memory/workload measurements
 - mini import guard
 
 The repo root script for this path is `bun run verify:examples`.
@@ -333,6 +336,10 @@ These are important before a beta release, but they should stay separate from
 the cheap default verification path.
 
 The repo root script for this path is `bun run verify:examples:network`.
+
+The model graph memory and codec workload benchmarks in `examples/stress-test/`
+run separately from validation. They replace the generated table-count sweeps;
+see [the benchmark guide](../examples/stress-test/README.md) for scope and setup.
 
 ## Current Preferred Mental Model
 

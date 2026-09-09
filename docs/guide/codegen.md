@@ -150,7 +150,7 @@ Exports React hooks and client utilities pre-bound to the registry:
 
 ```typescript
 // _zodvex/client.js (generated)
-export const { useZodQuery, useZodMutation } = createZodvexHooks(zodvexRegistry)
+export const { useZodQuery, useZodMutation, useQuery_experimental } = createZodvexHooks(zodvexRegistry)
 
 export const createClient = (options) => createZodvexClient(zodvexRegistry, options)
 export const createReactClient = (options) => createZodvexReactClient(zodvexRegistry, options)
@@ -175,6 +175,28 @@ function TaskDetail({ id }: { id: string }) {
 
 `encodeArgs` and `decodeResult` are lower-level helpers for non-hook use cases (e.g. form submit handlers, non-React clients).
 
+### `useQuery_experimental` — explicit query states
+
+The generated client also exports Convex's object-form query hook with codec support:
+
+```tsx
+import { useQuery_experimental } from '../convex/_zodvex/client'
+import { api } from '../convex/_zodvex/api'
+
+function Tasks() {
+  const result = useQuery_experimental({ query: api.tasks.list, args: {} })
+  if (result.status === 'pending') return <p>Loading…</p>
+  if (result.status === 'error') return <p>{result.error.message}</p>
+  return <pre>{JSON.stringify(result.data)}</pre>
+}
+```
+
+Arguments use decoded types (such as `Date`), and successful results are decoded through the registry. Pass `args: 'skip'` to suspend the query. Set `throwOnError: true` to throw failures to a React error boundary; the result type then contains only `pending` and `success`.
+
+This hook requires **Convex 1.37 or newer**. Older SDKs can still import the generated client and use the existing hooks; only calling `useQuery_experimental` requires upgrading. Bundlers may warn about the unavailable export on older SDKs; projects that treat such warnings as errors should also upgrade. The name follows Convex's experimental API naming and does not require a prerelease version of Zodvex.
+
+By default, argument encoding and result decoding failures become an `error` state. Native query failures follow Convex's `throwOnError` setting; configuration errors such as a missing provider still throw. Unlike `useZodQuery`, this hook decodes strictly by default when a return schema exists. Missing registry entries or schemas pass through unchanged. A custom factory created with `createZodvexHooks(registry, { onDecodeError: 'warn' })` explicitly opts into warning and returning the raw wire result on decode failure.
+
 ### `ZodvexClient` / `ZodvexReactClient` — codec-aware drop-in clients
 
 `createZodvexClient` (vanilla JS) and `createZodvexReactClient` (React) wrap Convex's `ConvexClient` / `ConvexReactClient` and apply registry codecs on every call — args are encoded to wire on the way out, results decoded to runtime on the way in. They aim to be **near drop-in replacements** for the Convex clients, exposing the same surface:
@@ -183,6 +205,45 @@ function TaskDetail({ id }: { id: string }) {
 - **`ZodvexReactClient`** (↔ `ConvexReactClient`): `query`, `mutation`, `action`, `watchQuery`, `prewarmQuery`, `setAuth`, `clearAuth`, `connectionState`, `subscribeToConnectionState`, `url`, `logger`, `close`.
 
 The data methods (`query` / `mutate` / `action` / `subscribe` / `watchQuery` / paginated) are codec-wrapped; the auth, connection, and lifecycle methods are thin pass-throughs to the underlying Convex client.
+
+### Paginated React queries
+
+Generated clients export `useZodPaginatedQuery`:
+
+```tsx
+import { useZodPaginatedQuery } from '../convex/_zodvex/client'
+
+const { results, status, isLoading, loadMore } = useZodPaginatedQuery(
+  api.tasks.list,
+  { after: new Date() },
+  { initialNumItems: 25 }
+)
+```
+
+Pass domain arguments or `'skip'`; Convex supplies `paginationOpts`, manages live pages,
+page splits and cursors, and accumulates results. Zodvex encodes the domain arguments
+and decodes result items using the registered `returns.page` array schema.
+
+This requires an ordinary argument object and an ordinary return object containing
+`page: z.array(itemSchema)`. Argument-object refinements, return-object refinements or
+transforms, and page-array refinements or transforms are rejected. Item schemas retain
+codecs, refinements, unions, defaults and transforms supported by normal Zod decoding.
+Functions without a relevant registry schema pass through unchanged.
+
+These aggregate APIs validate items, not the original page envelopes or their metadata.
+They do not fabricate a cursor or a page completion flag to run the return schema.
+Use `query`, `subscribe`, or `watchQuery` with explicit `paginationOpts` when you need
+client-side validation of complete pages. Codec failures always throw, even when the
+factory uses `onDecodeError: 'warn'` for its other methods. Handle React failures with
+an error boundary; invalid arguments do not start a subscription.
+
+`ZodvexClient.onPaginatedUpdate_experimental` uses the same argument and item contract.
+Its callback receives `{ results, status, loadMore }`, matching Convex's runtime, and
+its returned subscription decodes `getCurrentValue()` too. Call the subscription itself
+or `.unsubscribe()` to stop it. `.getQueryLogs()` returns `undefined` on SDK versions
+without that method. This corrects the previous, non-working page-envelope signature.
+Provide `onError` when sharing a vanilla client across subscriptions: without it, a decode
+failure throws from Convex's callback loop and can interrupt sibling callbacks in that update.
 
 ## Bootstrapping note
 

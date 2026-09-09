@@ -1,0 +1,127 @@
+{
+  "kind": "local-schema-construction-proxy-v1",
+  "timestamp": "2026-09-07T23:06:18.698Z",
+  "node": "v24.19.0",
+  "v8": "13.6.233.17-node.51",
+  "platform": "linux",
+  "arch": "x64",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "count": 300,
+  "repetitions": 5,
+  "gitSha": "9578ff93e8b4ecc87b27bc3ad8ca125cb74a8ee5",
+  "gitDirty": true,
+  "scriptSha256": "d08e1850ff1836158415cbd9d8b6b4ff90d35014ce3453063b23f96ab6434904",
+  "scope": "Retained Node heap and construction time only; not Convex deployment capacity, function latency, or a validation guarantee.",
+  "rows": [
+    {
+      "repetition": 0,
+      "version": "4.3.6",
+      "count": 300,
+      "constructionMs": 142.740469,
+      "beforeBytes": 9473928,
+      "constructedBytes": 69301952,
+      "parsedBytes": 69754176,
+      "retainedConstructionBytes": 59828024,
+      "retainedAfterParseBytes": 60280248
+    },
+    {
+      "repetition": 0,
+      "version": "4.5.4",
+      "count": 300,
+      "constructionMs": 23.641946999999988,
+      "beforeBytes": 10537456,
+      "constructedBytes": 17446760,
+      "parsedBytes": 18012792,
+      "retainedConstructionBytes": 6909304,
+      "retainedAfterParseBytes": 7475336
+    },
+    {
+      "repetition": 1,
+      "version": "4.5.4",
+      "count": 300,
+      "constructionMs": 19.581377000000003,
+      "beforeBytes": 10537312,
+      "constructedBytes": 17446616,
+      "parsedBytes": 18012648,
+      "retainedConstructionBytes": 6909304,
+      "retainedAfterParseBytes": 7475336
+    },
+    {
+      "repetition": 1,
+      "version": "4.3.6",
+      "count": 300,
+      "constructionMs": 170.084309,
+      "beforeBytes": 9473784,
+      "constructedBytes": 69356760,
+      "parsedBytes": 69796480,
+      "retainedConstructionBytes": 59882976,
+      "retainedAfterParseBytes": 60322696
+    },
+    {
+      "repetition": 2,
+      "version": "4.3.6",
+      "count": 300,
+      "constructionMs": 206.699077,
+      "beforeBytes": 9472488,
+      "constructedBytes": 69470224,
+      "parsedBytes": 69920728,
+      "retainedConstructionBytes": 59997736,
+      "retainedAfterParseBytes": 60448240
+    },
+    {
+      "repetition": 2,
+      "version": "4.5.4",
+      "count": 300,
+      "constructionMs": 27.731511000000012,
+      "beforeBytes": 10537384,
+      "constructedBytes": 17446640,
+      "parsedBytes": 17998616,
+      "retainedConstructionBytes": 6909256,
+      "retainedAfterParseBytes": 7461232
+    },
+    {
+      "repetition": 3,
+      "version": "4.5.4",
+      "count": 300,
+      "constructionMs": 21.811980000000005,
+      "beforeBytes": 10537312,
+      "constructedBytes": 17446616,
+      "parsedBytes": 17998544,
+      "retainedConstructionBytes": 6909304,
+      "retainedAfterParseBytes": 7461232
+    },
+    {
+      "repetition": 3,
+      "version": "4.3.6",
+      "count": 300,
+      "constructionMs": 180.074049,
+      "beforeBytes": 9474192,
+      "constructedBytes": 69345104,
+      "parsedBytes": 69811328,
+      "retainedConstructionBytes": 59870912,
+      "retainedAfterParseBytes": 60337136
+    },
+    {
+      "repetition": 4,
+      "version": "4.3.6",
+      "count": 300,
+      "constructionMs": 190.53360500000002,
+      "beforeBytes": 9473928,
+      "constructedBytes": 69302192,
+      "parsedBytes": 69754344,
+      "retainedConstructionBytes": 59828264,
+      "retainedAfterParseBytes": 60280416
+    },
+    {
+      "repetition": 4,
+      "version": "4.5.4",
+      "count": 300,
+      "constructionMs": 35.760932999999994,
+      "beforeBytes": 10537520,
+      "constructedBytes": 17489784,
+      "parsedBytes": 18041624,
+      "retainedConstructionBytes": 6952264,
+      "retainedAfterParseBytes": 7504104
+    }
+  ]
+}

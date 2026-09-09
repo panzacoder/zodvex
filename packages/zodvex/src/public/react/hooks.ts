@@ -1,10 +1,44 @@
-import type { OptionalRestArgsOrSkip } from 'convex/react'
-import { useMutation, useQuery } from 'convex/react'
-import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server'
-import { getFunctionName } from 'convex/server'
+import type {
+  OptionalRestArgsOrSkip,
+  PaginatedQueryReference,
+  UsePaginatedQueryResult
+} from 'convex/react'
+import * as convexReact from 'convex/react'
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+  PaginationOptions
+} from 'convex/server'
+import { useMemo } from 'react'
 import type { BoundaryHelpersOptions } from '../../internal/boundaryHelpers'
-import { createBoundaryHelpers } from '../../internal/boundaryHelpers'
+import { createBoundaryHelpers, resolveFunctionPath } from '../../internal/boundaryHelpers'
+import { createPaginationCodec } from '../../internal/paginationCodec'
 import type { AnyRegistry } from '../../internal/types'
+
+/** Query state, with failures omitted when throwOnError is enabled. */
+export type UseQueryResult<Result, ThrowOnError extends boolean = false> =
+  | { status: 'pending' }
+  | { status: 'success'; data: Result }
+  | (ThrowOnError extends true ? never : { status: 'error'; error: Error })
+
+type UseQueryOptions<
+  Query extends FunctionReference<'query', any, any, any>,
+  ThrowOnError extends boolean
+> = {
+  query: Query
+  args: FunctionArgs<Query> | 'skip'
+  throwOnError?: ThrowOnError
+}
+
+function codecError(error: unknown, operation: 'encode' | 'decode'): Error {
+  return error instanceof Error
+    ? error
+    : new Error(`Failed to ${operation} query ${operation === 'encode' ? 'arguments' : 'result'}`, {
+        cause: error
+      })
+}
 
 /**
  * Creates zodvex-aware React hooks that automatically decode query results
@@ -33,6 +67,103 @@ export function createZodvexHooks<R extends AnyRegistry>(
   options?: BoundaryHelpersOptions
 ) {
   const codec = createBoundaryHelpers(registry, options)
+  const paginationCodec = createPaginationCodec(registry)
+  const experimentalCodec = createBoundaryHelpers(registry, {
+    ...options,
+    onDecodeError: options?.onDecodeError ?? 'throw'
+  })
+
+  /**
+   * Convex pagination with encoded filters and decoded items. Pagination metadata
+   * stays under Convex's control. Codec errors throw, including in warn mode.
+   * Outer object/array refinements and transforms require explicit page queries.
+   */
+  function useZodPaginatedQuery<
+    Query extends FunctionReference<
+      'query',
+      'public',
+      { paginationOpts?: PaginationOptions },
+      { page: any[]; isDone: boolean; continueCursor: string }
+    >
+  >(
+    ref: Query,
+    args: Omit<FunctionArgs<Query>, 'paginationOpts'> | 'skip',
+    paginationOptions: { initialNumItems: number }
+  ): UsePaginatedQueryResult<FunctionReturnType<Query>['page'][number]> {
+    let wireArgs: any = 'skip'
+    let encodeFailure: { error: unknown } | undefined
+    if (args !== 'skip') {
+      try {
+        wireArgs = paginationCodec.encodeArgs(ref, args)
+      } catch (error) {
+        encodeFailure = { error }
+      }
+    }
+    const state = usePaginatedQuery(ref as PaginatedQueryReference, wireArgs, paginationOptions)
+    const skipped = wireArgs === 'skip'
+    const queryKey = resolveFunctionPath(ref) ?? ref
+    const results = useMemo(
+      () => (skipped ? state.results : paginationCodec.decodeResults(ref, state.results)),
+      [queryKey, state.results, skipped]
+    )
+    // Call both hooks on failed encodes too, so a failure never changes hook order.
+    if (encodeFailure) throw encodeFailure.error
+    return { ...state, results }
+  }
+
+  /**
+   * Convex's object-form query hook with decoded arguments and results (Convex >=1.37).
+   * Codec failures return an error state unless throwOnError is true. Decoding is
+   * strict by default; explicit onDecodeError: 'warn' preserves the raw fallback.
+   */
+  function useQuery_experimental<
+    Query extends FunctionReference<'query', any, any, any>,
+    ThrowOnError extends boolean = false
+  >(
+    queryOptions: UseQueryOptions<Query, ThrowOnError>
+  ): UseQueryResult<FunctionReturnType<Query>, ThrowOnError>
+  function useQuery_experimental(
+    queryOptions: UseQueryOptions<FunctionReference<'query', any, any, any>, boolean>
+  ): UseQueryResult<any> {
+    // Optional namespace access keeps older SDK imports valid and allows tree shaking.
+    const nativeHook = (
+      convexReact as unknown as {
+        useQuery_experimental?: (
+          options: UseQueryOptions<FunctionReference<'query', any, any, any>, boolean>
+        ) => UseQueryResult<any>
+      }
+    ).useQuery_experimental
+    if (typeof nativeHook !== 'function') {
+      throw new Error(
+        'useQuery_experimental requires Convex >=1.37. Upgrade convex to use this hook.'
+      )
+    }
+    const { query, args, throwOnError } = queryOptions
+    let wireArgs: any = 'skip'
+    let encodeFailure: Error | undefined
+    if (args !== 'skip') {
+      try {
+        wireArgs = experimentalCodec.encodeArgs(query, args)
+      } catch (error) {
+        encodeFailure = codecError(error, 'encode')
+      }
+    }
+
+    // Even failed encodes call the real hook; its own synchronous errors still propagate.
+    const state = nativeHook({ query, args: wireArgs, throwOnError })
+    if (encodeFailure) {
+      if (throwOnError) throw encodeFailure
+      return { status: 'error', error: encodeFailure }
+    }
+    if (state.status !== 'success') return state
+    try {
+      return { status: 'success', data: experimentalCodec.decodeResult(query, state.data) }
+    } catch (error) {
+      const failure = codecError(error, 'decode')
+      if (throwOnError) throw failure
+      return { status: 'error', error: failure }
+    }
+  }
 
   /**
    * Drop-in replacement for Convex's `useQuery` with automatic codec decode.
@@ -45,6 +176,7 @@ export function createZodvexHooks<R extends AnyRegistry>(
    * 2. Union args (composable): `useZodQuery(ref, args | 'skip')` — for wrappers
    *    and conditional skip patterns where the decision is made upstream.
    *
+   * - Invalid arguments throw during render; use a React error boundary to handle them.
    * - Loading state (`undefined`) passes through unchanged.
    * - Functions not in the registry return the raw wire result.
    */
@@ -62,20 +194,15 @@ export function createZodvexHooks<R extends AnyRegistry>(
   function useZodQuery(ref: FunctionReference<'query', any, any, any>, ...restArgs: any[]) {
     const args = restArgs[0]
 
-    // Encode args: runtime types -> wire format (e.g., Date -> timestamp).
-    // Unlike mutations (imperative, user-triggered), hooks fire synchronously
-    // during render — an encode error would crash the page. On failure, warn
-    // and auto-skip the query (return undefined = loading state).
+    // Always call useQuery, including failed encodes, to preserve hook order.
+    // Then surface the error to React's error boundary instead of appearing to load forever.
     let wireArgs: any = 'skip'
+    let encodeFailure: { error: unknown } | undefined
     if (args !== 'skip') {
       try {
         wireArgs = codec.encodeArgs(ref, args)
-      } catch (err) {
-        const path = getFunctionName(ref)
-        console.debug(
-          `[zodvex] Encode args failed for ${path}, auto-skipping query: ${err instanceof Error ? err.message : String(err)}`
-        )
-        // wireArgs stays 'skip' — DO NOT early-return, useQuery must run every render
+      } catch (error) {
+        encodeFailure = { error }
       }
     }
 
@@ -83,6 +210,8 @@ export function createZodvexHooks<R extends AnyRegistry>(
       ref,
       ...((wireArgs === 'skip' ? ['skip'] : [wireArgs]) as OptionalRestArgsOrSkip<typeof ref>)
     )
+
+    if (encodeFailure) throw encodeFailure.error
 
     // Loading state — Convex returns undefined while the subscription is pending
     if (wireResult === undefined) return undefined
@@ -117,7 +246,7 @@ export function createZodvexHooks<R extends AnyRegistry>(
     }
   }
 
-  return { useZodQuery, useZodMutation }
+  return { useZodQuery, useZodMutation, useZodPaginatedQuery, useQuery_experimental }
 }
 
 /**
