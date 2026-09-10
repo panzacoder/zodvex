@@ -1,6 +1,19 @@
-import type { GenericDatabaseReader, GenericDatabaseWriter } from 'convex/server'
+import type {
+  GenericDatabaseReader,
+  GenericDatabaseWriter,
+  GenericDataModel,
+  GenericMutationCtx,
+  GenericQueryCtx
+} from 'convex/server'
 import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from './db'
 import type { ZodTableMap } from './schema'
+
+// Standalone callers historically use the database wrapper's default decoded
+// document map. initZodvex supplies its schema-derived map explicitly.
+type DefaultDecodedDocs =
+  ZodvexDatabaseReader<GenericDataModel> extends ZodvexDatabaseReader<GenericDataModel, infer Docs>
+    ? Docs
+    : never
 
 /**
  * Resolvers for the database the codec wrapper delegates to (#92).
@@ -49,27 +62,51 @@ export type ZodvexUnderlyingDb<
  * })
  * ```
  */
-export function createZodvexCustomization(
+export function createZodvexCustomization<
+  DM extends GenericDataModel = GenericDataModel,
+  DD extends Record<string, unknown> = DefaultDecodedDocs
+>(
   tableMap: ZodTableMap,
-  options?: { underlyingDb?: ZodvexUnderlyingDb }
+  options?: {
+    underlyingDb?: ZodvexUnderlyingDb<
+      GenericQueryCtx<DM>,
+      GenericMutationCtx<DM>,
+      GenericDatabaseReader<DM>,
+      GenericDatabaseWriter<DM>
+    >
+  }
 ) {
   const resolveReaderDb = options?.underlyingDb?.query
   const resolveWriterDb = options?.underlyingDb?.mutation
   return {
     query: {
       args: {} as Record<string, never>,
-      input: async (ctx: any, _args: any, _extra?: any) => ({
+      input: async (
+        ctx: GenericQueryCtx<DM>,
+        _args: Record<string, never>,
+        _extra?: Record<string, unknown>
+      ) => ({
         ctx: {
-          db: new ZodvexDatabaseReader(resolveReaderDb ? resolveReaderDb(ctx) : ctx.db, tableMap)
+          db: new ZodvexDatabaseReader<DM, DD>(
+            resolveReaderDb ? resolveReaderDb(ctx) : ctx.db,
+            tableMap
+          )
         },
         args: {}
       })
     },
     mutation: {
       args: {} as Record<string, never>,
-      input: async (ctx: any, _args: any, _extra?: any) => ({
+      input: async (
+        ctx: GenericMutationCtx<DM>,
+        _args: Record<string, never>,
+        _extra?: Record<string, unknown>
+      ) => ({
         ctx: {
-          db: new ZodvexDatabaseWriter(resolveWriterDb ? resolveWriterDb(ctx) : ctx.db, tableMap)
+          db: new ZodvexDatabaseWriter<DM, DD>(
+            resolveWriterDb ? resolveWriterDb(ctx) : ctx.db,
+            tableMap
+          )
         },
         args: {}
       })

@@ -17,8 +17,9 @@ import { createZodvexCustomization, type ZodvexUnderlyingDb } from '../customiza
 import type { ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../db'
 import type { ZodValidator } from '../mapping'
 import type { ZodTableMap } from '../schema'
-import type { AnyRegistry, Overwrite } from '../types'
+import type { AnyRegistry, ExtractCtx, Overwrite } from '../types'
 import type { $ZodObject } from '../zod-core'
+import { applyCustomizationResult } from './contracts'
 import type { CustomBuilder } from './customFunctions'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './customFunctions'
 
@@ -57,18 +58,29 @@ export type ZodvexActionCtx<DM extends GenericDataModel> = GenericActionCtx<DM>
 // biome-ignore lint/complexity/noBannedTypes: {} is semantically correct here — see comment above
 type NoCodecCtx = {}
 
-type InternalCustomization = {
+type InternalCustomization<
+  Ctx extends object = Record<string, unknown>,
+  Patch extends Record<string, unknown> = Record<string, unknown>,
+  Extra extends Record<string, unknown> = Record<string, unknown>
+> = {
   args: Record<string, never>
-  input: (ctx: any, args: any, extra?: any) => any
+  input: (
+    ctx: Ctx,
+    args: Record<string, never>,
+    extra?: Extra
+  ) => MaybePromise<{
+    ctx: Patch
+    args: Record<string, never>
+  }>
 }
 
-type InitServerBuilders = {
-  query: QueryBuilder<any, 'public'>
-  mutation: MutationBuilder<any, 'public'>
-  action: ActionBuilder<any, 'public'>
-  internalQuery: QueryBuilder<any, 'internal'>
-  internalMutation: MutationBuilder<any, 'internal'>
-  internalAction: ActionBuilder<any, 'internal'>
+type InitServerBuilders<DM extends GenericDataModel> = {
+  query: QueryBuilder<DM, 'public'>
+  mutation: MutationBuilder<DM, 'public'>
+  action: ActionBuilder<DM, 'public'>
+  internalQuery: QueryBuilder<DM, 'internal'>
+  internalMutation: MutationBuilder<DM, 'internal'>
+  internalAction: ActionBuilder<DM, 'internal'>
 }
 
 type MaybePromise<T> = T | Promise<T>
@@ -297,13 +309,18 @@ export function initZodvex<
 }
 
 // Implementation
-export function initZodvex(
-  schema: { __zodTableMap: ZodTableMap },
-  server: InitServerBuilders,
+export function initZodvex<DM extends GenericDataModel, DD extends Record<string, unknown>>(
+  schema: { __zodTableMap: ZodTableMap; __decodedDocs?: DD },
+  server: InitServerBuilders<DM>,
   options?: {
     wrapDb?: boolean
     registry?: () => AnyRegistry
-    underlyingDb?: ZodvexUnderlyingDb
+    underlyingDb?: ZodvexUnderlyingDb<
+      GenericQueryCtx<DM>,
+      GenericMutationCtx<DM>,
+      GenericDatabaseReader<DM>,
+      GenericDatabaseWriter<DM>
+    >
   }
 ) {
   const wrap = options?.wrapDb !== false
@@ -313,44 +330,48 @@ export function initZodvex(
         'remove `wrapDb: false` or drop `underlyingDb`.'
     )
   }
-  const codec = createZodvexCustomization(schema.__zodTableMap, {
+  const codec = createZodvexCustomization<DM, DD>(schema.__zodTableMap, {
     underlyingDb: options?.underlyingDb
   })
   const noOp = createNoOpCustomization()
 
   const registryThunk = options?.registry
-  const actionCust = createActionCustomization(registryThunk, noOp)
-  const customizations = {
-    query: wrap ? codec.query : noOp,
-    mutation: createMutationCustomization(wrap ? codec.mutation : noOp, registryThunk),
-    action: actionCust
+  const actionCust = createActionCustomization<DM>(registryThunk, noOp)
+  function createBuilders<
+    QueryPatch extends Record<string, unknown>,
+    MutationPatch extends Record<string, unknown>
+  >(
+    queryCust: InternalCustomization<GenericQueryCtx<DM>, QueryPatch>,
+    mutationDbCust: InternalCustomization<GenericMutationCtx<DM>, MutationPatch>
+  ) {
+    const mutationCust = createMutationCustomization(mutationDbCust, registryThunk)
+    return {
+      zq: createZodvexBuilder(server.query, queryCust, zCustomQuery),
+      zm: createZodvexBuilder(server.mutation, mutationCust, zCustomMutation),
+      za: createZodvexBuilder(server.action, actionCust, zCustomAction),
+      ziq: createZodvexBuilder(server.internalQuery, queryCust, zCustomQuery),
+      zim: createZodvexBuilder(server.internalMutation, mutationCust, zCustomMutation),
+      zia: createZodvexBuilder(server.internalAction, actionCust, zCustomAction)
+    }
   }
-
-  return {
-    zq: createZodvexBuilder(server.query, customizations.query, zCustomQuery),
-    zm: createZodvexBuilder(server.mutation, customizations.mutation, zCustomMutation),
-    za: createZodvexBuilder(server.action, customizations.action, zCustomAction),
-    ziq: createZodvexBuilder(server.internalQuery, customizations.query, zCustomQuery),
-    zim: createZodvexBuilder(server.internalMutation, customizations.mutation, zCustomMutation),
-    zia: createZodvexBuilder(server.internalAction, customizations.action, zCustomAction)
-  }
+  return wrap ? createBuilders(codec.query, codec.mutation) : createBuilders(noOp, noOp)
 }
 
-function createNoOpCustomization(): InternalCustomization {
+function createNoOpCustomization(): InternalCustomization<object, NoCodecCtx> {
   return { args: {} as Record<string, never>, input: NoOp.input }
 }
 
-function createActionCustomization(
+function createActionCustomization<DM extends GenericDataModel>(
   registryThunk: (() => AnyRegistry) | undefined,
-  noOp: InternalCustomization
-): InternalCustomization {
+  noOp: InternalCustomization<object, NoCodecCtx>
+): InternalCustomization<GenericActionCtx<DM>, NoCodecCtx> {
   if (!registryThunk) {
     return noOp
   }
 
   return {
     args: {} as Record<string, never>,
-    input: async (ctx: any) => ({
+    input: async (ctx: GenericActionCtx<DM>) => ({
       // Auto-encode codec args at outbound call sites: runQuery/runMutation
       // (encode args, decode result) and scheduler.runAfter/runAt (encode args).
       ctx: createCodecCallOverrides(registryThunk(), ctx),
@@ -367,17 +388,24 @@ function createActionCustomization(
  *
  * Without a registry, the DB customization is returned unchanged.
  */
-function createMutationCustomization(
-  dbCust: InternalCustomization,
+function createMutationCustomization<
+  DM extends GenericDataModel,
+  Patch extends Record<string, unknown>
+>(
+  dbCust: InternalCustomization<GenericMutationCtx<DM>, Patch>,
   registryThunk: (() => AnyRegistry) | undefined
-): InternalCustomization {
+): InternalCustomization<GenericMutationCtx<DM>, Patch> {
   if (!registryThunk) {
     return dbCust
   }
 
   return {
     args: {} as Record<string, never>,
-    input: async (ctx: any, _args: any, extra?: any) => {
+    input: async (
+      ctx: GenericMutationCtx<DM>,
+      _args: Record<string, never>,
+      extra?: Record<string, unknown>
+    ) => {
       const dbResult = await dbCust.input(ctx, {}, extra)
       const callOverrides = createCodecCallOverrides(registryThunk(), ctx)
       return {
@@ -398,16 +426,25 @@ function createMutationCustomization(
  *
  * @internal Exported for testing only -- not part of the public API.
  */
-export function composeCustomizations(
-  codecCust: InternalCustomization,
-  userCust: { args?: any; input?: (ctx: any, args: any, extra?: any) => any }
+export function composeCustomizations<
+  Ctx extends object,
+  CodecCtx extends Record<string, unknown>,
+  ZArgs extends ZodValidator = Record<string, never>,
+  CustomCtx extends Record<string, unknown> = Record<string, never>,
+  MadeArgs extends Record<string, unknown> = Record<string, never>,
+  Extra extends Record<string, unknown> = Record<string, unknown>
+>(
+  codecCust: InternalCustomization<Ctx, CodecCtx, Extra>,
+  userCust: ZodvexCustomization<Overwrite<Ctx, CodecCtx>, ZArgs, CustomCtx, MadeArgs, Extra>
 ) {
   return {
     args: userCust.args ?? {},
-    input: async (ctx: any, args: any, extra?: any) => {
+    input: async (ctx: Ctx, args: ResolvedCustomArgs<ZArgs>, extra?: Extra) => {
       // 1. Codec layer: wrap ctx.db
       const codecResult = await codecCust.input(ctx, {}, extra)
-      const codecCtx = { ...ctx, ...codecResult.ctx }
+      // The public builder contract models context patches with Overwrite.
+      // Generic object spread otherwise infers an incompatible intersection.
+      const codecCtx = { ...ctx, ...codecResult.ctx } as Overwrite<Ctx, CodecCtx>
 
       // 2. User layer: sees codec-wrapped ctx.db
       if (!userCust.input) {
@@ -416,9 +453,10 @@ export function composeCustomizations(
       const userResult = await userCust.input(codecCtx, args, extra)
 
       // 3. Merge ctx/args; pass through user's onSuccess (convex-helpers convention)
+      const merged = applyCustomizationResult(codecResult.ctx, {}, userResult)
       return {
-        ctx: { ...codecResult.ctx, ...(userResult.ctx ?? {}) },
-        args: userResult.args ?? {},
+        ctx: merged.finalCtx,
+        args: merged.finalArgs,
         ...(userResult.onSuccess && { onSuccess: userResult.onSuccess })
       }
     }
@@ -435,17 +473,73 @@ export function composeCustomizations(
  *
  * @internal Exported for testing only -- not part of the public API.
  */
-export function createZodvexBuilder(
-  rawBuilder: any,
-  codecCust: InternalCustomization,
-  customFn: (builder: any, customization: any) => any
-) {
-  const base: any = customFn(rawBuilder, codecCust)
+type BuilderCtx<B> = ExtractCtx<B> extends object ? ExtractCtx<B> : never
+type FactoryFor<B extends (definition: never) => object> =
+  ReturnType<B> extends { isQuery: true }
+    ? typeof zCustomQuery
+    : ReturnType<B> extends { isMutation: true }
+      ? typeof zCustomMutation
+      : typeof zCustomAction
 
-  base.withContext = (userCust: any) => {
+export function createZodvexBuilder<
+  Builder extends (definition: never) => object,
+  CodecCtx extends Record<string, unknown>
+>(
+  rawBuilder: Builder,
+  codecCust: InternalCustomization<BuilderCtx<Builder>, CodecCtx>,
+  customFn: FactoryFor<NoInfer<Builder>>
+) {
+  type Ctx = BuilderCtx<Builder>
+  type Kind =
+    ReturnType<Builder> extends { isQuery: true }
+      ? 'query'
+      : ReturnType<Builder> extends { isMutation: true }
+        ? 'mutation'
+        : 'action'
+  type Visibility = ReturnType<Builder> extends { isInternal: true } ? 'internal' : 'public'
+  // These legacy entry points type declared args as Convex validators even
+  // though their shared implementation also accepts Zod shapes. Retain their
+  // known registration contract at this one schema-language boundary.
+  const registerBase = customFn as unknown as (
+    builder: Builder,
+    customization: InternalCustomization<Ctx, CodecCtx>
+  ) => CustomBuilder<
+    Kind,
+    Record<string, never>,
+    CodecCtx,
+    Record<string, never>,
+    Ctx,
+    Visibility,
+    Record<string, unknown>
+  >
+  const base = registerBase(rawBuilder, codecCust)
+
+  const withContext = <
+    ZArgs extends ZodValidator = Record<string, never>,
+    CustomCtx extends Record<string, unknown> = Record<string, never>,
+    MadeArgs extends Record<string, unknown> = Record<string, never>,
+    Extra extends Record<string, unknown> = Record<string, unknown>
+  >(
+    userCust: ZodvexCustomization<Overwrite<Ctx, CodecCtx>, ZArgs, CustomCtx, MadeArgs, Extra>
+  ) => {
     const composed = composeCustomizations(codecCust, userCust)
-    return customFn(rawBuilder, composed)
+    // zCustom* still expose Convex-only customization declarations for legacy
+    // callers. Their runtime also handles Zod declarations; this adapter keeps
+    // that schema-language boundary local while retaining decoded argument types.
+    const register = customFn as unknown as (
+      builder: Builder,
+      customization: typeof composed
+    ) => CustomBuilder<
+      Kind,
+      ResolvedCustomArgs<ZArgs>,
+      Overwrite<CodecCtx, CustomCtx>,
+      MadeArgs,
+      Ctx,
+      Visibility,
+      Extra
+    >
+    return register(rawBuilder, composed)
   }
 
-  return base
+  return Object.assign(base, { withContext })
 }
