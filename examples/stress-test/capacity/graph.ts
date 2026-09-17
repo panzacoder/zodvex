@@ -77,7 +77,7 @@ export async function auditGraph(appDir: string, outputDir: string): Promise<Gra
     }
     visit(file)
     const inputs = [...new Set([...reachable].flatMap(output => Object.entries(outputs.get(output)!.inputs).filter(([, input]) => input.bytesInOutput > 0).map(([input]) => input)))].sort()
-    const profileInputs = inputs.map(input => relative(appDir, resolve(workingDir, input))).filter(input => /^(full|mini)_(lean|models|registry)\//.test(input))
+    const profileInputs = inputs.map(input => relative(appDir, resolve(workingDir, input))).filter(input => /^(full|mini)_(lean|models|registry|registry_lazy)\//.test(input))
     const source = [...reachable].map(output => texts.get(output)).join('\n')
     const row = {
       reachableBytes: [...reachable].reduce((sum, output) => sum + outputs.get(output)!.bytes, 0),
@@ -92,10 +92,10 @@ export async function auditGraph(appDir: string, outputDir: string): Promise<Gra
     if (name === 'helpers/query.ts') manifest.checks.helpersHasNoZodvex = !hasZodvex
     if (name.startsWith('mini_')) manifest.checks[`${name}:noClassic`] = !inputs.some(input => /\/zod\/.*\/classic\//.test(input))
     manifest.checks[`${name}:isolated`] = profileInputs.every(input => input.startsWith(`${name.split('/')[0]}/`))
-    if (/_(models|registry)\//.test(name)) manifest.checks[`${name}:32Models`] = row.retainedUnusedModels === 31
-    if (name.includes('_registry/')) manifest.checks[`${name}:128Entries`] = row.retainedRegistryEntries === 128
+    if (/_(models|registry|registry_lazy)\//.test(name)) manifest.checks[`${name}:32Models`] = row.retainedUnusedModels === 31
+    if (/_registry(_lazy)?\//.test(name)) manifest.checks[`${name}:128Entries`] = row.retainedRegistryEntries === 128
   }
-  const expected = ['native.ts', 'helpers/query.ts', ...['full', 'mini'].flatMap(kind => ['lean', 'models', 'registry'].map(profile => `${kind}_${profile}/query.ts`))]
+  const expected = ['native.ts', 'helpers/query.ts', ...['full', 'mini'].flatMap(kind => ['lean', 'models', 'registry', 'registry_lazy'].map(profile => `${kind}_${profile}/query.ts`))]
   manifest.checks.allVariantsPresent = expected.every(name => name in manifest.queries)
   mkdirSync(outputDir, { recursive: true })
   writeFileSync(join(outputDir, 'graph-metafile.json'), JSON.stringify({ versions, options: { splitting: true, sourceMaps: false, entries: manifest.entries }, metafile: result.metafile }, null, 2))
