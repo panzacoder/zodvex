@@ -147,6 +147,86 @@ describe('generateApiFile', () => {
     expect(output).not.toContain('{\n,\n}')
   })
 
+  it('emits registry entries as memoizing getters', () => {
+    const { js } = generateApiFile(sampleFunctions, sampleModels)
+
+    expect(js).toContain('const __memo = new Map()')
+    expect(js).toContain('const __lazy = (key, build) => {')
+    expect(js).toContain("  get 'users:get'() {\n    return __lazy('users:get', () => ({")
+    expect(js).toContain("  get 'users:create'() {\n    return __lazy('users:create', () => ({")
+    // No eager entry literal remains
+    expect(js).not.toMatch(/^ {2}'[^']+': \{/m)
+  })
+
+  it('omits the memo helper for an empty registry', () => {
+    const { js } = generateApiFile([], sampleModels)
+    expect(js).not.toContain('__lazy')
+    expect(js).not.toContain('__memo')
+  })
+
+  it('defers schema construction to first access and memoizes per entry', () => {
+    const { js } = generateApiFile(sampleFunctions, sampleModels)
+
+    // Evaluate the generated module body against counting stubs: every
+    // property access on `z`, `zx`, or a model yields a callable proxy, and
+    // every call is counted. Import lines are stripped and the export is
+    // turned into a return so the body runs as a plain function.
+    let calls = 0
+    const counting: unknown = new Proxy(
+      function stub() {
+        /* callable proxy target */
+      },
+      {
+        get: () => counting,
+        apply: () => {
+          calls++
+          return counting
+        }
+      }
+    )
+    const body = `${js
+      .split('\n')
+      .filter(line => !line.startsWith('import '))
+      .join('\n')
+      .replace('export const zodvexRegistry', 'const zodvexRegistry')}\nreturn zodvexRegistry`
+    const registry = new Function('z', 'zx', 'UserModel', body)(
+      counting,
+      counting,
+      counting
+    ) as Record<string, { args: unknown; returns: unknown }>
+
+    // Module evaluation constructed nothing
+    expect(calls).toBe(0)
+    const paths = sampleFunctions.map(fn => fn.functionPath)
+    expect(Object.keys(registry)).toEqual([...paths].sort())
+    for (const path of paths) {
+      const descriptor = Object.getOwnPropertyDescriptor(registry, path)
+      expect(typeof descriptor?.get).toBe('function')
+      expect(descriptor?.enumerable).toBe(true)
+    }
+    // Still nothing built: keys/descriptors do not invoke getters
+    expect(calls).toBe(0)
+
+    const first = registry['users:get']
+    const afterFirst = calls
+    expect(afterFirst).toBeGreaterThan(0)
+
+    // Same entry again: memoized, no further construction, stable identity
+    expect(registry['users:get']).toBe(first)
+    expect(calls).toBe(afterFirst)
+
+    // A different entry builds on its own first access
+    registry['users:create']
+    expect(calls).toBeGreaterThan(afterFirst)
+
+    // Enumerating values builds every remaining entry exactly once
+    const total = Object.values(registry).length
+    expect(total).toBe(paths.length)
+    const afterAll = calls
+    Object.values(registry)
+    expect(calls).toBe(afterAll)
+  })
+
   it('does not include as const in JS output', () => {
     const { js } = generateApiFile(sampleFunctions, sampleModels)
     expect(js).not.toContain('as const')

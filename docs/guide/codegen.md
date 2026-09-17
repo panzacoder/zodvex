@@ -58,7 +58,7 @@ convex/_zodvex/
 
 ## Registry wiring
 
-The generated `_zodvex/api.js` exports a `zodvexRegistry` — a plain object mapping every public function path to its `args` and `returns` Zod schemas. Wire it into `initZodvex` via the `registry` option so `runQuery` / `runMutation` / `scheduler.runAfter` / `scheduler.runAt` auto-encode codec args (and decode results):
+The generated `_zodvex/api.js` exports a `zodvexRegistry` — an object mapping every public function path to its `args` and `returns` Zod schemas. Wire it into `initZodvex` via the `registry` option so `runQuery` / `runMutation` / `scheduler.runAfter` / `scheduler.runAt` auto-encode codec args (and decode results):
 
 ```typescript
 // convex/functions.ts
@@ -93,20 +93,29 @@ The registry maps every public Convex function path to its Zod `args` and `retur
 
 ```typescript
 // _zodvex/api.js (generated excerpt)
+const __memo = new Map()
+const __lazy = (key, build) => { /* build once per key, then reuse */ }
+
 export const zodvexRegistry = {
-  'tasks:get': {
-    args: z.object({ id: zx.id("tasks") }),
-    returns: TaskModel.schema.doc.nullable(),
+  get 'tasks:get'() {
+    return __lazy('tasks:get', () => ({
+      args: z.object({ id: zx.id("tasks") }),
+      returns: TaskModel.schema.doc.nullable(),
+    }))
   },
-  'tasks:create': {
-    args: z.object({ title: z.string(), /* ... */ }),
-    returns: zx.id("tasks"),
+  get 'tasks:create'() {
+    return __lazy('tasks:create', () => ({
+      args: z.object({ title: z.string(), /* ... */ }),
+      returns: zx.id("tasks"),
+    }))
   },
   // one entry per public function
 }
 ```
 
 Model references (`TaskModel.schema.doc`) are imported directly — the registry stays live and always reflects the current schema definition.
+
+Each entry is a memoizing getter: its schemas are constructed on first access and reused afterwards, so importing the registry costs nothing beyond its imports. This matters on the server, where every function file imports `functions.ts`, which imports the registry, and the Convex isolate evaluates module top-level code per execution — an eager registry would rebuild every function's schemas on every call. The registry is only ever read by key (`registry[path]`), so reads are unaffected. Getters are own enumerable properties: `Object.keys` / `Object.entries` still list every path, and enumerating values builds them all, which is fine for tooling such as a contract diff. One consequence: an error inside an entry (for example a codec import that throws when used) surfaces on that entry's first access instead of at module evaluation.
 
 ### `schema.js` — model re-exports
 

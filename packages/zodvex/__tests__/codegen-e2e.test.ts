@@ -25,9 +25,19 @@ describe('codegen e2e', () => {
     expect(result.models.length).toBe(2) // UserModel + EventModel
     expect(result.functions.length).toBeGreaterThanOrEqual(3) // get, list, update
 
-    // 2. Generate
+    // 2. Generate. Match the emitted flavor to the runtime this test evaluates
+    // it under: the zod-mini vitest project aliases 'zod' to 'zod/mini', where
+    // full-zod method chains such as `.optional()` do not exist.
+    const mini = typeof (z.string() as { optional?: unknown }).optional !== 'function'
     const schema = generateSchemaFile(result.models)
-    const api = generateApiFile(result.functions, result.models, result.codecs, result.modelCodecs)
+    const api = generateApiFile(
+      result.functions,
+      result.models,
+      result.codecs,
+      result.modelCodecs,
+      undefined,
+      { mini }
+    )
     const client = generateClientFile()
 
     // 3. Write to _zodvex/
@@ -58,6 +68,24 @@ describe('codegen e2e', () => {
     expect(api.js).toContain("'users:get'")
     expect(api.js).toContain("'users:list'")
     expect(api.js).toContain("'users:update'")
+
+    // 6b. The written registry evaluates: entries are enumerable getters
+    // that memoize, and every discovered path is reachable by key.
+    const mod = (await import(`${path.join(outputDir, 'api.js')}?t=${Date.now()}`)) as {
+      zodvexRegistry: Record<string, { args: unknown; returns: unknown }>
+    }
+    const registry = mod.zodvexRegistry
+    expect(Object.keys(registry).sort()).toEqual(result.functions.map(fn => fn.functionPath).sort())
+    const descriptor = Object.getOwnPropertyDescriptor(registry, 'users:get')
+    expect(typeof descriptor?.get).toBe('function')
+    expect(registry['users:get']).toBe(registry['users:get'])
+    expect(registry['users:get']?.args).toBeDefined()
+    // Build every entry (mirrors the eager module evaluation this import used
+    // to perform) so a construction error in any emitted schema fails the e2e.
+    for (const entry of Object.values(registry)) {
+      expect(entry).toHaveProperty('args')
+      expect(entry).toHaveProperty('returns')
+    }
 
     // 7. Verify ad-hoc schemas are serialized with zodToSource
     expect(api.js).toContain('z.object(')

@@ -11,161 +11,249 @@ import { UserModel } from '../models/user.js'
 import { zDuration } from '../codecs.js'
 import { taggedEmail } from '../tagged.js'
 
+const __memo = new Map()
+const __lazy = (key, build) => {
+  let entry = __memo.get(key)
+  if (entry === undefined) {
+    entry = build()
+    __memo.set(key, entry)
+  }
+  return entry
+}
+
 export const zodvexRegistry = {
-  'actions:health': {
-    args: undefined,
-    returns: z.string(),
+  get 'actions:health'() {
+    return __lazy('actions:health', () => ({
+      args: undefined,
+      returns: z.string(),
+    }))
   },
-  'actions:ping': {
-    args: z.object({ message: z.string() }),
-    returns: z.string(),
+  get 'actions:ping'() {
+    return __lazy('actions:ping', () => ({
+      args: z.object({ message: z.string() }),
+      returns: z.string(),
+    }))
   },
-  'activities:get': {
-    args: z.object({ id: zx.id("activities") }),
-    returns: z.nullable(ActivityModel.schema.doc),
+  get 'activities:get'() {
+    return __lazy('activities:get', () => ({
+      args: z.object({ id: zx.id("activities") }),
+      returns: z.nullable(ActivityModel.schema.doc),
+    }))
   },
-  'activities:listByActor': {
-    args: z.object({ actorId: zx.id("users") }),
-    returns: ActivityModel.schema.docArray,
+  get 'activities:listByActor'() {
+    return __lazy('activities:listByActor', () => ({
+      args: z.object({ actorId: zx.id("users") }),
+      returns: ActivityModel.schema.docArray,
+    }))
   },
-  'activities:update': {
-    args: ActivityModel.schema.update,
-    returns: undefined,
+  get 'activities:update'() {
+    return __lazy('activities:update', () => ({
+      args: ActivityModel.schema.update,
+      returns: undefined,
+    }))
   },
-  'api/reports:summary': {
-    args: z.object({ ownerId: z.optional(zx.id("users")) }),
-    returns: z.object({ total: z.number(), done: z.number() }),
+  get 'api/reports:summary'() {
+    return __lazy('api/reports:summary', () => ({
+      args: z.object({ ownerId: z.optional(zx.id("users")) }),
+      returns: z.object({ total: z.number(), done: z.number() }),
+    }))
   },
-  'api/reports:taskById': {
-    args: z.object({ id: zx.id("tasks") }),
-    returns: z.nullable(TaskModel.schema.doc),
+  get 'api/reports:taskById'() {
+    return __lazy('api/reports:taskById', () => ({
+      args: z.object({ id: zx.id("tasks") }),
+      returns: z.nullable(TaskModel.schema.doc),
+    }))
   },
-  'audited:internalTouch': {
-    args: z.object({  }),
-    returns: z.string(),
+  get 'audited:internalTouch'() {
+    return __lazy('audited:internalTouch', () => ({
+      args: z.object({  }),
+      returns: z.string(),
+    }))
   },
-  'audited:touch': {
-    args: z.object({ note: z.string() }),
-    returns: z.string(),
+  get 'audited:touch'() {
+    return __lazy('audited:touch', () => ({
+      args: z.object({ note: z.string() }),
+      returns: z.string(),
+    }))
   },
-  'comments:create': {
-    args: z.object({ taskId: zx.id("tasks"), authorId: zx.id("users"), body: z.string() }),
-    returns: zx.id("comments"),
+  get 'comments:create'() {
+    return __lazy('comments:create', () => ({
+      args: z.object({ taskId: zx.id("tasks"), authorId: zx.id("users"), body: z.string() }),
+      returns: zx.id("comments"),
+    }))
   },
-  'comments:list': {
-    args: z.object({ taskId: zx.id("tasks") }),
-    returns: zx.docArray(CommentModel),
+  get 'comments:list'() {
+    return __lazy('comments:list', () => ({
+      args: z.object({ taskId: zx.id("tasks") }),
+      returns: zx.docArray(CommentModel),
+    }))
   },
-  'componentFunctions:getTaskById': {
-    args: z.object({ taskId: zx.id("tasks") }),
-    returns: undefined,
+  get 'componentFunctions:getTaskById'() {
+    return __lazy('componentFunctions:getTaskById', () => ({
+      args: z.object({ taskId: zx.id("tasks") }),
+      returns: undefined,
+    }))
   },
-  'componentFunctions:retryableAction': {
-    args: z.object({ taskId: zx.id("tasks"), attempt: z.optional(z.number()) }),
-    returns: undefined,
+  get 'componentFunctions:retryableAction'() {
+    return __lazy('componentFunctions:retryableAction', () => ({
+      args: z.object({ taskId: zx.id("tasks"), attempt: z.optional(z.number()) }),
+      returns: undefined,
+    }))
   },
-  'filters:namedRecentUsers': {
-    args: z.object({ after: zx.date() }),
-    returns: undefined,
+  get 'filters:namedRecentUsers'() {
+    return __lazy('filters:namedRecentUsers', () => ({
+      args: z.object({ after: zx.date() }),
+      returns: undefined,
+    }))
   },
-  'filters:recentUsers': {
-    args: z.object({ after: zx.date() }),
-    returns: undefined,
+  get 'filters:recentUsers'() {
+    return __lazy('filters:recentUsers', () => ({
+      args: z.object({ after: zx.date() }),
+      returns: undefined,
+    }))
   },
-  'filters:recentUsersWithHelper': {
-    args: z.object({ after: zx.date() }),
-    returns: undefined,
+  get 'filters:recentUsersWithHelper'() {
+    return __lazy('filters:recentUsersWithHelper', () => ({
+      args: z.object({ after: zx.date() }),
+      returns: undefined,
+    }))
   },
-  'notifications:cleanupOld': {
-    args: z.object({  }),
-    returns: z.number(),
+  get 'notifications:cleanupOld'() {
+    return __lazy('notifications:cleanupOld', () => ({
+      args: z.object({  }),
+      returns: z.number(),
+    }))
   },
-  'notifications:createEmail': {
-    args: z.object({ recipientId: zx.id("users"), subject: z.string(), body: z.string() }),
-    returns: zx.id("notifications"),
+  get 'notifications:createEmail'() {
+    return __lazy('notifications:createEmail', () => ({
+      args: z.object({ recipientId: zx.id("users"), subject: z.string(), body: z.string() }),
+      returns: zx.id("notifications"),
+    }))
   },
-  'notifications:createInApp': {
-    args: z.object({ recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()) }),
-    returns: zx.id("notifications"),
+  get 'notifications:createInApp'() {
+    return __lazy('notifications:createInApp', () => ({
+      args: z.object({ recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()) }),
+      returns: zx.id("notifications"),
+    }))
   },
-  'notifications:createPush': {
-    args: z.object({ recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()) }),
-    returns: zx.id("notifications"),
+  get 'notifications:createPush'() {
+    return __lazy('notifications:createPush', () => ({
+      args: z.object({ recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()) }),
+      returns: zx.id("notifications"),
+    }))
   },
-  'notifications:get': {
-    args: z.object({ id: zx.id("notifications") }),
-    returns: z.nullable(NotificationModel.schema.doc),
+  get 'notifications:get'() {
+    return __lazy('notifications:get', () => ({
+      args: z.object({ id: zx.id("notifications") }),
+      returns: z.nullable(NotificationModel.schema.doc),
+    }))
   },
-  'notifications:listByCreated': {
-    args: z.object({ after: zx.date() }),
-    returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  get 'notifications:listByCreated'() {
+    return __lazy('notifications:listByCreated', () => ({
+      args: z.object({ after: zx.date() }),
+      returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+    }))
   },
-  'notifications:listByKind': {
-    args: z.object({ kind: z.enum(["email", "push", "in_app"]) }),
-    returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  get 'notifications:listByKind'() {
+    return __lazy('notifications:listByKind', () => ({
+      args: z.object({ kind: z.enum(["email", "push", "in_app"]) }),
+      returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+    }))
   },
-  'notifications:listByRecipient': {
-    args: z.object({ recipientId: zx.id("users") }),
-    returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  get 'notifications:listByRecipient'() {
+    return __lazy('notifications:listByRecipient', () => ({
+      args: z.object({ recipientId: zx.id("users") }),
+      returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+    }))
   },
-  'notifications:listByRecipientAndKind': {
-    args: z.object({ recipientId: zx.id("users"), kind: z.enum(["email", "push", "in_app"]) }),
-    returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+  get 'notifications:listByRecipientAndKind'() {
+    return __lazy('notifications:listByRecipientAndKind', () => ({
+      args: z.object({ recipientId: zx.id("users"), kind: z.enum(["email", "push", "in_app"]) }),
+      returns: z.array(z.union([z.object({ kind: z.literal("email"), recipientId: zx.id("users"), subject: z.string(), body: z.string(), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("push"), recipientId: zx.id("users"), title: z.string(), badge: z.optional(z.number()), sentAt: zx.date(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() }), z.object({ kind: z.literal("in_app"), recipientId: zx.id("users"), message: z.string(), linkTo: z.optional(z.string()), read: z.boolean(), createdAt: zx.date(), _id: zx.id("notifications"), _creationTime: z.number() })])),
+    }))
   },
-  'securedTasks:listOwnTasks': {
-    args: z.object({ ownerId: zx.id("users") }),
-    returns: z.array(z.object({ title: z.string(), description: z.optional(z.string()), status: z.enum(["todo", "in_progress", "done"]), priority: z.nullable(z.enum(["low", "medium", "high"])), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), completedAt: z.optional(zx.date()), estimate: z.optional(zDuration), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
+  get 'securedTasks:listOwnTasks'() {
+    return __lazy('securedTasks:listOwnTasks', () => ({
+      args: z.object({ ownerId: zx.id("users") }),
+      returns: z.array(z.object({ title: z.string(), description: z.optional(z.string()), status: z.enum(["todo", "in_progress", "done"]), priority: z.nullable(z.enum(["low", "medium", "high"])), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), completedAt: z.optional(zx.date()), estimate: z.optional(zDuration), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
+    }))
   },
-  'securedTasks:updateOwnTask': {
-    args: z.object({ taskId: zx.id("tasks"), title: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), actorId: zx.id("users") }),
-    returns: undefined,
+  get 'securedTasks:updateOwnTask'() {
+    return __lazy('securedTasks:updateOwnTask', () => ({
+      args: z.object({ taskId: zx.id("tasks"), title: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), actorId: zx.id("users") }),
+      returns: undefined,
+    }))
   },
-  'tasks:complete': {
-    args: z.object({ id: zx.id("tasks") }),
-    returns: undefined,
+  get 'tasks:complete'() {
+    return __lazy('tasks:complete', () => ({
+      args: z.object({ id: zx.id("tasks") }),
+      returns: undefined,
+    }))
   },
-  'tasks:create': {
-    args: z.object({ title: z.string(), description: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), priority: z.optional(z.nullable(z.enum(["low", "medium", "high"]))), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration) }),
-    returns: zx.id("tasks"),
+  get 'tasks:create'() {
+    return __lazy('tasks:create', () => ({
+      args: z.object({ title: z.string(), description: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), priority: z.optional(z.nullable(z.enum(["low", "medium", "high"]))), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration) }),
+      returns: zx.id("tasks"),
+    }))
   },
-  'tasks:get': {
-    args: z.object({ id: zx.id("tasks") }),
-    returns: z.nullable(TaskModel.schema.doc),
+  get 'tasks:get'() {
+    return __lazy('tasks:get', () => ({
+      args: z.object({ id: zx.id("tasks") }),
+      returns: z.nullable(TaskModel.schema.doc),
+    }))
   },
-  'tasks:list': {
-    args: z.object({ status: z.optional(z.enum(["todo", "in_progress", "done"])), ownerId: z.optional(zx.id("users")), paginationOpts: z.object({ numItems: z.number(), cursor: z.nullable(z.string()) }) }),
-    returns: TaskModel.schema.paginatedDoc,
+  get 'tasks:list'() {
+    return __lazy('tasks:list', () => ({
+      args: z.object({ status: z.optional(z.enum(["todo", "in_progress", "done"])), ownerId: z.optional(zx.id("users")), paginationOpts: z.object({ numItems: z.number(), cursor: z.nullable(z.string()) }) }),
+      returns: TaskModel.schema.paginatedDoc,
+    }))
   },
-  'tasks:listByCreated': {
-    args: z.object({ after: zx.date() }),
-    returns: z.array(z.object({ title: z.string(), description: z.optional(z.string()), status: z.enum(["todo", "in_progress", "done"]), priority: z.nullable(z.enum(["low", "medium", "high"])), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), completedAt: z.optional(zx.date()), estimate: z.optional(zDuration), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
+  get 'tasks:listByCreated'() {
+    return __lazy('tasks:listByCreated', () => ({
+      args: z.object({ after: zx.date() }),
+      returns: z.array(z.object({ title: z.string(), description: z.optional(z.string()), status: z.enum(["todo", "in_progress", "done"]), priority: z.nullable(z.enum(["low", "medium", "high"])), ownerId: zx.id("users"), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), completedAt: z.optional(zx.date()), estimate: z.optional(zDuration), createdAt: zx.date(), _id: zx.id("tasks"), _creationTime: z.number() })),
+    }))
   },
-  'tasks:listByStatuses': {
-    args: z.object({ statuses: z.array(z.enum(["todo", "in_progress", "done"])), paginationOpts: z.object({ numItems: z.number(), cursor: z.nullable(z.string()) }) }),
-    returns: TaskModel.schema.paginatedDoc,
+  get 'tasks:listByStatuses'() {
+    return __lazy('tasks:listByStatuses', () => ({
+      args: z.object({ statuses: z.array(z.enum(["todo", "in_progress", "done"])), paginationOpts: z.object({ numItems: z.number(), cursor: z.nullable(z.string()) }) }),
+      returns: TaskModel.schema.paginatedDoc,
+    }))
   },
-  'tasks:update': {
-    args: z.object({ id: zx.id("tasks"), title: z.optional(z.string()), description: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), priority: z.optional(z.nullable(z.enum(["low", "medium", "high"]))), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration) }),
-    returns: undefined,
+  get 'tasks:update'() {
+    return __lazy('tasks:update', () => ({
+      args: z.object({ id: zx.id("tasks"), title: z.optional(z.string()), description: z.optional(z.string()), status: z.optional(z.enum(["todo", "in_progress", "done"])), priority: z.optional(z.nullable(z.enum(["low", "medium", "high"]))), assigneeId: z.optional(zx.id("users")), dueDate: z.optional(zx.date()), estimate: z.optional(zDuration) }),
+      returns: undefined,
+    }))
   },
-  'users:countByEmail': {
-    args: z.object({ email: taggedEmail }),
-    returns: z.number(),
+  get 'users:countByEmail'() {
+    return __lazy('users:countByEmail', () => ({
+      args: z.object({ email: taggedEmail }),
+      returns: z.number(),
+    }))
   },
-  'users:create': {
-    args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.optional(z.string()) }),
-    returns: zx.id("users"),
+  get 'users:create'() {
+    return __lazy('users:create', () => ({
+      args: z.object({ name: z.string(), email: z.string(), avatarUrl: z.optional(z.string()) }),
+      returns: zx.id("users"),
+    }))
   },
-  'users:get': {
-    args: z.object({ id: zx.id("users") }),
-    returns: z.nullable(UserModel.schema.doc),
+  get 'users:get'() {
+    return __lazy('users:get', () => ({
+      args: z.object({ id: zx.id("users") }),
+      returns: z.nullable(UserModel.schema.doc),
+    }))
   },
-  'users:getByEmail': {
-    args: z.object({ email: taggedEmail }),
-    returns: z.nullable(UserModel.schema.doc),
+  get 'users:getByEmail'() {
+    return __lazy('users:getByEmail', () => ({
+      args: z.object({ email: taggedEmail }),
+      returns: z.nullable(UserModel.schema.doc),
+    }))
   },
-  'users:update': {
-    args: UserModel.schema.update,
-    returns: undefined,
+  get 'users:update'() {
+    return __lazy('users:update', () => ({
+      args: UserModel.schema.update,
+      returns: undefined,
+    }))
   },
 }
