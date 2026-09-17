@@ -59,6 +59,18 @@ describe('codegen e2e', () => {
     expect(api.js).toContain("'users:list'")
     expect(api.js).toContain("'users:update'")
 
+    // 6b. The written registry evaluates: entries are enumerable getters
+    // that memoize, and every discovered path is reachable by key.
+    const mod = (await import(`${path.join(outputDir, 'api.js')}?t=${Date.now()}`)) as {
+      zodvexRegistry: Record<string, { args: unknown; returns: unknown }>
+    }
+    const registry = mod.zodvexRegistry
+    expect(Object.keys(registry).sort()).toEqual(result.functions.map(fn => fn.functionPath).sort())
+    const descriptor = Object.getOwnPropertyDescriptor(registry, 'users:get')
+    expect(typeof descriptor?.get).toBe('function')
+    expect(registry['users:get']).toBe(registry['users:get'])
+    expect(registry['users:get']?.args).toBeDefined()
+
     // 7. Verify ad-hoc schemas are serialized with zodToSource
     expect(api.js).toContain('z.object(')
     expect(api.js).toContain('z.string()')
