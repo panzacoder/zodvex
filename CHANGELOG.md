@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.11] - 2026-09-17
+
 ### Changed
 
 - Development and example dependencies pin Zod 4.6.5 (from 4.5.4), including the stress harness deployment manifest. The library peer range stays `^4.3.6`. The lockfile changes no other resolved package. The full local gate passes under both `zod` and `zod/mini` on 4.6.5.
