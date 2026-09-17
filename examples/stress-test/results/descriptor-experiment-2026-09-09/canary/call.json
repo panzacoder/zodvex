@@ -1,0 +1,32 @@
+{
+  "httpStatus": 200,
+  "raw": {
+    "status": "success",
+    "value": {
+      "cleaned": true,
+      "descriptorReturnedRaw": true,
+      "fullRejected": true,
+      "rows": [
+        {
+          "codecPatch": true,
+          "decoded": true,
+          "encoded": true,
+          "kind": "full",
+          "ordinaryPatch": true,
+          "replace": true,
+          "unset": true
+        },
+        {
+          "codecPatch": true,
+          "decoded": true,
+          "encoded": true,
+          "kind": "descriptor",
+          "ordinaryPatch": false,
+          "replace": true,
+          "unset": true
+        }
+      ],
+      "wireValidStored": true
+    }
+  }
+}

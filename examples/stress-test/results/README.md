@@ -13,11 +13,14 @@ produced and are available in Git history.
 
 | File | What it is |
 |---|---|
+| [`descriptor-experiment-2026-09-09/README.md`](descriptor-experiment-2026-09-09/README.md) | **INCOMPLETE:** historical descriptor emitter on the current library; compatibility matrix, actual storage canary and unused-model import measurements. |
+| [`dynamic-import-experiment-2026-09-09/README.md`](dynamic-import-experiment-2026-09-09/README.md) | **ACTION MECHANISM ONLY:** real split-module loading and retained bytes; helpers import control and explicit query/mutation failures on the tested backend. |
+| [`compile-experiment-2026-09-09/README.md`](compile-experiment-2026-09-09/README.md) | **INCOMPATIBLE:** real compiler loses codecs, refinements and defaults; excluded from performance ranking. |
 | [`retrospective-2026-09-09/README.md`](retrospective-2026-09-09/README.md) | Zod/slim-model history, Hotpot before/after, report-only synthetic reproduction, and pre/post Convex module-analysis experiment. |
 | [`repeatability-2026-09-09/README.md`](repeatability-2026-09-09/README.md) | Six same-build local Convex collections validating the before/after comparison protocol; exact ranges and raw evidence. |
 | [`memory-2026-09-09/README.md`](memory-2026-09-09/README.md) | Model graph retained bytes in local Convex, hosted query OOM brackets, same-count/different-weight control, and raw evidence. |
 | [`capacity-2026-09-09/README.md`](capacity-2026-09-09/README.md) | Codec operation overhead by document volume, plus a shared read-limit control; separate from graph memory capacity. |
-| [`schema-baseline-2026-09-07.json`](schema-baseline-2026-09-07.json) | Zod 4.3.6/4.5.4 local Node construction and retained-heap proxy. See the [methodology](../../../../docs/planning/zod-4.5-baseline.md); no deployment-capacity claim. |
+| [`schema-baseline-2026-09-07.json`](schema-baseline-2026-09-07.json) | Zod 4.3.6/4.5.4 local Node construction and retained-heap proxy. See the [methodology](../../../docs/planning/zod-4.5-baseline.md); no deployment-capacity claim. |
 | [`ceilings-and-regression-2026-05-13.md`](ceilings-and-regression-2026-05-13.md) | **Historical May analysis**: Explains the two ceilings (OOM vs TooManyReads), the fresh-diff methodology, why the regression target is N=600, and the heap-as-proxy caveat. |
 | [`sweep-static-tablemap-2026-05-14.md`](sweep-static-tablemap-2026-05-14.md) | **May deployment sweep**: 5 flavors × 7 N values. Every cell deploys *and* runs a Q/M smoke call. Replaces the deploy-only `sweep-2026-05-13.md` (archived). |
 | [`dynamic-import-runtime-finding-2026-05-14.md`](dynamic-import-runtime-finding-2026-05-14.md) | **Postmortem**: why dynamic `import()` works at deploy time but crashes Q/M runtime, the Q/M-vs-actions runtime split, and the static-tableMap fix. |

@@ -1,0 +1,128 @@
+{
+  "format": "zodvex-descriptor-consumer-experiment-v1",
+  "startedAt": "2026-09-09T22:46:57.255Z",
+  "contractStatus": "FAILED",
+  "semanticMismatches": [
+    "ordinary invalid read rejected",
+    "ordinary invalid insert rejected",
+    "ordinary missing insert rejected",
+    "ordinary invalid replace rejected",
+    "ordinary read refinement retained",
+    "custom read refinement retained",
+    "ordinary read default retained",
+    "codec read default retained",
+    "ordinary read transform retained",
+    "invalid union codec read rejected",
+    "wire-valid invalid union codec rejected",
+    "unknown union discriminator rejected",
+    "wrapped operation: ordinaryPatch"
+  ],
+  "gitCommit": "1f415c47fa7659c860a3a813cb371020bde53c94",
+  "gitStatus": "?? consumer-descriptors/\n?? results/descriptor-experiment-2026-09-09/",
+  "versions": {
+    "convex": "1.32.0",
+    "convex-helpers": "0.1.113",
+    "zod": "4.5.4",
+    "zodvex": "0.7.10",
+    "esbuild": "0.27.0"
+  },
+  "zodvexBuild": {
+    "sha256": "90df46a854e5e255770945d79393018327dfddd2daf43f1107b297930c503b7d",
+    "files": 17
+  },
+  "comparisonIdentity": {
+    "fixture": {
+      "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+      "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a"
+    },
+    "collector": {
+      "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+      "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+      "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+    }
+  },
+  "runtime": {
+    "nodeCompatibility": "v24.3.0",
+    "bun": "1.3.9",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "sourceHashes": {
+    "bundle.mjs": "dcf7c645acf055a9e9435c58565ce264e1fbde77b9c898a0b2444b8cf0c0aa2a",
+    "census.mjs": "8b9f7b20419cef426e820a2e3870253fb6d56d2294bc52b6b630b62f86f6467d",
+    "census.test.mjs": "427e5c413f9b62759f9de5d46922832b67f966942d1094ef5aff0ec58dc22311",
+    "compare.mjs": "b75f8c4ec23b7a46a0e0e310e838fad224b4b60991ee399aa30a8c13d9f5759e",
+    "compare.test.mjs": "151d6519a9911ec08281866661d228acaf6cd97c70418fb1c979e376ccee7951",
+    "inspect.mjs": "4cb173fad198ad04eb27241c6b14e49eaee6a5832efb04f11ee1cbdc85f94ead",
+    "inspect.test.mjs": "193cc7b7088e1f8b6d187b0dcee0bfb9840deabe8b75d0a401eab9bd28816544",
+    "local.mjs": "2e9762f58bf21bc887b201e7cae17e7d20249d65e38d98dc50895e6b789ba2ae",
+    "mcp-client.mjs": "9b2ce572eb1aa1148944415d4f5b15733e7c8b0a30f9c90732213c5d9a5b6627",
+    "oracle.mjs": "3ec0b200da047048cb689c976f2f90a2d0494aeec4ede149afcf754b2dac6ee9",
+    "oracle.test.mjs": "45194cd2a28f40e75631044525be7dc40cf6ec0d0c7d47648fe5d38e9e0be58e",
+    "profile.mjs": "3a52c677307313303385ab4260343dc92c8e47ca1a398c9ef775f946201bcb4b",
+    "provenance.mjs": "7875eacc8c78156ce7f642d235c032ceb36146f0261385c33808d192ea8c10c0",
+    "run.mjs": "b2d8721e2eb6dc0e522874a35b691714fa9ded56ce891e126708dcd9390914d4",
+    "start-local.py": "6e9bf1619ab652adee13a92ac76baf33581871cc192182aa32d39cc67fa6d340"
+  },
+  "experimentSourceHashes": {
+    "bundle.mjs": "35d21f6b4d6234d89d07d00b43c5c4963dcfba950d9ebb650d94599c13d461bb",
+    "canary.ts": "682ed49ad4438d2fac6a1fef8e2d03f70115ca92bc49414225d66d990d7e6ea0",
+    "codecs.mjs": "c27a97e57c82e3b27167ee5883942e78701e9768b971aa08129df3e809f2bd59",
+    "counters.mjs": "f2dd46b477c981cfa7f14416ce34c98cf9f7328e58ef095df18a32b7b2156c7b",
+    "db-fixture.mjs": "689c3b2f004d5aeb55250133bfcebeabf01c46cbf254be581624b83c929e9009",
+    "generate.ts": "18d441a8c7961d71f7487b6c1741131e7ffee7e6e441001c7d3ff5e2f06f88c8",
+    "generated.test.ts": "96fded2bc20d656347e32f7708f31d5517349db311f331158f788cfc33352f38",
+    "historical-emitter.ts": "e8a8419604cce74d08eb12045fb4ed1657397e6d9f204d2fc3a56fef89993b48",
+    "historical-zod-to-source.ts": "8a4ff55e86cfa5aedda3de218505785232cc179eb168ca2a492237c0c3f81135",
+    "inspect.ts": "da87edea4fd1e642a5140292d49f5f57365677d171711c0c89c2cd6046292198",
+    "models.mjs": "e94fc75336c536fb03428eb2ef6ed45026884bb423777177ff2f630c9951c4f7",
+    "run.ts": "4f8348a36d27981afd74be9c2758087533b691e7318a7b31624cd7cbf1179e77",
+    "semantic.test.ts": "6f0825a96a60cdd785a1020163b0d64960c41cf6149c54f00cf6963d1842992b",
+    "semantic.ts": "62a16cac33cb9f6a0ef1e600682ea79f1cc9d924b93ae2e5696cc9108735760e",
+    "source-origin.json": "b9de706e3b6fd2fe19ffdd4e9a9e99749907d38353c54b790f7c034a48b416df",
+    "tsconfig.json": "138205605716ae1211314b8ee8ea7545f49349cfd28ff0a582ed5c4907a22fcb",
+    "verify-evidence.mjs": "b94522272fab7646052b67a529aafb2f837ba94bc12119459a37b7cc3fe75a0e"
+  },
+  "metadata": {
+    "binary": "/Users/jshebert/.cache/convex/binaries/precompiled-2026-05-06-8bc6aa4/convex-local-backend",
+    "sha256": "c07e85501038cdf6f969e2f7f8cb81e897a64f25d08d590ebd501342eaa3906c",
+    "sourceRevision": "8bc6aa4645adfd66584034b175dbef96536938b8",
+    "pid": 13862,
+    "launcherPid": 13853,
+    "url": "http://127.0.0.1:3240",
+    "flags": "--expose-gc --trace-gc-nvp",
+    "reuseIsolates": false
+  },
+  "historicalOrigin": {
+    "pullRequest": 80,
+    "immutableHead": "cfc06b6ac02a1104e0b7e0de7283e510c9abeb06",
+    "foundationCommit": "1f415c47fa7659c860a3a813cb371020bde53c94",
+    "files": {
+      "generate.ts": "24f1e5418c3cd8f153ac2b3d6f666cc621104d153514e74629d4e674860ada90",
+      "discover.ts": "b6dc411f1fc8b5a1465f5963aa1dd430181817c3a0dc98ef6513ba183725f63b",
+      "zodToSource.ts": "4cf19afa0eca200a215c507fbbb455ada8e58dc2b5abe0dd43e0a46906513326"
+    },
+    "descriptorSliceSha256": "f6e2262d945066a0d08c107e9b76aa9a82b9874a567dca6af2ae1247408404a8",
+    "subtreeHelperSha256": "d3f33e99129d81bee463caff4a98d899c414dd6c570223b1f1c837614d4fb3ef",
+    "adaptation": [
+      "Extract descriptor section and exact subtree helper; omit unrelated CLI, registry and tables code",
+      "Redirect dependencies to current installed Zod/Zodvex and current branded-codec helper",
+      "Copy historical schema serializer; change import paths only",
+      "Replace generated comment header to identify experiment; no descriptor algorithm fixes"
+    ],
+    "initialFoundationCommit": "1beef6b42675e059fae9db692dedbf342ae27127"
+  },
+  "counts": [
+    0,
+    16,
+    64
+  ],
+  "width": 32,
+  "rounds": 3,
+  "plannedCalls": 18,
+  "touchedModels": 1,
+  "mode": "static generated modules",
+  "diagnosticForcedGc": true,
+  "operationTarget": "Current ZodvexDatabaseWriter wrapping a stateful in-memory DB contract inside a real local Convex query",
+  "scope": "No deployed DB reads/writes; no hosted capacity conclusion. Retained V8 object bytes after forced GC, not external/peak memory. Failed compatibility prevents equivalent-consumer improvement claims."
+}

@@ -1,0 +1,125 @@
+{
+  "status": "INCOMPLETE EXPERIMENT — NOT A PERFORMANCE RANKING",
+  "auditPassed": true,
+  "git": "0e4ae596420619d86c13534d085526a1662643af",
+  "bun": "1.3.9",
+  "versions": {
+    "zod": "4.3.6",
+    "convex": "1.32.0",
+    "convex-helpers": "0.1.113"
+  },
+  "sourceHashes": {
+    "packages/zodvex/src/public/cli/compile.ts": "e7ae9c59baf01d19aa0cbd4364b266e161ff0b3943d58003f70e8f59e8cd328b",
+    "packages/zodvex/src/public/cli/compileSerialize.ts": "c35dac4bf817c4b6f5eb52c676078f7f12ddfaac55539b1b248e479d5ad73ba0",
+    "bun.lock": "bcc8821646f2ffa5cbbd5fcb9f61ffe1a627afa22eded47cd6e756dd2e015ff6"
+  },
+  "collectorHashes": {
+    "run.ts": "c12bd444fdc8226ab00558f26bbd8e297ce978ac89326b32f81188fd93a268d7",
+    "fixtures/probe.ts.template": "cd851a4fd774c2ddbf66381ce7ff5af806d550842216d250ca8a1c12bf2e2329",
+    "fixtures/server.ts.template": "ec61c53c238efe21da21bd4b36566a46a55195148ddad682a515ebc01dce98cf",
+    "fixtures/endpoints.ts.template": "3197f84ed1e19239d51d0e8c676d998642964f80c7a7fb96bbfdebea720eecdc",
+    "fixtures/values.ts.template": "8eb514e2542d3dd0663dd8307c95fe341d85edcf35bc5961cfe83a311bf55371",
+    "fixtures/functions.ts.template": "c6a128e88fb27373d400b56ccd0053699648419ae33e66f9f7dcd0c2c2cedd4c"
+  },
+  "distHashes": {
+    "cli/index.js": "effeebf8ad8d92259d6a77f07b9a26ec544c3def49ad6ab8b374ef5307262d50",
+    "client/index.js": "231b176eb2e9552c5d1bd47e9d089ccf927e0e7100a69fb2f6e2cc5922343c0d",
+    "codegen/index.js": "7d30ecfbec0d4cfd48579622d5fc46983b671b0a32691938c4dd21d1cf5cf307",
+    "core/index.js": "40b6370d0242e2888906ca5e6924ccdabf49343a865a93c18bfcc22d2a5c34a1",
+    "form/mantine/index.js": "fe14945b806a76c6efb3d0f4c55f66abfd25eeeb1bb3c94cf0252825d08bffe7",
+    "index.js": "8dcc50a55427b836a0d2b24a8c022f74b344e092300cab51b5b1d3513c3a62ef",
+    "labs/index.js": "f48676b90a66348c53e57d770c8ebc7b469f51201fd12eda50b591d268366385",
+    "legacy/index.js": "8e7cf883e7e1fcbaea800ba69d30c95421fb475844370d4f9fe98f5af212472b",
+    "mini/client/index.js": "231b176eb2e9552c5d1bd47e9d089ccf927e0e7100a69fb2f6e2cc5922343c0d",
+    "mini/index.js": "fdaa49c898c8b30c0247fb4d4da14c99b4dd863557497191c16e867a162dd430",
+    "mini/react/index.js": "dd69307c154ed5219c1b214c2c4abc620f7ee495acb4f48e9c6acb4b267f8e99",
+    "mini/server/index.js": "618557964aaf357df0ecabc770a7624edd5dbc1e1ca061df72d327f55e2b5278",
+    "react/index.js": "dd69307c154ed5219c1b214c2c4abc620f7ee495acb4f48e9c6acb4b267f8e99",
+    "server/index.js": "03299fbcde8812fe7e75c53506ddf15f197b821c7f42219024ccbe5fd5019d1d"
+  },
+  "baseline": {
+    "git": "1f415c47fa7659c860a3a813cb371020bde53c94",
+    "versions": {
+      "zod": "4.5.4",
+      "convex": "1.32.0",
+      "convex-helpers": "0.1.113"
+    },
+    "lockSha256": "69566af763d4eb85f14b24bc39b08887edccdf570038156c760a6db52f9a10ce",
+    "distHashes": {
+      "cli/index.js": "e25f0a5b6bef13a4ccbb1c682d0e02b2bb3ec3a96e5b32fe48fd443a35e1564a",
+      "client/index.js": "538680ab69b79281ed27589fc8fa4169a2f23c47bcdda386ef048dfe63033171",
+      "codegen/index.js": "4eefcede95c2d47c6a78e2b313b33b490ac2c6504b9a2d6da8068788f4b84671",
+      "core/index.js": "c412dc9982f9ca19f204c0d397ee40c91fb0e6525a4f61838fd66f356e0b58d0",
+      "form/mantine/index.js": "fe14945b806a76c6efb3d0f4c55f66abfd25eeeb1bb3c94cf0252825d08bffe7",
+      "index.js": "773b71269f30db92d9d545898cc151a5c10736e13ca063b8326ab610f198319d",
+      "labs/index.js": "f3503a6ad0a812276f13a1976cd62ef86c22e0b215642bd9baf7817ec15eab05",
+      "legacy/index.js": "45e4e0905e8abab9d349426ee8a7aaf68a85b22aa7e1f47e4f0ecbcf531b11b1",
+      "mini/client/index.js": "538680ab69b79281ed27589fc8fa4169a2f23c47bcdda386ef048dfe63033171",
+      "mini/index.js": "4e99fecfd15334e08186a09b3f58095df877f5765a1e98d665a85307a0dc25e9",
+      "mini/react/index.js": "a1de7caa3c993a4ec5738ce7bbba09973529febed7a8a69aa9bdac73ec5f3281",
+      "mini/server/index.js": "06ea9405b2ad951342acba32dea9027dd12cf8d4700b98508cb188058eff1820",
+      "react/index.js": "a1de7caa3c993a4ec5738ce7bbba09973529febed7a8a69aa9bdac73ec5f3281",
+      "server/index.js": "a106c2569bf6efa796e51c79bc1fc19f636dbe997ff94d63ed28f6e1a3ac82cb"
+    }
+  },
+  "checks": [
+    {
+      "name": "plain control remains unchanged",
+      "passed": true
+    },
+    {
+      "name": "Date argument decoding is lost",
+      "passed": true
+    },
+    {
+      "name": "class argument decoding is lost",
+      "passed": true
+    },
+    {
+      "name": "Date return encoding is lost",
+      "passed": true
+    },
+    {
+      "name": "class return encoding is lost",
+      "passed": true
+    },
+    {
+      "name": "argument refinement is lost",
+      "passed": true
+    },
+    {
+      "name": "argument default is lost",
+      "passed": true
+    },
+    {
+      "name": "current foundation agrees with precompile plain",
+      "passed": true
+    },
+    {
+      "name": "current foundation agrees with precompile dateArg",
+      "passed": true
+    },
+    {
+      "name": "current foundation agrees with precompile classArg",
+      "passed": true
+    },
+    {
+      "name": "current foundation agrees with precompile dateReturn",
+      "passed": true
+    },
+    {
+      "name": "current foundation agrees with precompile classReturn",
+      "passed": true
+    },
+    {
+      "name": "current foundation agrees with precompile refineArg",
+      "passed": true
+    },
+    {
+      "name": "current foundation agrees with precompile defaultArg",
+      "passed": true
+    }
+  ],
+  "passed": 14,
+  "total": 14
+}
