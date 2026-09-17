@@ -88,3 +88,7 @@ resolvers), and enumeration still lists every path.
 - `packages/zodvex/__tests__/codegen-e2e.test.ts`: imports the written `api.js` and checks
   keys, accessor descriptors, and stable identity.
 - Both example apps regenerated; `bun run validate:local` green.
+- Hosted workload benchmark, eager versus getter registry on the same 32-model graph
+  (`examples/stress-test/results/capacity-2026-09-17-lazy-registry/`): 128 eager
+  ten-field entries add ~17 ms per call; the getter registry is indistinguishable from
+  no registry.
