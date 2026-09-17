@@ -30,7 +30,7 @@ Median query server milliseconds, `[Q1, Q3]` over seven uncached samples, from t
 
 The 128 eager entries add about 17 ms (full) and 18 ms (mini) to every call over the
 same 32-model graph without a registry. The getter registry adds nothing measurable:
-its medians sit inside the models-only interquartile range at every batch size, and
+its medians track the models-only profile within a few ms at every batch size, and
 the eager and lazy interquartile ranges do not overlap at one row. The
 [earlier repeat](capacity-lazy-registry-repeat.md) on the same fixture (recorded
 against the pre-amend commit `d4283d2`, whose composer is byte-identical: same
