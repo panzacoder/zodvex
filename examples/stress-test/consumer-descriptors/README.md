@@ -2,7 +2,7 @@
 
 **FAILED current boundary compatibility. Incomplete experiment; not a production feature or an equivalent consumer performance improvement.**
 
-This inventories PR #80 at immutable commit `cfc06b6ac02a1104e0b7e0de7283e510c9abeb06` against the current installed library and Zod 4.5.4. `historical-emitter.ts` and `historical-zod-to-source.ts` are pinned audit copies, not a second supported code generator. `source-origin.json` identifies the exact source files, extracted algorithm, and limited import/header adaptations. Historical claims inside copied comments are not conclusions of this experiment. No production code, CLI defaults, dependency versions or example apps are changed.
+This inventories PR #80 at immutable commit `cfc06b6ac02a1104e0b7e0de7283e510c9abeb06` against the library at merged main `1f415c47fa7659c860a3a813cb371020bde53c94` (#142 and #143 included) and Zod 4.5.4, the resolved versions recorded in the promoted result's `memory/manifest.json`. The development pin has since moved to Zod 4.6.5; a fresh run records its own resolved versions under `results/local/` and does not overwrite the promoted result. `historical-emitter.ts` and `historical-zod-to-source.ts` are pinned audit copies, not a second supported code generator. `source-origin.json` identifies the exact source files, extracted algorithm, and limited import/header adaptations. Historical claims inside copied comments are not conclusions of this experiment. No production code, CLI defaults, dependency versions or example apps are changed.
 
 ## Consumer fixture
 
