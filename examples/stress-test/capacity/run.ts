@@ -217,7 +217,7 @@ Run ${run}; library commit ${metadata.gitCommit}; fixture ${fixture.fixtureHash}
 
 Started ${metadata.startedAt}; target ${deployment}. Payload field: ${payloadBytes} ASCII bytes; seeded rows: ${Math.max(...batches)}; batch sizes: ${batches.join(', ')}; rounds: ${rounds}; order seed: ${seed}. Payload is not full document size; actual resource counts are in results.json.
 
-All variants use one model. Native/helpers and lean import one; models/registry import 32. Registry profiles additionally load 128 unused schema entries. These counts describe this synthetic fixture, not typical applications.
+All variants use one model. Native/helpers and lean import one; models/registry import 32. Registry profiles additionally load 128 unused schema entries: _registry as an eager object literal (every entry's schemas built at module evaluation), _registry_lazy in the memoizing-getter shape zodvex generate emits since 0.7.11 (entries build on first access). These counts describe this synthetic fixture, not typical applications.
 
 ${JSON.stringify(versions)}
 
