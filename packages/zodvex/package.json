@@ -125,7 +125,7 @@
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0",
-    "zod": "4.5.4",
+    "zod": "4.6.5",
     "zod-to-mini": "workspace:*"
   },
   "engines": {

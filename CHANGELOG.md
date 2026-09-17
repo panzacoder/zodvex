@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Development and example dependencies pin Zod 4.6.5 (from 4.5.4), including the stress harness deployment manifest. The library peer range stays `^4.3.6`. The lockfile changes no other resolved package. The full local gate passes under both `zod` and `zod/mini` on 4.6.5.
 - `zodvex generate` emits `zodvexRegistry` entries as memoizing getters. Each function's `args` / `returns` schemas are constructed on first access instead of at module evaluation, so importing the registry (which every server function does through `initZodvex`) no longer builds every function's schemas per Convex execution. The declared type, key lookups, and enumeration are unchanged; enumerating builds every entry. Regenerate `_zodvex/` to pick this up.
 
 ## [0.7.10] - 2026-09-08

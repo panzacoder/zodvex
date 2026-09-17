@@ -10,7 +10,7 @@
       "dependencies": {
         "convex": "^1.28.0",
         "convex-helpers": "^0.1.104",
-        "zod": "4.5.4",
+        "zod": "4.6.5",
         "zodvex": "workspace:*",
       },
       "devDependencies": {
@@ -23,7 +23,7 @@
       "dependencies": {
         "convex": "^1.28.0",
         "convex-helpers": ">=0.1.101-alpha.1",
-        "zod": "4.5.4",
+        "zod": "4.6.5",
         "zodvex": "workspace:*",
       },
       "devDependencies": {
@@ -40,7 +40,7 @@
         "convex": "^1.28.0",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
-        "zod": "4.5.4",
+        "zod": "4.6.5",
         "zodvex": "workspace:*",
       },
       "devDependencies": {
@@ -65,7 +65,7 @@
         "convex": "^1.28.0",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
-        "zod": "4.5.4",
+        "zod": "4.6.5",
         "zodvex": "workspace:*",
       },
       "devDependencies": {
@@ -92,7 +92,7 @@
       "devDependencies": {
         "vite": "^8.0.3",
         "vitest": "^4.1.0",
-        "zod": "4.5.4",
+        "zod": "4.6.5",
       },
     },
     "packages/zodvex": {
@@ -116,7 +116,7 @@
         "tsup": "^8.5.0",
         "typescript": "^5.9.3",
         "vitest": "^4.1.0",
-        "zod": "4.5.4",
+        "zod": "4.6.5",
         "zod-to-mini": "workspace:*",
       },
       "peerDependencies": {
@@ -705,7 +705,7 @@
 
     "yargs-parser": ["yargs-parser@21.1.1", "", {}, "sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw=="],
 
-    "zod": ["zod@4.5.4", "", {}, "sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA=="],
+    "zod": ["zod@4.6.5", "", {}, "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q=="],
 
     "zod-to-mini": ["zod-to-mini@workspace:packages/zod-to-mini"],
 

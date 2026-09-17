@@ -10,7 +10,7 @@
   "dependencies": {
     "convex": "^1.28.0",
     "convex-helpers": "^0.1.104",
-    "zod": "4.5.4",
+    "zod": "4.6.5",
     "zodvex": "workspace:*"
   },
   "devDependencies": {
