@@ -40,8 +40,8 @@ seeds only its synthetic `benchmarkRows` table. It does not use a consumer app, 
 deployments, or require a deploy key. The explicit deployment name is passed to
 `convex run --push`; ambient deploy-key/self-hosted overrides are rejected.
 
-The default is one push, 256 seeded rows, eight variants, three batch sizes
-`1,64,256`, and seven interleaved rounds: 176 sample action calls, plus three
+The default is one push, 256 seeded rows, ten variants, three batch sizes
+`1,64,256`, and seven interleaved rounds: 220 sample action calls, plus three
 reference calls and setup. Each sample action invokes one measured query. Only a small
 verification summary goes to the client, although the measured query returns all rows
 inside Convex. The default measured queries read roughly 16 MiB in total for this
@@ -98,18 +98,25 @@ dropping the codec operation or the declared return schema.
 
 The benchmark deliberately separates the actual operation from unused schema load:
 
-| Profile | Models used | Models imported | Eager function-registry entries |
-|---|---:|---:|---:|
-| Native / helpers reference | 1 | 1 | 0 |
-| Full / Mini lean | 1 | 1 | 0 |
-| Full / Mini models | 1 | 32 | 0 |
-| Full / Mini registry | 1 | 32 | 128 |
+| Profile | Models used | Models imported | Function-registry entries | Registry shape |
+|---|---:|---:|---:|---|
+| Native / helpers reference | 1 | 1 | 0 | none |
+| Full / Mini lean | 1 | 1 | 0 | none |
+| Full / Mini models | 1 | 32 | 0 | none |
+| Full / Mini registry | 1 | 32 | 128 | eager object literal |
+| Full / Mini registry_lazy | 1 | 32 | 128 | memoizing getters (`zodvex generate` 0.7.11+) |
 
 These are controlled sensitivity points, **not typical-app claims**. The deployment
 always declares the same 32 native tables, of which only one contains data. There are
-eight measured query functions. The 128 entries are a synthetic fixture of the current
-eager registry shape, not 128 registered/used functions and not a codegen throughput
-test. `defineZodModel` keeps its default schema-helper setting in all Zodvex profiles.
+ten measured query functions. The 128 entries are a synthetic fixture, not 128
+registered/used functions and not a codegen throughput test. `_registry` builds every
+entry's schemas at module evaluation, the shape codegen emitted before 0.7.11;
+`_registry_lazy` uses the memoizing-getter shape `zodvex generate` emits since 0.7.11,
+where an entry builds on first access, so the pair isolates the per-execution cost of
+registry construction. Each entry's args is a ten-field argument schema (the corpus of
+the local Zod baseline), roughly what a generated entry inlines; two-field entries cost
+about 3 ms per 128 warm in Node and vanished inside run-to-run noise. `compose.test.ts` checks the lazy fixture against the real
+generator output so it cannot drift. `defineZodModel` keeps its default schema-helper setting in all Zodvex profiles.
 
 Each profile has a separate module graph. `graph.ts` uses Convex's installed esbuild
 version and multi-entry code splitting to verify that native imports no Zod, helpers
