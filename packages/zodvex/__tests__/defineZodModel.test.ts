@@ -494,6 +494,32 @@ describe('defineZodModel staged indexes', () => {
     expect(staged.stagedIndexes).toEqual({ byChannel: ['channel', '_creationTime'] })
   })
 
+  // A name declared both ways stays in both records, which is what Convex's own
+  // builder produces and what `convex deploy` rejects. The typed model cannot
+  // drop the live name either, so resolving it here would let `withIndex`
+  // compile against an index the pushed schema does not have.
+  it('keeps a name declared both staged and live in both records', () => {
+    const model = defineZodModel('events', { channel: z.string() })
+      .index('byChannel', ['channel'])
+      .index('byChannel', ['channel'], { staged: true })
+
+    expect(model.indexes).toEqual({ byChannel: ['channel', '_creationTime'] })
+    expect(model.stagedIndexes).toEqual({ byChannel: ['channel', '_creationTime'] })
+  })
+
+  // `staged` is read for truthiness, as Convex reads it. TypeScript rejects a
+  // non-boolean flag, so only an untyped JS caller can get here.
+  it('stages on a truthy flag, as Convex does', () => {
+    const options = { staged: 1 } as unknown as { staged: true }
+    const model = defineZodModel('events', { channel: z.string() }).index(
+      'byChannel',
+      ['channel'],
+      options
+    )
+
+    expect(model.stagedIndexes).toEqual({ byChannel: ['channel', '_creationTime'] })
+  })
+
   it('stages search and vector indexes', () => {
     const model = defineZodModel('docs', {
       body: z.string(),

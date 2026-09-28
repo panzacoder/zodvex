@@ -252,6 +252,7 @@ npx zodvex migrate ./convex --dry-run  # preview changes
 - [Mapping Helpers](./docs/guide/mapping-helpers.md) — `zodToConvex`, `zodToConvexFields`
 - [Return Type Helpers](./docs/guide/return-type-helpers.md) — `returnsAs`
 - [Large Schemas](./docs/guide/large-schemas.md) — `pickShape`, `safePick`
+- [Staged Indexes](./docs/guide/staged-indexes.md) — `{ staged: true }` on `index`, `searchIndex`, `vectorIndex`
 - [Polymorphic Tables](./docs/guide/polymorphic-tables.md) — Union/discriminated union tables
 - [Streams](./docs/guide/streams.md) — `zodvexStream`, `zodvexMergedStream` for fan-out pagination
 - [AI SDK Compatibility](./docs/guide/ai-sdk.md) — Vercel AI SDK integration

@@ -74,12 +74,43 @@ type IndexFieldsArg<First extends string, Rest extends string[]> =
   | readonly [First, ...Rest]
   | ({ fields: readonly [First, ...Rest] } & StagedOrUnstagedIndexOptions)
 
+/**
+ * `staged` is read for truthiness by the model factories, exactly as Convex's
+ * own builder reads it, so an untyped caller gets the same index placement
+ * zodvex would hand Convex.
+ */
 function normalizeIndexArg(
   arg: IndexFieldsArg<string, string[]>,
   options?: StagedOrUnstagedIndexOptions
 ): { fields: readonly string[]; staged: boolean } {
-  if ('fields' in arg) return { fields: arg.fields, staged: arg.staged === true }
-  return { fields: arg, staged: options?.staged === true }
+  if ('fields' in arg) return { fields: arg.fields, staged: !!arg.staged }
+  return { fields: arg, staged: !!options?.staged }
+}
+
+/** The live and staged records each kind of index is filed under. */
+const INDEX_RECORDS = {
+  indexes: { live: 'indexes', staged: 'stagedIndexes' },
+  searchIndexes: { live: 'searchIndexes', staged: 'stagedSearchIndexes' },
+  vectorIndexes: { live: 'vectorIndexes', staged: 'stagedVectorIndexes' }
+} as const
+
+type IndexKind = keyof typeof INDEX_RECORDS
+
+/**
+ * Add one index entry to the live or staged record for its kind. Re-declaring a
+ * name replaces the earlier entry in the same record; declaring it in the other
+ * record as well is left to `convex deploy` to reject, which is what Convex's
+ * own builder produces for the same pair of calls.
+ */
+function withIndexEntry<K extends IndexKind>(
+  indexState: ModelIndexState,
+  kind: K,
+  indexName: string,
+  value: ModelIndexState[K][string],
+  staged: boolean
+): ModelIndexState {
+  const record = staged ? INDEX_RECORDS[kind].staged : INDEX_RECORDS[kind].live
+  return { ...indexState, [record]: { ...indexState[record], [indexName]: value } }
 }
 
 function createModel<Name extends string>(
@@ -115,40 +146,22 @@ function createModel<Name extends string>(
       const { fields: requested, staged } = normalizeIndexArg(indexFieldsOrConfig, options)
       // _creationTime is appended so the stored record mirrors Convex's index
       // shape; tableFromModel() strips it again before calling defineTable().
-      const indexFields = [...requested, '_creationTime']
-      const bucket = staged ? 'stagedIndexes' : 'indexes'
-      return createModel(
-        name,
-        fields,
-        schema,
-        definitionSource,
-        { ...indexState, [bucket]: { ...indexState[bucket], [indexName]: indexFields } },
-        userSchema
+      const next = withIndexEntry(
+        indexState,
+        'indexes',
+        indexName,
+        [...requested, '_creationTime'],
+        staged
       )
+      return createModel(name, fields, schema, definitionSource, next, userSchema)
     },
     searchIndex(indexName: string, config: SearchIndexConfig & StagedOrUnstagedIndexOptions) {
-      const staged = config.staged === true
-      const bucket = staged ? 'stagedSearchIndexes' : 'searchIndexes'
-      return createModel(
-        name,
-        fields,
-        schema,
-        definitionSource,
-        { ...indexState, [bucket]: { ...indexState[bucket], [indexName]: config } },
-        userSchema
-      )
+      const next = withIndexEntry(indexState, 'searchIndexes', indexName, config, !!config.staged)
+      return createModel(name, fields, schema, definitionSource, next, userSchema)
     },
     vectorIndex(indexName: string, config: VectorIndexConfig & StagedOrUnstagedIndexOptions) {
-      const staged = config.staged === true
-      const bucket = staged ? 'stagedVectorIndexes' : 'vectorIndexes'
-      return createModel(
-        name,
-        fields,
-        schema,
-        definitionSource,
-        { ...indexState, [bucket]: { ...indexState[bucket], [indexName]: config } },
-        userSchema
-      )
+      const next = withIndexEntry(indexState, 'vectorIndexes', indexName, config, !!config.staged)
+      return createModel(name, fields, schema, definitionSource, next, userSchema)
     }
   }
 
@@ -193,26 +206,22 @@ function createSlimModel<Name extends string>(
       options?: StagedOrUnstagedIndexOptions
     ) {
       const { fields: requested, staged } = normalizeIndexArg(indexFieldsOrConfig, options)
-      const indexFields = [...requested, '_creationTime']
-      const bucket = staged ? 'stagedIndexes' : 'indexes'
-      return createSlimModel(name, fields, userSchema, definitionSource, {
-        ...indexState,
-        [bucket]: { ...indexState[bucket], [indexName]: indexFields }
-      })
+      const next = withIndexEntry(
+        indexState,
+        'indexes',
+        indexName,
+        [...requested, '_creationTime'],
+        staged
+      )
+      return createSlimModel(name, fields, userSchema, definitionSource, next)
     },
     searchIndex(indexName: string, config: SearchIndexConfig & StagedOrUnstagedIndexOptions) {
-      const bucket = config.staged === true ? 'stagedSearchIndexes' : 'searchIndexes'
-      return createSlimModel(name, fields, userSchema, definitionSource, {
-        ...indexState,
-        [bucket]: { ...indexState[bucket], [indexName]: config }
-      })
+      const next = withIndexEntry(indexState, 'searchIndexes', indexName, config, !!config.staged)
+      return createSlimModel(name, fields, userSchema, definitionSource, next)
     },
     vectorIndex(indexName: string, config: VectorIndexConfig & StagedOrUnstagedIndexOptions) {
-      const bucket = config.staged === true ? 'stagedVectorIndexes' : 'vectorIndexes'
-      return createSlimModel(name, fields, userSchema, definitionSource, {
-        ...indexState,
-        [bucket]: { ...indexState[bucket], [indexName]: config }
-      })
+      const next = withIndexEntry(indexState, 'vectorIndexes', indexName, config, !!config.staged)
+      return createSlimModel(name, fields, userSchema, definitionSource, next)
     }
   }
 
