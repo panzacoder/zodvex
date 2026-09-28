@@ -1,7 +1,9 @@
 # Motiion-Inspired Utilities for zodvex
 
+**Status:** PR closed 2026-09-28 (unrebasable, [#47](https://github.com/panzacoder/zodvex/pull/47)); intent re-scoped under [#153](https://github.com/panzacoder/zodvex/issues/153).
+
 **Created:** 2025-01-18
-**Status:** Proposal — recalibrated 2026-03-11
+**Original status:** Proposal — recalibrated 2026-03-11
 **Priority:** Post-v0.6.0 (Phase 1 first, then 2-3; Phase 4 is largely done)
 **Inspiration:** Patterns discovered in plfx/motiion project
 

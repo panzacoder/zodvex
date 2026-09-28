@@ -1,5 +1,9 @@
 # Opt-in client library codegen (mantine, TanStack Form, etc.)
 
+**Status:** PR closed 2026-09-28 (unrebasable, [#45](https://github.com/panzacoder/zodvex/pull/45)); intent re-scoped under [#153](https://github.com/panzacoder/zodvex/issues/153).
+The config-file/plugin design below is superseded by a library-agnostic args-schema accessor — see
+[`../decisions/2026-09-28-library-agnostic-form-binding.md`](../decisions/2026-09-28-library-agnostic-form-binding.md).
+
 ## Context
 
 The mantine form integration was removed from codegen (`2f7db05`) because auto-detection via `require.resolve` false-positived when Bun auto-installed optional peer deps. The runtime code (`zodvex/form/mantine`) still exists and works — it's just no longer auto-generated into consumer `_zodvex/client.*` files.
@@ -93,7 +97,7 @@ Medium — mantine codegen worked before and has a known consumer (motiion). But
 
 ## Related
 
-- `todo/mantine-detection-false-positive.md` — the bug that motivated removal (now resolved)
+- `todo/mantine-detection-false-positive.md` — the bug that motivated removal (now resolved; the note was pruned, see git history)
 - `src/form/mantine/index.ts` — runtime code (still exists, still exported)
 - `src/codegen/generate.ts` — where client file generation happens
 - `src/codegen/detect.ts` — where `canResolve()` still lives as a utility

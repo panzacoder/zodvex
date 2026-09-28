@@ -73,13 +73,26 @@ libraries that also want to wrap `ctx` or `ctx.db`.
   identity from a frontend-safe `*.args.ts` module, so the client can import schemas without
   dragging server code into the browser bundle — retiring codec fingerprinting/brands for
   decoupled functions.
-- **Opt-in client-integration plugins** — *Direction (implemented in
-  [#45](https://github.com/panzacoder/zodvex/pull/45), pending rebase).* A `zodvex.config.ts`
-  that drives codegen of form resolvers (Mantine, TanStack Form, React Hook Form) via
-  explicit, package.json-based opt-in — superseding the reverted auto-detection.
-- **Sturdier codegen discovery** — *Exploring (RFC open as
-  [#51](https://github.com/panzacoder/zodvex/pull/51)).* Replace the fragile
-  dynamic-`import()` + Proxy-stub discovery with AST-based (or hybrid static/dynamic)
+- **Library-agnostic form binding** — *Direction (tracked in
+  [#153](https://github.com/panzacoder/zodvex/issues/153)).* The generated client (or a core
+  primitive) exposes an accessor that returns a function's args schema from the registry
+  given a function reference; consumers pass that schema to whatever resolver their form
+  library uses. React Hook Form and TanStack Form are the integrations to document first;
+  `zodvex/form/mantine` stays as a manual-bind primitive. A `zodvex.config.ts` and
+  per-library codegen plugins are deferred until a second codegen option needs a config
+  file, and auto-detection of form libraries is not coming back. Depends on the generated
+  registry carrying checks, defaults, `describe` and `meta` (emitter fidelity, also under
+  #153). Rationale in
+  [`decisions/2026-09-28-library-agnostic-form-binding.md`](./decisions/2026-09-28-library-agnostic-form-binding.md);
+  the earlier `zodvex.config.ts` implementation ([#45](https://github.com/panzacoder/zodvex/pull/45))
+  was closed unrebased.
+- **Codegen discovery** — *Direction.* The static-analysis RFC
+  ([#51](https://github.com/panzacoder/zodvex/pull/51), closed 2026-09-28) is preserved at
+  [`planning/codegen-static-analysis.md`](./planning/codegen-static-analysis.md) but is not
+  being pursued. The direction is reference-by-import for client-visible schemas (the
+  decouple-validators item above; detail in
+  [`issues/2026-06-08-validator-handler-decoupling.md`](./issues/2026-06-08-validator-handler-decoupling.md)),
+  which shrinks what discovery has to execute rather than replacing execution with AST
   analysis.
 
 ## Schema conveniences
@@ -87,12 +100,16 @@ libraries that also want to wrap `ctx` or `ctx.db`.
 These are framed as **codec-aware, define-once boundary conveniences**, not a form-builder
 framework — they reuse your existing models rather than adding a new authoring surface.
 
-- **Runtime schema introspection** — *Direction (implemented in
-  [#47](https://github.com/panzacoder/zodvex/pull/47), pending rebase).* A stable public
+- **Runtime schema introspection** — *Direction (tracked in
+  [#153](https://github.com/panzacoder/zodvex/issues/153); the earlier implementation in
+  [#47](https://github.com/panzacoder/zodvex/pull/47) was closed unrebased).* A stable public
   `introspect()` surface (`isConvexId`, `getTableName`, `getDefault`, `isOptional`, …) so
-  consumers stop reaching into Zod internals (`_def`). The traversal infrastructure already
-  exists.
-- **Type-safe form defaults from schemas** — *Exploring.* `getSchemaDefaults()` /
+  consumers stop reaching into Zod internals (`_def`). Constraints: built on `zod/v4/core`
+  types so it works with `zod/mini`; metadata read through the public `.meta()`/registry
+  channel so model wrappers can extend it; codecs report their semantic base type. It gives
+  wrong answers on a shape-only registry copy, so it follows emitter fidelity (#153). The
+  traversal infrastructure already exists.
+- **Type-safe form defaults from schemas** — *Exploring (#153).* `getSchemaDefaults()` /
   `getPartialDefaults()` derived from the same models that validate args (builds on
   introspection).
 

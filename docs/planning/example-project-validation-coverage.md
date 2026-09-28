@@ -39,5 +39,5 @@ The example project (`examples/task-manager`) is the primary validation target f
 Medium — these are validation improvements, not features. But each one corresponds to a real bug we discovered and fixed during the beta.51/52/53 cycle. Adding them prevents regressions.
 
 ## Related
-- `todo/codegen-static-analysis.md` — longer-term rethink of dynamic vs static discovery
+- [`codegen-static-analysis.md`](./codegen-static-analysis.md) — the (deferred) static-analysis RFC for discovery
 - `.github/workflows/ci.yml` — codegen regeneration guard that runs against the example project
