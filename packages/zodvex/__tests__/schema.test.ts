@@ -211,3 +211,97 @@ describe('defineZodSchema', () => {
     expect(() => defineZodSchema({ users: Users })).not.toThrow()
   })
 })
+
+// ===========================================================================
+// Staged indexes — pushed to Convex's staged buckets, absent from `indexes`
+// ===========================================================================
+
+function exportedTable(schema: ReturnType<typeof defineZodSchema>, tableName: string) {
+  const exported = JSON.parse(schema.export())
+  const table = exported.tables.find((t: { tableName: string }) => t.tableName === tableName)
+  if (!table) throw new Error(`table '${tableName}' missing from exported schema`)
+  return table
+}
+
+describe('defineZodSchema staged indexes', () => {
+  it('pushes a staged index to stagedDbIndexes and not to indexes', () => {
+    const Events = defineZodModel('events', { channel: z.string() }).index(
+      'by_channel',
+      ['channel'],
+      { staged: true }
+    )
+    const table = exportedTable(defineZodSchema({ events: Events }), 'events')
+
+    expect(table.stagedDbIndexes).toEqual([{ indexDescriptor: 'by_channel', fields: ['channel'] }])
+    expect(table.indexes).toEqual([])
+  })
+
+  it("accepts Convex's object form and strips _creationTime", () => {
+    const Events = defineZodModel('events', { channel: z.string(), kind: z.string() }).index(
+      'by_channel_and_kind',
+      { fields: ['channel', 'kind'], staged: true }
+    )
+    const table = exportedTable(defineZodSchema({ events: Events }), 'events')
+
+    expect(table.stagedDbIndexes).toEqual([
+      { indexDescriptor: 'by_channel_and_kind', fields: ['channel', 'kind'] }
+    ])
+  })
+
+  it('keeps staged and unstaged indexes side by side on one table', () => {
+    const Events = defineZodModel('events', { channel: z.string(), kind: z.string() })
+      .index('by_kind', ['kind'])
+      .index('by_channel', ['channel'], { staged: true })
+    const table = exportedTable(defineZodSchema({ events: Events }), 'events')
+
+    expect(table.indexes).toEqual([{ indexDescriptor: 'by_kind', fields: ['kind'] }])
+    expect(table.stagedDbIndexes).toEqual([{ indexDescriptor: 'by_channel', fields: ['channel'] }])
+  })
+
+  it('pushes staged search and vector indexes to their staged buckets', () => {
+    const Docs = defineZodModel('docs', {
+      body: z.string(),
+      channel: z.string(),
+      embedding: z.array(z.number())
+    })
+      .searchIndex('search_body', { searchField: 'body' })
+      .searchIndex('search_channel', { searchField: 'channel', staged: true })
+      .vectorIndex('vec_embedding', { vectorField: 'embedding', dimensions: 3 })
+      .vectorIndex('vec_channel', { vectorField: 'embedding', dimensions: 3, staged: true })
+    const table = exportedTable(defineZodSchema({ docs: Docs }), 'docs')
+
+    expect(table.searchIndexes).toEqual([
+      { indexDescriptor: 'search_body', searchField: 'body', filterFields: [] }
+    ])
+    expect(table.stagedSearchIndexes).toEqual([
+      { indexDescriptor: 'search_channel', searchField: 'channel', filterFields: [] }
+    ])
+    expect(table.vectorIndexes).toEqual([
+      {
+        indexDescriptor: 'vec_embedding',
+        vectorField: 'embedding',
+        dimensions: 3,
+        filterFields: []
+      }
+    ])
+    expect(table.stagedVectorIndexes).toEqual([
+      {
+        indexDescriptor: 'vec_channel',
+        vectorField: 'embedding',
+        dimensions: 3,
+        filterFields: []
+      }
+    ])
+  })
+
+  it('stages indexes declared on slim models too', () => {
+    const Events = defineZodModel(
+      'events',
+      { channel: z.string() },
+      { schemaHelpers: false }
+    ).index('by_channel', ['channel'], { staged: true })
+    const table = exportedTable(defineZodSchema({ events: Events }), 'events')
+
+    expect(table.stagedDbIndexes).toEqual([{ indexDescriptor: 'by_channel', fields: ['channel'] }])
+  })
+})

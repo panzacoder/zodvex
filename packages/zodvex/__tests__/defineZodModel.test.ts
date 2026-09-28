@@ -201,6 +201,9 @@ describe('defineZodModel', () => {
     expect(model.indexes).toEqual({})
     expect(model.searchIndexes).toEqual({})
     expect(model.vectorIndexes).toEqual({})
+    expect(model.stagedIndexes).toEqual({})
+    expect(model.stagedSearchIndexes).toEqual({})
+    expect(model.stagedVectorIndexes).toEqual({})
 
     // Schema shapes exist
     expect(model.schema.insert).toBeDefined()
@@ -447,6 +450,76 @@ describe('defineZodModel .index()', () => {
     model.index('bad', ['content.header.bogus'])
 
     expect(true).toBe(true)
+  })
+})
+
+describe('defineZodModel staged indexes', () => {
+  it('keeps a staged index out of `indexes`', () => {
+    const model = defineZodModel('events', {
+      channel: z.string(),
+      kind: z.string()
+    })
+      .index('byKind', ['kind'])
+      .index('byChannel', ['channel'], { staged: true })
+
+    expect(model.indexes).toEqual({ byKind: ['kind', '_creationTime'] })
+    expect(model.stagedIndexes).toEqual({ byChannel: ['channel', '_creationTime'] })
+  })
+
+  it("accepts Convex's object form", () => {
+    const model = defineZodModel('events', { channel: z.string() }).index('byChannel', {
+      fields: ['channel'],
+      staged: true
+    })
+
+    expect(model.stagedIndexes).toEqual({ byChannel: ['channel', '_creationTime'] })
+  })
+
+  it('treats an explicit staged: false as a live index', () => {
+    const model = defineZodModel('events', { channel: z.string() }).index(
+      'byChannel',
+      ['channel'],
+      { staged: false }
+    )
+
+    expect(model.indexes).toEqual({ byChannel: ['channel', '_creationTime'] })
+    expect(model.stagedIndexes).toEqual({})
+  })
+
+  it('leaves the source model untouched when staging', () => {
+    const base = defineZodModel('events', { channel: z.string() })
+    const staged = base.index('byChannel', ['channel'], { staged: true })
+
+    expect(base.stagedIndexes).toEqual({})
+    expect(staged.stagedIndexes).toEqual({ byChannel: ['channel', '_creationTime'] })
+  })
+
+  it('stages search and vector indexes', () => {
+    const model = defineZodModel('docs', {
+      body: z.string(),
+      channel: z.string(),
+      embedding: z.array(z.number())
+    })
+      .searchIndex('searchBody', { searchField: 'body' })
+      .searchIndex('searchChannel', { searchField: 'channel', staged: true })
+      .vectorIndex('vecEmbedding', { vectorField: 'embedding', dimensions: 3 })
+      .vectorIndex('vecChannel', { vectorField: 'embedding', dimensions: 3, staged: true })
+
+    expect(Object.keys(model.searchIndexes)).toEqual(['searchBody'])
+    expect(Object.keys(model.stagedSearchIndexes)).toEqual(['searchChannel'])
+    expect(Object.keys(model.vectorIndexes)).toEqual(['vecEmbedding'])
+    expect(Object.keys(model.stagedVectorIndexes)).toEqual(['vecChannel'])
+  })
+
+  it('stages indexes declared on slim models', () => {
+    const model = defineZodModel('events', { channel: z.string() }, { schemaHelpers: false }).index(
+      'byChannel',
+      ['channel'],
+      { staged: true }
+    )
+
+    expect(model.indexes).toEqual({})
+    expect(model.stagedIndexes).toEqual({ byChannel: ['channel', '_creationTime'] })
   })
 })
 

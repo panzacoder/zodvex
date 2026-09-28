@@ -8,8 +8,12 @@ transpilation does not check TypeScript assertions.
 `database-overloads.test-d.ts` covers decoded writes, inferred reads, and rejected
 calls for ID-first and table-first database APIs. `model-index-paths.test-d.ts`
 contains the index-path assertions formerly expressed as always-passing runtime
-tests. `mapping.test-d.ts` replaces the dormant mapping tests with assertions
-against consumer value types and optionality using the supported Convex types.
+tests. `staged-indexes.test-d.ts` covers `staged: true` on `.index()`,
+`.searchIndex()`, and `.vectorIndex()`: staged names must stay out of the query
+index names and out of `withIndex`/`withSearchIndex`/`withVectorIndex`, for both
+the full-zod and mini model types. `mapping.test-d.ts` replaces the dormant
+mapping tests with assertions against consumer value types and optionality using
+the supported Convex types.
 
 Known decoded document unions require a complete variant for `patch`, matching
 the runtime union encoder. Ordinary object documents and native fallback tables

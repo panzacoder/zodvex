@@ -88,6 +88,8 @@ function getZodModelMeta(model: ZodModelEntry): ZodvexModelMeta {
  *   uses ConvexValidatorFromZod<Base> (produces VUnion) instead of
  *   ConvexValidatorFromZodFieldsAuto<F> (which would see empty fields).
  *   Indexes are converted from readonly tuples to mutable (Convex's format).
+ *   Staged indexes are not projected at all — Convex cannot query them, so they
+ *   must not appear in `IndexNames` / `SearchIndexNames` / `VectorIndexNames`.
  */
 type ConvexTableFor<E> =
   // zodTable entry — extract .table with full VObject type
@@ -190,6 +192,11 @@ export type DecodedDocFor<T extends Record<string, ZodSchemaEntry>> = {
 
 /**
  * Creates a Convex table definition from a ZodModel's fields and index metadata.
+ *
+ * Staged entries are routed to Convex's staged buckets and are deliberately
+ * absent from the type-level `ConvexTableFor` projection, which reads only
+ * `indexes` / `searchIndexes` / `vectorIndexes` — so a staged index cannot
+ * reach `withIndex` even before Convex refuses the query at runtime.
  */
 function tableFromModel(model: ZodModelEntry) {
   const meta = getZodModelMeta(model)
@@ -201,19 +208,35 @@ function tableFromModel(model: ZodModelEntry) {
     ? defineTable(zodToConvex(zx.base(model as any)) as any)
     : defineTable(zodToConvexFields(model.fields))
 
+  // defineZodModel appends _creationTime to stored index fields,
+  // but Convex adds it automatically — strip it
+  const userIndexFields = (indexFields: readonly string[]) =>
+    indexFields.filter(f => f !== '_creationTime')
+
   for (const [indexName, indexFields] of Object.entries(model.indexes)) {
-    // defineZodModel appends _creationTime to stored index fields,
-    // but Convex adds it automatically — strip it
-    const userFields = indexFields.filter(f => f !== '_creationTime')
-    table = table.index(indexName, userFields as any)
+    table = table.index(indexName, userIndexFields(indexFields) as any)
+  }
+
+  // Staged indexes go to Convex's staged bucket: the push does not block on
+  // backfill, and Convex rejects a query against one until `staged` is dropped.
+  for (const [indexName, indexFields] of Object.entries(model.stagedIndexes)) {
+    table = table.index(indexName, { fields: userIndexFields(indexFields), staged: true } as any)
   }
 
   for (const [indexName, config] of Object.entries(model.searchIndexes)) {
     table = table.searchIndex(indexName, config as any)
   }
 
+  for (const [indexName, config] of Object.entries(model.stagedSearchIndexes)) {
+    table = table.searchIndex(indexName, { ...config, staged: true } as any)
+  }
+
   for (const [indexName, config] of Object.entries(model.vectorIndexes)) {
     table = table.vectorIndex(indexName, config as any)
+  }
+
+  for (const [indexName, config] of Object.entries(model.stagedVectorIndexes)) {
+    table = table.vectorIndex(indexName, { ...config, staged: true } as any)
   }
 
   return table

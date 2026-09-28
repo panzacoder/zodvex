@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `defineZodModel(...).index(name, fields, { staged: true })` stages an index, and `searchIndex` / `vectorIndex` accept `staged: true` in their config object. A staged index is pushed to Convex's `stagedDbIndexes` / `stagedSearchIndexes` / `stagedVectorIndexes`, so the deploy no longer blocks on backfilling it. Without this, adding an index to a table whose backfill outlasts your deploy timeout fails the push outright, and the next deploy retries the same backfill. Convex's object form (`.index(name, { fields, staged: true })`) is accepted too, and the flag follows Convex in requiring a literal (`{ staged: true } as const` for a hoisted object). Staged declarations are held apart from the rest, so their names stay out of `withIndex` / `withSearchIndex` / `withVectorIndex` until you drop `staged` in a later deploy and the index becomes real; read them off `model.stagedIndexes`, `model.stagedSearchIndexes`, and `model.stagedVectorIndexes`.
+
 ### Fixed
 
 - `zx.id()` fields map to `v.id(table)` when the id and the schema come from different entrypoints, e.g. `zx` from `zodvex` with `defineZodSchema` from `zodvex/server`. Each entrypoint bundled its own id registry, so the table name was lost and the field was pushed as `v.string()`, which hides table relationships in the Convex dashboard. The table name now lives on the schema itself. Redeploying changes those columns from `string` to `id`, which Convex revalidates on the first push: stored ids of that table pass unchanged, but if any document holds a value that is not a valid id of the table `zx.id()` names, the push is rejected and the previous schema stays in place.

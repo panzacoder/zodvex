@@ -72,6 +72,8 @@ export {
   type SearchIndexConfig,
   type SlimMiniObjectModel,
   type SlimMiniUnionModel,
+  type StagedIndexOptions,
+  type UnstagedIndexOptions,
   type VectorIndexConfig,
   type ZodModel
 } from './model'
