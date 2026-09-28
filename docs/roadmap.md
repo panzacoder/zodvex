@@ -12,8 +12,12 @@ Status legend: **Next** (actively planned) · **Direction** (committed intent, u
 
 ## Deploy-scale performance
 
-The most active current thread ([#49](https://github.com/panzacoder/zodvex/issues/49) is the
+Was the most active thread ([#49](https://github.com/panzacoder/zodvex/issues/49) is the
 originating issue): making codec-enabled apps deploy at the same scale as hand-written Convex.
+The experiment arc closed on 2026-09-28 with the verdicts #144 recorded; what shipped for
+scale is the 0.7.11 memoizing registry getters, and the live direction is reference-by-import
+for client-visible schemas (see Client boundary & codegen). The harness stays as the
+regression gate.
 
 - **Codec-paths descriptor codegen** — *Closed ([#80](https://github.com/panzacoder/zodvex/pull/80),
   2026-09-28).* The port onto the current library measured a smaller import graph but 13
@@ -25,9 +29,10 @@ originating issue): making codec-enabled apps deploy at the same scale as hand-w
 - **Compile-away (`zodvex compile`)** — *Closed ([#63](https://github.com/panzacoder/zodvex/pull/63),
   2026-09-28).* The real compiler drops argument decoding, return encoding, refinements and
   defaults; verdict **INCOMPATIBLE**, excluded from performance ranking (same guide).
-- **Scale-test harness** — *Next ([#81](https://github.com/panzacoder/zodvex/pull/81)).*
-  Shape-faithful, axis-decoupled stress harness that baselines main vs any feature branch;
-  merges ahead of the descriptor work it measures.
+- **Scale-test harness** — *Merged ([#81](https://github.com/panzacoder/zodvex/pull/81),
+  2026-08-13).* Shape-faithful, axis-decoupled stress harness that baselines main against any
+  branch; it measured the experiments above and the 0.7.11 registry getters (#148). See
+  [`guide/memory-benchmarks.md`](./guide/memory-benchmarks.md).
 
 ## Ecosystem interop
 
@@ -62,7 +67,7 @@ libraries that also want to wrap `ctx` or `ctx.db`.
   was closed 2026-07-06 in favor of a clean redo tracked in
   [#95](https://github.com/panzacoder/zodvex/issues/95), which carries the decision below).* A
   codec-first library should decode `_creationTime` to a `Date` automatically, consistent
-  with `zx.date()` fields. Open decisions: the PR makes it **unconditional/breaking**, while
+  with `zx.date()` fields. Open decisions: #43's approach made it **unconditional/breaking**, while
   the safer shape is opt-in — pick one explicitly before landing; and whether to brand `_id`
   as `Id<Table>` at the same boundary.
 
@@ -106,8 +111,9 @@ framework — they reuse your existing models rather than adding a new authoring
   consumers stop reaching into Zod internals (`_def`). Constraints: built on `zod/v4/core`
   types so it works with `zod/mini`; metadata read through the public `.meta()`/registry
   channel so model wrappers can extend it; codecs report their semantic base type. It gives
-  wrong answers on a shape-only registry copy, so it follows emitter fidelity (#153). The
-  traversal infrastructure already exists.
+  wrong answers on a shape-only registry copy, so it follows emitter fidelity (#157). The
+  earlier traversal module was removed in 0.7.0, so this is a rewrite on core types, not a
+  repackaging.
 - **Type-safe form defaults from schemas** — *Exploring (#153).* `getSchemaDefaults()` /
   `getPartialDefaults()` derived from the same models that validate args (builds on
   introspection).

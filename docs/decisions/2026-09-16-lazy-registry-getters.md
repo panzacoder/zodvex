@@ -1,9 +1,9 @@
 # Decision: Generate the function registry as memoizing getters
 
 **Date:** 2026-09-16
-**Status:** Accepted (implemented; ships in the next release)
+**Status:** Accepted (shipped in 0.7.11)
 **Context:** Hotpot handoff, 2026-09-16 — per-call cost of the generated registry measured on Convex Cloud.
-**Relates-to:** `docs/guide/codegen.md` (registry wiring), [#80](https://github.com/panzacoder/zodvex/pull/80) (parked descriptor codegen, which included a codec-args-only server registry), `docs/issues/2026-06-08-validator-handler-decoupling.md`
+**Relates-to:** `docs/guide/codegen.md` (registry wiring), [#80](https://github.com/panzacoder/zodvex/pull/80) (descriptor codegen, closed 2026-09-28 with verdict INCOMPLETE in `docs/guide/memory-experiments.md`; it included a codec-args-only server registry), `docs/issues/2026-06-08-validator-handler-decoupling.md`
 
 ---
 

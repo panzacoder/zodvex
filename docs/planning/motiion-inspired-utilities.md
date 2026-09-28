@@ -13,15 +13,17 @@ Deep review of the codebase revealed ~80% of the infrastructure already exists b
 
 ### What already exists
 
+Snapshot as of 2026-03-11. `zodvex/transform` (including `transform/traverse.ts` and `unwrapOnce`) was removed in 0.7.0, so the two traversal rows below no longer hold and Phase 1 is a rewrite on `zod/v4/core` types ([#159](https://github.com/panzacoder/zodvex/issues/159)), not a repackaging.
+
 | Capability | Location | Status |
 |---|---|---|
-| Schema traversal + visitor | `transform/traverse.ts` (321 lines) | Complete, exported |
+| Schema traversal + visitor | `transform/traverse.ts` (321 lines) | Removed in 0.7.0 |
 | Type detection via `def.type` (20+ types) | `mapping/core.ts:85-322` | Complete, internal |
 | Zid/Convex ID detection + table name | `ids.ts` (3-layer detection) | Complete, internal |
 | Default extraction from ZodDefault | `mapping/core.ts:46-61` | Partial, internal |
 | React hooks (useZodQuery/useZodMutation) | `react/hooks.ts` (140+ lines) | Complete, exported |
 | Form integration pattern | `form/mantine/index.ts` | Complete, exported |
-| `unwrapOnce` for peeling wrapper types | `transform/traverse.ts` | Complete, newly exported |
+| `unwrapOnce` for peeling wrapper types | `transform/traverse.ts` | Removed in 0.7.0 |
 
 ### Recalibrated effort estimates
 
@@ -34,7 +36,7 @@ Deep review of the codebase revealed ~80% of the infrastructure already exists b
 
 ### Key findings
 
-1. **Phase 1 is assembly, not construction** — `introspect()` would compose `walkSchema()`, `getMetadata()`, and the `def.type` detection that `mapping/core.ts` already does
+1. **Phase 1 was assembly, not construction** (as of 2026-03-11) — `introspect()` would have composed `walkSchema()`, `getMetadata()`, and the `def.type` detection in `mapping/core.ts`. The first two were removed with `zodvex/transform` in 0.7.0; the `def.type` classification in the mapping layer remains the piece to compose.
 2. **String format detection is the hidden complexity** — detecting email/url/uuid requires accessing Zod's internal `.checks` array, which isn't exposed anywhere in zodvex yet
 3. **The "200+ lines saved" claim is accurate** — motiion's three utility files (~250-300 lines) could reduce to ~50 lines of API calls
 4. **Codec interaction needs clarification** — should `zx.date()` fields report `baseType: 'date'` (semantic) or `baseType: 'number'` (wire format)?
