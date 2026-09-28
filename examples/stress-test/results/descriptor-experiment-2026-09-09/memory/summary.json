@@ -1,0 +1,114 @@
+{
+  "contractStatus": "FAILED",
+  "validMeasurement": true,
+  "abort": null,
+  "observedCalls": 18,
+  "plannedCalls": 18,
+  "collectionMilliseconds": 4165,
+  "manifestSha256": "8966a7312f53fd48dd5125c37080cd5d8a6dd7bf34d0d0560ada72d062bef6c0",
+  "callsSha256": "16abdd69494672699fc07d06152dae398d6d1e4b5f186e8a72e17d7182e2fd7b",
+  "cells": [
+    {
+      "count": 0,
+      "kind": "eager",
+      "samples": 3,
+      "retainedBytes": [
+        4731416,
+        4731416,
+        4731416
+      ],
+      "medianRetainedBytes": 4731416,
+      "deltaBytesFromPairedZero": [
+        0,
+        0,
+        0
+      ],
+      "medianDeltaBytes": 0
+    },
+    {
+      "count": 0,
+      "kind": "descriptor",
+      "samples": 3,
+      "retainedBytes": [
+        4554832,
+        4554904,
+        4554832
+      ],
+      "medianRetainedBytes": 4554832,
+      "deltaBytesFromPairedZero": [
+        0,
+        0,
+        0
+      ],
+      "medianDeltaBytes": 0
+    },
+    {
+      "count": 16,
+      "kind": "eager",
+      "samples": 3,
+      "retainedBytes": [
+        5780344,
+        5780344,
+        5780344
+      ],
+      "medianRetainedBytes": 5780344,
+      "deltaBytesFromPairedZero": [
+        1048928,
+        1048928,
+        1048928
+      ],
+      "medianDeltaBytes": 1048928
+    },
+    {
+      "count": 16,
+      "kind": "descriptor",
+      "samples": 3,
+      "retainedBytes": [
+        4979288,
+        4979288,
+        4979288
+      ],
+      "medianRetainedBytes": 4979288,
+      "deltaBytesFromPairedZero": [
+        424456,
+        424384,
+        424456
+      ],
+      "medianDeltaBytes": 424456
+    },
+    {
+      "count": 64,
+      "kind": "eager",
+      "samples": 3,
+      "retainedBytes": [
+        8541016,
+        8541384,
+        8541384
+      ],
+      "medianRetainedBytes": 8541384,
+      "deltaBytesFromPairedZero": [
+        3809600,
+        3809968,
+        3809968
+      ],
+      "medianDeltaBytes": 3809968
+    },
+    {
+      "count": 64,
+      "kind": "descriptor",
+      "samples": 3,
+      "retainedBytes": [
+        6139688,
+        6139808,
+        6140088
+      ],
+      "medianRetainedBytes": 6139808,
+      "deltaBytesFromPairedZero": [
+        1584856,
+        1584904,
+        1585256
+      ],
+      "medianDeltaBytes": 1584904
+    }
+  ]
+}

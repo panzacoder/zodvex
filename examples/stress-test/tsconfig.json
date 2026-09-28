@@ -10,6 +10,10 @@
     "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["capacity/**/*.ts"],
+  "include": [
+    "capacity/**/*.ts",
+    "consumer-dynamic-import/shape.ts",
+    "consumer-dynamic-import/operation.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

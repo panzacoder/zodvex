@@ -17,6 +17,12 @@ improvements and tests report-only support with Hotpot. The
 [public guide](../../docs/guide/memory-benchmarks.md) indexes the evidence and
 explains how to compare it over time.
 
+The [historical experiment status](../../docs/guide/memory-experiments.md) adds
+bounded consumer import tests for descriptors and dynamic imports, plus a
+compile-away correctness audit. **These are incomplete experiments, not
+production alternatives.** Read their compatibility and runtime warnings before
+interpreting memory savings.
+
 ## Running the benchmarks
 
 Install the repository's frozen dependencies and build Zodvex from the repository

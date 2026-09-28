@@ -1,0 +1,49 @@
+[
+  {
+    "name": "plain",
+    "status": "returned",
+    "type": "String",
+    "value": "control",
+    "wire": "control"
+  },
+  {
+    "name": "dateArg",
+    "status": "returned",
+    "type": "Boolean",
+    "value": true,
+    "wire": true
+  },
+  {
+    "name": "classArg",
+    "status": "returned",
+    "type": "Boolean",
+    "value": true,
+    "wire": true
+  },
+  {
+    "name": "dateReturn",
+    "status": "returned",
+    "type": "Number",
+    "value": 1000,
+    "wire": 1000
+  },
+  {
+    "name": "classReturn",
+    "status": "returned",
+    "type": "String",
+    "value": "ticket-1",
+    "wire": "ticket-1"
+  },
+  {
+    "name": "refineArg",
+    "status": "threw",
+    "error": "ConvexError: {\"error\":\"ZodValidationError\",\"context\":\"args\",\"issues\":[{\"path\":\"value\",\"code\":\"custom\",\"message\":\"Invalid input\"}],\"flatten\":{}}"
+  },
+  {
+    "name": "defaultArg",
+    "status": "returned",
+    "type": "String",
+    "value": "filled",
+    "wire": "filled"
+  }
+]
