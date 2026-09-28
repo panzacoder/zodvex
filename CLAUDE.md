@@ -114,6 +114,8 @@ The library is organized into focused modules in `packages/zodvex/src/`:
 
 4. **zod/mini Compatibility**: All type constraints and instanceof checks use `$ZodType` and subclasses from `zod/v4/core`, following [Zod's library author guidance](https://zod.dev/library-authors). This ensures zodvex works with both full `zod` and `zod/mini`. Schema construction still uses `z.*()` from full zod internally.
 
+5. **Cross-Bundle State**: tsup emits one bundle per entrypoint, so each gets its own copy of every module. State another bundle must see goes on the object under a `Symbol.for` key, or on `globalThis` under one, never in a module-level `WeakMap`/`Map`. Module-level memo caches are fine, since a miss only recomputes.
+
 ## Testing Approach
 
 Tests are located in `packages/zodvex/__tests__/` and use vitest. Run a specific test file:

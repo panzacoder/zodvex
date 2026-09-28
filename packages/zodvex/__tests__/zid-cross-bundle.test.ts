@@ -6,9 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-// @ts-expect-error built output has no adjacent types
 import * as root from '../dist/index.js'
-// @ts-expect-error built output has no adjacent types
 import * as server from '../dist/server/index.js'
 
 describe('zx.id across built bundles', () => {
@@ -18,9 +16,15 @@ describe('zx.id across built bundles', () => {
       parentId: z.optional(root.zx.id('calls'))
     })
     const schema = server.defineZodSchema({ calls: model })
-    const fields = JSON.parse(schema.export()).tables[0].documentType.value
+    const { visitId, parentId } = schema.tables.calls.validator.fields
 
-    expect(fields.visitId.fieldType).toEqual({ type: 'id', tableName: 'visits' })
-    expect(fields.parentId.fieldType).toEqual({ type: 'id', tableName: 'calls' })
+    expect({ kind: visitId.kind, tableName: visitId.tableName }).toEqual({
+      kind: 'id',
+      tableName: 'visits'
+    })
+    expect({ kind: parentId.kind, tableName: parentId.tableName }).toEqual({
+      kind: 'id',
+      tableName: 'calls'
+    })
   })
 })
