@@ -13,7 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Handler argument types follow customization replacement semantics across all six modern builders (`zq`, `zm`, `za`, `ziq`, `zim`, `zia`), under full Zod and `zod/mini`. A customization that replaced an argument's type, such as `count: number` with `count: string`, previously intersected the two and inferred `never` for the handler. The generated API and legacy public signatures are unchanged; a consumer that leaned on the old intersected type may see a different inferred type. (#141)
 - `zx.id()` fields map to `v.id(table)` when the id and the schema come from different entrypoints, e.g. `zx` from `zodvex` with `defineZodSchema` from `zodvex/server`. Each entrypoint bundled its own id registry, so the table name was lost and the field was pushed as `v.string()`, which hides table relationships in the Convex dashboard. The table name now lives on the schema itself. Redeploying changes those columns from `string` to `id`, which Convex revalidates on the first push: stored ids of that table pass unchanged, but if any document holds a value that is not a valid id of the table `zx.id()` names, the push is rejected and the previous schema stays in place.
+
+### Deprecated
+
+- `zodvex@0.8.0-beta.0` on npm (published 2026-06-13 from the closed #80 branch) is an unrelated experimental build, not a predecessor of this line. The first 0.8.0 prerelease built from `main` is 0.8.0-beta.1. Do not pin the June build.
 
 ## [0.7.11] - 2026-09-17
 
