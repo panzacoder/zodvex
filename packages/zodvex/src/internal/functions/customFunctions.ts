@@ -10,7 +10,7 @@ import {
   type MutationBuilder,
   type QueryBuilder
 } from 'convex/server'
-import { type PropertyValidators } from 'convex/values'
+import { type PropertyValidators, type Validator } from 'convex/values'
 import { type Customization, NoOp } from 'convex-helpers/server/customFunctions'
 import { z } from 'zod'
 import { type ZodValidator, zodToConvexFields } from '../mapping'
@@ -93,8 +93,8 @@ type ArgsForHandlerType<
 > =
   CustomMadeArgs extends Record<string, never>
     ? OneOrZeroArgs
-    : OneOrZeroArgs extends [infer A]
-      ? [Expand<A & CustomMadeArgs>]
+    : OneOrZeroArgs extends [infer A extends Record<string, any>]
+      ? [Expand<Overwrite<A, CustomMadeArgs>>]
       : [CustomMadeArgs]
 
 // Helper type for function registration (from zodV3)
@@ -108,6 +108,47 @@ type Registration<
   : FuncType extends 'mutation'
     ? import('convex/server').RegisteredMutation<Visibility, Args, Output>
     : import('convex/server').RegisteredAction<Visibility, Args, Output>
+
+type CustomFunction<
+  ArgsValidator extends ZodValidator | $ZodObject | void,
+  ReturnsZodValidator extends $ZodType | ZodValidator | void,
+  ReturnValue,
+  InputCtx,
+  CustomCtx extends Record<string, any>,
+  CustomMadeArgs extends Record<string, any>,
+  ExtraArgs extends Record<string, any>
+> =
+  | ({
+      /**
+       * Specify the arguments to the function as a Zod validator.
+       */
+      args?: ArgsValidator
+      handler: (
+        ctx: Overwrite<InputCtx, CustomCtx>,
+        ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
+      ) => ReturnValue
+      /**
+       * Validates the value returned by the function.
+       * Note: you can't pass an object directly without wrapping it
+       * in `z.object()`.
+       */
+      returns?: ReturnsZodValidator
+      /**
+       * If true, the function will not be validated by Convex,
+       * in case you're seeing performance issues with validating twice.
+       */
+      skipConvexValidation?: boolean
+    } & {
+      [key in keyof ExtraArgs as key extends 'args' | 'handler' | 'skipConvexValidation' | 'returns'
+        ? never
+        : key]: ExtraArgs[key]
+    })
+  | {
+      (
+        ctx: Overwrite<InputCtx, CustomCtx>,
+        ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
+      ): ReturnValue
+    }
 
 /**
  * A builder that customizes a Convex function, whether or not it validates
@@ -134,42 +175,15 @@ export type CustomBuilder<
     ReturnsZodValidator extends $ZodType | ZodValidator | void = void,
     ReturnValue extends ReturnValueInput<ReturnsZodValidator> = any
   >(
-    func:
-      | ({
-          /**
-           * Specify the arguments to the function as a Zod validator.
-           */
-          args?: ArgsValidator
-          handler: (
-            ctx: Overwrite<InputCtx, CustomCtx>,
-            ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
-          ) => ReturnValue
-          /**
-           * Validates the value returned by the function.
-           * Note: you can't pass an object directly without wrapping it
-           * in `z.object()`.
-           */
-          returns?: ReturnsZodValidator
-          /**
-           * If true, the function will not be validated by Convex,
-           * in case you're seeing performance issues with validating twice.
-           */
-          skipConvexValidation?: boolean
-        } & {
-          [key in keyof ExtraArgs as key extends
-            | 'args'
-            | 'handler'
-            | 'skipConvexValidation'
-            | 'returns'
-            ? never
-            : key]: ExtraArgs[key]
-        })
-      | {
-          (
-            ctx: Overwrite<InputCtx, CustomCtx>,
-            ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
-          ): ReturnValue
-        }
+    func: CustomFunction<
+      ArgsValidator,
+      ReturnsZodValidator,
+      ReturnValue,
+      InputCtx,
+      CustomCtx,
+      CustomMadeArgs,
+      ExtraArgs
+    >
   ): Registration<
     FuncType,
     Visibility,
@@ -184,16 +198,42 @@ export type CustomBuilder<
   >
 }
 
+function isZodArgs(args: Record<string, unknown>): args is ZodValidator {
+  const values = Object.values(args)
+  return values.length > 0 && values.every(value => value instanceof $ZodType)
+}
+
+type NativeFunction<Ctx> = {
+  args: PropertyValidators
+  returns?: Validator<any>
+  handler: (ctx: Ctx, args: Record<string, unknown>) => Promise<unknown>
+}
+
+type BuilderCtx<Builder> =
+  Builder extends QueryBuilder<infer DM, FunctionVisibility>
+    ? GenericQueryCtx<DM>
+    : Builder extends MutationBuilder<infer DM, FunctionVisibility>
+      ? GenericMutationCtx<DM>
+      : Builder extends ActionBuilder<infer DM, FunctionVisibility>
+        ? GenericActionCtx<DM>
+        : Record<string, unknown>
+
 export function customFnBuilder<
-  Ctx extends Record<string, any>,
-  Builder extends (fn: any) => any,
+  Builder extends (fn: any) => object,
   CustomArgsValidator extends PropertyValidators,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
-  ExtraArgs extends Record<string, any> = Record<string, any>
+  ExtraArgs extends Record<string, any> = Record<string, any>,
+  Ctx extends Record<string, any> = BuilderCtx<Builder>
 >(
   builder: Builder,
-  customization: Customization<Ctx, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
+  customization: Customization<
+    NoInfer<Ctx>,
+    CustomArgsValidator,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs
+  >
 ) {
   const customInput = customization.input ?? NoOp.input
   const rawInputArgs = customization.args ?? NoOp.args
@@ -203,93 +243,92 @@ export function customFnBuilder<
   // pipeline as consumer args — converted to Convex validators for registration
   // and codec-decoded before `input` runs. Pre-built Convex validators (the
   // legacy shape) are passed through unchanged for back-compat.
-  const customArgEntries = Object.entries(rawInputArgs)
-  const customArgsAreZod =
-    customArgEntries.length > 0 && customArgEntries.every(([, v]) => v instanceof $ZodType)
-  const inputArgs = customArgsAreZod
-    ? zodToConvexFields(rawInputArgs as unknown as ZodValidator)
-    : rawInputArgs
-  const customArgsSchema = customArgsAreZod
-    ? (z.object(rawInputArgs as any) as unknown as $ZodObject)
-    : undefined
+  const customArgsAreZod = isZodArgs(rawInputArgs)
+  const inputArgs = customArgsAreZod ? zodToConvexFields(rawInputArgs) : rawInputArgs
+  const customArgsSchema = customArgsAreZod ? z.object(rawInputArgs) : undefined
 
-  return function customBuilder(fn: any): any {
-    const { args, handler = fn, returns: maybeObject, ...extra } = fn
-    const skipConvexValidation = fn.skipConvexValidation ?? false
+  return function customBuilder<
+    ArgsValidator extends ZodValidator | $ZodObject | void,
+    ReturnsValidator extends $ZodType | ZodValidator | void = void,
+    Result extends ReturnValueInput<ReturnsValidator> = any
+  >(
+    fn: CustomFunction<
+      ArgsValidator,
+      ReturnsValidator,
+      Result,
+      Ctx,
+      CustomCtx,
+      CustomMadeArgs,
+      ExtraArgs
+    >
+  ) {
+    type Properties = Exclude<typeof fn, (...args: any[]) => unknown>
+    // Shorthand functions may carry validators/options as own properties.
+    // Read the original object so enumerable custom options survive unchanged.
+    const properties = fn as typeof fn & Partial<Properties>
+    const { args, handler: attachedHandler, returns: maybeObject, ...extra } = properties
+    const handler = attachedHandler ?? (typeof fn === 'function' ? fn : fn.handler)
+    const skipConvexValidation = properties.skipConvexValidation ?? false
 
-    const returns = normalizeFunctionSchema(maybeObject)
+    const returns = normalizeFunctionSchema(maybeObject || undefined)
     const returnValidator = createConvexReturnsValidator(returns, { skipConvexValidation })
     const convexReturns = returnValidator ? { returns: returnValidator } : undefined
 
     // Check for z.date() usage at construction time (once), not on every invocation
     if (returns) {
-      assertNoNativeZodDate(returns as $ZodType, 'returns')
+      assertNoNativeZodDate(returns, 'returns')
     }
 
-    if (args) {
-      const { argsValidator, argsSchema } = normalizeCustomArgsValidator(args)
+    const normalizedArgs = args ? normalizeCustomArgsValidator(args) : undefined
+    if (normalizedArgs) assertNoNativeZodDate(normalizedArgs.argsSchema, 'args')
+    const convexArgs =
+      normalizedArgs && !skipConvexValidation
+        ? { ...zodToConvexFields(normalizedArgs.argsValidator), ...inputArgs }
+        : inputArgs
 
-      // Only generate Convex args validator when not skipping Convex validation
-      const convexArgs = skipConvexValidation
-        ? inputArgs
-        : { ...zodToConvexFields(argsValidator), ...inputArgs }
-
-      // Check for z.date() usage at construction time (once), not on every invocation
-      assertNoNativeZodDate(argsSchema, 'args')
-
-      const registered = builder({
-        args: convexArgs,
-        ...convexReturns,
-        handler: async (ctx: Ctx, allArgs: any) => {
-          const added = await runCustomizationInput(
-            customInput as any,
-            ctx,
-            allArgs,
-            inputArgs,
-            extra,
-            customArgsSchema
-          )
-          const argKeys = Object.keys(argsValidator)
-          const rawArgs = pick(allArgs, argKeys)
-          const baseArgs = parseObjectArgsOrThrow(argsSchema, rawArgs)
-          const { finalCtx, finalArgs } = applyCustomizationResult(ctx as any, baseArgs, added)
-
-          const ret = await handler(finalCtx, finalArgs)
-          return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
-        }
-      })
-      // Merge via shape-spread rather than .extend() — `argsSchema` may be a
-      // user-supplied zod/mini object, which has no schema methods. Custom args
-      // win on key conflicts, mirroring the `convexArgs` spread above.
-      const metaArgsSchema = customArgsSchema
-        ? (z.object({
-            ...(argsSchema as any)._zod.def.shape,
-            ...(customArgsSchema as any)._zod.def.shape
-          }) as unknown as $ZodObject)
-        : argsSchema
-      attachFunctionMeta(registered, metaArgsSchema, returns)
-      return registered
-    }
-    const registered = builder({
-      args: inputArgs,
+    const nativeDefinition: NativeFunction<Ctx> = {
+      args: convexArgs,
       ...convexReturns,
-      handler: async (ctx: Ctx, allArgs: any) => {
-        const baseArgs = allArgs as Record<string, unknown>
+      handler: async (ctx: Ctx, allArgs: Record<string, unknown>) => {
         const added = await runCustomizationInput(
-          customInput as any,
+          customInput,
           ctx,
           allArgs,
           inputArgs,
-          extra,
+          // Reserved function fields are removed before forwarding customization options.
+          // Plain shorthand forwards an empty options object.
+          extra as unknown as ExtraArgs,
           customArgsSchema
         )
-        const { finalCtx, finalArgs } = applyCustomizationResult(ctx as any, baseArgs, added)
-
-        const ret = await handler(finalCtx, finalArgs)
-        return finalizeFunctionReturn(ret, { ctx: ctx as any, args: baseArgs, added, returns })
+        const baseArgs = normalizedArgs
+          ? parseObjectArgsOrThrow(
+              normalizedArgs.argsSchema,
+              pick(allArgs, Object.keys(normalizedArgs.argsValidator))
+            )
+          : allArgs
+        const { finalCtx, finalArgs } = applyCustomizationResult(ctx, baseArgs, added)
+        // Runtime selection/decoding and object spread implement these public
+        // conditional types, which TS cannot narrow using the optional args branch.
+        const ret = await handler(
+          finalCtx as Overwrite<Ctx, CustomCtx>,
+          ...([finalArgs] as ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>)
+        )
+        return finalizeFunctionReturn(ret, { ctx, args: baseArgs, added, returns })
       }
-    })
-    attachFunctionMeta(registered, customArgsSchema ?? undefined, returns)
+    }
+    // Convex's generic call signature cannot retain its instantiated return
+    // through a generic factory; keep the actual registered object's type.
+    const registered = builder(nativeDefinition) as ReturnType<Builder>
+    // Mini objects have no .extend(); custom schemas win metadata key conflicts.
+    const metaArgsSchema = normalizedArgs
+      ? customArgsSchema
+        ? z.object({
+            ...normalizedArgs.argsSchema._zod.def.shape,
+            ...customArgsSchema._zod.def.shape
+          })
+        : normalizedArgs.argsSchema
+      : customArgsSchema
+    attachFunctionMeta(registered, metaArgsSchema, returns)
     return registered
   }
 }
@@ -347,7 +386,6 @@ export function zCustomQuery<
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
   return customFnBuilder<
-    any,
     QueryBuilder<any, Visibility>,
     CustomArgsValidator,
     CustomCtx,
@@ -389,7 +427,7 @@ export function zCustomMutation<
   mutation: Builder,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+  return customFnBuilder<Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     mutation,
     customization
   )
@@ -428,7 +466,7 @@ export function zCustomAction<
   action: Builder,
   customization: Customization<any, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>
 ) {
-  return customFnBuilder<any, Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
+  return customFnBuilder<Builder, CustomArgsValidator, CustomCtx, CustomMadeArgs, ExtraArgs>(
     action,
     customization
   )
