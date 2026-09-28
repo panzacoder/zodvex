@@ -3,15 +3,51 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const variants = [
-  { name: 'native', implementation: 'native manual transforms', models: 1, entries: 0 },
-  { name: 'helpers', implementation: 'helpers + explicit DB/reverse return codecs', models: 1, entries: 0 },
-  ...(['full', 'mini'] as const).flatMap(kind => [
-    { name: `${kind}_lean`, implementation: kind, models: 1, entries: 0 },
-    { name: `${kind}_models`, implementation: kind, models: 32, entries: 0 },
-    { name: `${kind}_registry`, implementation: kind, models: 32, entries: 128 },
+export type RegistryShape = 'none' | 'eager' | 'lazy'
+export type Variant = { name: string; implementation: string; models: number; entries: number; registry: RegistryShape }
+
+export const variants: Variant[] = [
+  { name: 'native', implementation: 'native manual transforms', models: 1, entries: 0, registry: 'none' },
+  { name: 'helpers', implementation: 'helpers + explicit DB/reverse return codecs', models: 1, entries: 0, registry: 'none' },
+  ...(['full', 'mini'] as const).flatMap((kind): Variant[] => [
+    { name: `${kind}_lean`, implementation: kind, models: 1, entries: 0, registry: 'none' },
+    { name: `${kind}_models`, implementation: kind, models: 32, entries: 0, registry: 'none' },
+    { name: `${kind}_registry`, implementation: kind, models: 32, entries: 128, registry: 'eager' },
+    { name: `${kind}_registry_lazy`, implementation: kind, models: 32, entries: 128, registry: 'lazy' },
   ]),
 ]
+
+/**
+ * The memoizing-getter registry shape that `zodvex generate` emits since 0.7.11:
+ * each entry builds its schemas on first access and is memoized by key, so
+ * importing the registry constructs nothing at module evaluation. Kept in the
+ * generator's exact runtime form (plus the type annotations this TypeScript
+ * fixture needs); `compose.test.ts` checks it against the real generator output.
+ */
+export const lazyRegistryHelper = `const __memo = new Map<string, unknown>()
+const __lazy = <T,>(key: string, build: () => T): T => {
+  let entry = __memo.get(key) as T | undefined
+  if (entry === undefined) {
+    entry = build()
+    __memo.set(key, entry)
+  }
+  return entry
+}
+`
+
+/** Ten-field argument schema per entry, in functional forms that exist in both zod and zod/mini. */
+export const registryArgs = `s.object({
+      title: s.string(), description: s.optional(s.string()), score: s.number(), active: s.boolean(),
+      status: s.union([s.literal('new'), s.literal('active'), s.literal('done')]),
+      profile: s.object({ name: s.string(), age: s.optional(s.number()) }),
+      tags: s.array(s.string()), category: s.enum(['a', 'b', 'c']), priority: s.optional(s.number()), parent: s.nullable(s.string()),
+    })`
+
+export function registryEntry(path: string, args: string, returns: string, registry: 'eager' | 'lazy') {
+  return registry === 'lazy'
+    ? `  get '${path}'() {\n    return __lazy('${path}', () => ({\n      args: ${args},\n      returns: ${returns},\n    }))\n  }`
+    : `  '${path}': { args: ${args}, returns: ${returns} }`
+}
 
 const here = dirname(fileURLToPath(import.meta.url))
 const wireFields = `{
@@ -89,11 +125,14 @@ ${Array.from({ length: helpers ? 0 : variant.models }, (_, i) => `export const m
 }).index('by_seq', ['seq'])`).join('\n')}
 `)
     if (variant.entries) {
+      const lazy = variant.registry === 'lazy'
       put(`${variant.name}/registry.ts`, `${zodImport}
 import { ${Array.from({ length: variant.models }, (_, i) => `model${i}`).join(', ')} } from './models'
-// A controlled eager registry fixture, not a count of deployed functions.
-export const registry = {
-${Array.from({ length: variant.entries }, (_, i) => `  'unused/fn${i}': { args: s.object({ id: s.string(), label: s.optional(s.string()) }), returns: s.nullable(model${i % variant.models}.schema.doc) },`).join('\n')}
+// A controlled ${lazy ? 'memoizing-getter (zodvex generate 0.7.11+ shape)' : 'eager'} registry fixture, not a count of deployed functions.
+// Each entry's args is a ten-field argument schema (the local Zod baseline corpus), the
+// size a generated entry typically inlines, so registry construction is measurable.
+${lazy ? lazyRegistryHelper : ''}export const registry = {
+${Array.from({ length: variant.entries }, (_, i) => registryEntry(`unused/fn${i}`, registryArgs, `s.nullable(model${i % variant.models}.schema.doc)`, lazy ? 'lazy' : 'eager')).join(',\n')},
 }
 `)
     }
