@@ -163,15 +163,18 @@ but **blocked on Convex exposing a pre-build hook**.
 The docs crawl above predates this survey of the 4 open issues / 10 open PRs. Directional
 threads, in priority order (all reflected in `docs/roadmap.md` as of this date):
 
-1. **Deploy-scale performance** — the dominant arc. #49 (external user churned off zodvex over
-   zod-v4 OOM) → #81 (rebuilt stress harness, merges first) → **#80 codec-paths descriptors,
-   beta-cut as `0.8.0-beta.0`, measured at pure-Convex deploy parity, gated on a hotpot
-   trial** → #63 `zodvex compile` (compile-away, draft) → #84 (dynamic-import validation).
-   Consequences: mini is demoted as a perf strategy (kept as a surface preference); the
-   "blocked on upstream pre-build hook" line is moot if compile-away ships; codegen's role
-   grows from client conveniences to the scale path. **Docs hold-back:** do not flip
-   README/Quick Start messaging until #80 clears its trial; #80 also raises "should quickstart
-   adopt codegen."
+1. **Deploy-scale performance** — was the dominant arc. #49 (external user churned off zodvex
+   over zod-v4 OOM) → #81 (rebuilt stress harness) → #80 codec-paths descriptors → #63
+   `zodvex compile` → #84 dynamic-import validation. **All three experiment PRs were closed on
+   2026-09-28** with verdicts recorded by #144 in `docs/guide/memory-experiments.md`: #80
+   INCOMPLETE (codec-only descriptors change ordinary read semantics; union codec failure), #84
+   ACTION MECHANISM ONLY (queries and mutations reject dynamic imports), #63 INCOMPATIBLE (drops
+   decoding, encoding, refinements, defaults). The `0.8.0-beta.0` npm publish came from #80 and
+   is unrelated to the 0.8.0 line cut from `main`. The docs hold-back on README/Quick Start
+   messaging that was gated on #80 is lifted. What shipped for scale instead: memoizing
+   registry getters (0.7.11) and, as the direction, reference-by-import for client-visible
+   schemas (#153, `docs/issues/2026-06-08-validator-handler-decoupling.md`). Mini remains a
+   surface preference, not a perf strategy.
 2. **Ecosystem composability** — #85's comment thread promoted db-wrap composability to a
    first-class ask (convex-helpers triggers and zodvex fight over the same `ctx.db` proxy
    slot). #86 (ref passthrough) is the ready near-term fix. Long-term shapes: compose
@@ -181,10 +184,10 @@ threads, in priority order (all reflected in `docs/roadmap.md` as of this date):
 3. **Native-semantics fidelity** — #82/#83 (patch strips `undefined` → can't unset fields;
    fix ready). Generalized into an architectural rule in `ARCHITECTURE.md`: the codec layer
    never subtracts native Convex capability.
-4. **Stale March PRs implemented three roadmap items** — #43 (`_creationTime` → `Date`; PR
-   is unconditional/breaking, roadmap prefers opt-in — decision required) still needs rebase
-   + a decision. #45 (`zodvex.config.ts` integrations) and #47 (introspection Phase 1, 61
-   tests) were closed on 2026-09-28 as unrebasable (unrelated git history); their intent is
+4. **Stale March PRs implemented three roadmap items** — #43 (`_creationTime` → `Date`) was closed 2026-07-06 in favor of a clean
+   redo tracked in #95, which now carries the breaking-vs-opt-in decision. #45 (`zodvex.config.ts` integrations) and #47 (introspection Phase 1, 61
+   tests) were closed 2026-09-28 as unrebasable (unrelated git history); #47's branch also imports the removed `transform/traverse` module with
+   full-zod types, so a rebase would not have rescued it. Their intent is
    re-scoped under #153 "Schema-driven UI from function args": emitter fidelity for the
    generated registry first, then `introspect()` on `zod/v4/core` types, then a
    library-agnostic args-schema accessor for form binding (see

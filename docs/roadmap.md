@@ -15,18 +15,16 @@ Status legend: **Next** (actively planned) · **Direction** (committed intent, u
 The most active current thread ([#49](https://github.com/panzacoder/zodvex/issues/49) is the
 originating issue): making codec-enabled apps deploy at the same scale as hand-written Convex.
 
-- **Codec-paths descriptor codegen** — *Next (in beta as `0.8.0-beta.0`,
-  [#80](https://github.com/panzacoder/zodvex/pull/80)).* Codegen emits a pure-Convex
-  `_zodvex/tables.ts` (zero Zod in the schema isolate), per-table minimal codec descriptors,
-  and a codec-args-only registry — measured at **pure-Convex deploy parity** (~800-table
-  TooManyReads wall, the same wall raw `defineTable` hits, instead of OOMing per-entrypoint
-  isolates at ~100–150 tables). Gated on a downstream trial before merge. When this lands,
-  codegen's role grows: still optional for small apps, but the recommended path at scale.
-- **Compile-away (`zodvex compile`)** — *Exploring
-  ([#63](https://github.com/panzacoder/zodvex/pull/63), draft).* Rewrite a project to vanilla
-  Convex source at build time (`zq` → `query`, models → `defineTable`); measured at ~0.9× of
-  the pure-Convex endpoint ceiling. More radical than descriptors; codec-endpoint detection
-  still outstanding.
+- **Codec-paths descriptor codegen** — *Closed ([#80](https://github.com/panzacoder/zodvex/pull/80),
+  2026-09-28).* The port onto the current library measured a smaller import graph but 13
+  differences from 25 baseline outcomes, including a wire-valid union codec failure; verdict
+  **INCOMPLETE** in [`guide/memory-experiments.md`](./guide/memory-experiments.md). The
+  `0.8.0-beta.0` npm publish came from this branch and is unrelated to the 0.8.0 line cut from
+  `main`. The scale path is now the 0.7.11 memoizing registry getters plus reference-by-import
+  for client-visible schemas (see Codegen discovery below).
+- **Compile-away (`zodvex compile`)** — *Closed ([#63](https://github.com/panzacoder/zodvex/pull/63),
+  2026-09-28).* The real compiler drops argument decoding, return encoding, refinements and
+  defaults; verdict **INCOMPATIBLE**, excluded from performance ranking (same guide).
 - **Scale-test harness** — *Next ([#81](https://github.com/panzacoder/zodvex/pull/81)).*
   Shape-faithful, axis-decoupled stress harness that baselines main vs any feature branch;
   merges ahead of the descriptor work it measures.
@@ -60,8 +58,9 @@ libraries that also want to wrap `ctx` or `ctx.db`.
   dependency. Behavior and rule/audit shapes are unchanged; only the call form. See
   [`guide/rules-and-audit.md`](./guide/rules-and-audit.md). Design together with the
   composable-db-wrapping work under Ecosystem interop — same "wrappers you apply" model.
-- **`_creationTime` as a `Date` codec** — *Direction (implemented in
-  [#43](https://github.com/panzacoder/zodvex/pull/43), pending rebase + a decision).* A
+- **`_creationTime` as a `Date` codec** — *Direction ([#43](https://github.com/panzacoder/zodvex/pull/43)
+  was closed 2026-07-06 in favor of a clean redo tracked in
+  [#95](https://github.com/panzacoder/zodvex/issues/95), which carries the decision below).* A
   codec-first library should decode `_creationTime` to a `Date` automatically, consistent
   with `zx.date()` fields. Open decisions: the PR makes it **unconditional/breaking**, while
   the safer shape is opt-in — pick one explicitly before landing; and whether to brand `_id`
@@ -85,7 +84,7 @@ libraries that also want to wrap `ctx` or `ctx.db`.
   #153). Rationale in
   [`decisions/2026-09-28-library-agnostic-form-binding.md`](./decisions/2026-09-28-library-agnostic-form-binding.md);
   the earlier `zodvex.config.ts` implementation ([#45](https://github.com/panzacoder/zodvex/pull/45))
-  was closed unrebased.
+  was closed 2026-09-28 as unrebasable (unrelated git history).
 - **Codegen discovery** — *Direction.* The static-analysis RFC
   ([#51](https://github.com/panzacoder/zodvex/pull/51), closed 2026-09-28) is preserved at
   [`planning/codegen-static-analysis.md`](./planning/codegen-static-analysis.md) but is not
@@ -102,7 +101,7 @@ framework — they reuse your existing models rather than adding a new authoring
 
 - **Runtime schema introspection** — *Direction (tracked in
   [#153](https://github.com/panzacoder/zodvex/issues/153); the earlier implementation in
-  [#47](https://github.com/panzacoder/zodvex/pull/47) was closed unrebased).* A stable public
+  [#47](https://github.com/panzacoder/zodvex/pull/47) was closed 2026-09-28 as unrebasable (unrelated git history)).* A stable public
   `introspect()` surface (`isConvexId`, `getTableName`, `getDefault`, `isOptional`, …) so
   consumers stop reaching into Zod internals (`_def`). Constraints: built on `zod/v4/core`
   types so it works with `zod/mini`; metadata read through the public `.meta()`/registry

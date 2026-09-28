@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-28
 **Status:** Accepted
-**Context:** Schema-driven UI from function args ([#153](https://github.com/panzacoder/zodvex/issues/153)); closes the question left open by #45 (`zodvex.config.ts` form-resolver codegen), closed unrebased the same day
+**Context:** Schema-driven UI from function args ([#153](https://github.com/panzacoder/zodvex/issues/153)); closes the question left open by #45 (`zodvex.config.ts` form-resolver codegen), which was closed 2026-09-28 as unrebasable (unrelated git history)
 **Supersedes (in part):** `2026-03-02-form-resolver-naming.md`, section 2 ("Codegen pre-binds resolvers")
 
 ---
@@ -42,7 +42,7 @@ resolver would validate against the lossy copy and silently accept what the serv
 The accessor makes the source explicit: it hands back whatever the registry holds, and the
 rule from #153 governs what that is — shape-only args work through the copy; anything the
 client must see faithfully must be an importable export from a client-safe module. Emitter
-fidelity for the closure-free surface (#153, item 1) raises the floor; it does not change
+fidelity for the closure-free surface ([#157](https://github.com/panzacoder/zodvex/issues/157)) raises the floor; it does not change
 the accessor.
 
 **One accessor beats N plugins.** Every form library already ships a Zod resolver. The
@@ -82,7 +82,7 @@ for no gain; the resolver call is one line in consumer code.
 
 ## Consequences
 
-- Sequenced after emitter fidelity in #153, since binding a form to a lossy schema gives
+- Sequenced after emitter fidelity ([#157](https://github.com/panzacoder/zodvex/issues/157)), since binding a form to a lossy schema gives
   wrong answers; `introspect()` and defaults helpers follow for the same reason.
 - Guides to write once the accessor lands: React Hook Form and TanStack Form binding,
   each a few lines around the accessor.

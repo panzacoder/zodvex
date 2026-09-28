@@ -1,10 +1,10 @@
 # Motiion-Inspired Utilities for zodvex
 
-**Status:** PR closed 2026-09-28 (unrebasable, [#47](https://github.com/panzacoder/zodvex/pull/47)); intent re-scoped under [#153](https://github.com/panzacoder/zodvex/issues/153).
+**Status:** [#47](https://github.com/panzacoder/zodvex/pull/47) closed 2026-09-28 as unrebasable (unrelated git history); the branch also imports the removed `transform/traverse` module and uses full-zod types, so a rebase would not have rescued it. Intent re-scoped under [#153](https://github.com/panzacoder/zodvex/issues/153).
 
 **Created:** 2025-01-18
 **Original status:** Proposal — recalibrated 2026-03-11
-**Priority:** Post-v0.6.0 (Phase 1 first, then 2-3; Phase 4 is largely done)
+**Priority:** Post-v0.6.0. Original sequencing was Phase 1 first, then 2-3; [#153](https://github.com/panzacoder/zodvex/issues/153) now owns the order and inverts it: emitter fidelity for the generated registry ([#157](https://github.com/panzacoder/zodvex/issues/157)) first, then introspection ([#159](https://github.com/panzacoder/zodvex/issues/159)), then defaults and field kinds ([#158](https://github.com/panzacoder/zodvex/issues/158)). Phase 4 is largely done.
 **Inspiration:** Patterns discovered in plfx/motiion project
 
 ## Recalibration (2026-03-11)
