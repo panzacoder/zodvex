@@ -36,14 +36,89 @@ function lazyValidator(fields: $ZodShape, userSchema: $ZodType | null): { get: (
   }
 }
 
+/**
+ * The six index records a model carries.
+ *
+ * `indexes` / `searchIndexes` / `vectorIndexes` hold only the entries Convex can
+ * query today. Staged entries live in their own records and are pushed into
+ * Convex's `stagedDbIndexes` / `stagedSearchIndexes` / `stagedVectorIndexes`,
+ * which stay invisible to the data model. Keeping the buckets apart is what
+ * keeps a staged index out of `withIndex` — no type-level filtering needed.
+ */
+type ModelIndexState = {
+  indexes: Record<string, readonly string[]>
+  stagedIndexes: Record<string, readonly string[]>
+  searchIndexes: Record<string, SearchIndexConfig>
+  stagedSearchIndexes: Record<string, SearchIndexConfig>
+  vectorIndexes: Record<string, VectorIndexConfig>
+  stagedVectorIndexes: Record<string, VectorIndexConfig>
+}
+
+function emptyIndexState(): ModelIndexState {
+  return {
+    indexes: {},
+    stagedIndexes: {},
+    searchIndexes: {},
+    stagedSearchIndexes: {},
+    vectorIndexes: {},
+    stagedVectorIndexes: {}
+  }
+}
+
+/**
+ * The field list of an `.index()` call, in either the positional form
+ * (`index(name, fields, options)`) or Convex's object form
+ * (`index(name, { fields, staged })`).
+ */
+type IndexFieldsArg<First extends string, Rest extends string[]> =
+  | readonly [First, ...Rest]
+  | ({ fields: readonly [First, ...Rest] } & StagedOrUnstagedIndexOptions)
+
+/**
+ * `staged` is read for truthiness by the model factories, exactly as Convex's
+ * own builder reads it, so an untyped caller gets the same index placement
+ * zodvex would hand Convex.
+ */
+function normalizeIndexArg(
+  arg: IndexFieldsArg<string, string[]>,
+  options?: StagedOrUnstagedIndexOptions
+): { fields: readonly string[]; staged: boolean } {
+  if ('fields' in arg) return { fields: arg.fields, staged: !!arg.staged }
+  return { fields: arg, staged: !!options?.staged }
+}
+
+/** The live and staged records each kind of index is filed under. */
+const INDEX_RECORDS = {
+  indexes: { live: 'indexes', staged: 'stagedIndexes' },
+  searchIndexes: { live: 'searchIndexes', staged: 'stagedSearchIndexes' },
+  vectorIndexes: { live: 'vectorIndexes', staged: 'stagedVectorIndexes' }
+} as const
+
+type IndexKind = keyof typeof INDEX_RECORDS
+
+/**
+ * Add one index entry to the live or staged record for its kind. Re-declaring a
+ * name replaces the earlier entry in the same record; declaring it in the other
+ * record as well is left to `convex deploy` to reject, which is what Convex's
+ * own builder produces for the same pair of calls.
+ */
+function withIndexEntry<K extends IndexKind>(
+  indexState: ModelIndexState,
+  kind: K,
+  indexName: string,
+  value: ModelIndexState[K][string],
+  staged: boolean
+): ModelIndexState {
+  const record = staged ? INDEX_RECORDS[kind].staged : INDEX_RECORDS[kind].live
+  return { ...indexState, [record]: { ...indexState[record], [indexName]: value } }
+}
+
 function createModel<Name extends string>(
   name: Name,
   fields: $ZodShape,
   schema: RuntimeModelSchemaBundle,
   definitionSource: ZodvexModelDefinitionSource,
-  indexes: Record<string, readonly string[]> = {},
-  searchIndexes: Record<string, SearchIndexConfig> = {},
-  vectorIndexes: Record<string, VectorIndexConfig> = {},
+  indexState: ModelIndexState = emptyIndexState(),
   // The user-supplied schema for overload-2 (definitionSource === 'schema').
   // Passing it through preserves identity across chained .index() calls; for
   // shape-input it's null and the lazy getter builds z.object(fields).
@@ -54,47 +129,39 @@ function createModel<Name extends string>(
     name,
     fields,
     schema,
-    indexes,
-    searchIndexes,
-    vectorIndexes,
+    indexes: indexState.indexes,
+    stagedIndexes: indexState.stagedIndexes,
+    searchIndexes: indexState.searchIndexes,
+    stagedSearchIndexes: indexState.stagedSearchIndexes,
+    vectorIndexes: indexState.vectorIndexes,
+    stagedVectorIndexes: indexState.stagedVectorIndexes,
     get validator() {
       return validatorCache.get()
     },
-    index(indexName: string, indexFields: readonly string[]) {
-      return createModel(
-        name,
-        fields,
-        schema,
-        definitionSource,
-        { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
-        searchIndexes,
-        vectorIndexes,
-        userSchema
+    index(
+      indexName: string,
+      indexFieldsOrConfig: IndexFieldsArg<string, string[]>,
+      options?: StagedOrUnstagedIndexOptions
+    ) {
+      const { fields: requested, staged } = normalizeIndexArg(indexFieldsOrConfig, options)
+      // _creationTime is appended so the stored record mirrors Convex's index
+      // shape; tableFromModel() strips it again before calling defineTable().
+      const next = withIndexEntry(
+        indexState,
+        'indexes',
+        indexName,
+        [...requested, '_creationTime'],
+        staged
       )
+      return createModel(name, fields, schema, definitionSource, next, userSchema)
     },
-    searchIndex(indexName: string, config: SearchIndexConfig) {
-      return createModel(
-        name,
-        fields,
-        schema,
-        definitionSource,
-        indexes,
-        { ...searchIndexes, [indexName]: config },
-        vectorIndexes,
-        userSchema
-      )
+    searchIndex(indexName: string, config: SearchIndexConfig & StagedOrUnstagedIndexOptions) {
+      const next = withIndexEntry(indexState, 'searchIndexes', indexName, config, !!config.staged)
+      return createModel(name, fields, schema, definitionSource, next, userSchema)
     },
-    vectorIndex(indexName: string, config: VectorIndexConfig) {
-      return createModel(
-        name,
-        fields,
-        schema,
-        definitionSource,
-        indexes,
-        searchIndexes,
-        { ...vectorIndexes, [indexName]: config },
-        userSchema
-      )
+    vectorIndex(indexName: string, config: VectorIndexConfig & StagedOrUnstagedIndexOptions) {
+      const next = withIndexEntry(indexState, 'vectorIndexes', indexName, config, !!config.staged)
+      return createModel(name, fields, schema, definitionSource, next, userSchema)
     }
   }
 
@@ -118,47 +185,43 @@ function createSlimModel<Name extends string>(
   fields: $ZodShape,
   userSchema: $ZodType | null,
   definitionSource: ZodvexModelDefinitionSource,
-  indexes: Record<string, readonly string[]> = {},
-  searchIndexes: Record<string, SearchIndexConfig> = {},
-  vectorIndexes: Record<string, VectorIndexConfig> = {}
+  indexState: ModelIndexState = emptyIndexState()
 ): any {
   const validatorCache = lazyValidator(fields, userSchema)
   const model: any = {
     name,
     fields,
-    indexes,
-    searchIndexes,
-    vectorIndexes,
+    indexes: indexState.indexes,
+    stagedIndexes: indexState.stagedIndexes,
+    searchIndexes: indexState.searchIndexes,
+    stagedSearchIndexes: indexState.stagedSearchIndexes,
+    vectorIndexes: indexState.vectorIndexes,
+    stagedVectorIndexes: indexState.stagedVectorIndexes,
     get validator() {
       return validatorCache.get()
     },
-    index(indexName: string, indexFields: readonly string[]) {
-      return createSlimModel(
-        name,
-        fields,
-        userSchema,
-        definitionSource,
-        { ...indexes, [indexName]: [...indexFields, '_creationTime'] },
-        searchIndexes,
-        vectorIndexes
+    index(
+      indexName: string,
+      indexFieldsOrConfig: IndexFieldsArg<string, string[]>,
+      options?: StagedOrUnstagedIndexOptions
+    ) {
+      const { fields: requested, staged } = normalizeIndexArg(indexFieldsOrConfig, options)
+      const next = withIndexEntry(
+        indexState,
+        'indexes',
+        indexName,
+        [...requested, '_creationTime'],
+        staged
       )
+      return createSlimModel(name, fields, userSchema, definitionSource, next)
     },
-    searchIndex(indexName: string, config: SearchIndexConfig) {
-      return createSlimModel(
-        name,
-        fields,
-        userSchema,
-        definitionSource,
-        indexes,
-        { ...searchIndexes, [indexName]: config },
-        vectorIndexes
-      )
+    searchIndex(indexName: string, config: SearchIndexConfig & StagedOrUnstagedIndexOptions) {
+      const next = withIndexEntry(indexState, 'searchIndexes', indexName, config, !!config.staged)
+      return createSlimModel(name, fields, userSchema, definitionSource, next)
     },
-    vectorIndex(indexName: string, config: VectorIndexConfig) {
-      return createSlimModel(name, fields, userSchema, definitionSource, indexes, searchIndexes, {
-        ...vectorIndexes,
-        [indexName]: config
-      })
+    vectorIndex(indexName: string, config: VectorIndexConfig & StagedOrUnstagedIndexOptions) {
+      const next = withIndexEntry(indexState, 'vectorIndexes', indexName, config, !!config.staged)
+      return createSlimModel(name, fields, userSchema, definitionSource, next)
     }
   }
 
@@ -220,6 +283,20 @@ export type VectorIndexConfig = {
   dimensions: number
   filterFields?: string[]
 }
+
+/**
+ * `{ staged: true }` — the index is pushed to Convex's staged bucket, so the
+ * deploy does not block on its backfill. Convex will not let a query use a
+ * staged index, so the model's `Indexes` record is left unchanged and the name
+ * never reaches `withIndex`. Drop `staged` in a later deploy to enable it.
+ */
+export type StagedIndexOptions = { staged: true }
+
+/** `{ staged?: false }` — the default: the index is queryable right away. */
+export type UnstagedIndexOptions = { staged?: false }
+
+/** Runtime-facing union of the two, for the model factories. */
+type StagedOrUnstagedIndexOptions = StagedIndexOptions | UnstagedIndexOptions
 
 // ============================================================================
 // ZodModel Type
@@ -316,6 +393,17 @@ export type ZodModel<
   readonly searchIndexes: SearchIndexes
   readonly vectorIndexes: VectorIndexes
   /**
+   * Indexes declared with `staged: true`. They are pushed to Convex's staged
+   * bucket so the deploy does not block on backfill, and Convex will not let a
+   * query use them until `staged` is dropped in a later deploy. They are held
+   * apart from `indexes` so that exclusion needs no type-level filtering.
+   */
+  readonly stagedIndexes: Record<string, readonly string[]>
+  /** Search indexes declared with `staged: true` — see `stagedIndexes`. */
+  readonly stagedSearchIndexes: Record<string, SearchIndexConfig>
+  /** Vector indexes declared with `staged: true` — see `stagedIndexes`. */
+  readonly stagedVectorIndexes: Record<string, VectorIndexConfig>
+  /**
    * The user-facing, parseable validator for the model — see ZodModelBase
    * for the contract. Same `InsertSchema` type so refinements survive when
    * the model was constructed from a pre-built schema (#56).
@@ -328,7 +416,8 @@ export type ZodModel<
     Rest extends ModelFieldPaths<InsertSchema>[]
   >(
     name: IndexName,
-    fields: readonly [First, ...Rest]
+    fields: readonly [First, ...Rest],
+    options?: UnstagedIndexOptions
   ): ZodModel<
     Name,
     Fields,
@@ -339,9 +428,52 @@ export type ZodModel<
     VectorIndexes
   >
 
+  /**
+   * Stage an index: it is pushed to Convex's `stagedDbIndexes` and cannot be
+   * queried until `staged` is dropped in a later deploy, so `Indexes` — and
+   * therefore `withIndex` — is left unchanged. See `StagedIndexOptions`.
+   */
+  index<
+    IndexName extends string,
+    First extends ModelFieldPaths<InsertSchema>,
+    Rest extends ModelFieldPaths<InsertSchema>[]
+  >(
+    name: IndexName,
+    fields: readonly [First, ...Rest],
+    options: StagedIndexOptions
+  ): ZodModel<Name, Fields, InsertSchema, Schemas, Indexes, SearchIndexes, VectorIndexes>
+
+  /** Convex's object form of `.index()`. */
+  index<
+    IndexName extends string,
+    First extends ModelFieldPaths<InsertSchema>,
+    Rest extends ModelFieldPaths<InsertSchema>[]
+  >(
+    name: IndexName,
+    indexConfig: { fields: readonly [First, ...Rest] } & UnstagedIndexOptions
+  ): ZodModel<
+    Name,
+    Fields,
+    InsertSchema,
+    Schemas,
+    Indexes & Record<IndexName, readonly [First, ...Rest, '_creationTime']>,
+    SearchIndexes,
+    VectorIndexes
+  >
+
+  /** Convex's object form of a staged `.index()`. */
+  index<
+    IndexName extends string,
+    First extends ModelFieldPaths<InsertSchema>,
+    Rest extends ModelFieldPaths<InsertSchema>[]
+  >(
+    name: IndexName,
+    indexConfig: { fields: readonly [First, ...Rest] } & StagedIndexOptions
+  ): ZodModel<Name, Fields, InsertSchema, Schemas, Indexes, SearchIndexes, VectorIndexes>
+
   searchIndex<IndexName extends string>(
     name: IndexName,
-    config: SearchIndexConfig
+    config: SearchIndexConfig & UnstagedIndexOptions
   ): ZodModel<
     Name,
     Fields,
@@ -352,9 +484,19 @@ export type ZodModel<
     VectorIndexes
   >
 
+  /**
+   * Stage a search index. Convex will not let a query use it until `staged` is
+   * dropped, so `SearchIndexes` — and therefore `withSearchIndex` — is left
+   * unchanged. See `StagedIndexOptions`.
+   */
+  searchIndex<IndexName extends string>(
+    name: IndexName,
+    config: SearchIndexConfig & StagedIndexOptions
+  ): ZodModel<Name, Fields, InsertSchema, Schemas, Indexes, SearchIndexes, VectorIndexes>
+
   vectorIndex<IndexName extends string>(
     name: IndexName,
-    config: VectorIndexConfig
+    config: VectorIndexConfig & UnstagedIndexOptions
   ): ZodModel<
     Name,
     Fields,
@@ -364,6 +506,16 @@ export type ZodModel<
     SearchIndexes,
     VectorIndexes & Record<IndexName, VectorIndexConfig>
   >
+
+  /**
+   * Stage a vector index. Convex will not let a query use it until `staged` is
+   * dropped, so `VectorIndexes` — and therefore `withVectorIndex` — is left
+   * unchanged. See `StagedIndexOptions`.
+   */
+  vectorIndex<IndexName extends string>(
+    name: IndexName,
+    config: VectorIndexConfig & StagedIndexOptions
+  ): ZodModel<Name, Fields, InsertSchema, Schemas, Indexes, SearchIndexes, VectorIndexes>
 }
 
 export type AnyZodModel = ZodModel<string, $ZodShape, $ZodType, ModelSchemas>
@@ -393,6 +545,17 @@ export type ZodModelBase<
   readonly searchIndexes: SearchIndexes
   readonly vectorIndexes: VectorIndexes
   /**
+   * Indexes declared with `staged: true`. They are pushed to Convex's staged
+   * bucket so the deploy does not block on backfill, and Convex will not let a
+   * query use them until `staged` is dropped in a later deploy. They are held
+   * apart from `indexes` so that exclusion needs no type-level filtering.
+   */
+  readonly stagedIndexes: Record<string, readonly string[]>
+  /** Search indexes declared with `staged: true` — see `stagedIndexes`. */
+  readonly stagedSearchIndexes: Record<string, SearchIndexConfig>
+  /** Vector indexes declared with `staged: true` — see `stagedIndexes`. */
+  readonly stagedVectorIndexes: Record<string, VectorIndexConfig>
+  /**
    * The user-facing, parseable schema for the model — typed as exactly the
    * input the caller passed to `defineZodModel`:
    *
@@ -414,7 +577,8 @@ export type ZodModelBase<
     Rest extends ModelFieldPaths<InsertSchema>[]
   >(
     name: IndexName,
-    fields: readonly [First, ...Rest]
+    fields: readonly [First, ...Rest],
+    options?: UnstagedIndexOptions
   ): ZodModelBase<
     Name,
     Fields,
@@ -424,9 +588,51 @@ export type ZodModelBase<
     VectorIndexes
   >
 
+  /**
+   * Stage an index: it is pushed to Convex's `stagedDbIndexes` and cannot be
+   * queried until `staged` is dropped in a later deploy, so `Indexes` — and
+   * therefore `withIndex` — is left unchanged. See `StagedIndexOptions`.
+   */
+  index<
+    IndexName extends string,
+    First extends ModelFieldPaths<InsertSchema>,
+    Rest extends ModelFieldPaths<InsertSchema>[]
+  >(
+    name: IndexName,
+    fields: readonly [First, ...Rest],
+    options: StagedIndexOptions
+  ): ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes>
+
+  /** Convex's object form of `.index()`. */
+  index<
+    IndexName extends string,
+    First extends ModelFieldPaths<InsertSchema>,
+    Rest extends ModelFieldPaths<InsertSchema>[]
+  >(
+    name: IndexName,
+    indexConfig: { fields: readonly [First, ...Rest] } & UnstagedIndexOptions
+  ): ZodModelBase<
+    Name,
+    Fields,
+    InsertSchema,
+    Indexes & Record<IndexName, readonly [First, ...Rest, '_creationTime']>,
+    SearchIndexes,
+    VectorIndexes
+  >
+
+  /** Convex's object form of a staged `.index()`. */
+  index<
+    IndexName extends string,
+    First extends ModelFieldPaths<InsertSchema>,
+    Rest extends ModelFieldPaths<InsertSchema>[]
+  >(
+    name: IndexName,
+    indexConfig: { fields: readonly [First, ...Rest] } & StagedIndexOptions
+  ): ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes>
+
   searchIndex<IndexName extends string>(
     name: IndexName,
-    config: SearchIndexConfig
+    config: SearchIndexConfig & UnstagedIndexOptions
   ): ZodModelBase<
     Name,
     Fields,
@@ -436,9 +642,19 @@ export type ZodModelBase<
     VectorIndexes
   >
 
+  /**
+   * Stage a search index. Convex will not let a query use it until `staged` is
+   * dropped, so `SearchIndexes` — and therefore `withSearchIndex` — is left
+   * unchanged. See `StagedIndexOptions`.
+   */
+  searchIndex<IndexName extends string>(
+    name: IndexName,
+    config: SearchIndexConfig & StagedIndexOptions
+  ): ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes>
+
   vectorIndex<IndexName extends string>(
     name: IndexName,
-    config: VectorIndexConfig
+    config: VectorIndexConfig & UnstagedIndexOptions
   ): ZodModelBase<
     Name,
     Fields,
@@ -447,6 +663,16 @@ export type ZodModelBase<
     SearchIndexes,
     VectorIndexes & Record<IndexName, VectorIndexConfig>
   >
+
+  /**
+   * Stage a vector index. Convex will not let a query use it until `staged` is
+   * dropped, so `VectorIndexes` — and therefore `withVectorIndex` — is left
+   * unchanged. See `StagedIndexOptions`.
+   */
+  vectorIndex<IndexName extends string>(
+    name: IndexName,
+    config: VectorIndexConfig & StagedIndexOptions
+  ): ZodModelBase<Name, Fields, InsertSchema, Indexes, SearchIndexes, VectorIndexes>
 }
 
 /** Widened base type for internal constraints. */
@@ -537,6 +763,18 @@ export type SlimUnionModel<
  * ]))
  *   .index('byType', ['type'])
  * ```
+ *
+ * @example Staged index on a large table
+ * ```ts
+ * // Backfill runs in the background, so the deploy is not blocked on it.
+ * // The name is absent from `withIndex` until `staged` is dropped and the
+ * // index is pushed for real in a later deploy.
+ * const events = defineZodModel('events', {
+ *   channel: z.string(),
+ *   payload: z.string()
+ * })
+ *   .index('byChannel', ['channel'], { staged: true })
+ * ```
  */
 // Overload: raw shape with schemaHelpers: false → SlimObjectModel
 export function defineZodModel<Name extends string, Fields extends $ZodShape>(
@@ -586,8 +824,6 @@ export function defineZodModel<Name extends string>(
       {},
       createSchemaBundle(name, fieldsOrSchema as $ZodType),
       'schema',
-      undefined,
-      undefined,
       undefined,
       fieldsOrSchema as $ZodType
     )
