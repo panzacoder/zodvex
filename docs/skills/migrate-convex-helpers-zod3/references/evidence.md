@@ -2,16 +2,17 @@
 
 ## Package and command availability
 
-`inspect-schema` landed after the **v0.7.10 release**. Main initially retained that
-package version, so a version string is insufficient. Use the project's locally
-installed Zodvex executable and check its help before invoking the command. Do
-not let an unpinned package-runner download silently select the candidate.
+`inspect-schema` ships in Zodvex **v0.7.11 and later**; v0.7.10 does not contain
+it. Use the project's locally installed Zodvex executable and check its help
+before invoking the command. Do not let an unpinned package-runner download
+silently select the candidate.
 
-If the command is absent, use a maintainer-supplied release or built tarball that
-contains it. Record the package version, full source commit and SHA-256 of the
-actual tarball; disclose any uncommitted build changes. The inspector's dependency
-version alone cannot distinguish two builds labeled `0.7.10`. Otherwise mark
-the diagnostic unavailable and continue compatibility checks. A source checkout
+If the command is absent, upgrade the candidate to a release that contains it, or
+use a maintainer-supplied built tarball. For a tarball, record the package
+version, full source commit and SHA-256 of the actual file; disclose any
+uncommitted build changes, since a version string alone cannot distinguish two
+builds with the same label. Otherwise mark the diagnostic unavailable and
+continue compatibility checks. A source checkout
 must be built and packaged first; a local package-manager link can resolve a
 different Convex dependency tree and cause misleading nominal-type errors.
 
@@ -77,9 +78,11 @@ Do not turn off validation, unwrap DB codecs or reduce fixture coverage merely t
 obtain a passing memory result.
 
 The old table-count ceilings are not current limits. Convex changed deployment
-analysis and Zod 4.5 reduced allocations; neither proves that an arbitrary customer
-application now fits. A current successful deployment plus representative runtime
-checks establishes that tested app/workload, not a universal capacity promise.
+analysis, Zod 4.5 reduced allocations, and Zodvex 0.7.11 emits `zodvexRegistry`
+entries as memoizing getters (regenerate `_zodvex/` on the candidate); none of
+these proves that an arbitrary customer application now fits. A current
+successful deployment plus representative runtime checks establishes that tested
+app/workload, not a universal capacity promise.
 
 ## Shareable handoff
 

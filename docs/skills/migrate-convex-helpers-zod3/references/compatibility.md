@@ -1,16 +1,17 @@
 # Migration compatibility
 
-These notes describe Zodvex's September 2026 implementation. Verify the installed
-target: package version alone does not identify an unpublished build. The
+These notes describe Zodvex's September 2026 implementation (0.7.11). Verify the
+installed target: package version alone does not identify an unpublished build. The
 [boundary contract](https://github.com/panzacoder/zodvex/blob/1f415c47fa7659c860a3a813cb371020bde53c94/docs/decisions/2026-09-07-boundary-contract.md)
 records supported behavior and limitations.
 
 ## Dependencies and coexistence
 
-Zodvex requires Zod 4. The current peer range begins at `^4.3.6`; the measured
-baseline is **4.5.4**. Installing an old Zod 3 package that happens to expose
-`zod/v4` does not satisfy that peer requirement or provide the measured memory
-improvements. Record the actual resolved version, not only the package range.
+Zodvex requires Zod 4. The current peer range begins at `^4.3.6`; the repository's
+development pin is **4.6.5**, and its memory comparison measured **4.5.4**.
+Installing an old Zod 3 package that happens to expose `zod/v4` does not satisfy
+that peer requirement or provide the measured memory improvements. Record the
+actual resolved version, not only the package range.
 
 Zod 4 packages include the `zod/v3` compatibility subpath. Before changing the
 root dependency, locate existing `from 'zod'` imports and determine which must

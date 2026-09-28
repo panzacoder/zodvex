@@ -22,8 +22,8 @@ by a separate modeled database trial. It does not assume that every app can
 immediately adopt `defineZodSchema`, or that a passing endpoint pilot measures
 the full Zodvex model graph.
 
-For memory diagnostics, use a release or maintainer-provided package containing
-`inspect-schema`; the released **v0.7.10 does not contain it**. Check the installed
+For memory diagnostics, use Zodvex **v0.7.11 or later**, which ships
+`inspect-schema`; the released v0.7.10 does not contain it. Check the installed
 command rather than downloading an unspecified version. The inspector requires
 Node 22+ and a `defineZodSchema` export, and produces a local aggregate report.
 See [schema diagnostics](schema-diagnostics.md) for scope and interpretation.
