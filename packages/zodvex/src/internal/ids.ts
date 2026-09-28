@@ -6,12 +6,19 @@ import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 import type { $ZodType } from './zod-core'
 
-// Simple registry for metadata
-const metadata = new WeakMap<$ZodType, any>()
+// Stored on the schema itself: each entrypoint bundles its own copy of this
+// module, so a module-level map would miss ids created by another bundle.
+const METADATA = Symbol.for('zodvex.metadata')
 
 export const registryHelpers = {
-  getMetadata: (type: $ZodType) => metadata.get(type),
-  setMetadata: (type: $ZodType, meta: any) => metadata.set(type, meta)
+  getMetadata: (type: $ZodType) => (type as any)?.[METADATA],
+  setMetadata: (type: $ZodType, meta: any) =>
+    Object.defineProperty(type, METADATA, {
+      value: meta,
+      enumerable: false,
+      writable: true,
+      configurable: true
+    })
 }
 
 /**

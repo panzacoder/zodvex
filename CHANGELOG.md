@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `zx.id()` fields map to `v.id(table)` when the id and the schema come from different entrypoints, e.g. `zx` from `zodvex` with `defineZodSchema` from `zodvex/server`. Each entrypoint bundled its own id registry, so the table name was lost and the field was pushed as `v.string()`, which hides table relationships in the Convex dashboard. The table name now lives on the schema itself. Redeploying changes those columns from `string` to `id`, which Convex revalidates on the first push: stored ids of that table pass unchanged, but if any document holds a value that is not a valid id of the table `zx.id()` names, the push is rejected and the previous schema stays in place.
+
 ## [0.7.11] - 2026-09-17
 
 ### Changed
