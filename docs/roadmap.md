@@ -153,17 +153,22 @@ See [`MIGRATION.md`](../MIGRATION.md).
 
 ## Superseded & blocked lines
 
-The earlier memory strategy (slim models + `zod/mini` for ~2.4× headroom) is being overtaken
-by the Deploy-scale performance work above, which targets full parity rather than incremental
-headroom. Consequences:
+The earlier memory strategy (slim models + `zod/mini` for ~2.4× headroom) was overtaken by the
+Deploy-scale performance experiments above, which targeted full parity rather than incremental
+headroom. Those experiments closed on 2026-09-28 (#80 INCOMPLETE, #63 INCOMPATIBLE, #84
+action-mechanism only; verdicts in [`guide/memory-experiments.md`](./guide/memory-experiments.md)).
+What shipped for deploy memory is the 0.7.11 memoizing registry getters; the live direction is
+reference-by-import for client-visible schemas. Consequences:
 
-- **`zod/mini` remains supported but is no longer the performance strategy.** Keep using it if
-  you prefer mini's surface; don't reach for it to fix deploy memory — descriptor codegen
-  (and eventually compile-away) is that answer.
+- **`zod/mini` remains supported but is not the performance strategy.** Keep using it if you
+  prefer mini's surface; don't reach for it to fix deploy memory. Start from the 0.7.11 registry
+  getters (regenerate `_zodvex/`) and measure with
+  [`guide/memory-benchmarks.md`](./guide/memory-benchmarks.md).
 - **Transparent build-time zod→mini compile** — proven working but needs Convex to expose a
-  pre-build hook; moot if compile-away ships. Dormant.
+  pre-build hook. Compile-away is closed, so this line stands or falls on its own; dormant.
 - **Deeper runtime memory work** (lazy Zod for codecs, dynamic model imports in V8 actions) —
-  validated experimentally; parked unless the descriptor path leaves a gap.
+  validated experimentally (#84 confirmed the mechanism for actions only); parked. The
+  descriptor path is closed and the registry getters took the per-call construction cost.
 
 ## Parked — may be obsolete
 

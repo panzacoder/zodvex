@@ -29,7 +29,7 @@ Snapshot as of 2026-03-11. `zodvex/transform` (including `transform/traverse.ts`
 
 | Phase | Original | Recalibrated | Why |
 |---|---|---|---|
-| Phase 1: Core introspection | 6-8 hours | **5-6 hours** | Mostly packaging existing logic from traverse + mapping |
+| Phase 1: Core introspection | 6-8 hours | **5-6 hours** (2026-03-11) | Assumed packaging `traverse` + mapping; `traverse` was removed in 0.7.0, so a walker on `zod/v4/core` types must be written and this estimate is a #159 planning question |
 | Phase 2: Default extraction | 4-6 hours | **4-5 hours** | Extend existing default extraction from mapping/core.ts |
 | Phase 3: Form field types | 6-8 hours | **6-8 hours** | Genuinely new — needs `.checks` array access for string formats |
 | Phase 4: React hooks | 2-3 days | **0.5 hours** | Already implemented — just needs documentation |
