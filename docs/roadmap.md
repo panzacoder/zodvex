@@ -5,8 +5,10 @@ candidate) — it describes direction at the level an adopter cares about. Detai
 implementation plans are tracked internally and change often, so this page stands on its own
 rather than linking to them.
 
-Status legend: **Next** (actively planned) · **Direction** (committed intent, unscheduled) · **Merged** / **Closed** (annotate finished work: what landed, or what was tried and why it stopped; not plan state)
-· **Exploring** (idea we like, not committed) · **Blocked** (waiting on upstream).
+Status legend: **Next** (actively planned) · **Direction** (committed intent, unscheduled)
+· **Exploring** (idea we like, not committed) · **Blocked** (waiting on upstream) ·
+**Merged** / **Closed** (finished work: what landed, or what was tried and why it stopped;
+not plan state).
 
 ---
 
