@@ -35,7 +35,7 @@ the eager and lazy interquartile ranges do not overlap at one row. The
 [earlier repeat](capacity-lazy-registry-repeat.md) on the same fixture (recorded
 against the pre-amend commit `d4283d2`, whose composer is byte-identical: same
 fixture hash `f5085c2c…`) shows the same separation: 47.77 vs 28.91 (full) and
-37.65 vs 24.69 (mini) at one row.
+37.65 vs 19.33 (mini) at one row.
 
 This fixture cost is the construction of the entries themselves. The
 [two-field control](capacity-two-field-control.md) used the first draft of this
@@ -49,7 +49,7 @@ entries a function's import graph carries, not with the number of functions call
 
 This agrees with the consumer measurement that motivated the change, where a
 62-function registry cost about 35 ms per call on Convex Cloud. The models graph
-itself (lean → models, about 17 ms here) is untouched by this change.
+itself (lean → models, about 18 ms full and 8 ms mini here) is untouched by this change.
 
 ## Scope
 
