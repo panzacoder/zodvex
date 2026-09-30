@@ -1,8 +1,10 @@
 # Motiion-Inspired Utilities for zodvex
 
+**Status:** [#47](https://github.com/panzacoder/zodvex/pull/47) closed 2026-09-28 as unrebasable (unrelated git history); the branch also imports the removed `transform/traverse` module and uses full-zod types, so a rebase would not have rescued it. Intent re-scoped under [#153](https://github.com/panzacoder/zodvex/issues/153).
+
 **Created:** 2025-01-18
-**Status:** Proposal — recalibrated 2026-03-11
-**Priority:** Post-v0.6.0 (Phase 1 first, then 2-3; Phase 4 is largely done)
+**Original status:** Proposal — recalibrated 2026-03-11
+**Priority:** Post-v0.6.0. Original sequencing was Phase 1 first, then 2-3; [#153](https://github.com/panzacoder/zodvex/issues/153) now owns the order and inverts it: emitter fidelity for the generated registry ([#157](https://github.com/panzacoder/zodvex/issues/157)) first, then introspection ([#159](https://github.com/panzacoder/zodvex/issues/159)), then defaults and field kinds ([#158](https://github.com/panzacoder/zodvex/issues/158)). Phase 4 is largely done.
 **Inspiration:** Patterns discovered in plfx/motiion project
 
 ## Recalibration (2026-03-11)
@@ -11,28 +13,30 @@ Deep review of the codebase revealed ~80% of the infrastructure already exists b
 
 ### What already exists
 
+Snapshot as of 2026-03-11. `zodvex/transform` (including `transform/traverse.ts` and `unwrapOnce`) was removed in 0.7.0, so the two traversal rows below no longer hold and Phase 1 is a rewrite on `zod/v4/core` types ([#159](https://github.com/panzacoder/zodvex/issues/159)), not a repackaging.
+
 | Capability | Location | Status |
 |---|---|---|
-| Schema traversal + visitor | `transform/traverse.ts` (321 lines) | Complete, exported |
+| Schema traversal + visitor | `transform/traverse.ts` (321 lines) | Removed in 0.7.0 |
 | Type detection via `def.type` (20+ types) | `mapping/core.ts:85-322` | Complete, internal |
 | Zid/Convex ID detection + table name | `ids.ts` (3-layer detection) | Complete, internal |
 | Default extraction from ZodDefault | `mapping/core.ts:46-61` | Partial, internal |
 | React hooks (useZodQuery/useZodMutation) | `react/hooks.ts` (140+ lines) | Complete, exported |
 | Form integration pattern | `form/mantine/index.ts` | Complete, exported |
-| `unwrapOnce` for peeling wrapper types | `transform/traverse.ts` | Complete, newly exported |
+| `unwrapOnce` for peeling wrapper types | `transform/traverse.ts` | Removed in 0.7.0 |
 
 ### Recalibrated effort estimates
 
 | Phase | Original | Recalibrated | Why |
 |---|---|---|---|
-| Phase 1: Core introspection | 6-8 hours | **5-6 hours** | Mostly packaging existing logic from traverse + mapping |
+| Phase 1: Core introspection | 6-8 hours | **5-6 hours** (2026-03-11) | Assumed packaging `traverse` + mapping; `traverse` was removed in 0.7.0, so a walker on `zod/v4/core` types must be written and this estimate is a #159 planning question |
 | Phase 2: Default extraction | 4-6 hours | **4-5 hours** | Extend existing default extraction from mapping/core.ts |
 | Phase 3: Form field types | 6-8 hours | **6-8 hours** | Genuinely new — needs `.checks` array access for string formats |
 | Phase 4: React hooks | 2-3 days | **0.5 hours** | Already implemented — just needs documentation |
 
 ### Key findings
 
-1. **Phase 1 is assembly, not construction** — `introspect()` would compose `walkSchema()`, `getMetadata()`, and the `def.type` detection that `mapping/core.ts` already does
+1. **Phase 1 was assembly, not construction** (as of 2026-03-11) — `introspect()` would have composed `walkSchema()`, `getMetadata()`, and the `def.type` detection in `mapping/core.ts`. The first two were removed with `zodvex/transform` in 0.7.0; the `def.type` classification in the mapping layer remains the piece to compose.
 2. **String format detection is the hidden complexity** — detecting email/url/uuid requires accessing Zod's internal `.checks` array, which isn't exposed anywhere in zodvex yet
 3. **The "200+ lines saved" claim is accurate** — motiion's three utility files (~250-300 lines) could reduce to ~50 lines of API calls
 4. **Codec interaction needs clarification** — should `zx.date()` fields report `baseType: 'date'` (semantic) or `baseType: 'number'` (wire format)?

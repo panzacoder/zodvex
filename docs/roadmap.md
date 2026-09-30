@@ -6,30 +6,35 @@ implementation plans are tracked internally and change often, so this page stand
 rather than linking to them.
 
 Status legend: **Next** (actively planned) · **Direction** (committed intent, unscheduled)
-· **Exploring** (idea we like, not committed) · **Blocked** (waiting on upstream).
+· **Exploring** (idea we like, not committed) · **Blocked** (waiting on upstream) ·
+**Merged** / **Closed** (finished work: what landed, or what was tried and why it stopped;
+not plan state).
 
 ---
 
 ## Deploy-scale performance
 
-The most active current thread ([#49](https://github.com/panzacoder/zodvex/issues/49) is the
+Was the most active thread ([#49](https://github.com/panzacoder/zodvex/issues/49) is the
 originating issue): making codec-enabled apps deploy at the same scale as hand-written Convex.
+The experiment arc closed on 2026-09-28 with the verdicts #144 recorded; what shipped for
+scale is the 0.7.11 memoizing registry getters, and the live direction is reference-by-import
+for client-visible schemas (see Client boundary & codegen). The harness stays as the
+regression gate.
 
-- **Codec-paths descriptor codegen** — *Next (in beta as `0.8.0-beta.0`,
-  [#80](https://github.com/panzacoder/zodvex/pull/80)).* Codegen emits a pure-Convex
-  `_zodvex/tables.ts` (zero Zod in the schema isolate), per-table minimal codec descriptors,
-  and a codec-args-only registry — measured at **pure-Convex deploy parity** (~800-table
-  TooManyReads wall, the same wall raw `defineTable` hits, instead of OOMing per-entrypoint
-  isolates at ~100–150 tables). Gated on a downstream trial before merge. When this lands,
-  codegen's role grows: still optional for small apps, but the recommended path at scale.
-- **Compile-away (`zodvex compile`)** — *Exploring
-  ([#63](https://github.com/panzacoder/zodvex/pull/63), draft).* Rewrite a project to vanilla
-  Convex source at build time (`zq` → `query`, models → `defineTable`); measured at ~0.9× of
-  the pure-Convex endpoint ceiling. More radical than descriptors; codec-endpoint detection
-  still outstanding.
-- **Scale-test harness** — *Next ([#81](https://github.com/panzacoder/zodvex/pull/81)).*
-  Shape-faithful, axis-decoupled stress harness that baselines main vs any feature branch;
-  merges ahead of the descriptor work it measures.
+- **Codec-paths descriptor codegen** — *Closed ([#80](https://github.com/panzacoder/zodvex/pull/80),
+  2026-09-28).* The port onto the current library measured a smaller import graph but 13
+  differences from 25 baseline outcomes, including a wire-valid union codec failure; verdict
+  **INCOMPLETE** in [`guide/memory-experiments.md`](./guide/memory-experiments.md). The
+  `0.8.0-beta.0` npm publish came from this branch and is unrelated to the 0.8.0 line cut from
+  `main`. The scale path is now the 0.7.11 memoizing registry getters plus reference-by-import
+  for client-visible schemas (see Codegen discovery below).
+- **Compile-away (`zodvex compile`)** — *Closed ([#63](https://github.com/panzacoder/zodvex/pull/63),
+  2026-09-28).* The real compiler drops argument decoding, return encoding, refinements and
+  defaults; verdict **INCOMPATIBLE**, excluded from performance ranking (same guide).
+- **Scale-test harness** — *Merged ([#81](https://github.com/panzacoder/zodvex/pull/81),
+  2026-08-13).* Shape-faithful, axis-decoupled stress harness that baselines main against any
+  branch; it measured the experiments above and the 0.7.11 registry getters (#148). See
+  [`guide/memory-benchmarks.md`](./guide/memory-benchmarks.md).
 
 ## Ecosystem interop
 
@@ -60,10 +65,11 @@ libraries that also want to wrap `ctx` or `ctx.db`.
   dependency. Behavior and rule/audit shapes are unchanged; only the call form. See
   [`guide/rules-and-audit.md`](./guide/rules-and-audit.md). Design together with the
   composable-db-wrapping work under Ecosystem interop — same "wrappers you apply" model.
-- **`_creationTime` as a `Date` codec** — *Direction (implemented in
-  [#43](https://github.com/panzacoder/zodvex/pull/43), pending rebase + a decision).* A
+- **`_creationTime` as a `Date` codec** — *Direction ([#43](https://github.com/panzacoder/zodvex/pull/43)
+  was closed 2026-07-06 in favor of a clean redo tracked in
+  [#95](https://github.com/panzacoder/zodvex/issues/95), which carries the decision below).* A
   codec-first library should decode `_creationTime` to a `Date` automatically, consistent
-  with `zx.date()` fields. Open decisions: the PR makes it **unconditional/breaking**, while
+  with `zx.date()` fields. Open decisions: #43's approach made it **unconditional/breaking**, while
   the safer shape is opt-in — pick one explicitly before landing; and whether to brand `_id`
   as `Id<Table>` at the same boundary.
 
@@ -73,26 +79,46 @@ libraries that also want to wrap `ctx` or `ctx.db`.
   identity from a frontend-safe `*.args.ts` module, so the client can import schemas without
   dragging server code into the browser bundle — retiring codec fingerprinting/brands for
   decoupled functions.
-- **Opt-in client-integration plugins** — *Direction (implemented in
-  [#45](https://github.com/panzacoder/zodvex/pull/45), pending rebase).* A `zodvex.config.ts`
-  that drives codegen of form resolvers (Mantine, TanStack Form, React Hook Form) via
-  explicit, package.json-based opt-in — superseding the reverted auto-detection.
-- **Sturdier codegen discovery** — *Exploring (RFC open as
-  [#51](https://github.com/panzacoder/zodvex/pull/51)).* Replace the fragile
-  dynamic-`import()` + Proxy-stub discovery with AST-based (or hybrid static/dynamic)
-  analysis.
+- **Library-agnostic form binding** — *Direction (tracked in
+  [#153](https://github.com/panzacoder/zodvex/issues/153)).* The generated client (or a core
+  primitive) exposes an accessor that returns a function's args schema from the registry
+  given a function reference; consumers pass that schema to whatever resolver their form
+  library uses. React Hook Form and TanStack Form are the integrations to document first;
+  `zodvex/form/mantine` stays as a manual-bind primitive. A `zodvex.config.ts` and
+  per-library codegen plugins are deferred until a second codegen option needs a config
+  file, and auto-detection of form libraries is not coming back. Depends on the generated
+  registry carrying checks, defaults, `describe` and `meta` (emitter fidelity, also under
+  #153). Rationale in
+  [`decisions/2026-09-28-library-agnostic-form-binding.md`](./decisions/2026-09-28-library-agnostic-form-binding.md);
+  the earlier `zodvex.config.ts` implementation ([#45](https://github.com/panzacoder/zodvex/pull/45))
+  was closed 2026-09-28 as unrebasable (unrelated git history).
+- **Codegen discovery** — *Direction.* The static-analysis RFC
+  ([#51](https://github.com/panzacoder/zodvex/pull/51), closed 2026-09-28) is preserved at
+  [`planning/codegen-static-analysis.md`](./planning/codegen-static-analysis.md) but is not
+  being pursued. The direction is reference-by-import for client-visible schemas (the
+  decouple-validators item above; detail in
+  [`issues/2026-06-08-validator-handler-decoupling.md`](./issues/2026-06-08-validator-handler-decoupling.md)),
+  which preserves schema fidelity and avoids inferring codec identity for decoupled
+  functions. Discovery still dynamically imports every eligible file, including handler
+  modules and their dependencies; reducing that execution surface requires a separate
+  discovery change.
 
 ## Schema conveniences
 
 These are framed as **codec-aware, define-once boundary conveniences**, not a form-builder
 framework — they reuse your existing models rather than adding a new authoring surface.
 
-- **Runtime schema introspection** — *Direction (implemented in
-  [#47](https://github.com/panzacoder/zodvex/pull/47), pending rebase).* A stable public
+- **Runtime schema introspection** — *Direction (tracked in
+  [#153](https://github.com/panzacoder/zodvex/issues/153); the earlier implementation in
+  [#47](https://github.com/panzacoder/zodvex/pull/47) was closed 2026-09-28 as unrebasable (unrelated git history)).* A stable public
   `introspect()` surface (`isConvexId`, `getTableName`, `getDefault`, `isOptional`, …) so
-  consumers stop reaching into Zod internals (`_def`). The traversal infrastructure already
-  exists.
-- **Type-safe form defaults from schemas** — *Exploring.* `getSchemaDefaults()` /
+  consumers stop reaching into Zod internals (`_def`). Constraints: built on `zod/v4/core`
+  types so it works with `zod/mini`; metadata read through the public `.meta()`/registry
+  channel so model wrappers can extend it; codecs report their semantic base type. It gives
+  wrong answers on a shape-only registry copy, so it follows emitter fidelity (#157). The
+  earlier traversal module was removed in 0.7.0, so this is a rewrite on core types, not a
+  repackaging.
+- **Type-safe form defaults from schemas** — *Exploring (#153).* `getSchemaDefaults()` /
   `getPartialDefaults()` derived from the same models that validate args (builds on
   introspection).
 
@@ -131,17 +157,22 @@ See [`MIGRATION.md`](../MIGRATION.md).
 
 ## Superseded & blocked lines
 
-The earlier memory strategy (slim models + `zod/mini` for ~2.4× headroom) is being overtaken
-by the Deploy-scale performance work above, which targets full parity rather than incremental
-headroom. Consequences:
+The earlier memory strategy (slim models + `zod/mini` for ~2.4× headroom) was overtaken by the
+Deploy-scale performance experiments above, which targeted full parity rather than incremental
+headroom. Those experiments closed on 2026-09-28 (#80 INCOMPLETE, #63 INCOMPATIBLE, #84
+action-mechanism only; verdicts in [`guide/memory-experiments.md`](./guide/memory-experiments.md)).
+What shipped for deploy memory is the 0.7.11 memoizing registry getters; the live direction is
+reference-by-import for client-visible schemas. Consequences:
 
-- **`zod/mini` remains supported but is no longer the performance strategy.** Keep using it if
-  you prefer mini's surface; don't reach for it to fix deploy memory — descriptor codegen
-  (and eventually compile-away) is that answer.
+- **`zod/mini` remains supported but is not the performance strategy.** Keep using it if you
+  prefer mini's surface; don't reach for it to fix deploy memory. Start from the 0.7.11 registry
+  getters (regenerate `_zodvex/`) and measure with
+  [`guide/memory-benchmarks.md`](./guide/memory-benchmarks.md).
 - **Transparent build-time zod→mini compile** — proven working but needs Convex to expose a
-  pre-build hook; moot if compile-away ships. Dormant.
+  pre-build hook. Compile-away is closed, so this line stands or falls on its own; dormant.
 - **Deeper runtime memory work** (lazy Zod for codecs, dynamic model imports in V8 actions) —
-  validated experimentally; parked unless the descriptor path leaves a gap.
+  validated experimentally (#84 confirmed the mechanism for actions only); parked. The
+  descriptor path is closed and the registry getters took the per-call construction cost.
 
 ## Parked — may be obsolete
 
