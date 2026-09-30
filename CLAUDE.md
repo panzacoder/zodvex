@@ -4,6 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Matt Pocock's skills are available in `.claude/skills` (linked to `.agents/skills`). See [AGENTS.md](AGENTS.md) for shared skill guidance and the [skill catalog](.agents/skills/README.md) for the complete collection.
 
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues for `panzacoder/zodvex`, using `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five default triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use a single-context layout: root `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
 ## Project Overview
 
 **zodvex lets you use Zod v4 as your schema language for Convex.** You define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation: declared function schemas run Zod parsing/encoding automatically, `ctx.db` is codec-aware (`Date`/typed-id/custom encode-decode at the database boundary, with `.withRules()` and `.audit()` on the same wrapped db), and an optional codegen CLI shares client-safe schemas and inferred query validators.
