@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-02
 **Status:** Accepted; section 2 ("Codegen pre-binds resolvers") superseded on 2026-09-28
-**Superseded-by (in part):** `2026-09-28-library-agnostic-form-binding.md` — form binding is now a library-agnostic args-schema accessor; the `{library}Resolver` naming convention in section 1 stands
+**Superseded-by (in part):** `0009-library-agnostic-form-binding.md` — form binding is now a library-agnostic args-schema accessor; the `{library}Resolver` naming convention in section 1 stands
 **Context:** zodvex form integration — naming and codegen placement for form library resolvers
 
 ---

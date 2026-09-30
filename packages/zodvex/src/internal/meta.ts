@@ -49,7 +49,7 @@ const CODEC_BRAND_KEY = '__zodvexCodecBrand'
  * by *declared* identity instead of inferring it from structure. Stored
  * non-enumerably so it never leaks into user data, and survives
  * `.optional()` / `.nullable()` wrapping (codegen unwraps to the codec).
- * See `docs/decisions/2026-06-08-codec-provenance-brands.md`.
+ * See `docs/adr/0005-codec-provenance-brands.md`.
  */
 export function attachCodecBrand(target: object, brand: string): void {
   Object.defineProperty(target, CODEC_BRAND_KEY, {

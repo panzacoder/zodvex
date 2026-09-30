@@ -88,7 +88,7 @@ only points one way.
 
 ### Alignment with prior direction
 
-The `2026-02-17-runtime-only-middleware.md` decision doc ended with a note:
+The `0001-runtime-only-middleware.md` decision doc ended with a note:
 
 > zodvex v2 moved away from providing hook points entirely — consumers
 > write their own DB wrappers (following Convex's `wrapDatabaseReader`

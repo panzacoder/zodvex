@@ -19,7 +19,7 @@ docs site.
 | [`migration/`](./migration/) | Version migration guides. |
 | `../README.md`, `../MIGRATION.md`, `../CHANGELOG.md` | Repo-root durable docs. |
 
-`decisions/` sits between the two: durable *rationale* (why we chose X), useful long-term but
+`adr/` sits between the two: durable *rationale* (why we chose X), useful long-term but
 internal-facing rather than docs-site material.
 
 ## Ephemeral docs — internal, cleared regularly

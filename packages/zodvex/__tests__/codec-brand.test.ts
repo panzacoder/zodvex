@@ -9,7 +9,7 @@ import type {
 } from '../src/public/codegen/discover'
 import { generateApiFile } from '../src/public/codegen/generate'
 
-// Codec provenance brands — see docs/decisions/2026-06-08-codec-provenance-brands.md.
+// Codec provenance brands — see docs/adr/0005-codec-provenance-brands.md.
 // A brand lets codegen match a function-embedded codec to its importable twin by
 // *declared* identity instead of inferring it from structure (which collides for
 // factory codecs whose wire shapes coincide).

@@ -9,7 +9,7 @@ import { zx } from 'zodvex/mini'
  * (`tagged:<name>`) gives each instance a *declared* identity, so codegen
  * resolves an inline `tagged(z.string(), "email")` to the exported `taggedEmail`
  * precisely — no structural guessing, no cross-factory collisions. See
- * docs/decisions/2026-06-08-codec-provenance-brands.md.
+ * docs/adr/0005-codec-provenance-brands.md.
  */
 export function tagged<T extends z.ZodMiniType>(inner: T, name: string) {
   const wireSchema = z.object({

@@ -24,7 +24,7 @@ well as structural validator generation. Concretely:
 
 Boundary behavior follows the operation and configuration: returns need a schema,
 patches do not validate the resulting whole document, and client decode failures
-warn and return raw data by default. See the [boundary contract](./decisions/2026-09-07-boundary-contract.md).
+warn and return raw data by default. See the [boundary contract](./adr/0007-boundary-contract.md).
 
 You configure all of it once with `initZodvex` and get correct builders back.
 

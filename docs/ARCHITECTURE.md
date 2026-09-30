@@ -220,7 +220,7 @@ should not paper over that behavior manually.**
 and document limitations and escape hatches.** Object patches preserve top-level
 `undefined` for field deletion, while union patches currently use full encoding.
 `unwrap()` provides native database access and bypasses codecs, rules, and audit.
-See the [boundary contract](./decisions/2026-09-07-boundary-contract.md).
+See the [boundary contract](./adr/0007-boundary-contract.md).
 
 This is why the refactor also moved index/filter handling back toward shared DB
 machinery instead of letting examples carry ad hoc `getTime()` workarounds.

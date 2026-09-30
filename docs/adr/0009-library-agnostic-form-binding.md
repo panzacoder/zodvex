@@ -3,7 +3,7 @@
 **Date:** 2026-09-28
 **Status:** Accepted
 **Context:** Schema-driven UI from function args ([#153](https://github.com/panzacoder/zodvex/issues/153)); closes the question left open by #45 (`zodvex.config.ts` form-resolver codegen), which was closed 2026-09-28 as unrebasable (unrelated git history)
-**Supersedes (in part):** `2026-03-02-form-resolver-naming.md`, section 2 ("Codegen pre-binds resolvers")
+**Supersedes (in part):** `0003-form-resolver-naming.md`, section 2 ("Codegen pre-binds resolvers")
 
 ---
 

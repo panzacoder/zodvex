@@ -119,7 +119,7 @@ Two related escape hatches:
 - `ctx.db.unwrap()` returns the database the codec wrapper delegates to (the trigger-wrapped writer above, or the bare Convex db when `underlyingDb` isn't set). It bypasses codec, rules, and audit — reads are undecoded and writes must be wire-format.
 - `createZodvexCustomization(tableMap, { underlyingDb })` accepts the same option for manual composition.
 
-Design notes: [docs/decisions/2026-07-07-db-wrap-compose-not-absorb.md](../decisions/2026-07-07-db-wrap-compose-not-absorb.md). Working example: [examples/task-manager/convex/triggersCompose.ts](../../examples/task-manager/convex/triggersCompose.ts).
+Design notes: [docs/adr/0006-db-wrap-compose-not-absorb.md](../adr/0006-db-wrap-compose-not-absorb.md). Working example: [examples/task-manager/convex/triggersCompose.ts](../../examples/task-manager/convex/triggersCompose.ts).
 
 ## Deprecated: individual builders
 

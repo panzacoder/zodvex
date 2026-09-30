@@ -437,7 +437,7 @@ export function generateApiFile(
     type Candidate = { ref: CodecRef; sourceFile: string | undefined; brand: string | undefined }
     const fingerprintMap = new Map<string, Candidate[]>()
     // brand → importable candidates that declared it. Brand is the author's
-    // explicit identity (see docs/decisions/2026-06-08-codec-provenance-brands.md),
+    // explicit identity (see docs/adr/0005-codec-provenance-brands.md),
     // matched ahead of the structural fingerprint and namespaced across factories.
     const brandMap = new Map<string, Candidate[]>()
 

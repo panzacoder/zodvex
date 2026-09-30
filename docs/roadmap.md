@@ -89,7 +89,7 @@ libraries that also want to wrap `ctx` or `ctx.db`.
   file, and auto-detection of form libraries is not coming back. Depends on the generated
   registry carrying checks, defaults, `describe` and `meta` (emitter fidelity, also under
   #153). Rationale in
-  [`decisions/2026-09-28-library-agnostic-form-binding.md`](./decisions/2026-09-28-library-agnostic-form-binding.md);
+  [`adr/0009-library-agnostic-form-binding.md`](./adr/0009-library-agnostic-form-binding.md);
   the earlier `zodvex.config.ts` implementation ([#45](https://github.com/panzacoder/zodvex/pull/45))
   was closed 2026-09-28 as unrebasable (unrelated git history).
 - **Codegen discovery** — *Direction.* The static-analysis RFC

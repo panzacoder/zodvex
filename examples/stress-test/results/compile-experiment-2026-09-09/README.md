@@ -16,7 +16,7 @@ On 2026-09-09, the unmodified compiler at `0e4ae596420619d86c13534d085526a166264
 
 **14/14 audit assertions passed:** seven assertions establish the original/compiled observations (one control plus six behavior losses), and seven verify that foundation observations agree with the old runtime's precompile behavior. These are negative characterization checks, not 14 compiler conformance passes. There were 21 handler invocations across the three probes. No production tests or hosted deployment ran.
 
-The [current boundary contract](../../../../docs/decisions/2026-09-07-boundary-contract.md) distinguishes native wire validation from Zod parsing, codec decoding/encoding, refinements and defaults. Replacing the latter with native validators changes that contract. The third probe establishes agreement for these seven cases only; it does not certify the entire old runtime as equivalent to current Zodvex.
+The [current boundary contract](../../../../docs/adr/0007-boundary-contract.md) distinguishes native wire validation from Zod parsing, codec decoding/encoding, refinements and defaults. Replacing the latter with native validators changes that contract. The third probe establishes agreement for these seven cases only; it does not certify the entire old runtime as equivalent to current Zodvex.
 
 ## Versions and limits
 

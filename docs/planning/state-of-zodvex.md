@@ -145,7 +145,7 @@ current replacement (see `TODO.md`, `MIGRATION.md`). Native `z.date()` already h
 - **Form binding from function args** — originally `zodvex.config.ts`-driven form-resolver
   codegen (mantine / TanStack / RHF); re-scoped on 2026-09-28 to a library-agnostic
   args-schema accessor with no config file (#153,
-  `docs/decisions/2026-09-28-library-agnostic-form-binding.md`).
+  `docs/adr/0009-library-agnostic-form-binding.md`).
   (`docs/planning/opt-in-client-library-codegen.md`)
 - **Static/hybrid codegen discovery** — replace the fragile dynamic-`import()` + Proxy-stub
   discovery with AST-based analysis. Deferred, not being pursued; reference-by-import is the
@@ -191,7 +191,7 @@ threads, in priority order (all reflected in `docs/roadmap.md` as of this date):
    re-scoped under #153 "Schema-driven UI from function args": emitter fidelity for the
    generated registry first, then `introspect()` on `zod/v4/core` types, then a
    library-agnostic args-schema accessor for form binding (see
-   `docs/decisions/2026-09-28-library-agnostic-form-binding.md`).
+   `docs/adr/0009-library-agnostic-form-binding.md`).
 5. **Housekeeping** — #51 (static-analysis RFC) was closed on 2026-09-28 (unrelated git
    history). Its RFC text is preserved at `docs/planning/codegen-static-analysis.md` with a
    deferred status; the discovery direction is reference-by-import for client-visible
@@ -210,7 +210,7 @@ threads, in priority order (all reflected in `docs/roadmap.md` as of this date):
 - **Hold the line: `zx.id()` is a typed validator, not a codec.** Specs repeat this
   deliberately; positioning copy must not lump it with `zx.date()`/`zx.codec()`.
 - **Terminology frictions to avoid (not contradictions):**
-  - `docs/decisions/2026-02-17-runtime-only-middleware.md` is titled "Database Middleware" and
+  - `docs/adr/0001-runtime-only-middleware.md` is titled "Database Middleware" and
     sketches `onRead`/`onWrite` hooks that were later dropped (`:193`). The *principle*
     (runtime-typed docs) is load-bearing; the hook API is dead. A casual reader could misread
     the title against "not a middleware framework."

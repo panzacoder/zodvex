@@ -26,7 +26,7 @@ The codec-aware data layer is the standout *differentiator*, but the *identity* 
 
 See [`docs/positioning.md`](docs/positioning.md) for the canonical positioning statement — lead with this framing in any comparison or summary.
 
-See [`docs/decisions/2026-09-07-boundary-contract.md`](docs/decisions/2026-09-07-boundary-contract.md) for current guarantees and limits, including modeled reads, patch semantics, and the default client warn/raw decode policy. Do not summarize these as strict validation at every boundary.
+See [`docs/adr/0007-boundary-contract.md`](docs/adr/0007-boundary-contract.md) for current guarantees and limits, including modeled reads, patch semantics, and the default client warn/raw decode policy. Do not summarize these as strict validation at every boundary.
 
 ## Monorepo Structure
 

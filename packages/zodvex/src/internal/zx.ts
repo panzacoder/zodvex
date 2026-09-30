@@ -91,7 +91,7 @@ function date(): ZxDate {
  *   rather than inferring it from structure — collision-free and namespaced
  *   across factories. Useful for codec factories like `tagged()` / `sensitive()`
  *   whose every call returns a fresh instance. See
- *   `docs/decisions/2026-06-08-codec-provenance-brands.md`.
+ *   `docs/adr/0005-codec-provenance-brands.md`.
  *
  * @example
  * ```typescript

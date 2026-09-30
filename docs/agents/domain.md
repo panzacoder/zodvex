@@ -7,7 +7,6 @@ and examples.
 
 - Read root `GLOSSARY.md` for domain terminology.
 - Read decisions in `docs/adr/` relevant to the area being explored.
-- Also consult relevant existing decisions in `docs/decisions/`.
 
 If a glossary or ADR directory is absent, proceed silently.
 The domain-modeling skill creates these documents lazily when terms or
@@ -16,8 +15,9 @@ decisions are resolved.
 ## Layout
 
 - `GLOSSARY.md`: shared domain vocabulary.
-- `docs/adr/`: new architecture decision records.
-- `docs/decisions/`: existing decision documents, retained in place.
+- `docs/adr/`: architecture decision records, numbered sequentially as
+  `0001-slug.md`, `0002-slug.md`, and so on. Existing records retain their
+  original dates and decision history.
 
 ## Use the glossary's vocabulary
 

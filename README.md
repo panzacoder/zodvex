@@ -156,7 +156,7 @@ Two deprecated paths remain for migration only:
 - **`zx.codec(wire, runtime, transforms)`** — Custom codecs for complex transformations (encryption, serialization, etc.).
 - **`zx.id('table')`** — Typed Convex ID validator with `GenericId<T>` branding — no wire transform (not a codec).
 
-Object patches encode supplied fields without validating the merged document or retaining outer object refinements; union patches use full encoding. Unmodeled tables and system access pass through. `unwrap()` or `wrapDb: false` bypass wrapping. See the [boundary contract](./docs/decisions/2026-09-07-boundary-contract.md).
+Object patches encode supplied fields without validating the merged document or retaining outer object refinements; union patches use full encoding. Unmodeled tables and system access pass through. `unwrap()` or `wrapDb: false` bypass wrapping. See the [boundary contract](./docs/adr/0007-boundary-contract.md).
 
 Guides: [Custom Codecs](./docs/guide/custom-codecs.md), [Date Handling](./docs/guide/date-handling.md)
 

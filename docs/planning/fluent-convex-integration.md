@@ -166,7 +166,7 @@ Note the second example uses `wrapCodecDb(...).withRules(...)` directly rather t
 `authMiddleware` runs. `zv.withRules(...)` is the ergonomic path when rules are static;
 the raw primitive is the escape hatch when they depend on upstream middleware ctx. This
 is the same runtime-closure flexibility documented in
-`docs/decisions/2026-02-17-runtime-only-middleware.md`.
+`docs/adr/0001-runtime-only-middleware.md`.
 
 ---
 

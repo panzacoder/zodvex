@@ -62,7 +62,7 @@ All of this can be done by reading source code, not executing it.
 ## Runtime constraint: codec identity is resolved from live objects
 
 Since this RFC was written, codegen's codec resolution moved to **provenance brands**
-(`docs/decisions/2026-06-08-codec-provenance-brands.md`): a codec instance found in a
+(`docs/adr/0005-codec-provenance-brands.md`): a codec instance found in a
 function's `args`/`returns` is matched to an importable export by the brand the factory
 attached at creation, with a structural fingerprint as the fallback. Both are read from the
 live object. A static design has to either reproduce that matching from source (tracing
@@ -169,7 +169,7 @@ identity separately; it does not provide this candidate filtering.
 ## Related
 - `docs/plans/2026-02-25-codegen-runtime-vs-ast.md` — earlier analysis of runtime vs AST approaches. Pruned from `main`; readable with `git show cd567cf:docs/plans/2026-02-25-codegen-runtime-vs-ast.md`.
 - `docs/issues/2026-06-08-validator-handler-decoupling.md` — the reference-by-import direction that superseded this RFC
-- `docs/decisions/2026-06-08-codec-provenance-brands.md` — how codec identity is resolved today
+- `docs/adr/0005-codec-provenance-brands.md` — how codec identity is resolved today
 - `packages/zodvex/src/public/codegen/discover.ts` — current dynamic discovery implementation
 - `packages/zodvex/src/public/codegen/discovery-hooks.ts` — Proxy stub mechanism
 - `packages/zodvex/src/public/codegen/generate.ts` — registry generation using `zodToSource()`

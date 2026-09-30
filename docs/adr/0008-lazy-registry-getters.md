@@ -64,7 +64,7 @@ resolvers), and enumeration still lists every path.
   bundles pay construction on first use per entry instead of at module evaluation.
 - Push-time analysis isolates no longer hold every function's registry schemas, which
   reduces the per-entrypoint memory footprint measured in
-  `docs/decisions/2026-04-03-memory-optimization-strategy.md` by the registry's share.
+  `docs/adr/0004-memory-optimization-strategy.md` by the registry's share.
   Not re-measured here; the model graph remains the dominant term.
 - **Error timing changes.** An entry whose construction throws (for example a codec import
   that fails when called) now surfaces on that entry's first access rather than at module

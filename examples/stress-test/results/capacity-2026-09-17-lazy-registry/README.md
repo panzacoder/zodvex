@@ -2,7 +2,7 @@
 
 Since 0.7.11, `zodvex generate` emits each `zodvexRegistry` entry as a memoizing
 getter instead of an eager object literal (see
-[`docs/decisions/2026-09-16-lazy-registry-getters.md`](../../../../docs/decisions/2026-09-16-lazy-registry-getters.md)).
+[`docs/adr/0008-lazy-registry-getters.md`](../../../../docs/adr/0008-lazy-registry-getters.md)).
 Every server function imports the registry through `initZodvex`, and the Convex
 isolate evaluates module top-level code per execution, so the eager shape rebuilt
 every entry's schemas on every call. This study adds `full_registry_lazy` and

@@ -27,7 +27,7 @@ export const getByEmail = zq({
 // `taggedEmail` export. Codegen can't identity-match it, but the `tagged:email`
 // brand resolves it to the exported `taggedEmail` by declared identity, so the
 // generated api.js references `taggedEmail` (no inline husk, no fingerprint
-// guessing). See docs/decisions/2026-06-08-codec-provenance-brands.md.
+// guessing). See docs/adr/0005-codec-provenance-brands.md.
 export const countByEmail = zq({
   args: { email: tagged(z.string(), "email") },
   handler: async (ctx, { email }) => {

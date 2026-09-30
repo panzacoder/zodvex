@@ -3,7 +3,7 @@
 **Opened:** 2026-06-08
 **Status:** Tracking (not in flight)
 **Target:** v0.8.0 (convention + ergonomics change)
-**Relates-to:** `docs/decisions/2026-06-08-codec-provenance-brands.md` (the near-term mitigation), hotpot 0.7.2-beta smoke-test blocker 2
+**Relates-to:** `docs/adr/0005-codec-provenance-brands.md` (the near-term mitigation), hotpot 0.7.2-beta smoke-test blocker 2
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 **Status:** [#45](https://github.com/panzacoder/zodvex/pull/45) closed 2026-09-28 as unrebasable (unrelated git history); intent re-scoped under [#153](https://github.com/panzacoder/zodvex/issues/153).
 The config-file/plugin design below is superseded by a library-agnostic args-schema accessor — see
-[`../decisions/2026-09-28-library-agnostic-form-binding.md`](../decisions/2026-09-28-library-agnostic-form-binding.md).
+[`../adr/0009-library-agnostic-form-binding.md`](../adr/0009-library-agnostic-form-binding.md).
 
 ## Context
 

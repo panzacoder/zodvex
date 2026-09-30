@@ -3,7 +3,7 @@
 **Date:** 2026-02-18
 **Status:** Accepted
 **Context:** Consumer `initZodvex` adoption — designing how FLS integrates with zodvex's codec-first pipeline
-**Builds on:** `2026-02-17-runtime-only-middleware.md`
+**Builds on:** `0001-runtime-only-middleware.md`
 
 ---
 
