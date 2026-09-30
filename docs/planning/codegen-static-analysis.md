@@ -6,9 +6,12 @@ The RFC below was written for [#51](https://github.com/panzacoder/zodvex/pull/51
 because the cost analysis and the extraction inventory are still accurate. The direction
 that replaced it is **reference-by-import for client-visible schemas**
 (`docs/issues/2026-06-08-validator-handler-decoupling.md`, tracked with the rest of the
-schema-driven UI work in [#153](https://github.com/panzacoder/zodvex/issues/153)): once
-models, exported codecs and exported args schemas are imported at full fidelity, discovery
-has much less to execute, and the remaining dynamic-import surface is small enough to keep.
+schema-driven UI work in [#153](https://github.com/panzacoder/zodvex/issues/153)). That
+direction preserves schema fidelity and avoids inferring codec identity for decoupled
+functions. It does not reduce discovery execution: `discoverModules()` still dynamically
+imports every eligible file and reads function metadata from live exports, executing handler
+modules and their dependencies even when schemas live in separate client-safe modules.
+Reducing that execution surface would require a separate discovery change.
 
 ## Context
 
@@ -159,8 +162,9 @@ The pre-RFC note proposed a smaller step that the RFC's rewrite dropped:
 - Fall back to full dynamic import for files that static analysis can't resolve
 
 This keeps live-object codec resolution intact (so the runtime constraint above is a
-non-issue) while shrinking the set of files that must execute — the same effect
-reference-by-import achieves without a parser.
+non-issue) while narrowing the files directly imported by discovery. Their transitive
+dependencies still execute. Reference-by-import addresses schema fidelity and codec
+identity separately; it does not provide this candidate filtering.
 
 ## Related
 - `docs/plans/2026-02-25-codegen-runtime-vs-ast.md` — earlier analysis of runtime vs AST approaches. Pruned from `main`; readable with `git show cd567cf:docs/plans/2026-02-25-codegen-runtime-vs-ast.md`.

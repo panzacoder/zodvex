@@ -98,8 +98,10 @@ libraries that also want to wrap `ctx` or `ctx.db`.
   being pursued. The direction is reference-by-import for client-visible schemas (the
   decouple-validators item above; detail in
   [`issues/2026-06-08-validator-handler-decoupling.md`](./issues/2026-06-08-validator-handler-decoupling.md)),
-  which shrinks what discovery has to execute rather than replacing execution with AST
-  analysis.
+  which preserves schema fidelity and avoids inferring codec identity for decoupled
+  functions. Discovery still dynamically imports every eligible file, including handler
+  modules and their dependencies; reducing that execution surface requires a separate
+  discovery change.
 
 ## Schema conveniences
 
