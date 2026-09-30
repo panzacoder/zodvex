@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Matt Pocock's skills are available in `.claude/skills` (linked to `.agents/skills`). See [AGENTS.md](AGENTS.md) for shared skill guidance and the [skill catalog](.agents/skills/README.md) for the complete collection.
+
 ## Project Overview
 
 **zodvex lets you use Zod v4 as your schema language for Convex.** You define your tables, function arguments, and return types once as Zod schemas and use them end to end — database to frontend. On top of that foundation: declared function schemas run Zod parsing/encoding automatically, `ctx.db` is codec-aware (`Date`/typed-id/custom encode-decode at the database boundary, with `.withRules()` and `.audit()` on the same wrapped db), and an optional codegen CLI shares client-safe schemas and inferred query validators.
