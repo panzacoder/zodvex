@@ -18,9 +18,8 @@ import {
 } from '../../internal/zod-core'
 import { zx } from '../../internal/zx'
 import { isZxDateCodec } from '../../internal/zxDateBrand'
-import { registerDiscoveryHooks, writeGeneratedStubs } from './discovery-hooks'
+import { withDiscoveryEnvironment } from './discoveryEnvironment'
 import { findCodec } from './extractCodec'
-import { loadTsconfigAliases } from './tsconfigPaths'
 
 export type DiscoveredModel = {
   exportName: string
@@ -282,36 +281,27 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
   const functions: DiscoveredFunction[] = []
   const codecs: DiscoveredCodec[] = []
 
-  // Stub _generated/api so module-scope code that accesses Convex components
-  // (e.g. `new LocalDTA(components.localDTA)`) receives a harmless Proxy
-  // instead of throwing outside the Convex runtime. _generated/server is NOT
-  // stubbed — it re-exports generic builders from convex/server which work natively.
-  // The hook also replays tsconfig path aliases (e.g. '@/convex/...') that
-  // Bun resolves natively but Node's ESM loader does not (#99).
-  registerDiscoveryHooks(loadTsconfigAliases(convexDir))
-  const cleanupStubs = writeGeneratedStubs(convexDir)
+  return withDiscoveryEnvironment(convexDir, async () => {
+    const files = globSync(['**/*.{ts,js}'], {
+      cwd: convexDir,
+      onlyFiles: true,
+      ignore: [
+        '_generated/**',
+        '_zodvex/**',
+        'node_modules/**',
+        '**/*.d.ts',
+        '**/*.test.ts',
+        '**/*.test.js',
+        '**/*.spec.ts',
+        '**/*.spec.js',
+        'convex.config.ts',
+        'convex.config.js',
+        'crons.ts',
+        'crons.js'
+      ]
+    }).sort()
 
-  const files = globSync(['**/*.{ts,js}'], {
-    cwd: convexDir,
-    onlyFiles: true,
-    ignore: [
-      '_generated/**',
-      '_zodvex/**',
-      'node_modules/**',
-      '**/*.d.ts',
-      '**/*.test.ts',
-      '**/*.test.js',
-      '**/*.spec.ts',
-      '**/*.spec.js',
-      'convex.config.ts',
-      'convex.config.js',
-      'crons.ts',
-      'crons.js'
-    ]
-  }).sort()
-
-  const failedImports: Array<{ file: string; message: string }> = []
-  try {
+    const failedImports: Array<{ file: string; message: string }> = []
     for (const file of files) {
       const absPath = path.resolve(convexDir, file)
 
@@ -423,7 +413,5 @@ export async function discoverModules(convexDir: string): Promise<DiscoveryResul
     }
 
     return { models, functions, codecs, modelCodecs, functionCodecs }
-  } finally {
-    cleanupStubs()
-  }
+  })
 }

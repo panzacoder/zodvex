@@ -1,6 +1,4 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import type { AliasEntry } from './tsconfigPaths'
+import { type AliasEntry, matchAlias } from './tsconfigPaths'
 
 /**
  * JavaScript source for the ESM loader hook that intercepts `_generated/api`
@@ -22,24 +20,7 @@ const EXT_CANDIDATES = ['.ts', '.tsx', '.mts', '.js', '.mjs', '.jsx', '/index.ts
 // these natively; Node's ESM loader needs them replayed here.
 const ALIASES = ${JSON.stringify(aliases)};
 
-function aliasCandidates(specifier) {
-  const out = [];
-  for (const a of ALIASES) {
-    if (a.star) {
-      if (
-        specifier.length >= a.prefix.length + a.suffix.length &&
-        specifier.startsWith(a.prefix) &&
-        specifier.endsWith(a.suffix)
-      ) {
-        const captured = specifier.slice(a.prefix.length, specifier.length - a.suffix.length);
-        for (const t of a.targets) out.push(t.prefix + captured + t.suffix);
-      }
-    } else if (specifier === a.prefix) {
-      for (const t of a.targets) out.push(t.prefix);
-    }
-  }
-  return out;
-}
+const aliasCandidates = ${matchAlias.toString()};
 
 export async function resolve(specifier, context, nextResolve) {
   if (/_generated\\/api(\\.[mc]?[jt]sx?)?$/.test(specifier)) {
@@ -50,7 +31,7 @@ export async function resolve(specifier, context, nextResolve) {
   } catch (err) {
     // tsconfig path aliases (e.g. '@/convex/...'). Try each mapped absolute
     // path as-is, then with the usual extension/index candidates.
-    for (const base of aliasCandidates(specifier)) {
+    for (const base of aliasCandidates(specifier, ALIASES)) {
       for (const ext of ['', ...EXT_CANDIDATES]) {
         try {
           return await nextResolve(pathToFileURL(base + ext).href, context);
@@ -79,23 +60,7 @@ export function load(url, context, nextLoad) {
     return {
       shortCircuit: true,
       format: 'module',
-      source: [
-        'const handler = {',
-        '  get(_, prop) {',
-        '    if (typeof prop === "symbol") return undefined;',
-        '    if (prop === "__esModule") return true;',
-        '    return new Proxy(function(){}, handler);',
-        '  },',
-        '  apply() { return new Proxy({}, handler); },',
-        '  construct() { return new Proxy({}, handler); },',
-        '};',
-        'const p = new Proxy(function(){}, handler);',
-        'export default p;',
-        'export const api = p;',
-        'export const internal = p;',
-        'export const components = p;',
-        'export const httpRouter = p;',
-      ].join('\\n')
+      source: ${JSON.stringify(PROXY_STUB_API)}
     };
   }
   return nextLoad(url, context);
@@ -103,7 +68,8 @@ export function load(url, context, nextLoad) {
 `
 }
 
-let hooksRegistered = false
+const hooksKey = Symbol.for('zodvex.discovery.hooksRegistered')
+const hookState = globalThis as typeof globalThis & { [hooksKey]?: boolean }
 
 /**
  * Registers an ESM loader hook via `Module.register()` that intercepts imports
@@ -119,7 +85,7 @@ let hooksRegistered = false
 export function registerDiscoveryHooks(aliases: AliasEntry[] = []): boolean {
   // First registration wins — the CLI runs one project per process, and
   // Module.register hooks can't be replaced anyway.
-  if (hooksRegistered) return true
+  if (hookState[hooksKey]) return true
   try {
     // `require` doesn't exist in Node ESM, so a bare require() here silently
     // failed under `node dist/cli/index.js` and the hook never registered.
@@ -133,7 +99,7 @@ export function registerDiscoveryHooks(aliases: AliasEntry[] = []): boolean {
     const { register } = nodeModule
     if (typeof register !== 'function') return false
     register(`data:text/javascript,${encodeURIComponent(buildHooksSource(aliases))}`)
-    hooksRegistered = true
+    hookState[hooksKey] = true
     return true
   } catch {
     return false
@@ -148,7 +114,7 @@ export function registerDiscoveryHooks(aliases: AliasEntry[] = []): boolean {
  * and constructor calls. This lets module-scope code like
  * `new LocalDTA(components.localDTA)` succeed silently during discovery.
  */
-const PROXY_STUB_API = `// zodvex discovery stub — replaced after discovery completes
+export const PROXY_STUB_API = `// zodvex discovery stub — replaced after discovery completes
 const handler = {
   get(_, prop) {
     if (typeof prop === 'symbol') return undefined;
@@ -165,42 +131,3 @@ export const internal = p;
 export const components = p;
 export const httpRouter = p;
 `
-
-type StubCleanup = () => void
-
-/**
- * Writes a Proxy stub file to `_generated/api.ts` in the target convex
- * directory. This is a fallback for environments where `Module.register()`
- * is unavailable (Bun, vitest's vite-node, etc.).
- *
- * Only `_generated/api.ts` is stubbed — `_generated/server.ts` re-exports
- * generic builders from `convex/server` which work natively.
- *
- * Returns a cleanup function that restores the original file contents.
- */
-export function writeGeneratedStubs(convexDir: string): StubCleanup {
-  const generatedDir = path.join(convexDir, '_generated')
-  const apiPath = path.join(generatedDir, 'api.ts')
-
-  let original: string | null
-  try {
-    original = fs.readFileSync(apiPath, 'utf8')
-  } catch {
-    original = null
-  }
-
-  fs.mkdirSync(generatedDir, { recursive: true })
-  fs.writeFileSync(apiPath, PROXY_STUB_API)
-
-  return () => {
-    if (original !== null) {
-      fs.writeFileSync(apiPath, original)
-    } else {
-      try {
-        fs.unlinkSync(apiPath)
-      } catch {
-        // File may not exist — that's fine
-      }
-    }
-  }
-}

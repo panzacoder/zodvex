@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { generate } from '../src/public/cli/commands'
 
 /**
@@ -11,12 +11,11 @@ import { generate } from '../src/public/cli/commands'
  * import-failure error from #99 — the pre-existing files must be restored.
  */
 
-const tmpDirs: string[] = []
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'zodvex-generate-restore-'))
+const convexDir = path.join(root, 'convex')
 
 function makeConvexDir(files: Record<string, string>): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zodvex-generate-restore-'))
-  tmpDirs.push(dir)
-  const convexDir = path.join(dir, 'convex')
+  fs.mkdirSync(convexDir, { recursive: true })
   for (const [rel, content] of Object.entries(files)) {
     const abs = path.join(convexDir, rel)
     fs.mkdirSync(path.dirname(abs), { recursive: true })
@@ -25,10 +24,11 @@ function makeConvexDir(files: Record<string, string>): string {
   return convexDir
 }
 
-afterEach(() => {
-  for (const dir of tmpDirs.splice(0)) {
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
+beforeEach(() => {
+  fs.rmSync(convexDir, { recursive: true, force: true })
+})
+afterAll(() => {
+  fs.rmSync(root, { recursive: true, force: true })
 })
 
 const BROKEN_MODULE = `import { missing } from './does-not-exist'\nexport const value = missing\n`
@@ -36,7 +36,7 @@ const BROKEN_MODULE = `import { missing } from './does-not-exist'\nexport const 
 describe('generate() failure leaves _zodvex untouched (#104)', () => {
   it('restores the pre-existing api.js/api.d.ts when discovery fails', async () => {
     const convexDir = makeConvexDir({
-      'broken.ts': BROKEN_MODULE,
+      'broken-original.ts': BROKEN_MODULE,
       '_zodvex/api.js': '// checked-in registry — must survive a failed generate\n',
       '_zodvex/api.d.ts': '// checked-in declarations — must survive a failed generate\n'
     })
@@ -52,12 +52,14 @@ describe('generate() failure leaves _zodvex untouched (#104)', () => {
   })
 
   it('removes the bootstrap stubs when there was no prior registry', async () => {
-    const convexDir = makeConvexDir({ 'broken.ts': BROKEN_MODULE })
+    const convexDir = makeConvexDir({ 'broken-absent.ts': BROKEN_MODULE })
 
     await expect(generate(convexDir)).rejects.toThrow(/failed to import/)
 
     expect(fs.existsSync(path.join(convexDir, '_zodvex/api.js'))).toBe(false)
     expect(fs.existsSync(path.join(convexDir, '_zodvex/api.d.ts'))).toBe(false)
+    expect(fs.existsSync(path.join(convexDir, '_zodvex'))).toBe(false)
+    expect(fs.existsSync(path.join(convexDir, '_generated'))).toBe(false)
   })
 
   it('still generates normally when discovery succeeds', async () => {
