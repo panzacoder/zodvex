@@ -22,7 +22,8 @@
     "guard:mini-imports": "grep -Rn \"zodvex/core\" examples/task-manager-mini/convex examples/task-manager-mini/src; test $? -eq 1",
     "test:codemod": "bun run --cwd packages/zod-to-mini test -- --exclude src/perf.test.ts",
     "verify:generated": "git diff --exit-code -- examples/task-manager/convex/_zodvex examples/task-manager-mini/convex/_zodvex",
-    "validate:local": "bun run lint && bun run type-check && bun run build && bun run type-check:examples && bun run test && bun run test:codemod && bun run verify:consumer-declarations && bun run verify:examples && bun run verify:generated",
+    "verify:release": "bun scripts/check-release.ts",
+    "validate:local": "bun run verify:release && bun run lint && bun run type-check && bun run build && bun run type-check:examples && bun run test && bun run test:codemod && bun run verify:consumer-declarations && bun run verify:examples && bun run verify:generated",
     "validate:network": "bun run verify:examples:network"
   },
   "devDependencies": {}

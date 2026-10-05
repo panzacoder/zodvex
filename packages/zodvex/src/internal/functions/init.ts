@@ -52,8 +52,8 @@ export type ZodvexActionCtx<DM extends GenericDataModel> = GenericActionCtx<DM>
  * Empty codec context — used when the codec layer adds nothing to ctx (e.g. actions, wrapDb:false).
  *
  * MUST be {} not Record<string, never>. Record<string, never> has keyof = string (index signature),
- * causing Overwrite<Ctx, Record<string, never>> to strip all properties via Omit<Ctx, string>.
- * The {} type has keyof = never, so Overwrite passes through correctly.
+ * causing MergePatch<Ctx, Record<string, never>> to strip all properties via Omit<Ctx, string>.
+ * The {} type has keyof = never, so MergePatch passes through correctly.
  */
 // biome-ignore lint/complexity/noBannedTypes: {} is semantically correct here — see comment above
 type NoCodecCtx = {}

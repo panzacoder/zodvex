@@ -17,10 +17,14 @@ set -euo pipefail
 #     npm `latest` by accident.
 #   - A stable version (no -beta/-alpha/-rc suffix) always requires --stable.
 #
+# Main and the tag are pushed atomically; if either ref is rejected, neither moves.
+# The main workflow sees the existing tag and skips automatic prerelease publishing.
 # What happens after the push: the v<version> tag triggers
 # .github/workflows/release.yml, which tests, publishes to npm (dist-tag from
 # the suffix: -beta → beta, none → latest), and creates a GitHub Release for
-# stable versions. Environments that can't push tags have two equivalent
+# stable versions. Merging an untagged numeric alpha/beta/rc version into main
+# automatically publishes it, without this script. For stable releases or retries,
+# environments that can't push tags have two equivalent
 # fallbacks built into that workflow: the workflow_dispatch trigger (tag
 # input) and pushing a `release/v<version>` branch. All paths verify the tag
 # against packages/zodvex/package.json before publishing.
@@ -126,8 +130,9 @@ if git rev-parse "v$NEXT" &>/dev/null; then
 fi
 
 git tag "v$NEXT"
-git push origin main
-git push origin "v$NEXT"
+# Both refs must become visible together: the main workflow sees the tag and
+# skips, leaving only the tag workflow to publish. A rejected tag rejects main too.
+git push --atomic origin main "refs/tags/v$NEXT"
 
 echo ""
-echo "Released v$NEXT"
+echo "Triggered release of v$NEXT; check the Release workflow for publish status."
