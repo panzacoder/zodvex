@@ -7,11 +7,11 @@ import { join, resolve as resolvePath } from 'node:path'
 const releaseScript = resolvePath('bin/release-beta')
 // Execute the workflow's actual shell blocks so coverage cannot drift to a copy.
 type ReleaseWorkflow = {
-  on: { push: { branches: string[] }; pull_request?: unknown }
+  on: { push: { branches: string[]; tags: string[] }; pull_request?: unknown }
   jobs: Record<
     string,
     {
-      steps: { id?: string; run?: string }[]
+      steps: { id?: string; run?: string; uses?: string; with?: { 'fetch-depth'?: number } }[]
       if?: string
       needs?: string[]
     }
@@ -107,6 +107,10 @@ try {
     })
   )
   console.log('PASS: mismatched release version rejected')
+  const checkout = workflow.jobs.plan.steps.find(s => s.uses?.startsWith('actions/checkout@'))
+  assert.equal(checkout?.with?.['fetch-depth'], 0, 'release planning must fetch all tags')
+  assert.deepEqual(workflow.on.push.tags, ['v*'], 'version tag pushes must trigger releases')
+  console.log('PASS: planning fetches tags and version tag pushes trigger releases')
   assert.deepEqual(workflow.on.push.branches, ['main', 'release/v*'])
   assert.equal(workflow.on.pull_request, undefined)
   assert.equal(workflow.jobs.test.if, "needs.plan.outputs.publish == 'true'")
