@@ -8,7 +8,7 @@ import type {
   ZodvexRules,
   ZodvexRulesConfig
 } from '../src/internal/db'
-import { RulesQueryChain, ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
+import { ZodvexDatabaseReader, ZodvexDatabaseWriter } from '../src/internal/db'
 import type { ZodTableSchemas } from '../src/internal/schema'
 import { zx } from '../src/internal/zx'
 
@@ -34,7 +34,7 @@ const docSchema = z.object({
   role: z.string()
 })
 
-// Helper: creates a raw mock query (RulesQueryChain extends ZodvexQueryChain directly)
+// Mock only the native Convex query boundary.
 function createMockQuery(docs: any[]) {
   const mockQuery: any = {
     fullTableScan: () => mockQuery,
@@ -70,48 +70,55 @@ const wireDocs = [
   { _id: 'u:3', _creationTime: 300, name: 'Charlie', createdAt: 1700200000000, role: 'user' }
 ]
 
-describe('RulesQueryChain', () => {
+function ruleQuery(docs: any[], read: any, config: ZodvexRulesConfig) {
+  const rawDb = createMockDbReader({ users: docs })
+  return new ZodvexDatabaseReader(rawDb, { users: { ...userSchemas, doc: docSchema } })
+    .withRules({}, { users: { read } }, config)
+    .query('users' as any)
+}
+
+describe('public rule-bearing query terminals', () => {
   const allowAll = async (_ctx: any, doc: any) => doc
   const denyAll = async (_ctx: any, _doc: any) => null
   const adminsOnly = async (_ctx: any, doc: any) => (doc.role === 'admin' ? doc : null)
 
   it('collect() returns all docs when rule allows all', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {})
+    const chain = ruleQuery(wireDocs, allowAll, {})
     const results = await chain.collect()
     expect(results).toHaveLength(3)
     expect(results[0].createdAt).toBeInstanceOf(Date)
   })
 
   it('collect() filters docs through read rule', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
+    const chain = ruleQuery(wireDocs, adminsOnly, {})
     const results = await chain.collect()
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('Alice')
   })
 
   it('collect() returns empty array when rule denies all', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, denyAll, {})
+    const chain = ruleQuery(wireDocs, denyAll, {})
     const results = await chain.collect()
     expect(results).toHaveLength(0)
   })
 
   it('first() returns first allowed doc, skipping denied', async () => {
     const usersOnly = async (_ctx: any, doc: any) => (doc.role === 'user' ? doc : null)
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, usersOnly, {})
+    const chain = ruleQuery(wireDocs, usersOnly, {})
     const result = await chain.first()
     expect(result).not.toBeNull()
     expect(result?.name).toBe('Bob')
   })
 
   it('first() returns null when no docs pass the rule', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, denyAll, {})
+    const chain = ruleQuery(wireDocs, denyAll, {})
     const result = await chain.first()
     expect(result).toBeNull()
   })
 
   it('take(n) collects n allowed docs, skipping denied', async () => {
     const usersOnly = async (_ctx: any, doc: any) => (doc.role === 'user' ? doc : null)
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, usersOnly, {})
+    const chain = ruleQuery(wireDocs, usersOnly, {})
     const results = await chain.take(1)
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('Bob')
@@ -119,7 +126,7 @@ describe('RulesQueryChain', () => {
 
   it('unique() applies rule and returns doc if allowed', async () => {
     const singleDoc = [wireDocs[0]]
-    const chain = new RulesQueryChain(createMockQuery(singleDoc), docSchema, allowAll, {})
+    const chain = ruleQuery(singleDoc, allowAll, {})
     const result = await chain.unique()
     expect(result).not.toBeNull()
     expect(result?.name).toBe('Alice')
@@ -127,13 +134,13 @@ describe('RulesQueryChain', () => {
 
   it('unique() returns null when rule denies', async () => {
     const singleDoc = [wireDocs[0]]
-    const chain = new RulesQueryChain(createMockQuery(singleDoc), docSchema, denyAll, {})
+    const chain = ruleQuery(singleDoc, denyAll, {})
     const result = await chain.unique()
     expect(result).toBeNull()
   })
 
   it('paginate() post-filters the page (page may shrink)', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
+    const chain = ruleQuery(wireDocs, adminsOnly, {})
     const result = await chain.paginate({ numItems: 10, cursor: null })
     expect(result.page).toHaveLength(1)
     expect(result.page[0].name).toBe('Alice')
@@ -141,14 +148,14 @@ describe('RulesQueryChain', () => {
   })
 
   it('count() throws when allowCounting is false', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {
+    const chain = ruleQuery(wireDocs, allowAll, {
       allowCounting: false
     })
     await expect(chain.count()).rejects.toThrow('count is not allowed with rules')
   })
 
   it('count() delegates when allowCounting is true', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, allowAll, {
+    const chain = ruleQuery(wireDocs, allowAll, {
       allowCounting: true
     })
     const count = await chain.count()
@@ -157,14 +164,14 @@ describe('RulesQueryChain', () => {
 
   it('read rule can transform documents', async () => {
     const transform = async (_ctx: any, doc: any) => ({ ...doc, name: doc.name.toUpperCase() })
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, transform, {})
+    const chain = ruleQuery(wireDocs, transform, {})
     const results = await chain.collect()
     expect(results[0].name).toBe('ALICE')
   })
 
   it('read rule boolean shorthand: true passes doc through unchanged', async () => {
     const allowBoolean = async (_ctx: any, _doc: any) => true
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, allowBoolean, {})
+    const chain = ruleQuery(wireDocs, allowBoolean, {})
     const results = await chain.collect()
     expect(results).toHaveLength(3)
     expect(results[0].createdAt).toBeInstanceOf(Date)
@@ -172,13 +179,13 @@ describe('RulesQueryChain', () => {
 
   it('read rule boolean shorthand: false denies', async () => {
     const denyBoolean = async (_ctx: any, _doc: any) => false
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, denyBoolean, {})
+    const chain = ruleQuery(wireDocs, denyBoolean, {})
     const results = await chain.collect()
     expect(results).toHaveLength(0)
   })
 
   it('async iteration filters through rule', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
+    const chain = ruleQuery(wireDocs, adminsOnly, {})
     const results: any[] = []
     for await (const doc of chain) {
       results.push(doc)
@@ -188,7 +195,7 @@ describe('RulesQueryChain', () => {
   })
 
   it('intermediate methods delegate and re-wrap', async () => {
-    const chain = new RulesQueryChain(createMockQuery(wireDocs), docSchema, adminsOnly, {})
+    const chain = ruleQuery(wireDocs, adminsOnly, {})
     const results = await chain
       .order('asc')
       .filter(() => true)
@@ -1044,5 +1051,284 @@ describe('edge cases', () => {
     const result = await auditedDb.query('users' as any).first()
     expect(result).toBeNull()
     expect(auditLog).toHaveLength(0)
+  })
+})
+
+describe('public read composition ordering', () => {
+  it('finishes each audit layer before the next for collect, but interleaves during iteration', async () => {
+    const events: string[] = []
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
+      .audit({
+        afterRead: async (_table, doc) => {
+          events.push(`A:${doc.name}`)
+        }
+      })
+      .audit({
+        afterRead: async (_table, doc) => {
+          events.push(`B:${doc.name}`)
+        }
+      })
+    await db.query('users' as any).collect()
+    expect(events).toEqual(['A:Alice', 'A:Bob', 'B:Alice', 'B:Bob'])
+    events.length = 0
+    for await (const _doc of db.query('users' as any)) {
+      /* consume */
+    }
+    expect(events).toEqual(['A:Alice', 'B:Alice', 'A:Bob', 'B:Bob'])
+  })
+
+  it.each([
+    'collect',
+    'take',
+    'paginate'
+  ] as const)('%s awaits complete audit layers in order', async terminal => {
+    const events: string[] = []
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
+      .audit({
+        afterRead: async (_table, doc) => {
+          await Promise.resolve()
+          events.push(`A:${doc.name}`)
+        }
+      })
+      .audit({
+        afterRead: async (_table, doc) => {
+          events.push(`B:${doc.name}`)
+        }
+      })
+    const query = db.query('users' as any)
+    if (terminal === 'paginate') await query.paginate({ numItems: 2, cursor: null })
+    else if (terminal === 'take') await query.take(2)
+    else await query.collect()
+    expect(events).toEqual(['A:Alice', 'A:Bob', 'B:Alice', 'B:Bob'])
+  })
+
+  it('rules outside audit stream collect, but process paginate as a complete page', async () => {
+    const events: string[] = []
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
+      .audit({
+        afterRead: (_table, doc) => {
+          events.push(`A:${doc.name}`)
+        }
+      })
+      .withRules(
+        {},
+        {
+          users: {
+            read: (_ctx: any, doc: any) => {
+              events.push(`R:${doc.name}`)
+              return true
+            }
+          }
+        }
+      )
+    await db.query('users' as any).collect()
+    expect(events).toEqual(['A:Alice', 'R:Alice', 'A:Bob', 'R:Bob'])
+    events.length = 0
+    await db.query('users' as any).paginate({ numItems: 2, cursor: null })
+    expect(events).toEqual(['A:Alice', 'A:Bob', 'R:Alice', 'R:Bob'])
+  })
+
+  it('audit outside rules waits for every rule in collect', async () => {
+    const events: string[] = []
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
+      .withRules(
+        {},
+        {
+          users: {
+            read: (_ctx: any, doc: any) => {
+              events.push(`R:${doc.name}`)
+              return true
+            }
+          }
+        }
+      )
+      .audit({
+        afterRead: (_table, doc) => {
+          events.push(`A:${doc.name}`)
+        }
+      })
+    await db.query('users' as any).collect()
+    expect(events).toEqual(['R:Alice', 'R:Bob', 'A:Alice', 'A:Bob'])
+  })
+
+  it.each([
+    'collect',
+    'paginate'
+  ] as const)('%s performs no outer callbacks when a later decode fails', async terminal => {
+    const events: string[] = []
+    const rawDb = createMockDbReader({
+      users: [tableData.users[0], { ...tableData.users[1], createdAt: 'invalid' }]
+    })
+    const db = new ZodvexDatabaseReader(rawDb, tableMap).audit({
+      afterRead: (_table, doc) => {
+        events.push(doc.name)
+      }
+    })
+    const query = db.query('users' as any)
+    const result =
+      terminal === 'collect' ? query.collect() : query.paginate({ numItems: 2, cursor: null })
+    await expect(result).rejects.toThrow()
+    expect(events).toEqual([])
+  })
+
+  it('a later inner audit failure prevents all outer audit effects in collect', async () => {
+    const events: string[] = []
+    const failure = new Error('second document audit failed')
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
+      .audit({
+        afterRead: (_table, doc) => {
+          events.push(`A:${doc.name}`)
+          if (doc.name === 'Bob') throw failure
+        }
+      })
+      .audit({
+        afterRead: (_table, doc) => {
+          events.push(`B:${doc.name}`)
+        }
+      })
+    await expect(db.query('users' as any).collect()).rejects.toBe(failure)
+    expect(events).toEqual(['A:Alice', 'A:Bob'])
+  })
+
+  it('native uniqueness errors precede rules and audit', async () => {
+    const events: string[] = []
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
+      .withRules(
+        {},
+        {
+          users: {
+            read: () => {
+              events.push('rule')
+              return false
+            }
+          }
+        }
+      )
+      .audit({
+        afterRead: () => {
+          events.push('audit')
+        }
+      })
+    await expect(db.query('users' as any).unique()).rejects.toThrow('not unique')
+    expect(events).toEqual([])
+  })
+
+  it('count honors inner restrictions without executing read callbacks', async () => {
+    const events: string[] = []
+    const rules = {
+      users: {
+        read: () => {
+          events.push('rule')
+          return true
+        }
+      }
+    }
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
+      .withRules({}, rules, { allowCounting: false })
+      .audit({
+        afterRead: () => {
+          events.push('audit')
+        }
+      })
+      .withRules({}, rules, { allowCounting: true })
+    await expect(db.query('users' as any).count()).rejects.toThrow(
+      'count is not allowed with rules'
+    )
+    expect(events).toEqual([])
+  })
+
+  it('pagination shrinks the page and preserves all native metadata through nested layers', async () => {
+    const rawDb = createMockDbReader(tableData)
+    const query = createMockQuery(tableData.users)
+    query.paginate = async () => ({
+      page: tableData.users,
+      isDone: false,
+      continueCursor: 'next',
+      splitCursor: 'split',
+      pageStatus: 'SplitRecommended'
+    })
+    rawDb.query = () => query
+    const observed: string[] = []
+    const db = new ZodvexDatabaseReader(rawDb, tableMap)
+      .withRules({}, { users: { read: (_ctx: any, doc: any) => doc.role === 'admin' } })
+      .audit({
+        afterRead: (_table, doc) => {
+          observed.push(doc.name)
+        }
+      })
+    const result = await db.query('users' as any).paginate({ numItems: 2, cursor: null })
+    expect(result).toMatchObject({
+      isDone: false,
+      continueCursor: 'next',
+      splitCursor: 'split',
+      pageStatus: 'SplitRecommended'
+    })
+    expect(result.page.map((doc: any) => doc.name)).toEqual(['Alice'])
+    expect(observed).toEqual(['Alice'])
+  })
+
+  it.each([
+    'get',
+    'collect'
+  ] as const)('%s decodes once and does not reparse rule-transformed documents', async terminal => {
+    let parses = 0
+    const schema = userDocSchema.transform(doc => {
+      parses++
+      return doc
+    })
+    const observed: unknown[] = []
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), {
+      users: { ...userSchemas, doc: schema }
+    })
+      .withRules(
+        {},
+        { users: { read: (_ctx: any, doc: any) => ({ ...doc, createdAt: 'redacted' }) } }
+      )
+      .audit({
+        afterRead: (_table, doc) => {
+          observed.push(doc.createdAt)
+        }
+      })
+    if (terminal === 'get') await db.get('users', 'users:1' as any)
+    else await db.query('users' as any).collect()
+    expect(parses).toBe(terminal === 'get' ? 1 : 2)
+    expect(observed).toEqual(terminal === 'get' ? ['redacted'] : ['redacted', 'redacted'])
+  })
+
+  it('get keeps wrapper order and stops outer callbacks after a denied document', async () => {
+    const events: string[] = []
+    const db = new ZodvexDatabaseReader(createMockDbReader(tableData), tableMap)
+      .audit({
+        afterRead: (table, doc) => {
+          events.push(`inner:${table}:${doc.name}`)
+        }
+      })
+      .withRules({}, { users: { read: () => false } })
+      .audit({
+        afterRead: () => {
+          events.push('outer')
+        }
+      })
+    expect(await db.get('users:1' as any)).toBeNull()
+    expect(events).toEqual(['inner:users:Alice'])
+  })
+
+  it('unmodeled queries retain native identity', async () => {
+    const rawDb = createMockDbReader(tableData)
+    const query = createMockQuery(tableData.users)
+    rawDb.query = () => query
+    const db = new ZodvexDatabaseReader(rawDb, {})
+    expect(db.query('users' as any)).toBe(query)
+  })
+
+  it('unmodeled audited batches snapshot native arrays before invoking callbacks', async () => {
+    const docs = [...tableData.users]
+    const db = new ZodvexDatabaseReader(createMockDbReader({ users: docs }), {}).audit({
+      afterRead: (_table, doc) => {
+        if (doc.name === 'Alice') docs.push({ ...tableData.users[0], name: 'Late' })
+      }
+    })
+    const result = await db.query('users' as any).collect()
+    expect(result.map((doc: any) => doc.name)).toEqual(['Alice', 'Bob'])
   })
 })

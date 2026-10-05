@@ -24,7 +24,11 @@ import type {
 } from 'convex/server'
 import type { GenericId, NumericValue } from 'convex/values'
 import { z } from 'zod'
-import { decodeDoc, encodeDoc, encodePartialDoc } from './codec'
+import { encodeDoc, encodePartialDoc } from './codec'
+import { decorateReadQuery, processRead, type ReadLayer } from './readQuery'
+
+export { normalizeReadResult } from './readQuery'
+
 import type { ZodTableMap } from './schema'
 import { $ZodObject, $ZodType, $ZodUnion, encode } from './zod-core'
 
@@ -296,9 +300,8 @@ export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = Document
     return new ZodvexQueryChain(inner, this.schema)
   }
 
-  /** Decode a wire-format doc and cast to the decoded document type. */
-  private decode(doc: any): Doc {
-    return decodeDoc(this.schema, doc) as Doc
+  private get execution() {
+    return decorateReadQuery<Doc>(this.inner, { kind: 'decode', schema: this.schema })
   }
 
   // --- Intermediate methods: wire-typed TableInfo for Convex machinery ---
@@ -355,42 +358,23 @@ export class ZodvexQueryChain<TableInfo extends GenericTableInfo, Doc = Document
     return this.inner.count()
   }
 
-  // --- Terminal methods: return decoded Doc type ---
-
-  async first(): Promise<Doc | null> {
-    const doc = await this.inner.first()
-    return doc ? this.decode(doc) : null
+  first(): Promise<Doc | null> {
+    return this.execution.first()
   }
-
-  async unique(): Promise<Doc | null> {
-    const doc = await this.inner.unique()
-    return doc ? this.decode(doc) : null
+  unique(): Promise<Doc | null> {
+    return this.execution.unique()
   }
-
-  async collect(): Promise<Doc[]> {
-    const docs = await this.inner.collect()
-    return docs.map((doc: any) => this.decode(doc))
+  collect(): Promise<Doc[]> {
+    return this.execution.collect()
   }
-
-  async take(n: number): Promise<Doc[]> {
-    const docs = await this.inner.take(n)
-    return docs.map((doc: any) => this.decode(doc))
+  take(n: number): Promise<Doc[]> {
+    return this.execution.take(n)
   }
-
-  async paginate(paginationOpts: PaginationOptions): Promise<PaginationResult<Doc>> {
-    const result = await this.inner.paginate(paginationOpts)
-    return {
-      ...result,
-      page: result.page.map((doc: any) => this.decode(doc))
-    }
+  paginate(opts: PaginationOptions): Promise<PaginationResult<Doc>> {
+    return this.execution.paginate(opts)
   }
-
-  // --- AsyncIterable: decode each yielded document ---
-
-  async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
-    for await (const doc of this.inner) {
-      yield this.decode(doc)
-    }
+  [Symbol.asyncIterator](): AsyncIterator<Doc> {
+    return this.execution[Symbol.asyncIterator]()
   }
 }
 
@@ -546,7 +530,7 @@ export class ZodvexDatabaseReader<
     if (!doc) return null
 
     const schemas = tableName ? this.tableMap[tableName] : undefined
-    return schemas ? decodeDoc(schemas.doc, doc) : doc
+    return schemas ? processRead({ kind: 'decode', schema: schemas.doc }, doc) : doc
   }
 
   query<TableName extends TableNamesInDataModel<DataModel>>(
@@ -914,108 +898,6 @@ export type WriterAuditConfig<
   ) => void | Promise<void>
 }
 
-/**
- * Normalize a read rule result: true -> doc (pass-through), false/null -> null (deny), Doc -> Doc (transform).
- */
-export function normalizeReadResult<Doc>(
-  result: Doc | null | boolean,
-  originalDoc: Doc
-): Doc | null {
-  if (result === true) return originalDoc
-  if (result === false) return null
-  return result
-}
-
-/**
- * Extends ZodvexQueryChain, applying a read rule at every terminal method.
- * Intermediate methods are inherited from the base class via createChain().
- * Only terminals and createChain() are overridden.
- */
-export class RulesQueryChain<TableInfo extends GenericTableInfo, Doc> extends ZodvexQueryChain<
-  TableInfo,
-  Doc
-> {
-  private readRule: ReadRule<any, Doc>
-  private rulesConfig: ZodvexRulesConfig
-  private ctx: any
-
-  constructor(
-    inner: any,
-    schema: any,
-    readRule: ReadRule<any, Doc>,
-    config: ZodvexRulesConfig,
-    ctx: any = {}
-  ) {
-    super(inner, schema)
-    this.readRule = readRule
-    this.rulesConfig = config
-    this.ctx = ctx
-  }
-
-  protected createChain(inner: any): RulesQueryChain<TableInfo, Doc> {
-    return new RulesQueryChain(inner, this.schema, this.readRule, this.rulesConfig, this.ctx)
-  }
-
-  async first(): Promise<Doc | null> {
-    for await (const doc of this as any) {
-      return doc
-    }
-    return null
-  }
-
-  async unique(): Promise<Doc | null> {
-    const doc = await super.unique()
-    if (doc === null) return null
-    return normalizeReadResult(await this.readRule(this.ctx, doc), doc)
-  }
-
-  async collect(): Promise<Doc[]> {
-    const results: Doc[] = []
-    for await (const doc of this as any) {
-      results.push(doc)
-    }
-    return results
-  }
-
-  async take(n: number): Promise<Doc[]> {
-    if (!Number.isInteger(n) || n < 0) {
-      throw new Error('take requires a non-negative integer')
-    }
-    const results: Doc[] = []
-    if (n === 0) return results
-    for await (const doc of this as any) {
-      results.push(doc)
-      if (results.length >= n) break
-    }
-    return results
-  }
-
-  async paginate(opts: PaginationOptions): Promise<PaginationResult<Doc>> {
-    const result = await super.paginate(opts)
-    const filtered: Doc[] = []
-    for (const doc of result.page) {
-      const allowed = normalizeReadResult(await this.readRule(this.ctx, doc), doc)
-      if (allowed !== null) filtered.push(allowed)
-    }
-    return { ...result, page: filtered }
-  }
-
-  async count(): Promise<number> {
-    if (!this.rulesConfig.allowCounting) {
-      throw new Error('count is not allowed with rules')
-    }
-    return super.count()
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
-    // The base method is an async generator; its public type exposes only AsyncIterator.
-    for await (const value of super[Symbol.asyncIterator]() as AsyncIterableIterator<Doc>) {
-      const result = normalizeReadResult(await this.readRule(this.ctx, value), value)
-      if (result !== null) yield result
-    }
-  }
-}
-
 function resolveRulesTableName<
   DataModel extends GenericDataModel,
   DecodedDocs extends Record<string, any>
@@ -1079,19 +961,25 @@ class RulesDatabaseReader<
     }
 
     const innerChain = this.inner.query(tableName)
-    const readRule = tableRules?.read ?? (async () => null)
-    const passthroughSchema = z.any()
-    return new RulesQueryChain(innerChain, passthroughSchema, readRule, this.rulesConfig, this.ctx)
+    return decorateReadQuery(innerChain, this.readLayer(tableName as string))
   }
 
-  private async applyReadRule(tableName: string, doc: any): Promise<any> {
-    const tableRules = this.rules[tableName]
-    if (!tableRules?.read) {
-      if ((this.rulesConfig.defaultPolicy ?? 'allow') === 'deny') return null
-      return doc
+  private readLayer(tableName: string): ReadLayer {
+    const rule = this.rules[tableName]?.read
+    return {
+      kind: 'rules',
+      allowCounting: this.rulesConfig.allowCounting,
+      read: doc =>
+        rule
+          ? rule(this.ctx, doc)
+          : (this.rulesConfig.defaultPolicy ?? 'allow') === 'deny'
+            ? null
+            : doc
     }
-    const result = await tableRules.read(this.ctx, doc)
-    return normalizeReadResult(result, doc)
+  }
+
+  private applyReadRule(tableName: string, doc: any): Promise<any> {
+    return processRead(this.readLayer(tableName), doc)
   }
 }
 
@@ -1256,77 +1144,6 @@ class RulesDatabaseWriter<
 // ==========================================================================
 
 /**
- * Extends ZodvexQueryChain to fire an afterRead callback for each document
- * returned by terminal methods.
- */
-class AuditQueryChain<TableInfo extends GenericTableInfo, Doc> extends ZodvexQueryChain<
-  TableInfo,
-  Doc
-> {
-  private afterRead: (table: string, doc: any) => void | Promise<void>
-  private tableName: string
-
-  constructor(
-    inner: any,
-    schema: any,
-    afterRead: (table: string, doc: any) => void | Promise<void>,
-    tableName: string
-  ) {
-    super(inner, schema)
-    this.afterRead = afterRead
-    this.tableName = tableName
-  }
-
-  protected createChain(inner: any): AuditQueryChain<TableInfo, Doc> {
-    return new AuditQueryChain(inner, this.schema, this.afterRead, this.tableName)
-  }
-
-  async first(): Promise<Doc | null> {
-    const doc = await super.first()
-    if (doc !== null) await this.afterRead(this.tableName, doc)
-    return doc
-  }
-
-  async unique(): Promise<Doc | null> {
-    const doc = await super.unique()
-    if (doc !== null) await this.afterRead(this.tableName, doc)
-    return doc
-  }
-
-  async collect(): Promise<Doc[]> {
-    const docs = await super.collect()
-    for (const doc of docs) {
-      await this.afterRead(this.tableName, doc)
-    }
-    return docs
-  }
-
-  async take(n: number): Promise<Doc[]> {
-    const docs = await super.take(n)
-    for (const doc of docs) {
-      await this.afterRead(this.tableName, doc)
-    }
-    return docs
-  }
-
-  async paginate(opts: PaginationOptions): Promise<PaginationResult<Doc>> {
-    const result = await super.paginate(opts)
-    for (const doc of result.page) {
-      await this.afterRead(this.tableName, doc)
-    }
-    return result
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<Doc> {
-    // The base method is an async generator; its public type exposes only AsyncIterator.
-    for await (const value of super[Symbol.asyncIterator]() as AsyncIterableIterator<Doc>) {
-      await this.afterRead(this.tableName, value)
-      yield value
-    }
-  }
-}
-
-/**
  * Wraps a ZodvexDatabaseReader with afterRead audit callbacks.
  */
 class AuditDatabaseReader<
@@ -1356,7 +1173,7 @@ class AuditDatabaseReader<
         maybeId !== undefined ? idOrTable : undefined
       )
       if (tableName) {
-        await this.afterRead(tableName, doc)
+        await processRead(this.readLayer(tableName), doc)
       }
     }
     return doc
@@ -1364,8 +1181,11 @@ class AuditDatabaseReader<
 
   query<TableName extends TableNamesInDataModel<DataModel>>(tableName: TableName): any {
     const innerChain = this.inner.query(tableName)
-    const passthroughSchema = z.any()
-    return new AuditQueryChain(innerChain, passthroughSchema, this.afterRead, tableName as string)
+    return decorateReadQuery(innerChain, this.readLayer(tableName as string))
+  }
+
+  private readLayer(tableName: string): ReadLayer {
+    return { kind: 'audit', afterRead: doc => this.afterRead(tableName, doc) }
   }
 
   private resolveTableFromId(id: any, explicitTable?: string): string | null {

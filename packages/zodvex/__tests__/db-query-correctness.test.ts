@@ -1,12 +1,42 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import * as mini from 'zod/mini'
-import { RulesQueryChain, ZodvexQueryChain } from '../src/internal/db'
+import { ZodvexDatabaseReader, ZodvexQueryChain } from '../src/internal/db'
 
 const variants = [
   ['full', z.object({ score: z.number(), enabled: z.boolean() })],
   ['mini', mini.object({ score: mini.number(), enabled: mini.boolean() })]
 ] as const
+
+it('preserves consumer subclass hooks and terminal overrides through decoration', async () => {
+  const events: string[] = []
+  const schema = z.object({ score: z.number() })
+  const native = { order: () => native, unique: async () => ({ score: 1 }) }
+  class ConsumerQuery extends ZodvexQueryChain<any, { score: number }> {
+    protected createChain(inner: any) {
+      events.push('createChain')
+      return new ConsumerQuery(inner, this.schema)
+    }
+    async unique() {
+      const doc = await super.unique()
+      return doc ? { score: doc.score + 1 } : null
+    }
+  }
+  class ConsumerReader extends ZodvexDatabaseReader<any> {
+    query(): any {
+      return new ConsumerQuery(native, schema)
+    }
+  }
+  const db = new ConsumerReader({ system: {} } as any, {})
+    .withRules({}, { users: { read: (_ctx: any, doc: any) => ({ score: doc.score + 10 }) } })
+    .audit({
+      afterRead: (_table, doc) => {
+        events.push(`audit:${doc.score}`)
+      }
+    })
+  expect(await db.query('users').order('desc').unique()).toEqual({ score: 12 })
+  expect(events).toEqual(['createChain', 'audit:12'])
+})
 
 it('encodes codec values with serialize methods while preserving external native expressions', async () => {
   const { filterBuilderImpl: raw } = await import(
@@ -106,7 +136,10 @@ describe.each(variants)('query correctness (%s)', (_name, schema) => {
         }
       }
     }
-    const chain = new RulesQueryChain(inner, schema, readRule, {})
+    const rawDb: any = { query: () => inner, system: {} }
+    const chain = new ZodvexDatabaseReader(rawDb, {})
+      .withRules({}, { users: { read: readRule } })
+      .query('users' as any)
     return { chain, scanned, closed, readRule }
   }
 
