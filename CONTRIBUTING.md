@@ -161,11 +161,23 @@ We use **vitest** (`packages/zodvex/__tests__/`), including type-level assertion
 
 ## Releases (maintainers)
 
-Beta releases: `bin/release-beta` (auto-increments the prerelease number, builds, tests,
-tags, pushes). A tag push triggers `.github/workflows/release.yml` → `npm publish --tag beta`.
-Stable releases are currently cut manually. Run `bun run validate` locally before trialing a
-release downstream; CI uses the same local gate. Run `bun run validate:network` separately
-when checking deployment behavior against configured example deployments.
+Merging an untagged numeric `alpha`, `beta`, or `rc` version into `main` starts
+`.github/workflows/release.yml`, which validates and publishes with the matching npm
+dist-tag. Already-tagged versions and stable versions skip this automatic path.
+
+`bin/release-beta` validates, bumps, commits, then pushes `main` and the version tag
+**atomically**. The main workflow sees the tag and skips; the tag workflow publishes.
+If the remote rejects either ref (including credentials that cannot push tags),
+neither ref moves. For stable releases, use `bin/release-beta <version> --stable`.
+For tag-less prereleases, merge a version bump PR. For stable tag-less releases or
+retries, use `workflow_dispatch` with the version tag on the intended commit, or
+push `release/v<version>`. Do not also trigger a release branch after an automatic
+prerelease merge. Check the Release workflow for publishing success.
+
+`bun run verify:release` covers release planning and atomic pushes against a local
+bare remote; it is included in `bun run validate:local` and CI. Run
+`bun run validate:network` separately when checking deployment behavior against
+configured example deployments.
 
 ## Questions?
 

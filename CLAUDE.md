@@ -55,13 +55,13 @@ All commands can be run from the repo root — they delegate to `packages/zodvex
 
 ### Releasing
 
-All releases go through `bin/release-beta` locally (runs the full check pipeline, bumps, commits, tags, pushes) and `.github/workflows/release.yml` in CI (tests, npm publish with the dist-tag derived from the version suffix, GitHub Release for stables). The script refuses to run off a clean, synced `main`.
+Merging an untagged numeric alpha/beta/rc version into `main` triggers `.github/workflows/release.yml` (validation, npm publish with the matching dist-tag). Already-tagged and stable versions skip automatic publication. `bin/release-beta` is the explicit local path: it validates, bumps, commits, and pushes main plus the tag atomically. Main then sees the tag and skips; the tag workflow publishes. The script requires a clean, synced `main`. If either ref is rejected, neither moves.
 
 - `bin/release-beta` — prerelease only: retries the current version if unpublished, else bumps the beta number. **Errors if the current version is stable** (an auto-increment would silently produce a stable publish to `latest`).
 - `bin/release-beta 0.8.0-beta.0` — explicit prerelease → npm `--tag beta`, no GitHub Release
 - `bin/release-beta 0.8.0 --stable` — explicit stable → npm `latest` + a GitHub Release (body from `docs/releases/v<version>.md` when present, auto-generated notes appended)
 
-**Tag-less environments** (e.g. remote sandboxes whose credential can push branches but not tags): after merging the version bump to main, push `release/v<version>` — `release.yml` verifies the version against `package.json`, creates the tag via `GITHUB_TOKEN`, publishes, and deletes the branch. `workflow_dispatch` with a `tag` input is equivalent. To add a GitHub Release entry for an already-published tag, push `gh-release/v<version>` (`.github/workflows/gh-release.yml`).
+**Tag-less environments**: merge a prerelease version bump PR to publish automatically; do not also push a release branch. For stable releases or retries, push `release/v<version>` at the intended commit — `release.yml` verifies the version against `package.json`, creates the tag via `GITHUB_TOKEN`, publishes, and deletes the branch. `workflow_dispatch` with a `tag` input is equivalent. To add a GitHub Release entry for an already-published tag, push `gh-release/v<version>` (`.github/workflows/gh-release.yml`).
 
 **PR titles** must follow conventional commit format (`feat:`, `fix:`, `chore:`, etc.) — enforced by `.github/workflows/pr-title.yml`
 

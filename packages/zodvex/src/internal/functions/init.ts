@@ -19,7 +19,7 @@ import type { ZodValidator } from '../mapping'
 import type { ZodTableMap } from '../schema'
 import type { AnyRegistry, ExtractCtx, Overwrite } from '../types'
 import type { $ZodObject } from '../zod-core'
-import { applyCustomizationResult } from './contracts'
+import { applyCustomizationResult, type MergePatch } from './contracts'
 import type { CustomBuilder } from './customFunctions'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './customFunctions'
 
@@ -52,8 +52,8 @@ export type ZodvexActionCtx<DM extends GenericDataModel> = GenericActionCtx<DM>
  * Empty codec context — used when the codec layer adds nothing to ctx (e.g. actions, wrapDb:false).
  *
  * MUST be {} not Record<string, never>. Record<string, never> has keyof = string (index signature),
- * causing Overwrite<Ctx, Record<string, never>> to strip all properties via Omit<Ctx, string>.
- * The {} type has keyof = never, so Overwrite passes through correctly.
+ * causing MergePatch<Ctx, Record<string, never>> to strip all properties via Omit<Ctx, string>.
+ * The {} type has keyof = never, so MergePatch passes through correctly.
  */
 // biome-ignore lint/complexity/noBannedTypes: {} is semantically correct here — see comment above
 type NoCodecCtx = {}
@@ -157,7 +157,7 @@ export type ZodvexBuilder<
     ExtraArgs extends Record<string, any> = Record<string, any>
   >(
     customization: ZodvexCustomization<
-      Overwrite<InputCtx, CodecCtx>,
+      MergePatch<InputCtx, CodecCtx>,
       ZArgs,
       CustomCtx,
       CustomMadeArgs,
@@ -166,7 +166,7 @@ export type ZodvexBuilder<
   ) => CustomBuilder<
     FuncType,
     ResolvedCustomArgs<ZArgs>,
-    Overwrite<CodecCtx, CustomCtx>,
+    MergePatch<CodecCtx, CustomCtx>,
     CustomMadeArgs,
     InputCtx,
     Visibility,
@@ -183,7 +183,7 @@ type AnyZodvexBuilder = ZodvexBuilder<any, any, any, any>
  */
 type InputCtxOf<B extends AnyZodvexBuilder> =
   B extends ZodvexBuilder<any, infer CodecCtx, infer InputCtx, any>
-    ? Overwrite<InputCtx, CodecCtx>
+    ? MergePatch<InputCtx, CodecCtx>
     : never
 
 /**
@@ -435,16 +435,16 @@ export function composeCustomizations<
   Extra extends Record<string, unknown> = Record<string, unknown>
 >(
   codecCust: InternalCustomization<Ctx, CodecCtx, Extra>,
-  userCust: ZodvexCustomization<Overwrite<Ctx, CodecCtx>, ZArgs, CustomCtx, MadeArgs, Extra>
+  userCust: ZodvexCustomization<MergePatch<Ctx, CodecCtx>, ZArgs, CustomCtx, MadeArgs, Extra>
 ) {
   return {
     args: userCust.args ?? {},
     input: async (ctx: Ctx, args: ResolvedCustomArgs<ZArgs>, extra?: Extra) => {
       // 1. Codec layer: wrap ctx.db
       const codecResult = await codecCust.input(ctx, {}, extra)
-      // The public builder contract models context patches with Overwrite.
+      // The public builder contract models context patches with MergePatch.
       // Generic object spread otherwise infers an incompatible intersection.
-      const codecCtx = { ...ctx, ...codecResult.ctx } as Overwrite<Ctx, CodecCtx>
+      const codecCtx = { ...ctx, ...codecResult.ctx } as MergePatch<Ctx, CodecCtx>
 
       // 2. User layer: sees codec-wrapped ctx.db
       if (!userCust.input) {
@@ -481,6 +481,8 @@ type FactoryFor<B extends (definition: never) => object> =
       ? typeof zCustomMutation
       : typeof zCustomAction
 
+// Keep the factory aligned with the public contract as conditional patch types
+// flow through initZodvex overloads. The implementation is checked against it.
 export function createZodvexBuilder<
   Builder extends (definition: never) => object,
   CodecCtx extends Record<string, unknown>
@@ -488,7 +490,16 @@ export function createZodvexBuilder<
   rawBuilder: Builder,
   codecCust: InternalCustomization<BuilderCtx<Builder>, CodecCtx>,
   customFn: FactoryFor<NoInfer<Builder>>
-) {
+): ZodvexBuilder<
+  ReturnType<Builder> extends { isQuery: true }
+    ? 'query'
+    : ReturnType<Builder> extends { isMutation: true }
+      ? 'mutation'
+      : 'action',
+  CodecCtx,
+  BuilderCtx<Builder>,
+  ReturnType<Builder> extends { isInternal: true } ? 'internal' : 'public'
+> {
   type Ctx = BuilderCtx<Builder>
   type Kind =
     ReturnType<Builder> extends { isQuery: true }
@@ -520,7 +531,7 @@ export function createZodvexBuilder<
     MadeArgs extends Record<string, unknown> = Record<string, never>,
     Extra extends Record<string, unknown> = Record<string, unknown>
   >(
-    userCust: ZodvexCustomization<Overwrite<Ctx, CodecCtx>, ZArgs, CustomCtx, MadeArgs, Extra>
+    userCust: ZodvexCustomization<MergePatch<Ctx, CodecCtx>, ZArgs, CustomCtx, MadeArgs, Extra>
   ) => {
     const composed = composeCustomizations(codecCust, userCust)
     // zCustom* still expose Convex-only customization declarations for legacy
@@ -532,7 +543,7 @@ export function createZodvexBuilder<
     ) => CustomBuilder<
       Kind,
       ResolvedCustomArgs<ZArgs>,
-      Overwrite<CodecCtx, CustomCtx>,
+      MergePatch<CodecCtx, CustomCtx>,
       MadeArgs,
       Ctx,
       Visibility,

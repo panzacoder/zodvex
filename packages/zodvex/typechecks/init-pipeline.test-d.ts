@@ -61,3 +61,35 @@ customized({
     return args.n
   }
 })
+
+// A user patch can omit a key already supplied by the codec layer.
+builder.withContext({
+  input: (): { ctx: { identity?: number }; args: { n?: string } } => ({ ctx: {}, args: {} })
+})({
+  args: { n: z.number() },
+  handler: (ctx, args) => {
+    type _Identity = Expect<Equal<typeof ctx.identity, string | number | undefined>>
+    type _N = Expect<Equal<typeof args.n, number | string | undefined>>
+    return null
+  }
+})
+
+const optionalCodec = {
+  args: {},
+  input: (_ctx: GenericQueryCtx<GenericDataModel>): { ctx: { auth?: string }; args: {} } => ({
+    ctx: {},
+    args: {}
+  })
+}
+const optionalBuilder = createZodvexBuilder(queryGeneric, optionalCodec, zCustomQuery)
+optionalBuilder.withContext({
+  input: (ctx) => {
+    type _Auth = Expect<Equal<typeof ctx.auth, import('convex/server').Auth | string | undefined>>
+    return { ctx: {}, args: {} }
+  }
+})({
+  handler: (ctx) => {
+    type _Auth = Expect<Equal<typeof ctx.auth, import('convex/server').Auth | string | undefined>>
+    return null
+  }
+})
