@@ -170,3 +170,29 @@ const throwingState = queryHooks.useQuery_experimental({ query: dateQuery, args:
 const throwingStatus: 'pending' | 'success' = throwingState.status
 // @ts-expect-error Wire values cannot replace decoded arguments.
 queryHooks.useQuery_experimental({ query: dateQuery, args: { at: 42 } })
+
+// Both emitted server entrypoints must preserve fallback argument types.
+for (const api of [FullApi, MiniApi]) {
+  for (const patch of [{}, { count: 'replacement' }, { count: undefined }]) {
+    const customized = api.zq.withContext({
+      input: (): { ctx: {}; args: { count?: string } } => ({ ctx: {}, args: patch })
+    })
+    for (const args of [z.object({ count: z.number() }), zm.object({ count: zm.number() })]) {
+      customized({
+        args,
+        handler: (_ctx, args) => {
+          const fallback: typeof args.count = 42
+          const replacement: typeof args.count = 'replacement'
+          const explicitUndefined: typeof args.count = undefined
+          // @ts-expect-error Optional replacements can leave the numeric fallback
+          args.count?.toUpperCase()
+          return [fallback, replacement, explicitUndefined]
+        }
+      })
+    }
+  }
+  api.zq.withContext({ input: () => ({ ctx: {}, args: { count: 'replacement' } }) })({
+    args: z.object({ count: z.number() }),
+    handler: (_ctx, args) => args.count.toUpperCase()
+  })
+}

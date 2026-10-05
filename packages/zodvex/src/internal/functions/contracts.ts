@@ -238,12 +238,12 @@ type SpreadPatch<Base, Patch> = Omit<Base, keyof Patch> &
         : K]?: Patch[K]
   }
 
-type MergePatch<Base, Patch> =
-  Patch extends Record<string, unknown>
-    ? Patch extends Required<Patch>
-      ? Overwrite<Base, Patch>
-      : SpreadPatch<Base, Patch>
-    : Base
+// Accept interfaces as well as object literals; a patch needs no index signature.
+export type MergePatch<Base, Patch> = Patch extends object
+  ? Patch extends Required<Patch>
+    ? Overwrite<Base, Patch>
+    : SpreadPatch<Base, Patch>
+  : Base
 
 type ResultPatch<Added, Key extends 'ctx' | 'args'> = Added extends undefined
   ? undefined

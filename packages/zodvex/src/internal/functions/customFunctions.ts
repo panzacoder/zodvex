@@ -16,13 +16,14 @@ import { z } from 'zod'
 import { type ZodValidator, zodToConvexFields } from '../mapping'
 import { assertNoNativeZodDate } from '../schema/dateGuards'
 import { pick } from '../shared/object'
-import type { ExtractCtx, ExtractVisibility, Overwrite } from '../types'
+import type { ExtractCtx, ExtractVisibility } from '../types'
 import { $ZodObject, $ZodType } from '../zod-core'
 import {
   applyCustomizationResult,
   attachFunctionMeta,
   createConvexReturnsValidator,
   finalizeFunctionReturn,
+  type MergePatch,
   normalizeCustomArgsValidator,
   normalizeFunctionSchema,
   parseObjectArgsOrThrow,
@@ -94,7 +95,7 @@ type ArgsForHandlerType<
   CustomMadeArgs extends Record<string, never>
     ? OneOrZeroArgs
     : OneOrZeroArgs extends [infer A extends Record<string, any>]
-      ? [Expand<Overwrite<A, CustomMadeArgs>>]
+      ? [Expand<MergePatch<A, CustomMadeArgs>>]
       : [CustomMadeArgs]
 
 // Helper type for function registration (from zodV3)
@@ -124,7 +125,7 @@ type CustomFunction<
        */
       args?: ArgsValidator
       handler: (
-        ctx: Overwrite<InputCtx, CustomCtx>,
+        ctx: MergePatch<InputCtx, CustomCtx>,
         ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
       ) => ReturnValue
       /**
@@ -145,7 +146,7 @@ type CustomFunction<
     })
   | {
       (
-        ctx: Overwrite<InputCtx, CustomCtx>,
+        ctx: MergePatch<InputCtx, CustomCtx>,
         ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
       ): ReturnValue
     }
@@ -310,7 +311,7 @@ export function customFnBuilder<
         // Runtime selection/decoding and object spread implement these public
         // conditional types, which TS cannot narrow using the optional args branch.
         const ret = await handler(
-          finalCtx as Overwrite<Ctx, CustomCtx>,
+          finalCtx as MergePatch<Ctx, CustomCtx>,
           ...([finalArgs] as ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>)
         )
         return finalizeFunctionReturn(ret, { ctx, args: baseArgs, added, returns })

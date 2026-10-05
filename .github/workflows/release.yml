@@ -11,6 +11,7 @@ on:
     # package.json, created via GITHUB_TOKEN, and the branch is deleted after
     # a successful publish.
     branches:
+      - main
       - 'release/v*'
   # Manual fallback for environments that can't push tags (e.g. remote/CI
   # sandboxes whose git credential is branch-only). The workflow verifies the
@@ -23,8 +24,55 @@ on:
         required: true
         type: string
 
+# Serialize pushes to main so a later commit sees the tag from the earlier release.
+concurrency:
+  group: release-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  # Merging an untagged prerelease version into main publishes it automatically.
+  # Stable releases still require an explicit tag, release branch, or dispatch.
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Plan release
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="$INPUT_TAG"
+          elif [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            VERSION=$(node -p "require('./packages/zodvex/package.json').version")
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(beta|alpha|rc)\.[0-9]+$ ]]; then
+              echo "Main is not on a prerelease version; skipping."
+              exit 0
+            fi
+            TAG="v$VERSION"
+            if git show-ref --verify --quiet "refs/tags/$TAG"; then
+              echo "$TAG is already tagged; skipping automatic release."
+              exit 0
+            fi
+          elif [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
+            TAG="${GITHUB_REF#refs/heads/release/}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
   test:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
     runs-on: macos-latest
 
     steps:
@@ -47,7 +95,7 @@ jobs:
         run: bun run validate:local
 
   release:
-    needs: test
+    needs: [plan, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,16 +107,8 @@ jobs:
       - name: Resolve release tag
         id: release-tag
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_TAG: ${{ inputs.tag }}
+          TAG: ${{ needs.plan.outputs.tag }}
         run: |
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            TAG="$INPUT_TAG"
-          elif [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
-            TAG="${GITHUB_REF#refs/heads/release/}"
-          else
-            TAG="${GITHUB_REF#refs/tags/}"
-          fi
           if [[ "$TAG" != v* ]]; then
             echo "ERROR: tag '$TAG' must start with 'v'." >&2
             exit 1
@@ -81,8 +121,8 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Create release tag (dispatch / release-branch paths)
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/heads/release/')
+      - name: Create release tag (main / dispatch / release-branch paths)
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/heads/release/')
         uses: actions/github-script@v7
         env:
           RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}
