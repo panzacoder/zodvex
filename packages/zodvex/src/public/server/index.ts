@@ -52,6 +52,7 @@ export {
   type ZodvexUpperBoundBuilder,
   type ZodvexWriteValue
 } from '../../internal/db'
+export type { DeclarationContext } from '../../internal/functions/customFunctions'
 // Custom function utilities (named — hide customFnBuilder, Overwrite re-export)
 export {
   type CustomBuilder,
@@ -61,6 +62,8 @@ export {
 } from '../../internal/functions/customFunctions'
 // One-time setup + types
 export {
+  type ComposedMapper,
+  composeContexts,
   defineContext,
   initZodvex,
   type ZodvexActionCtx,
