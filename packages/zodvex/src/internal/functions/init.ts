@@ -20,7 +20,7 @@ import type { ZodTableMap } from '../schema'
 import type { AnyRegistry, ExtractCtx, Overwrite } from '../types'
 import type { $ZodObject } from '../zod-core'
 import { applyCustomizationResult, type MergePatch } from './contracts'
-import type { CustomBuilder } from './customFunctions'
+import type { CustomBuilder, DeclarationContext, DeclaredContext } from './customFunctions'
 import { zCustomAction, zCustomMutation, zCustomQuery } from './customFunctions'
 
 /**
@@ -110,13 +110,19 @@ type ResolvedCustomArgs<ZArgs extends ZodValidator> =
  * type, so its `input` params would otherwise need hand-annotations that drift
  * from this type.
  */
+declare const declarationContext: unique symbol
 export type ZodvexCustomization<
   InputCtx,
   ZArgs extends ZodValidator,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
-  ExtraArgs extends Record<string, any>
+  ExtraArgs extends Record<string, any>,
+  M extends DeclarationContext | undefined = undefined,
+  Mode extends 'merge' | 'replace' = 'merge'
 > = {
+  readonly [declarationContext]?: M
+  contextMode?: Mode
+  validateDeclaration?: (extra: ExtraArgs) => undefined
   args?: ZArgs
   input?: (
     ctx: InputCtx,
@@ -154,37 +160,59 @@ export type ZodvexBuilder<
     ZArgs extends ZodValidator = Record<string, never>,
     CustomCtx extends Record<string, any> = Record<string, never>,
     CustomMadeArgs extends Record<string, any> = Record<string, never>,
-    ExtraArgs extends Record<string, any> = Record<string, any>
+    ExtraArgs extends Record<string, any> = Record<string, any>,
+    M extends DeclarationContext | undefined = undefined,
+    Mode extends 'merge' | 'replace' = 'merge'
   >(
     customization: ZodvexCustomization<
       MergePatch<InputCtx, CodecCtx>,
       ZArgs,
       CustomCtx,
       CustomMadeArgs,
-      ExtraArgs
+      ExtraArgs,
+      M,
+      Mode
     >
   ) => CustomBuilder<
     FuncType,
     ResolvedCustomArgs<ZArgs>,
-    MergePatch<CodecCtx, CustomCtx>,
+    Mode extends 'replace' ? CustomCtx : MergePatch<CodecCtx, CustomCtx>,
     CustomMadeArgs,
-    InputCtx,
+    Mode extends 'replace' ? NoCodecCtx : InputCtx,
     Visibility,
-    ExtraArgs
+    ExtraArgs,
+    M
   >
 }
 
 type AnyZodvexBuilder = ZodvexBuilder<any, any, any, any>
+type ContextHook = (params: { ctx: unknown; args: unknown; result: unknown }) => unknown
+type RuntimeContextResult = {
+  ctx: Record<string, unknown>
+  args?: Record<string, unknown>
+  onSuccess?: ContextHook
+}
+type AnyContext = {
+  readonly [declarationContext]?: DeclarationContext
+  contextMode?: 'merge' | 'replace'
+  args?: ZodValidator
+  validateDeclaration?: (extra: any) => undefined
+  input?: (ctx: any, args: any, extra?: any) => MaybePromise<RuntimeContextResult>
+}
+type ContextSource = AnyZodvexBuilder | AnyContext
+type ContextOutput<C> = ContextParts<C>['mode'] extends 'replace'
+  ? ContextParts<C>['output']
+  : MergePatch<ContextParts<C>['input'], ContextParts<C>['output']>
 
 /**
  * The input ctx a builder's `.withContext()` expects (the codec-wrapped ctx).
  * Same-kind builders share it — `zm`/`zim`, `za`/`zia`, `zq`/`ziq` differ only in
  * visibility — so a customization typed against it is reusable across both.
  */
-type InputCtxOf<B extends AnyZodvexBuilder> =
+type InputCtxOf<B extends ContextSource> =
   B extends ZodvexBuilder<any, infer CodecCtx, infer InputCtx, any>
     ? MergePatch<InputCtx, CodecCtx>
-    : never
+    : ContextOutput<B>
 
 /**
  * Author a reusable `.withContext()` customization with full type inference.
@@ -217,17 +245,176 @@ type InputCtxOf<B extends AnyZodvexBuilder> =
  * export const appInternalMutation = zim.withContext(authed)
  * ```
  */
-export function defineContext<
-  B extends AnyZodvexBuilder,
+export function defineContext<M extends DeclarationContext>(): <
+  B extends ContextSource,
   ZArgs extends ZodValidator = Record<string, never>,
   CustomCtx extends Record<string, any> = Record<string, never>,
   CustomMadeArgs extends Record<string, any> = Record<string, never>,
-  ExtraArgs extends Record<string, any> = Record<string, any>
+  ExtraArgs extends Record<string, any> = Record<string, any>,
+  Mode extends 'merge' | 'replace' = 'merge'
 >(
   _builder: B,
-  customization: ZodvexCustomization<InputCtxOf<B>, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs>
-): ZodvexCustomization<InputCtxOf<B>, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs> {
+  customization: ZodvexCustomization<
+    InputCtxOf<B>,
+    ZArgs,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs,
+    M,
+    Mode
+  >
+) => ZodvexCustomization<InputCtxOf<B>, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs, M, Mode>
+export function defineContext<
+  B extends ContextSource,
+  ZArgs extends ZodValidator = Record<string, never>,
+  CustomCtx extends Record<string, any> = Record<string, never>,
+  CustomMadeArgs extends Record<string, any> = Record<string, never>,
+  ExtraArgs extends Record<string, any> = Record<string, any>,
+  Mode extends 'merge' | 'replace' = 'merge'
+>(
+  _builder: B,
+  customization: ZodvexCustomization<
+    InputCtxOf<B>,
+    ZArgs,
+    CustomCtx,
+    CustomMadeArgs,
+    ExtraArgs,
+    undefined,
+    Mode
+  >
+): ZodvexCustomization<InputCtxOf<B>, ZArgs, CustomCtx, CustomMadeArgs, ExtraArgs, undefined, Mode>
+export function defineContext(_builder?: unknown, customization?: unknown): any {
+  if (_builder === undefined) return (_builder: unknown, value: unknown) => value
   return customization
+}
+
+type ContextParts<C> =
+  C extends ZodvexCustomization<infer I, infer A, infer O, infer Made, infer E, infer M, infer Mode>
+    ? { input: I; args: A; output: O; made: Made; extra: E; mapper: M; mode: Mode }
+    : never
+type WithoutEmptyIndex<T> = T extends Record<string, never> ? NoCodecCtx : T
+type MergeParts<
+  T extends readonly AnyContext[],
+  P extends 'args' | 'made' | 'extra'
+> = T extends readonly [infer H extends AnyContext, ...infer R extends AnyContext[]]
+  ? WithoutEmptyIndex<ContextParts<H>[P]> & MergeParts<R, P>
+  : NoCodecCtx
+type FoldContext<T extends readonly AnyContext[], I> = T extends readonly [
+  infer H extends AnyContext,
+  ...infer R extends AnyContext[]
+]
+  ? FoldContext<
+      R,
+      ContextParts<H>['mode'] extends 'replace'
+        ? ContextParts<H>['output']
+        : MergePatch<I, ContextParts<H>['output']>
+    >
+  : I
+type MapperStep = {
+  mode: 'merge' | 'replace'
+  keys: PropertyKey
+  mapper: DeclarationContext | undefined
+}
+type MapperSteps<T extends readonly AnyContext[]> = {
+  [K in keyof T]: {
+    mode: ContextParts<T[K]>['mode']
+    keys: keyof ContextParts<T[K]>['output']
+    mapper: ContextParts<T[K]>['mapper']
+  }
+}
+type FoldDeclared<T extends readonly MapperStep[], D, I = NoCodecCtx> = T extends readonly [
+  infer H extends MapperStep,
+  ...infer R extends MapperStep[]
+]
+  ? FoldDeclared<
+      R,
+      D,
+      MergePatch<
+        Omit<H['mode'] extends 'replace' ? NoCodecCtx : I, H['keys']>,
+        DeclaredContext<H['mapper'], D>
+      >
+    >
+  : I
+export interface ComposedMapper<T extends readonly MapperStep[]> extends DeclarationContext {
+  readonly context: FoldDeclared<T, this['declaration']>
+}
+type CompositionMapper<T extends readonly AnyContext[]> =
+  Extract<ContextParts<T[number]>['mapper'], DeclarationContext> extends never
+    ? undefined
+    : ComposedMapper<MapperSteps<T>>
+type CompatibleSequence<T extends readonly AnyContext[], I> = T extends readonly [
+  infer H extends AnyContext,
+  ...infer R extends AnyContext[]
+]
+  ? I extends ContextParts<H>['input']
+    ? CompatibleSequence<R, FoldContext<[H], I>>
+    : never
+  : unknown
+
+/** Compose inputs in order and success hooks in reverse order; later context keys win. */
+export function composeContexts<const T extends readonly [AnyContext, ...AnyContext[]]>(
+  ...contexts: T & CompatibleSequence<T, ContextParts<T[0]>['input']>
+): ZodvexCustomization<
+  ContextParts<T[0]>['input'],
+  MergeParts<T, 'args'>,
+  FoldContext<T, ContextParts<T[0]>['input']>,
+  MergeParts<T, 'made'>,
+  MergeParts<T, 'extra'>,
+  CompositionMapper<T>,
+  'replace'
+>
+export function composeContexts(...contexts: AnyContext[]): unknown {
+  const args: ZodValidator = {}
+  for (const context of contexts) {
+    for (const [key, validator] of Object.entries(context.args ?? {})) {
+      if (Object.hasOwn(args, key)) throw new Error('Duplicate context argument: ' + key)
+      args[key] = validator
+    }
+  }
+  const composed: AnyContext = {
+    contextMode: 'replace',
+    args,
+    validateDeclaration(extra: Record<string, unknown>) {
+      for (const context of contexts) {
+        const result: unknown = context.validateDeclaration?.(extra)
+        if (result !== undefined) {
+          Promise.resolve(result).catch(() => undefined)
+          throw new Error('validateDeclaration must be synchronous and return undefined')
+        }
+      }
+    },
+    async input(
+      ctx: Record<string, unknown>,
+      args: Record<string, unknown>,
+      extra?: Record<string, unknown>
+    ) {
+      let current = ctx
+      const made: Record<string, unknown> = {}
+      const hooks: ContextHook[] = []
+      for (const context of contexts) {
+        const ownArgs = Object.fromEntries(
+          Object.keys(context.args ?? {}).map(key => [key, args[key]])
+        )
+        const added = await context.input?.(current, ownArgs, extra)
+        current =
+          context.contextMode === 'replace' ? (added?.ctx ?? {}) : { ...current, ...added?.ctx }
+        for (const [key, value] of Object.entries(added?.args ?? {})) {
+          if (Object.hasOwn(made, key))
+            throw new Error('Duplicate injected context argument: ' + key)
+          made[key] = value
+        }
+        if (added?.onSuccess) hooks.push(added.onSuccess)
+      }
+      return {
+        ctx: current,
+        args: made,
+        onSuccess: async (params: Parameters<ContextHook>[0]) => {
+          for (const hook of hooks.reverse()) await hook(params)
+        }
+      }
+    }
+  }
+  return composed
 }
 
 // Overload 1: wrapDb: false — no codec DB wrapping
@@ -432,13 +619,24 @@ export function composeCustomizations<
   ZArgs extends ZodValidator = Record<string, never>,
   CustomCtx extends Record<string, unknown> = Record<string, never>,
   MadeArgs extends Record<string, unknown> = Record<string, never>,
-  Extra extends Record<string, unknown> = Record<string, unknown>
+  Extra extends Record<string, unknown> = Record<string, unknown>,
+  M extends DeclarationContext | undefined = undefined,
+  Mode extends 'merge' | 'replace' = 'merge'
 >(
   codecCust: InternalCustomization<Ctx, CodecCtx, Extra>,
-  userCust: ZodvexCustomization<MergePatch<Ctx, CodecCtx>, ZArgs, CustomCtx, MadeArgs, Extra>
+  userCust: ZodvexCustomization<
+    MergePatch<Ctx, CodecCtx>,
+    ZArgs,
+    CustomCtx,
+    MadeArgs,
+    Extra,
+    M,
+    Mode
+  >
 ) {
   return {
     args: userCust.args ?? {},
+    validateDeclaration: userCust.validateDeclaration,
     input: async (ctx: Ctx, args: ResolvedCustomArgs<ZArgs>, extra?: Extra) => {
       // 1. Codec layer: wrap ctx.db
       const codecResult = await codecCust.input(ctx, {}, extra)
@@ -448,14 +646,17 @@ export function composeCustomizations<
 
       // 2. User layer: sees codec-wrapped ctx.db
       if (!userCust.input) {
-        return { ctx: codecResult.ctx, args: {} }
+        return userCust.contextMode === 'replace'
+          ? { ctx: {}, args: {}, replaceContext: true }
+          : { ctx: codecResult.ctx, args: {} }
       }
       const userResult = await userCust.input(codecCtx, args, extra)
 
       // 3. Merge ctx/args; pass through user's onSuccess (convex-helpers convention)
       const merged = applyCustomizationResult(codecResult.ctx, {}, userResult)
       return {
-        ctx: merged.finalCtx,
+        ctx: userCust.contextMode === 'replace' ? userResult.ctx : merged.finalCtx,
+        replaceContext: userCust.contextMode === 'replace',
         args: merged.finalArgs,
         ...(userResult.onSuccess && { onSuccess: userResult.onSuccess })
       }
@@ -529,9 +730,19 @@ export function createZodvexBuilder<
     ZArgs extends ZodValidator = Record<string, never>,
     CustomCtx extends Record<string, unknown> = Record<string, never>,
     MadeArgs extends Record<string, unknown> = Record<string, never>,
-    Extra extends Record<string, unknown> = Record<string, unknown>
+    Extra extends Record<string, unknown> = Record<string, unknown>,
+    M extends DeclarationContext | undefined = undefined,
+    Mode extends 'merge' | 'replace' = 'merge'
   >(
-    userCust: ZodvexCustomization<MergePatch<Ctx, CodecCtx>, ZArgs, CustomCtx, MadeArgs, Extra>
+    userCust: ZodvexCustomization<
+      MergePatch<Ctx, CodecCtx>,
+      ZArgs,
+      CustomCtx,
+      MadeArgs,
+      Extra,
+      M,
+      Mode
+    >
   ) => {
     const composed = composeCustomizations(codecCust, userCust)
     // zCustom* still expose Convex-only customization declarations for legacy
@@ -543,11 +754,12 @@ export function createZodvexBuilder<
     ) => CustomBuilder<
       Kind,
       ResolvedCustomArgs<ZArgs>,
-      MergePatch<CodecCtx, CustomCtx>,
+      Mode extends 'replace' ? CustomCtx : MergePatch<CodecCtx, CustomCtx>,
       MadeArgs,
-      Ctx,
+      Mode extends 'replace' ? NoCodecCtx : Ctx,
       Visibility,
-      Extra
+      Extra,
+      M
     >
     return register(rawBuilder, composed)
   }

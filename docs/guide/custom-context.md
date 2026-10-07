@@ -132,7 +132,7 @@ The standalone custom builders (`zCustomQueryBuilder`, `zCustomMutationBuilder`,
 
 ## onSuccess Hook
 
-The `onSuccess` callback follows convex-helpers' `Customization` convention and is the only hook point zodvex exposes. Return it from your customization's `input` function:
+The `onSuccess` callback follows convex-helpers' `Customization` convention for request completion. Return it from your customization's `input` function:
 
 ```ts
 export const secureMutation = zm.withContext({
@@ -150,4 +150,97 @@ export const secureMutation = zm.withContext({
 })
 ```
 
-`onSuccess` runs after the handler and Zod return validation, seeing runtime types (e.g., `Date`, not timestamps).
+`onSuccess` runs after the handler, before return validation and encoding, seeing the handler’s runtime result (e.g., `Date`, not timestamps). A success hook can still fail the request, and successful hooks do not establish transaction commitment.
+
+## Declaration-dependent context
+
+A customization can narrow handler context using literal options on each function declaration.
+The mapper is a type contract implemented by the customization author; it does not validate the
+runtime object. Keep runtime selection and validation in the same customization.
+
+```ts
+import { type DeclarationContext, defineContext } from 'zodvex/server'
+
+type Selected<D> = D extends { helpers: readonly (infer K)[] }
+  ? Extract<K, 'double'> : never
+type Helpers<D> = { helpers: { [K in Selected<D>]: (n: number) => number } }
+interface HelperContext extends DeclarationContext {
+  readonly context: Helpers<this['declaration']>
+}
+
+const helpers = defineContext<HelperContext>()(zm, {
+  validateDeclaration: (extra: { helpers?: readonly 'double'[] }) => {
+    if (extra.helpers?.some(name => name !== 'double')) throw new Error('Unknown helper')
+  },
+  input: (_ctx, _args, extra) => ({
+    ctx: {
+      helpers: extra?.helpers?.includes('double') ? { double: (n: number) => n * 2 } : {},
+    },
+  }),
+})
+
+const appMutation = zm.withContext(helpers)
+export const calculate = appMutation({
+  helpers: ['double'],
+  args: { value: z.number() },
+  returns: z.number(),
+  handler: (ctx, { value }) => ctx.helpers.double(value),
+})
+```
+
+`validateDeclaration` runs synchronously before the Convex builder registers the function.
+Throw to reject a declaration. It must return `undefined`; promises and other return values are
+rejected even when types are bypassed. This validates function configuration, not request arguments.
+Function-only declarations use an empty declaration for the mapper. Let validator generics infer
+from schemas; partially specifying builder type arguments does not infer later generics.
+
+## Composing customizations
+
+```ts
+import { composeContexts, defineContext } from 'zodvex/server'
+
+const authority = defineContext(zm, {
+  input: async ctx => ({ ctx: { identity: await resolveIdentity(ctx) } }),
+})
+const permissions = defineContext(authority, {
+  input: async ctx => ({ ctx: { permissions: await getPermissions(ctx, ctx.identity) } }),
+})
+const context = composeContexts(authority, permissions)
+export const appMutation = zm.withContext(context)
+export const appInternalMutation = zim.withContext(context)
+```
+
+Passing a customization to `defineContext` supplies its output context type. It does not run that
+customization automatically: include dependencies in the composition list. Inputs receive the
+preceding context, and incompatible ordering is rejected by types. Declaration-dependent narrowing
+is applied to endpoint handlers; intermediate inputs see the static customization output types.
+
+- Declaration validators and inputs run left to right.
+- Later context properties replace earlier properties. Optional properties preserve earlier values
+  when absent; a present `undefined` replaces the earlier value.
+- Custom argument schemas are combined and decoded once. Each input receives only its own declared
+  arguments. Duplicate declared argument keys are rejected when composing, and duplicate injected
+  argument keys fail the invocation.
+- All contexts receive the same declaration options and each validator runs. Their option types
+  intersect, so incompatible options cannot be supplied in a well-typed declaration.
+- Success hooks run right to left, stopping on the first failure. Input or handler failure skips
+  success hooks. These hooks are completion guards, not `finally` cleanup callbacks.
+- Return validation and encoding follow the success hooks, preserving the existing lifecycle.
+
+## Replacing handler context
+
+Use `contextMode: 'replace'` to expose only the context returned by a customization:
+
+```ts
+const restricted = defineContext(zim, {
+  contextMode: 'replace',
+  input: ctx => ({ ctx: { createDraft: () => createDraft(ctx.db) } }),
+})
+export const restrictedMutation = zim.withContext(restricted)
+```
+
+The handler has `createDraft` but no inherited `db`, `auth`, storage, scheduler or function runners.
+Replacement removes inherited properties at runtime and in types, including earlier
+declaration-dependent properties. The trusted customization still receives its input context.
+A replacement without an input supplies an empty handler context. Later composed customizations
+can explicitly add fields again; this is a context-construction mechanism, not a JavaScript sandbox.
