@@ -17,6 +17,7 @@ docs site.
 | [`roadmap.md`](./roadmap.md) | Public roadmap — direction at the adopter's level. |
 | [`guide/`](./guide/) | User-facing feature guides (`zx`, codecs, date handling, rules & audit, streams, codegen, forms, …). |
 | [`migration/`](./migration/) | Version migration guides. |
+| [`skills/`](./skills/) | Portable agent instructions for supported migration workflows. |
 | `../README.md`, `../MIGRATION.md`, `../CHANGELOG.md` | Repo-root durable docs. |
 
 `decisions/` sits between the two: durable *rationale* (why we chose X), useful long-term but

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Try Zodvex from Zod 3"
+  short_description: "Trial a Zod 3 migration with behavior and memory checks"
+  default_prompt: "Use $migrate-convex-helpers-zod3 to trial Zodvex in this application and report compatibility and memory evidence."

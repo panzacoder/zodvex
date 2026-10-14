@@ -150,4 +150,8 @@ export const secureMutation = zm.withContext({
 })
 ```
 
-`onSuccess` runs after the handler and Zod return validation, seeing runtime types (e.g., `Date`, not timestamps).
+`onSuccess` runs after the handler and **before** Zod return validation/encoding.
+It receives the handler result, including decoded runtime values such as `Date`.
+The callback can therefore run even when return validation subsequently fails.
+This differs from convex-helpers' Zod 3 wrapper, which parses declared returns
+before calling the hook; check any dependent behavior when migrating.
