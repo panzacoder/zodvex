@@ -24,7 +24,10 @@ const shape = {
   optionalRole: z.enum(['admin', 'user', 'guest']).optional(),
   literal: z.literal('user'),
   version: z.literal(1),
-  optionalFlag: z.literal(true).optional()
+  optionalFlag: z.literal(true).optional(),
+  tuple: z.tuple([z.string(), z.number()]),
+  multiLiteral: z.literal(['a', 'b']),
+  nullLiteral: z.literal(null)
 }
 const result = zodToConvexFields(shape)
 type Fields = typeof result
@@ -54,3 +57,6 @@ type _OptionalEnum = Expect<
 type _Literal = Expect<Equal<Fields['literal']['type'], 'user'>>
 type _NumberLiteral = Expect<Equal<Fields['version']['type'], 1>>
 type _OptionalLiteral = Expect<Equal<Fields['optionalFlag']['type'], true | undefined>>
+type _Tuple = Expect<Equal<Fields['tuple']['type'], [string, number]>>
+type _MultiLiteral = Expect<Equal<Fields['multiLiteral']['type'], 'a' | 'b'>>
+type _NullLiteral = Expect<Equal<Fields['nullLiteral']['type'], null>>

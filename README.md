@@ -208,25 +208,30 @@ Guides: [Codegen](./docs/guide/codegen.md) | Example: [examples/task-manager/](.
 
 ## Supported Types
 
-| Zod Type             | Convex Validator                            |
-| -------------------- | ------------------------------------------- |
-| `z.string()`         | `v.string()`                                |
-| `z.number()`         | `v.float64()`                               |
-| `z.bigint()`         | `v.int64()`                                 |
-| `z.boolean()`        | `v.boolean()`                               |
-| `z.null()`           | `v.null()`                                  |
-| `z.array(T)`         | `v.array(T)`                                |
-| `z.object({...})`    | `v.object({...})`                           |
-| `z.record(T)`        | `v.record(v.string(), T)`                   |
-| `z.union([...])`     | `v.union(...)`                              |
-| `z.literal(x)`       | `v.literal(x)`                              |
-| `z.enum(['a', 'b'])` | `v.union(v.literal('a'), v.literal('b'))` ¹ |
-| `z.optional(T)`      | `v.optional(T)`                             |
-| `z.nullable(T)`      | `v.union(T, v.null())`                      |
+| Zod Type                               | Convex Validator                            |
+| -------------------------------------- | ------------------------------------------- |
+| `z.string()`                           | `v.string()`                                |
+| `z.number()`                           | `v.float64()`                               |
+| `z.bigint()`                           | `v.int64()`                                 |
+| `z.boolean()`                          | `v.boolean()`                               |
+| `z.null()`                             | `v.null()`                                  |
+| `z.array(T)`                           | `v.array(T)`                                |
+| `z.object({...})`                      | `v.object({...})`                           |
+| `z.record(T)`                          | `v.record(v.string(), T)`                   |
+| `z.tuple([A, B])`                      | `v.array(v.union(A, B))` ²                  |
+| `z.union([...])`                       | `v.union(...)`                              |
+| `z.literal(x)`                         | `v.literal(x)`                              |
+| `z.literal([a, b])`                    | `v.union(v.literal(a), v.literal(b))`       |
+| `z.literal(null)`                      | `v.null()`                                  |
+| `z.enum(['a', 'b'])`                   | `v.union(v.literal('a'), v.literal('b'))` ¹ |
+| `z.optional(T)`                        | `v.optional(T)`                             |
+| `z.nullable(T)`                        | `v.union(T, v.null())`                      |
 
 > **Note:** Native `z.date()` is **not supported** — use `zx.date()` instead. See [Date Handling](./docs/guide/date-handling.md) for details.
 
 ¹ Enum unions carry a cosmetically different TypeScript signature than hand-written `v.union(v.literal(...))` calls — identical values, runtime validation, and type safety. Details: [Mapping Helpers](./docs/guide/mapping-helpers.md#zod-v4-enum-type-note).
+
+² Convex has no fixed-length tuple validator. Tuples map to arrays whose elements are the union of item (and rest) validators, so element count and position are enforced by Zod but not by Convex.
 
 For zodvex's own types — `zx.id()`, `zx.date()`, `zx.codec()` — and exactly how they map to Convex validators, see [The zx Namespace](./docs/guide/zx-namespace.md).
 

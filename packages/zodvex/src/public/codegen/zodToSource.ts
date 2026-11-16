@@ -142,10 +142,20 @@ export function zodToSource(schema: $ZodType, ctx?: ZodToSourceContext): string 
 
   // Literals
   if (schema instanceof $ZodLiteral) {
-    const values = schema._zod.def.values
-    const value = values.values().next().value
-    if (typeof value === 'string') return `z.literal(${JSON.stringify(value)})`
-    return `z.literal(${value})`
+    const values = [...schema._zod.def.values]
+    const render = (v: unknown) =>
+      typeof v === 'string'
+        ? JSON.stringify(v)
+        : v === null
+          ? 'null'
+          : v === undefined
+            ? 'undefined'
+            : typeof v === 'bigint'
+              ? `${v}n`
+              : String(v)
+    return values.length === 1
+      ? `z.literal(${render(values[0])})`
+      : `z.literal([${values.map(render).join(', ')}])`
   }
 
   // Unions

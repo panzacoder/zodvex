@@ -174,12 +174,20 @@ function zodToConvexInternal<Z extends $ZodType>(
       }
       case 'literal': {
         if (actualValidator instanceof $ZodLiteral) {
-          const literalValues = actualValidator._zod.def.values
-          const firstValue = literalValues.values().next().value
-          if (firstValue !== undefined && firstValue !== null) {
-            convexValidator = v.literal(firstValue)
-          } else {
+          const vals = [...actualValidator._zod.def.values]
+          const toV = (x: unknown) => {
+            if (x === null) return v.null()
+            if (x === undefined) return v.any()
+            return v.literal(x as string | number | bigint | boolean)
+          }
+          const vs = vals.map(toV)
+          if (vs.length === 0) {
             convexValidator = v.any()
+          } else if (vs.length === 1) {
+            convexValidator = vs[0]
+          } else {
+            const [a, b, ...r] = vs as [GenericValidator, GenericValidator, ...GenericValidator[]]
+            convexValidator = v.union(a, b, ...r)
           }
         } else {
           convexValidator = v.any()
@@ -253,20 +261,36 @@ function zodToConvexInternal<Z extends $ZodType>(
         break
       }
       case 'tuple': {
-        // Handle tuple types as objects with numeric keys
+        // Convex has no fixed-length tuple validator. Encode/decode keep tuples as
+        // arrays, so emit an array whose element is the union of the item validators.
+        // Zod enforces exact length/position on its side.
         if (actualValidator instanceof $ZodTuple) {
-          const items = actualValidator._zod.def.items
-          if (items && items.length > 0) {
-            const convexShape: PropertyValidators = {}
-            items.forEach((item, index) => {
-              convexShape[`_${index}`] = zodToConvexInternal(item, visited)
-            })
-            convexValidator = v.object(convexShape)
+          const { items, rest } = actualValidator._zod.def
+          const unwrapOptional = (schema: $ZodType): $ZodType => {
+            if (schema instanceof $ZodOptional) return schema._zod.def.innerType as $ZodType
+            if (schema instanceof $ZodDefault) return schema._zod.def.innerType as $ZodType
+            return schema
+          }
+          const elements = (items ?? []).map((item: $ZodType) =>
+            zodToConvexInternal(unwrapOptional(item), visited)
+          )
+          if (rest instanceof $ZodType) {
+            elements.push(zodToConvexInternal(unwrapOptional(rest), visited))
+          }
+          if (elements.length === 0) {
+            convexValidator = v.array(v.any())
+          } else if (elements.length === 1) {
+            convexValidator = v.array(elements[0])
           } else {
-            convexValidator = v.object({})
+            const [a, b, ...r] = elements as [
+              GenericValidator,
+              GenericValidator,
+              ...GenericValidator[]
+            ]
+            convexValidator = v.array(v.union(a, b, ...r))
           }
         } else {
-          convexValidator = v.object({})
+          convexValidator = v.array(v.any())
         }
         break
       }

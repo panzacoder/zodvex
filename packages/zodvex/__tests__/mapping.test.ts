@@ -1,4 +1,5 @@
 import { v } from 'convex/values'
+import { validate } from 'convex-helpers/validators'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { zodToConvex, zodToConvexFields } from '../src/internal/mapping'
@@ -120,6 +121,70 @@ describe('zodToConvex', () => {
     const schema = z.union([z.string(), z.number()])
     const validator = zodToConvex(schema)
     expect(validator).toEqual(v.union(v.string(), v.float64()))
+  })
+
+  it('maps tuples to arrays of unions', () => {
+    const schema = z.tuple([z.string(), z.number()])
+    const validator = zodToConvex(schema)
+    expect(validator).toEqual(v.array(v.union(v.string(), v.float64())))
+  })
+
+  it('maps single-item and empty tuples', () => {
+    expect(zodToConvex(z.tuple([z.string()]))).toEqual(v.array(v.string()))
+    expect(zodToConvex(z.tuple([]))).toEqual(v.array(v.any()))
+  })
+
+  it('maps tuples with rest elements', () => {
+    const tuple = z.tuple as any
+    const schema = tuple.rest
+      ? tuple([z.string()]).rest(z.number())
+      : tuple([z.string()], z.number())
+    const validator = zodToConvex(schema)
+    expect(validator).toEqual(v.array(v.union(v.string(), v.float64())))
+  })
+
+  it('does not throw for optional tuple slots', () => {
+    const schema = z.tuple([z.string().optional(), z.number()])
+    expect(() => zodToConvex(schema)).not.toThrow()
+    const validator = zodToConvex(schema)
+    expect(validator).toEqual(v.array(v.union(v.string(), v.float64())))
+  })
+
+  it('maps multi-value string literals to unions', () => {
+    const schema = z.literal(['a', 'b'])
+    const validator = zodToConvex(schema)
+    expect(validator).toEqual(v.union(v.literal('a'), v.literal('b')))
+  })
+
+  it('maps multi-value numeric literals to unions', () => {
+    const schema = z.literal([1, 2])
+    const validator = zodToConvex(schema)
+    expect(validator).toEqual(v.union(v.literal(1), v.literal(2)))
+  })
+
+  it('maps null literal to v.null()', () => {
+    expect(zodToConvex(z.literal(null))).toEqual(v.null())
+  })
+
+  it('maps undefined literal to v.any()', () => {
+    expect(zodToConvex(z.literal(undefined))).toEqual(v.any())
+  })
+
+  it('round-trips tuple and literal values with Convex validation', () => {
+    const tupleSchema = z.tuple([z.string(), z.number()])
+    const tupleValidator = zodToConvex(tupleSchema)
+    expect(validate(tupleValidator, ['a', 1])).toBe(true)
+    expect(validate(tupleValidator, { _0: 'a', _1: 1 })).toBe(false)
+
+    const stringUnion = z.literal(['a', 'b'])
+    const stringUnionValidator = zodToConvex(stringUnion)
+    expect(validate(stringUnionValidator, 'a')).toBe(true)
+    expect(validate(stringUnionValidator, 'b')).toBe(true)
+
+    const nullLiteral = z.literal(null)
+    const nullValidator = zodToConvex(nullLiteral)
+    expect(validate(nullValidator, null)).toBe(true)
+    expect(validate(nullValidator, 5)).toBe(false)
   })
 
   it('maps enums', () => {
