@@ -90,6 +90,18 @@ describe('zodToSource', () => {
     it('z.literal(true)', () => {
       expect(zodToSource(z.literal(true))).toBe('z.literal(true)')
     })
+
+    it('z.literal(["a", "b"])', () => {
+      expect(zodToSource(z.literal(['a', 'b']))).toBe('z.literal(["a", "b"])')
+    })
+
+    it('z.literal(null)', () => {
+      expect(zodToSource(z.literal(null))).toBe('z.literal(null)')
+    })
+
+    it('z.literal(42n)', () => {
+      expect(zodToSource(z.literal(42n))).toBe('z.literal(42n)')
+    })
   })
 
   describe('unions', () => {

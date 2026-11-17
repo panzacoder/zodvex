@@ -2,6 +2,7 @@ import type {
   GenericId,
   VAny,
   VArray,
+  Validator,
   VBoolean,
   VFloat64,
   VId,
@@ -32,6 +33,7 @@ import type {
   $ZodRecord,
   $ZodShape,
   $ZodString,
+  $ZodTuple,
   $ZodType,
   $ZodUnion,
   $ZodUnknown,
@@ -198,6 +200,44 @@ type EnumToLiteralsTuple<T extends readonly [string, ...string[]]> = T['length']
         }[keyof T & number][]
       ]
 
+// True when T is a union of two or more members (e.g. multi-value z.literal).
+type IsUnion<T, U = T> = T extends any ? ([U] extends [T] ? false : true) : never
+
+// Mirrors the runtime literal mapping: null -> v.null(), undefined -> v.any(), else v.literal().
+type LiteralValidator<T> = T extends null
+  ? VNull<null, 'required'>
+  : T extends undefined
+    ? VAny<'required'>
+    : VLiteral<T, 'required'>
+
+// Tuple items wrapped in optional/default are unwrapped at runtime before conversion,
+// so map the inner type directly instead of widening it to a union with null.
+type TupleItemValidator<Z extends $ZodType> =
+  Z extends $ZodOptional<infer T extends $ZodType>
+    ? ConvexValidatorFromZodBase<T>
+    : Z extends $ZodDefault<infer T extends $ZodType>
+      ? ConvexValidatorFromZodBase<T>
+      : ConvexValidatorFromZodBase<Z>
+
+type TupleItemValidators<Items extends readonly $ZodType[]> = {
+  [K in keyof Items]: Items[K] extends $ZodType ? TupleItemValidator<Items[K]> : never
+}
+
+type TupleElementFromMembers<Members extends readonly Validator<any, 'required', any>[]> =
+  Members extends readonly []
+    ? VAny<'required'>
+    : Members extends readonly [infer Only extends Validator<any, 'required', any>]
+      ? Only
+      : VUnion<Members[number]['type'], [...Members], 'required'>
+
+// Element validator for tuple arrays: union of per-item validators (and rest, if present).
+type TupleElementValidator<
+  Items extends readonly $ZodType[],
+  Rest extends $ZodType | null
+> = Rest extends $ZodType
+  ? TupleElementFromMembers<[...TupleItemValidators<Items>, TupleItemValidator<Rest>]>
+  : TupleElementFromMembers<[...TupleItemValidators<Items>]>
+
 export type ZodValidator = Record<string, $ZodType>
 
 // Helper type to convert optional types to union with null for container elements
@@ -241,64 +281,75 @@ type ConvexValidatorFromZodBase<Z extends $ZodType> =
                       ? T extends readonly [$ZodType, $ZodType, ...$ZodType[]]
                         ? VUnion<WireInfer<Z>, any[], 'required'>
                         : never
-                      : // 6. Literals and enums
-                        Z extends $ZodLiteral<infer T>
-                        ? VLiteral<T, 'required'>
-                        : Z extends $ZodEnum<infer T>
-                          ? T extends readonly [string, ...string[]]
-                            ? T['length'] extends 1
-                              ? VLiteral<T[0], 'required'>
-                              : T['length'] extends 2
+                      : Z extends $ZodTuple<
+                            infer Items extends readonly $ZodType[],
+                            infer Rest extends $ZodType | null
+                          >
+                        ? VArray<WireInfer<Z>, TupleElementValidator<Items, Rest>, 'required'>
+                        : // 6. Literals and enums
+                          Z extends $ZodLiteral<infer T>
+                          ? IsUnion<T> extends true
+                            ? VUnion<T, LiteralValidator<T>[], 'required', never>
+                            : T extends null
+                              ? VNull<null, 'required'>
+                              : T extends undefined
+                                ? VAny<'required'>
+                                : VLiteral<T, 'required'>
+                          : Z extends $ZodEnum<infer T>
+                            ? T extends readonly [string, ...string[]]
+                              ? T['length'] extends 1
+                                ? VLiteral<T[0], 'required'>
+                                : T['length'] extends 2
+                                  ? VUnion<
+                                      T[number],
+                                      [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>],
+                                      'required',
+                                      never
+                                    >
+                                  : VUnion<T[number], EnumToLiteralsTuple<T>, 'required', never>
+                              : T extends Record<string, string | number>
                                 ? VUnion<
-                                    T[number],
-                                    [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>],
+                                    T[keyof T],
+                                    Array<VLiteral<T[keyof T], 'required'>>,
                                     'required',
                                     never
                                   >
-                                : VUnion<T[number], EnumToLiteralsTuple<T>, 'required', never>
-                            : T extends Record<string, string | number>
-                              ? VUnion<
-                                  T[keyof T],
-                                  Array<VLiteral<T[keyof T], 'required'>>,
+                                : VUnion<string, any[], 'required', any>
+                            : // 7. Less common types
+                              Z extends $ZodRecord<$ZodString, infer V extends $ZodType>
+                              ? VRecord<
+                                  Record<string, WireInfer<V>>,
+                                  VString<string, 'required'>,
+                                  ConvexValidatorFromZodRequired<V>,
                                   'required',
-                                  never
+                                  string
                                 >
-                              : VUnion<string, any[], 'required', any>
-                          : // 7. Less common types
-                            Z extends $ZodRecord<$ZodString, infer V extends $ZodType>
-                            ? VRecord<
-                                Record<string, WireInfer<V>>,
-                                VString<string, 'required'>,
-                                ConvexValidatorFromZodRequired<V>,
-                                'required',
-                                string
-                              >
-                            : Z extends $ZodNullable<infer Inner extends $ZodType>
-                              ? Inner extends $ZodOptional<infer InnerInner extends $ZodType>
-                                ? VOptional<
-                                    VUnion<
-                                      WireInfer<InnerInner> | null,
-                                      [
-                                        ConvexValidatorFromZodBase<InnerInner>,
-                                        VNull<null, 'required'>
-                                      ],
+                              : Z extends $ZodNullable<infer Inner extends $ZodType>
+                                ? Inner extends $ZodOptional<infer InnerInner extends $ZodType>
+                                  ? VOptional<
+                                      VUnion<
+                                        WireInfer<InnerInner> | null,
+                                        [
+                                          ConvexValidatorFromZodBase<InnerInner>,
+                                          VNull<null, 'required'>
+                                        ],
+                                        'required'
+                                      >
+                                    >
+                                  : VUnion<
+                                      WireInfer<Inner> | null,
+                                      [ConvexValidatorFromZodBase<Inner>, VNull<null, 'required'>],
                                       'required'
                                     >
-                                  >
-                                : VUnion<
-                                    WireInfer<Inner> | null,
-                                    [ConvexValidatorFromZodBase<Inner>, VNull<null, 'required'>],
-                                    'required'
-                                  >
-                              : Z extends $ZodDate
-                                ? VFloat64<number, 'required'>
-                                : Z extends $ZodBigInt
-                                  ? VInt64<zinfer<Z>, 'required'>
-                                  : Z extends $ZodAny
-                                    ? VAny<'required'>
-                                    : Z extends $ZodUnknown
+                                : Z extends $ZodDate
+                                  ? VFloat64<number, 'required'>
+                                  : Z extends $ZodBigInt
+                                    ? VInt64<zinfer<Z>, 'required'>
+                                    : Z extends $ZodAny
                                       ? VAny<'required'>
-                                      : VAny<'required'>
+                                      : Z extends $ZodUnknown
+                                        ? VAny<'required'>
+                                        : VAny<'required'>
 
 /**
  * Main type mapper with constraint system.
@@ -358,48 +409,59 @@ export type ConvexValidatorFromZod<
                           ? T extends readonly [$ZodType, $ZodType, ...$ZodType[]]
                             ? VUnion<WireInfer<Z>, any[], Constraint>
                             : never
-                          : // 7. Literals and enums
-                            Z extends $ZodLiteral<infer T>
-                            ? VLiteral<T, Constraint>
-                            : Z extends $ZodEnum<infer T>
-                              ? T extends readonly [string, ...string[]]
-                                ? T['length'] extends 1
-                                  ? VLiteral<T[0], Constraint>
-                                  : T['length'] extends 2
+                          : Z extends $ZodTuple<
+                                infer Items extends readonly $ZodType[],
+                                infer Rest extends $ZodType | null
+                              >
+                            ? VArray<WireInfer<Z>, TupleElementValidator<Items, Rest>, Constraint>
+                            : // 7. Literals and enums
+                              Z extends $ZodLiteral<infer T>
+                              ? IsUnion<T> extends true
+                                ? VUnion<T, LiteralValidator<T>[], Constraint, never>
+                                : T extends null
+                                  ? VNull<null, Constraint>
+                                  : T extends undefined
+                                    ? VAny<'required'>
+                                    : VLiteral<T, Constraint>
+                              : Z extends $ZodEnum<infer T>
+                                ? T extends readonly [string, ...string[]]
+                                  ? T['length'] extends 1
+                                    ? VLiteral<T[0], Constraint>
+                                    : T['length'] extends 2
+                                      ? VUnion<
+                                          T[number],
+                                          [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>],
+                                          Constraint,
+                                          never
+                                        >
+                                      : VUnion<T[number], EnumToLiteralsTuple<T>, Constraint, never>
+                                  : T extends Record<string, string | number>
                                     ? VUnion<
-                                        T[number],
-                                        [VLiteral<T[0], 'required'>, VLiteral<T[1], 'required'>],
+                                        T[keyof T],
+                                        Array<VLiteral<T[keyof T], 'required'>>,
                                         Constraint,
                                         never
                                       >
-                                    : VUnion<T[number], EnumToLiteralsTuple<T>, Constraint, never>
-                                : T extends Record<string, string | number>
-                                  ? VUnion<
-                                      T[keyof T],
-                                      Array<VLiteral<T[keyof T], 'required'>>,
+                                    : VUnion<string, any[], Constraint, any>
+                                : // 8. Less common types
+                                  Z extends $ZodRecord<$ZodString, infer V extends $ZodType>
+                                  ? VRecord<
+                                      Record<string, WireInfer<V>>,
+                                      VString<string, 'required'>,
+                                      ConvexValidatorFromZodRequired<V>,
                                       Constraint,
-                                      never
+                                      string
                                     >
-                                  : VUnion<string, any[], Constraint, any>
-                              : // 8. Less common types
-                                Z extends $ZodRecord<$ZodString, infer V extends $ZodType>
-                                ? VRecord<
-                                    Record<string, WireInfer<V>>,
-                                    VString<string, 'required'>,
-                                    ConvexValidatorFromZodRequired<V>,
-                                    Constraint,
-                                    string
-                                  >
-                                : Z extends $ZodDate
-                                  ? VFloat64<number, Constraint>
-                                  : Z extends $ZodBigInt
-                                    ? VInt64<zinfer<Z>, Constraint>
-                                    : // 9. Catch-alls
-                                      Z extends $ZodAny
-                                      ? VAny<'required'>
-                                      : Z extends $ZodUnknown
+                                  : Z extends $ZodDate
+                                    ? VFloat64<number, Constraint>
+                                    : Z extends $ZodBigInt
+                                      ? VInt64<zinfer<Z>, Constraint>
+                                      : // 9. Catch-alls
+                                        Z extends $ZodAny
                                         ? VAny<'required'>
-                                        : VAny<'required'>
+                                        : Z extends $ZodUnknown
+                                          ? VAny<'required'>
+                                          : VAny<'required'>
 
 type ConvexValidatorFromZodFields<
   T extends { [key: string]: any },

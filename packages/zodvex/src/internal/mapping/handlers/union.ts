@@ -2,6 +2,18 @@ import type { GenericValidator, Validator } from 'convex/values'
 import { v } from 'convex/values'
 import { $ZodDiscriminatedUnion, type $ZodType, $ZodUnion } from '../../zod-core'
 
+// Combines validators into a single validator, falling back to v.any() when empty.
+export function unionOf(validators: GenericValidator[]): GenericValidator {
+  if (validators.length === 0) return v.any()
+  if (validators.length === 1) return validators[0]
+  const [first, second, ...rest] = validators as [
+    GenericValidator,
+    GenericValidator,
+    ...GenericValidator[]
+  ]
+  return v.union(first, second, ...rest)
+}
+
 // Helper: Convert Zod discriminated union types to Convex validators
 export function convertDiscriminatedUnionType(
   actualValidator: $ZodType,
@@ -22,12 +34,7 @@ export function convertDiscriminatedUnionType(
         const branchVisited = new Set(visited)
         return zodToConvexInternal(opt, branchVisited)
       }) as Validator<any, 'required', any>[]
-      const [first, second, ...rest] = convexOptions
-      return v.union(
-        first as Validator<any, 'required', any>,
-        second as Validator<any, 'required', any>,
-        ...rest
-      )
+      return unionOf(convexOptions)
     } else {
       return v.any()
     }
@@ -58,12 +65,7 @@ export function convertUnionType(
         return zodToConvexInternal(opt, branchVisited)
       }) as Validator<any, 'required', any>[]
       if (convexOptions.length >= 2) {
-        const [first, second, ...rest] = convexOptions
-        return v.union(
-          first as Validator<any, 'required', any>,
-          second as Validator<any, 'required', any>,
-          ...rest
-        )
+        return unionOf(convexOptions)
       } else {
         return v.any()
       }

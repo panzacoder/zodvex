@@ -154,26 +154,31 @@ See [Custom Codecs](./custom-codecs.md) for full documentation.
 
 For reference, here are all Zod types supported by zodvex and their Convex validator equivalents:
 
-| Zod Type             | Convex Validator                            |
-| -------------------- | ------------------------------------------- |
-| `z.string()`         | `v.string()`                                |
-| `z.number()`         | `v.float64()`                               |
-| `z.bigint()`         | `v.int64()`                                 |
-| `z.boolean()`        | `v.boolean()`                               |
-| `z.null()`           | `v.null()`                                  |
-| `z.array(T)`         | `v.array(T)`                                |
-| `z.object({...})`    | `v.object({...})`                           |
-| `z.record(T)`        | `v.record(v.string(), T)`                   |
-| `z.union([...])`     | `v.union(...)`                              |
-| `z.literal(x)`       | `v.literal(x)`                              |
-| `z.enum(['a', 'b'])` | `v.union(v.literal('a'), v.literal('b'))` ¹ |
-| `z.optional(T)`      | `v.optional(T)`                             |
-| `z.nullable(T)`      | `v.union(T, v.null())`                      |
-| `zx.id('table')`     | `v.id('table')`                             |
-| `zx.date()`          | `v.float64()`                               |
-| `zx.codec(w, r, t)`  | _(wire schema's validator)_                 |
+| Zod Type                               | Convex Validator                            |
+| -------------------------------------- | ------------------------------------------- |
+| `z.string()`                           | `v.string()`                                |
+| `z.number()`                           | `v.float64()`                               |
+| `z.bigint()`                           | `v.int64()`                                 |
+| `z.boolean()`                          | `v.boolean()`                               |
+| `z.null()`                             | `v.null()`                                  |
+| `z.array(T)`                           | `v.array(T)`                                |
+| `z.object({...})`                      | `v.object({...})`                           |
+| `z.record(T)`                          | `v.record(v.string(), T)`                   |
+| `z.tuple([A, B])`                      | `v.array(v.union(A, B))` ²                  |
+| `z.union([...])`                       | `v.union(...)`                              |
+| `z.literal(x)`                         | `v.literal(x)`                              |
+| `z.literal([a, b])`                    | `v.union(v.literal(a), v.literal(b))`       |
+| `z.literal(null)`                      | `v.null()`                                  |
+| `z.enum(['a', 'b'])`                   | `v.union(v.literal('a'), v.literal('b'))` ¹ |
+| `z.optional(T)`                        | `v.optional(T)`                             |
+| `z.nullable(T)`                        | `v.union(T, v.null())`                      |
+| `zx.id('table')`                       | `v.id('table')`                             |
+| `zx.date()`                            | `v.float64()`                               |
+| `zx.codec(w, r, t)`                    | _(wire schema's validator)_                 |
 
 > **Note:** Native `z.date()` is **not supported** — use `zx.date()` instead.
+
+² Convex has no fixed-length tuple validator. Tuples map to arrays whose elements are the union of item (and rest) validators, so element count and position are enforced only where zodvex runs Zod parsing (e.g. declared function args), not by Convex storage validation.
 
 ### Zod v4 Enum Note
 

@@ -24,7 +24,14 @@ const shape = {
   optionalRole: z.enum(['admin', 'user', 'guest']).optional(),
   literal: z.literal('user'),
   version: z.literal(1),
-  optionalFlag: z.literal(true).optional()
+  optionalFlag: z.literal(true).optional(),
+  tuple: z.tuple([z.string(), z.number()]),
+  singleOptionalTuple: z.tuple([z.string().optional()]),
+  restTuple: z.tuple([z.string()], z.number()),
+  emptyTuple: z.tuple([]),
+  multiLiteral: z.literal(['a', 'b']),
+  mixedLiteral: z.literal(['a', null]),
+  nullLiteral: z.literal(null)
 }
 const result = zodToConvexFields(shape)
 type Fields = typeof result
@@ -54,3 +61,25 @@ type _OptionalEnum = Expect<
 type _Literal = Expect<Equal<Fields['literal']['type'], 'user'>>
 type _NumberLiteral = Expect<Equal<Fields['version']['type'], 1>>
 type _OptionalLiteral = Expect<Equal<Fields['optionalFlag']['type'], true | undefined>>
+type _Tuple = Expect<Equal<Fields['tuple']['type'], [string, number]>>
+type _TupleElement = Expect<Equal<Fields['tuple']['element']['type'], string | number>>
+type _TupleElementKind = Expect<Equal<Fields['tuple']['element']['kind'], 'union'>>
+type _SingleOptionalTupleElement = Expect<
+  Equal<Fields['singleOptionalTuple']['element']['type'], string>
+>
+type _SingleOptionalTupleElementKind = Expect<
+  Equal<Fields['singleOptionalTuple']['element']['kind'], 'string'>
+>
+type _RestTupleElement = Expect<Equal<Fields['restTuple']['element']['type'], string | number>>
+type _EmptyTupleElement = Expect<Equal<Fields['emptyTuple']['element']['kind'], 'any'>>
+type _MultiLiteral = Expect<Equal<Fields['multiLiteral']['type'], 'a' | 'b'>>
+type _MultiLiteralKind = Expect<Equal<Fields['multiLiteral']['kind'], 'union'>>
+type _MultiLiteralMembers = Expect<
+  Equal<Fields['multiLiteral']['members'][number]['type'], 'a' | 'b'>
+>
+type _MixedLiteral = Expect<Equal<Fields['mixedLiteral']['type'], 'a' | null>>
+type _MixedLiteralKind = Expect<Equal<Fields['mixedLiteral']['kind'], 'union'>>
+type _MixedLiteralMembers = Expect<
+  Equal<Fields['mixedLiteral']['members'][number]['kind'], 'literal' | 'null'>
+>
+type _NullLiteral = Expect<Equal<Fields['nullLiteral']['type'], null>>
