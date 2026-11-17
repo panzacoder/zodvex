@@ -178,7 +178,7 @@ For reference, here are all Zod types supported by zodvex and their Convex valid
 
 > **Note:** Native `z.date()` is **not supported** — use `zx.date()` instead.
 
-² Convex has no fixed-length tuple validator. Tuples map to arrays whose elements are the union of item (and rest) validators, so element count and position are enforced by Zod but not by Convex.
+² Convex has no fixed-length tuple validator. Tuples map to arrays whose elements are the union of item (and rest) validators, so element count and position are enforced only where zodvex runs Zod parsing (e.g. declared function args), not by Convex storage validation.
 
 ### Zod v4 Enum Note
 

@@ -2,6 +2,7 @@ import type {
   GenericId,
   VAny,
   VArray,
+  Validator,
   VBoolean,
   VFloat64,
   VId,
@@ -200,26 +201,42 @@ type EnumToLiteralsTuple<T extends readonly [string, ...string[]]> = T['length']
       ]
 
 // True when T is a union of two or more members (e.g. multi-value z.literal).
-type IsUnion<T> = [T] extends [infer U]
-  ? U extends any
-    ? [T] extends [U]
-      ? false
-      : true
-    : never
-  : false
+type IsUnion<T, U = T> = T extends any ? ([U] extends [T] ? false : true) : never
+
+// Mirrors the runtime literal mapping: null -> v.null(), undefined -> v.any(), else v.literal().
+type LiteralValidator<T> = T extends null
+  ? VNull<null, 'required'>
+  : T extends undefined
+    ? VAny<'required'>
+    : VLiteral<T, 'required'>
+
+// Tuple items wrapped in optional/default are unwrapped at runtime before conversion,
+// so map the inner type directly instead of widening it to a union with null.
+type TupleItemValidator<Z extends $ZodType> =
+  Z extends $ZodOptional<infer T extends $ZodType>
+    ? ConvexValidatorFromZodBase<T>
+    : Z extends $ZodDefault<infer T extends $ZodType>
+      ? ConvexValidatorFromZodBase<T>
+      : ConvexValidatorFromZodBase<Z>
+
+type TupleItemValidators<Items extends readonly $ZodType[]> = {
+  [K in keyof Items]: Items[K] extends $ZodType ? TupleItemValidator<Items[K]> : never
+}
+
+type TupleElementFromMembers<Members extends readonly Validator<any, 'required', any>[]> =
+  Members extends readonly []
+    ? VAny<'required'>
+    : Members extends readonly [infer Only extends Validator<any, 'required', any>]
+      ? Only
+      : VUnion<Members[number]['type'], [...Members], 'required'>
 
 // Element validator for tuple arrays: union of per-item validators (and rest, if present).
 type TupleElementValidator<
   Items extends readonly $ZodType[],
-  Rest extends $ZodType | null,
-  Constraint extends 'required' | 'optional' = 'required'
+  Rest extends $ZodType | null
 > = Rest extends $ZodType
-  ? VUnion<any, any[], Constraint, any>
-  : Items['length'] extends 0
-    ? VAny<'required'>
-    : Items['length'] extends 1
-      ? ConvexValidatorFromZodRequired<Items[0]>
-      : VUnion<any, any[], Constraint, any>
+  ? TupleElementFromMembers<[...TupleItemValidators<Items>, TupleItemValidator<Rest>]>
+  : TupleElementFromMembers<[...TupleItemValidators<Items>]>
 
 export type ZodValidator = Record<string, $ZodType>
 
@@ -272,7 +289,7 @@ type ConvexValidatorFromZodBase<Z extends $ZodType> =
                         : // 6. Literals and enums
                           Z extends $ZodLiteral<infer T>
                           ? IsUnion<T> extends true
-                            ? VUnion<T, any[], 'required'>
+                            ? VUnion<T, LiteralValidator<T>[], 'required', never>
                             : T extends null
                               ? VNull<null, 'required'>
                               : T extends undefined
@@ -400,7 +417,7 @@ export type ConvexValidatorFromZod<
                             : // 7. Literals and enums
                               Z extends $ZodLiteral<infer T>
                               ? IsUnion<T> extends true
-                                ? VUnion<T, any[], Constraint>
+                                ? VUnion<T, LiteralValidator<T>[], Constraint, never>
                                 : T extends null
                                   ? VNull<null, Constraint>
                                   : T extends undefined

@@ -231,7 +231,7 @@ Guides: [Codegen](./docs/guide/codegen.md) | Example: [examples/task-manager/](.
 
 ¹ Enum unions carry a cosmetically different TypeScript signature than hand-written `v.union(v.literal(...))` calls — identical values, runtime validation, and type safety. Details: [Mapping Helpers](./docs/guide/mapping-helpers.md#zod-v4-enum-type-note).
 
-² Convex has no fixed-length tuple validator. Tuples map to arrays whose elements are the union of item (and rest) validators, so element count and position are enforced by Zod but not by Convex.
+² Convex has no fixed-length tuple validator. Tuples map to arrays whose elements are the union of item (and rest) validators, so element count and position are enforced only where zodvex runs Zod parsing (e.g. declared function args), not by Convex storage validation.
 
 For zodvex's own types — `zx.id()`, `zx.date()`, `zx.codec()` — and exactly how they map to Convex validators, see [The zx Namespace](./docs/guide/zx-namespace.md).
 

@@ -22,7 +22,8 @@ import {
   convertEnumType,
   convertNullableType,
   convertRecordType,
-  convertUnionType
+  convertUnionType,
+  unionOf
 } from './handlers'
 import type {
   ConvexValidatorFromZod,
@@ -174,21 +175,14 @@ function zodToConvexInternal<Z extends $ZodType>(
       }
       case 'literal': {
         if (actualValidator instanceof $ZodLiteral) {
-          const vals = [...actualValidator._zod.def.values]
-          const toV = (x: unknown) => {
-            if (x === null) return v.null()
-            if (x === undefined) return v.any()
-            return v.literal(x as string | number | bigint | boolean)
-          }
-          const vs = vals.map(toV)
-          if (vs.length === 0) {
-            convexValidator = v.any()
-          } else if (vs.length === 1) {
-            convexValidator = vs[0]
-          } else {
-            const [a, b, ...r] = vs as [GenericValidator, GenericValidator, ...GenericValidator[]]
-            convexValidator = v.union(a, b, ...r)
-          }
+          const values = [...actualValidator._zod.def.values]
+          convexValidator = unionOf(
+            values.map(value => {
+              if (value === null) return v.null()
+              if (value === undefined) return v.any()
+              return v.literal(value as string | number | bigint | boolean)
+            })
+          )
         } else {
           convexValidator = v.any()
         }
@@ -277,18 +271,7 @@ function zodToConvexInternal<Z extends $ZodType>(
           if (rest instanceof $ZodType) {
             elements.push(zodToConvexInternal(unwrapOptional(rest), visited))
           }
-          if (elements.length === 0) {
-            convexValidator = v.array(v.any())
-          } else if (elements.length === 1) {
-            convexValidator = v.array(elements[0])
-          } else {
-            const [a, b, ...r] = elements as [
-              GenericValidator,
-              GenericValidator,
-              ...GenericValidator[]
-            ]
-            convexValidator = v.array(v.union(a, b, ...r))
-          }
+          convexValidator = v.array(unionOf(elements))
         } else {
           convexValidator = v.array(v.any())
         }
