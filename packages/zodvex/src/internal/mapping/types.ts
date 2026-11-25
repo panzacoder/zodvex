@@ -103,15 +103,36 @@ type WireInferValue<Z extends $ZodType> =
               : // 5. Containers
                 Z extends $ZodArray<infer Element extends $ZodType>
                 ? WireInferValue<Element>[]
-                : Z extends $ZodUnion<infer Options extends readonly $ZodType[]>
-                  ? WireInferValue<Options[number]>
-                  : Z extends $ZodRecord<$ZodString, infer V extends $ZodType>
-                    ? Record<string, WireInferValue<V>>
-                    : // 6. z.date() fallback (should use zx.date() instead)
-                      Z extends $ZodDate
-                      ? number
-                      : // 7. Primitives — use Zod's built-in inference
-                        zinfer<Z>
+                : Z extends $ZodTuple<
+                      infer Items extends readonly $ZodType[],
+                      infer Rest extends $ZodType | null
+                    >
+                  ? WireInferTuple<Items, Rest>
+                  : Z extends $ZodUnion<infer Options extends readonly $ZodType[]>
+                    ? WireInferValue<Options[number]>
+                    : Z extends $ZodRecord<$ZodString, infer V extends $ZodType>
+                      ? Record<string, WireInferValue<V>>
+                      : // 6. z.date() fallback (should use zx.date() instead)
+                        Z extends $ZodDate
+                        ? number
+                        : // 7. Primitives — use Zod's built-in inference
+                          zinfer<Z>
+
+// Preserve tuple positions and trailing optional slots while converting each codec
+// to its wire type. Rest elements follow the same recursive wire conversion.
+type WireInferTupleItems<Items extends readonly $ZodType[]> = Items extends readonly [
+  ...infer Prefix extends $ZodType[],
+  infer Tail extends $ZodType
+]
+  ? Tail['_zod']['optout'] extends 'optional'
+    ? [...WireInferTupleItems<Prefix>, WireInfer<Tail>?]
+    : { -readonly [K in keyof Items]: WireInfer<Items[K]> }
+  : []
+
+type WireInferTuple<Items extends readonly $ZodType[], Rest extends $ZodType | null> = [
+  ...WireInferTupleItems<Items>,
+  ...(Rest extends $ZodType ? WireInfer<Rest>[] : [])
+]
 
 /**
  * Builds an object type from a Zod shape using TypeScript's ?: syntax for optional fields.
@@ -165,15 +186,20 @@ type WireInfer<Z extends $ZodType> =
               : // 5. Containers
                 Z extends $ZodArray<infer Element extends $ZodType>
                 ? WireInferValue<Element>[]
-                : Z extends $ZodUnion<infer Options extends readonly $ZodType[]>
-                  ? WireInfer<Options[number]>
-                  : Z extends $ZodRecord<$ZodString, infer V extends $ZodType>
-                    ? Record<string, WireInferValue<V>>
-                    : // 6. z.date() fallback
-                      Z extends $ZodDate
-                      ? number
-                      : // 7. Primitives
-                        zinfer<Z>
+                : Z extends $ZodTuple<
+                      infer Items extends readonly $ZodType[],
+                      infer Rest extends $ZodType | null
+                    >
+                  ? WireInferTuple<Items, Rest>
+                  : Z extends $ZodUnion<infer Options extends readonly $ZodType[]>
+                    ? WireInfer<Options[number]>
+                    : Z extends $ZodRecord<$ZodString, infer V extends $ZodType>
+                      ? Record<string, WireInferValue<V>>
+                      : // 6. z.date() fallback
+                        Z extends $ZodDate
+                        ? number
+                        : // 7. Primitives
+                          zinfer<Z>
 
 // Check if a type has the _tableName property added by zx.id() (or legacy zid())
 type IsZid<T> = T extends { _tableName: infer _TableName extends string } ? true : false

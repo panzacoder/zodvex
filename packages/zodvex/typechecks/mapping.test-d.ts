@@ -2,6 +2,7 @@ import type { GenericId } from 'convex/values'
 import { z } from 'zod'
 import { zid } from '../src/internal/ids'
 import { type ConvexValidatorFromZodFieldsAuto, zodToConvexFields } from '../src/internal/mapping'
+import { zx } from '../src/internal/zx'
 import type { Equal, Expect } from './test-helpers'
 
 // Check the consumer-facing value and presence types, without depending on
@@ -27,6 +28,7 @@ const shape = {
   optionalFlag: z.literal(true).optional(),
   tuple: z.tuple([z.string(), z.number()]),
   singleOptionalTuple: z.tuple([z.string().optional()]),
+  restOnlyTuple: z.tuple([]).rest(z.string()),
   restTuple: z.tuple([z.string()], z.number()),
   emptyTuple: z.tuple([]),
   multiLiteral: z.literal(['a', 'b']),
@@ -83,3 +85,26 @@ type _MixedLiteralMembers = Expect<
   Equal<Fields['mixedLiteral']['members'][number]['kind'], 'literal' | 'null'>
 >
 type _NullLiteral = Expect<Equal<Fields['nullLiteral']['type'], null>>
+
+type _RestOnlyTupleElementKind = Expect<Equal<Fields['restOnlyTuple']['element']['kind'], 'string'>>
+type _RestOnlyTupleElementType = Expect<Equal<Fields['restOnlyTuple']['element']['type'], string>>
+
+const dateCodec = z.codec(z.string(), z.date(), {
+  decode: value => new Date(value),
+  encode: value => value.toISOString()
+})
+const codecTuples = zodToConvexFields({
+  fixed: z.tuple([dateCodec, z.number()]),
+  rest: z.tuple([z.boolean()], dateCodec),
+  optional: z.tuple([dateCodec.optional()]),
+  nested: z.object({ pairs: z.array(z.tuple([dateCodec])) }),
+  nullable: z.tuple([dateCodec]).nullable(),
+  branded: z.tuple([zx.date()])
+})
+type _CodecTupleWire = Expect<Equal<typeof codecTuples.fixed.type, [string, number]>>
+type _CodecTupleElement = Expect<Equal<typeof codecTuples.fixed.element.type, string | number>>
+type _CodecRestWire = Expect<Equal<typeof codecTuples.rest.type, [boolean, ...string[]]>>
+type _CodecOptionalWire = Expect<Equal<typeof codecTuples.optional.type, [string?]>>
+type _CodecNestedWire = Expect<Equal<typeof codecTuples.nested.type.pairs, [string][]>>
+type _CodecNullableWire = Expect<Equal<typeof codecTuples.nullable.type, [string] | null>>
+type _BrandedCodecTupleWire = Expect<Equal<typeof codecTuples.branded.type, [number]>>
