@@ -5,7 +5,6 @@ import { assertNoNativeZodDate } from '../schema/dateGuards'
 import { handleZodValidationError, validateReturns } from '../serverUtils'
 import { pick } from '../shared/object'
 import { stripUndefined } from '../stripUndefined'
-import type { Overwrite } from '../types'
 import {
   $ZodCustom,
   $ZodDefault,
@@ -22,6 +21,7 @@ export type FunctionSchemaInput = $ZodType | Record<string, $ZodType> | undefine
 export type DirectFunctionInput = $ZodType | Record<string, $ZodType>
 
 export type CustomInputResult<Ctx = unknown> = {
+  replaceContext?: boolean
   ctx?: Record<string, unknown>
   args?: Record<string, unknown>
   onSuccess?: (params: { ctx: Ctx; args: Record<string, unknown>; result: unknown }) => unknown
@@ -221,9 +221,13 @@ type RequiredKeys<T> = {
   [K in keyof T]-?: {} extends Pick<T, K> ? never : K
 }[keyof T]
 
-// Optional patch keys may be absent (retaining a base value) or explicitly
-// undefined (overwriting it). Preserve both possibilities and key optionality.
-type SpreadPatch<Base, Patch> = Omit<Base, keyof Patch> &
+// Remapping retains named properties alongside an index signature.
+type OmitPatchKeys<Base, Keys extends PropertyKey> = {
+  [K in keyof Base as K extends Keys ? never : K]: Base[K]
+}
+
+// An absent optional key preserves the base; a present undefined overwrites it.
+type SpreadPatch<Base, Patch> = OmitPatchKeys<Base, keyof Patch> &
   Pick<Patch, RequiredKeys<Patch>> & {
     [K in keyof Base as K extends keyof Patch
       ? K extends RequiredKeys<Patch>
@@ -241,7 +245,9 @@ type SpreadPatch<Base, Patch> = Omit<Base, keyof Patch> &
 // Accept interfaces as well as object literals; a patch needs no index signature.
 export type MergePatch<Base, Patch> = Patch extends object
   ? Patch extends Required<Patch>
-    ? Overwrite<Base, Patch>
+    ? keyof Patch extends never
+      ? Base
+      : OmitPatchKeys<Base, keyof Patch> & Patch
     : SpreadPatch<Base, Patch>
   : Base
 
@@ -253,20 +259,35 @@ type ResultPatch<Added, Key extends 'ctx' | 'args'> = Added extends undefined
 
 type AddedResult<Input extends unknown[]> = Input extends [infer Added] ? Added : undefined
 
+// A replacement omits the base, while a merge preserves optional patch fallbacks.
+type ReplacementContext<Added> =
+  ResultPatch<Added, 'ctx'> extends infer Patch
+    ? Patch extends object
+      ? Patch
+      : Record<never, never>
+    : never
+type AppliedContext<Ctx, Added> = Added extends { replaceContext: true }
+  ? ReplacementContext<Added>
+  : Added extends { replaceContext?: infer Replace }
+    ? true extends Replace
+      ? ReplacementContext<Added> | MergePatch<Ctx, ResultPatch<Added, 'ctx'>>
+      : MergePatch<Ctx, ResultPatch<Added, 'ctx'>>
+    : MergePatch<Ctx, ResultPatch<Added, 'ctx'>>
+
 export function applyCustomizationResult<
   Ctx extends Record<string, unknown>,
   Args extends Record<string, unknown>,
-  Input extends [] | [added: Pick<CustomInputResult, 'ctx' | 'args'> | undefined]
+  Input extends [] | [added: Pick<CustomInputResult, 'ctx' | 'args' | 'replaceContext'> | undefined]
 >(
   ctx: Ctx,
   baseArgs: Args,
   ...customization: Input
 ): {
-  finalCtx: MergePatch<Ctx, ResultPatch<AddedResult<Input>, 'ctx'>>
+  finalCtx: AppliedContext<Ctx, AddedResult<Input>>
   finalArgs: MergePatch<Args, ResultPatch<AddedResult<Input>, 'args'>>
 } {
   const added = customization[0]
-  const finalCtx = { ...ctx, ...(added?.ctx ?? {}) }
+  const finalCtx = added?.replaceContext ? (added.ctx ?? {}) : { ...ctx, ...(added?.ctx ?? {}) }
   const addedArgs = added?.args ?? {}
   // Generic object spread is inferred as intersection by TypeScript, whereas
   // runtime spread overwrites keys. The mapped types model that operation,
@@ -275,7 +296,7 @@ export function applyCustomizationResult<
     finalCtx,
     finalArgs: { ...baseArgs, ...addedArgs }
   } as {
-    finalCtx: MergePatch<Ctx, ResultPatch<AddedResult<Input>, 'ctx'>>
+    finalCtx: AppliedContext<Ctx, AddedResult<Input>>
     finalArgs: MergePatch<Args, ResultPatch<AddedResult<Input>, 'args'>>
   }
 }

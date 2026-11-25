@@ -1,3 +1,14 @@
+// biome-ignore lint/complexity/noBannedTypes: an empty context must have no index signature
+type EmptyContext = {}
+
+export interface DeclarationContext {
+  readonly declaration: unknown
+  readonly context: Record<string, unknown>
+}
+export type DeclaredContext<M, D> = M extends DeclarationContext
+  ? (M & { readonly declaration: D })['context']
+  : EmptyContext
+
 import {
   type ActionBuilder,
   type ArgsArrayToObject,
@@ -117,7 +128,9 @@ type CustomFunction<
   InputCtx,
   CustomCtx extends Record<string, any>,
   CustomMadeArgs extends Record<string, any>,
-  ExtraArgs extends Record<string, any>
+  ExtraArgs extends Record<string, any>,
+  M extends DeclarationContext | undefined = undefined,
+  D extends ExtraArgs = ExtraArgs
 > =
   | ({
       /**
@@ -125,7 +138,7 @@ type CustomFunction<
        */
       args?: ArgsValidator
       handler: (
-        ctx: MergePatch<InputCtx, CustomCtx>,
+        ctx: MergePatch<MergePatch<InputCtx, CustomCtx>, DeclaredContext<M, NoInfer<D>>>,
         ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
       ) => ReturnValue
       /**
@@ -139,14 +152,18 @@ type CustomFunction<
        * in case you're seeing performance issues with validating twice.
        */
       skipConvexValidation?: boolean
-    } & {
-      [key in keyof ExtraArgs as key extends 'args' | 'handler' | 'skipConvexValidation' | 'returns'
-        ? never
-        : key]: ExtraArgs[key]
-    })
+    } & (M extends DeclarationContext ? { [K in keyof D]: D[K] } : EmptyContext) & {
+        [key in keyof ExtraArgs as key extends
+          | 'args'
+          | 'handler'
+          | 'skipConvexValidation'
+          | 'returns'
+          ? never
+          : key]: ExtraArgs[key]
+      })
   | {
       (
-        ctx: MergePatch<InputCtx, CustomCtx>,
+        ctx: MergePatch<MergePatch<InputCtx, CustomCtx>, DeclaredContext<M, EmptyContext>>,
         ...args: ArgsForHandlerType<ArgsOutput<ArgsValidator>, CustomMadeArgs>
       ): ReturnValue
     }
@@ -169,12 +186,14 @@ export type CustomBuilder<
   CustomMadeArgs extends Record<string, any>,
   InputCtx,
   Visibility extends FunctionVisibility,
-  ExtraArgs extends Record<string, any>
+  ExtraArgs extends Record<string, any>,
+  M extends DeclarationContext | undefined = undefined
 > = {
   <
     ArgsValidator extends ZodValidator | $ZodObject | void,
     ReturnsZodValidator extends $ZodType | ZodValidator | void = void,
-    ReturnValue extends ReturnValueInput<ReturnsZodValidator> = any
+    ReturnValue extends ReturnValueInput<ReturnsZodValidator> = any,
+    const D extends ExtraArgs = ExtraArgs
   >(
     func: CustomFunction<
       ArgsValidator,
@@ -183,7 +202,9 @@ export type CustomBuilder<
       InputCtx,
       CustomCtx,
       CustomMadeArgs,
-      ExtraArgs
+      ExtraArgs,
+      M,
+      D
     >
   ): Registration<
     FuncType,
@@ -234,7 +255,7 @@ export function customFnBuilder<
     CustomCtx,
     CustomMadeArgs,
     ExtraArgs
-  >
+  > & { validateDeclaration?: (extra: ExtraArgs) => undefined }
 ) {
   const customInput = customization.input ?? NoOp.input
   const rawInputArgs = customization.args ?? NoOp.args
@@ -268,6 +289,11 @@ export function customFnBuilder<
     // Read the original object so enumerable custom options survive unchanged.
     const properties = fn as typeof fn & Partial<Properties>
     const { args, handler: attachedHandler, returns: maybeObject, ...extra } = properties
+    const validation: unknown = customization.validateDeclaration?.(extra as unknown as ExtraArgs)
+    if (validation !== undefined) {
+      Promise.resolve(validation).catch(() => undefined)
+      throw new Error('validateDeclaration must be synchronous and return undefined')
+    }
     const handler = attachedHandler ?? (typeof fn === 'function' ? fn : fn.handler)
     const skipConvexValidation = properties.skipConvexValidation ?? false
 
