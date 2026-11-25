@@ -156,6 +156,12 @@ describe('zodToConvex', () => {
     expect(validator).toEqual(v.union(v.literal('a'), v.literal('b')))
   })
 
+  it('deduplicates literal values to match the inferred validator kind', () => {
+    expect(zodToConvex(z.literal(['a', 'a']))).toEqual(v.literal('a'))
+    expect(zodToConvex(z.literal([null, null]))).toEqual(v.null())
+    expect(zodToConvex(z.literal(['a', 'b', 'a']))).toEqual(v.union(v.literal('a'), v.literal('b')))
+  })
+
   it('maps multi-value numeric literals to unions', () => {
     const schema = z.literal([1, 2])
     const validator = zodToConvex(schema)

@@ -175,7 +175,7 @@ function zodToConvexInternal<Z extends $ZodType>(
       }
       case 'literal': {
         if (actualValidator instanceof $ZodLiteral) {
-          const values = [...actualValidator._zod.def.values]
+          const values = [...new Set(actualValidator._zod.def.values)]
           convexValidator = unionOf(
             values.map(value => {
               if (value === null) return v.null()

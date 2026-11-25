@@ -32,6 +32,8 @@ const shape = {
   restTuple: z.tuple([z.string()], z.number()),
   emptyTuple: z.tuple([]),
   multiLiteral: z.literal(['a', 'b']),
+  duplicateLiteral: z.literal(['a', 'a']),
+  duplicateNullLiteral: z.literal([null, null]),
   mixedLiteral: z.literal(['a', null]),
   nullLiteral: z.literal(null)
 }
@@ -108,3 +110,7 @@ type _CodecOptionalWire = Expect<Equal<typeof codecTuples.optional.type, [string
 type _CodecNestedWire = Expect<Equal<typeof codecTuples.nested.type.pairs, [string][]>>
 type _CodecNullableWire = Expect<Equal<typeof codecTuples.nullable.type, [string] | null>>
 type _BrandedCodecTupleWire = Expect<Equal<typeof codecTuples.branded.type, [number]>>
+
+type _DuplicateLiteralKind = Expect<Equal<Fields['duplicateLiteral']['kind'], 'literal'>>
+type _DuplicateLiteralValue = Expect<Equal<Fields['duplicateLiteral']['value'], 'a'>>
+type _DuplicateNullLiteralKind = Expect<Equal<Fields['duplicateNullLiteral']['kind'], 'null'>>
