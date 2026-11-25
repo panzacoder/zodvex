@@ -1,0 +1,850 @@
+---
+import Base from '../layouts/Base.astro'
+import CodeBlock from '../components/CodeBlock.astro'
+import Compare from '../components/Compare.astro'
+import { scenarios } from '../data/scenarios'
+import { dateGoal, outcomes, diyChecklist, effortLabel, tally } from '../data/cost'
+
+const dateTally = tally(dateGoal)
+const cols = ['convex', 'diy', 'zodvex'] as const
+const colName = { convex: 'Convex', diy: 'Zod + convex-helpers, by hand', zodvex: 'zodvex' }
+
+const GITHUB = 'https://github.com/panzacoder/zodvex'
+const NPM = 'https://www.npmjs.com/package/zodvex'
+const guide = (slug: string) => `${GITHUB}/blob/main/docs/guide/${slug}.md`
+
+const title = 'zodvex — Zod v4 as your schema language for Convex'
+const description =
+  'zodvex makes Zod v4 the schema language for your Convex app. Tables, function arguments, return types and the client are one set of schemas, run at every boundary. Dates, typed IDs and custom codecs survive the round trip.'
+
+const handled = [
+  {
+    title: 'Handlers work in your types, not wire types.',
+    body: 'A due date is a Date, a user id is a branded Id, an encrypted field is a string you can read. Convex still stores plain values.',
+  },
+  {
+    title: 'The translation is never yours to write.',
+    body: 'Args, returns, ctx.db reads and writes, index ranges, internal calls, the scheduler and the React hooks all encode and decode through the same schema.',
+  },
+  {
+    title: 'Rules run everywhere the value passes.',
+    body: 'A refinement you put on a field holds on arguments, returns, writes, reads and in the form, without a guard anywhere.',
+  },
+  {
+    title: 'The database cannot hand you something the schema forbids.',
+    body: 'Every read is a real Zod parse, so rows that slipped in through a migration, the dashboard or older code fail loudly instead of reaching the UI.',
+  },
+]
+
+const zen = [
+  {
+    group: 'Schema',
+    principles: [
+      {
+        title: 'The model is the schema',
+        body: 'Define each table once with defineZodModel and derive everything else from it. Function argument and return schemas come from zx.doc, zx.docArray, zx.update and zx.base, so there is never a second copy of a table shape to keep in sync.',
+        dos: [
+          ['Derive, do not restate', 'If you are spreading fields into a hand-written validator, reach for a zx helper instead.'],
+          ['Keep models client-safe', 'defineZodModel imports cleanly in React, so forms and types come from the same file the server uses.'],
+        ],
+      },
+      {
+        title: 'Refinements belong on the field',
+        body: 'A rule like .min(1) or .email() is part of what the data is, not something a handler checks on the way in. On the field it runs on arguments, returns, and database reads and writes without any further code.',
+        dos: [
+          ['Guards at the top of a handler are a smell', 'Move the rule into the schema and delete the guard.'],
+        ],
+      },
+    ],
+  },
+  {
+    group: 'Boundaries',
+    principles: [
+      {
+        title: 'Validate at every boundary, not just the edge',
+        body: 'Convex checks structure where a function starts. zodvex also parses what the database returns and encodes what you write to it. A row written before a rule existed is caught the next time it is read, not silently served forever.',
+        dos: [
+          ['Trust ctx.db results', 'They have been through a real Zod parse. Do not re-validate them by hand.'],
+        ],
+      },
+      {
+        title: 'Codecs, not conventions',
+        body: 'Storing a Date as milliseconds is fine. Remembering that every place the number appears is not. zx.date() and zx.codec() put the conversion in the schema, so the wire stays Convex-safe and your code works in runtime types.',
+        dos: [
+          ['Never call encode or decode yourself', 'Args, returns, ctx.db, runQuery, the scheduler and the React hooks all do it for you.'],
+          ['Prefer zx.id over plain strings', 'It is a typed validator with no wire transform, so it works everywhere a string does.'],
+        ],
+      },
+    ],
+  },
+  {
+    group: 'Composition',
+    principles: [
+      {
+        title: 'Wire it once',
+        body: 'initZodvex takes your schema and the six Convex builders and returns zq, zm, za and their internal variants with the codec-aware ctx.db already applied. functions.ts is the only place the wiring lives.',
+        dos: [
+          ['Use .withContext() for auth', 'Attach the user to every builder in one place rather than resolving identity per function.'],
+        ],
+      },
+      {
+        title: 'Compose, do not absorb',
+        body: 'zodvex is not a middleware framework. Other ctx.db wrappers such as convex-helpers triggers sit underneath via underlyingDb, rules and audit sit on top, and ctx.db.unwrap() is always there when you need the raw database.',
+        dos: [
+          ['Add codegen when the client needs it', 'Server-side codecs work with initZodvex alone. Run zodvex generate when you want typed React hooks and cross-function auto-codecs.'],
+        ],
+      },
+    ],
+  },
+]
+
+const quickstartModels = `import { z } from 'zod'
+import { zx, defineZodModel } from 'zodvex'
+
+export const EventModel = defineZodModel('events', {
+  title: z.string().min(1),
+  startDate: zx.date(),
+  endDate: zx.date().optional(),
+  location: z.string().optional(),
+})`
+
+const quickstartWire = `// convex/schema.ts
+import { defineZodSchema } from 'zodvex/server'
+import { EventModel } from './models'
+
+export default defineZodSchema({ events: EventModel })
+
+// convex/functions.ts
+import { initZodvex } from 'zodvex/server'
+import {
+  query, mutation, action,
+  internalQuery, internalMutation, internalAction,
+} from './_generated/server'
+import schema from './schema'
+
+export const { zq, zm, za, ziq, zim, zia } = initZodvex(schema, {
+  query, mutation, action,
+  internalQuery, internalMutation, internalAction,
+})`
+
+const quickstartFn = `import { zx } from 'zodvex'
+import { zq, zm } from './functions'
+import { EventModel } from './models'
+
+export const list = zq({
+  args: {},
+  returns: zx.docArray(EventModel),
+  handler: (ctx) => ctx.db.query('events').collect(),   // rows arrive with Dates
+})
+
+export const create = zm({
+  args: zx.base(EventModel),                            // the model's fields
+  returns: zx.id('events'),
+  handler: (ctx, args) => ctx.db.insert('events', args), // Dates encoded on write
+})`
+
+const guides = [
+  ['The zx namespace', 'zx-namespace', 'zx.id(), zx.date(), zx.codec() and the model helpers'],
+  ['Builders', 'builders', 'initZodvex, the six builders, composing with triggers'],
+  ['Custom context', 'custom-context', '.withContext(), defineContext, onSuccess'],
+  ['Rules and audit', 'rules-and-audit', '.withRules() and .audit() on ctx.db'],
+  ['Custom codecs', 'custom-codecs', 'zx.codec(), decodeDoc and encodeDoc'],
+  ['Date handling', 'date-handling', 'zx.date() end to end'],
+  ['Codegen', 'codegen', 'The CLI, the registry, typed hooks'],
+  ['Form validation', 'form-validation', 'react-hook-form with your server schemas'],
+  ['Streams', 'streams', 'zodvexStream and zodvexMergedStream'],
+  ['Polymorphic tables', 'polymorphic-tables', 'Union and discriminated-union tables'],
+] as const
+---
+
+<Base title={title} description={description}>
+  <header class="nav theme-dark">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top" aria-label="zodvex home">
+        <svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true">
+          <rect width="64" height="64" rx="14" fill="#f9f7ee"></rect>
+          <path d="M17 20h30l-30 24h30" fill="none" stroke="#141414" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"></path>
+          <circle cx="49" cy="44" r="6" fill="#ee342f"></circle>
+        </svg>
+        <span>zodvex</span>
+      </a>
+      <nav class="links" aria-label="Sections">
+        <a href="#overview">Overview</a>
+        <a href="#compare">Compare</a>
+        <a href="#zen">Zen</a>
+        <a href="#start">Get started</a>
+        <a href="#docs">Docs</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="pill-link" href={NPM} target="_blank" rel="noopener">npm</a>
+        <a class="pill-link pill-solid" href={GITHUB} target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ───────────────────────── hero ───────────────────────── -->
+    <section class="hero theme-dark">
+      <div class="wrap hero-inner">
+        <span class="tag tag-yellow">Zod v4 + Convex</span>
+        <h1>Zod all the way down.</h1>
+        <p class="lede">
+          zodvex makes Zod v4 the schema language for your Convex app. Tables, function
+          arguments, return types and the client are one set of schemas, run at every boundary.
+          Dates, typed IDs and custom codecs survive the round trip. All TypeScript, no glue code.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#compare">See the difference</a>
+          <a class="btn" href="#docs">Read the docs</a>
+        </div>
+        <div class="cmd" data-copy="npm install zodvex zod convex convex-helpers">
+          <code><span class="prompt">$</span>npm install zodvex zod convex convex-helpers</code>
+          <button type="button" class="copy" aria-label="Copy install command">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+
+        <ol class="pipeline" aria-label="Where zodvex runs your schema">
+          <li><span class="node">React</span><small>useZodQuery</small></li>
+          <li><span class="node">args</span><small>parse + decode</small></li>
+          <li><span class="node">handler</span><small>Date, Id&lt;'t'&gt;</small></li>
+          <li><span class="node">ctx.db</span><small>encode / decode</small></li>
+          <li><span class="node">returns</span><small>parse + encode</small></li>
+        </ol>
+        <p class="pipeline-caption">One schema, executed at every hop. Not just checked for shape at the function edge.</p>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── overview ───────────────────────── -->
+    <section class="section theme-light" id="overview">
+      <div class="wrap overview">
+        <div class="overview-copy">
+          <span class="tag">Overview</span>
+          <h2 class="section-title">Zod is your source of truth across a Convex app</h2>
+          <p>
+            Convex gives you end-to-end type inference and validators that check the shape of what
+            enters a function. zodvex keeps that inference and deepens the runtime layer: your Zod
+            schemas execute at every boundary instead of being erased down to structural checks.
+          </p>
+          <p>
+            Everything is wired once with <code>initZodvex</code>, which returns builders for all
+            six Convex function types with a codec-aware <code>ctx.db</code> already applied. Codecs
+            are opt-in per field. A schema without them still gets full validation, typed IDs and
+            exact optional / nullable mapping through the same setup.
+          </p>
+          <aside class="not-box">
+            <strong>What it is not.</strong> zodvex is not a validator-mapper (mapping is the
+            foundation, not the product) and not a middleware framework (there is no
+            <code>.use()</code> chain). The "middleware" is the ambient codec-aware database,
+            wired once. Libraries that compose handlers live at a different layer and stack with it.
+          </aside>
+        </div>
+
+        <dl class="layers">
+          <div class="layer">
+            <dt><span class="layer-n">1</span> Models</dt>
+            <dd>
+              <code>defineZodModel</code> declares a table as Zod fields plus indexes. It is
+              client-safe and it is the only place the table's shape is written down.
+            </dd>
+          </div>
+          <div class="layer">
+            <dt><span class="layer-n">2</span> Functions</dt>
+            <dd>
+              <code>zq</code>, <code>zm</code> and <code>za</code> take Zod args and returns.
+              Refinements, transforms and codecs run before your handler and after it returns.
+            </dd>
+          </div>
+          <div class="layer">
+            <dt><span class="layer-n">3</span> Database</dt>
+            <dd>
+              <code>ctx.db</code> parses every read and encodes every write through your models.
+              Rules and audit ride on the same wrapper and see decoded documents.
+            </dd>
+          </div>
+          <div class="layer">
+            <dt><span class="layer-n">4</span> Client</dt>
+            <dd>
+              <code>zodvex generate</code> emits <code>useZodQuery</code> and
+              <code>useZodMutation</code> bound to your functions, so the UI sends and receives
+              runtime types too.
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── handled ───────────────────────── -->
+    <section class="section theme-dark" id="handled">
+      <div class="wrap">
+        <div class="handled-grid">
+          <div>
+            <span class="tag tag-red">Handled</span>
+            <h2 class="section-title">Domain types, end to end.</h2>
+            <p class="section-lede">
+              Convex gives you wire types end to end: numbers, strings and plain objects, with the
+              shape checked at the function edge. zodvex gives you the types your app is actually
+              about, and owns every conversion between them and what Convex stores.
+            </p>
+          </div>
+          <ul class="claims">
+            {handled.map((c) => (
+              <li>
+                <span class="check" aria-hidden="true">✓</span>
+                <div><strong>{c.title}</strong> {c.body}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <!-- cost of one concrete goal -->
+        <div class="cost-head">
+          <span class="tag tag-yellow">One concrete goal</span>
+          <h3 class="cost-title">What it takes to use {dateGoal.title.toLowerCase()}</h3>
+          <p class="section-lede">{dateGoal.goal} Every row is a place the value passes through, and every cell is the code that approach makes you write there.</p>
+        </div>
+
+        <div class="table-scroll">
+          <table class="cost">
+            <thead>
+              <tr>
+                <th scope="col">Where the value passes</th>
+                {cols.map((k) => (
+                  <th scope="col" class:list={[k === 'zodvex' && 'th-zodvex']}>{colName[k]}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dateGoal.rows.map((r) => (
+                <tr>
+                  <th scope="row">{r.step}</th>
+                  {cols.map((k) => (
+                    <td class:list={[k === 'zodvex' && 'td-zodvex']}>
+                      <span class="effort" data-effort={r[k].effort}>{effortLabel[r[k].effort]}</span>
+                      {r[k].code && <code class="cell-code">{r[k].code}</code>}
+                      <span class="cell-text">{r[k].note}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Places you write date code</th>
+                {cols.map((k) => (
+                  <td class:list={[k === 'zodvex' && 'td-zodvex']}>
+                    <span class="tally">
+                      <b>{dateTally[k].manual}</b> by hand
+                      {dateTally[k].partial > 0 && <> · <b>{dateTally[k].partial}</b> partly</>}
+                      {k === 'zodvex' && <> · one declaration</>}
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="legend">
+          <span class="effort" data-effort="manual">by hand</span> you write it, in every function that touches the value
+          <span class="effort" data-effort="partial">partly</span> you get some of it
+          <span class="effort" data-effort="auto">automatic</span> declared once, handled everywhere
+        </p>
+
+        <!-- outcomes grid -->
+        <div class="cost-head">
+          <span class="tag">Beyond dates</span>
+          <h3 class="cost-title">The same question for everything else</h3>
+          <p class="section-lede">Dates are the simplest codec. The pattern holds for any type that is one thing in code and another in storage, and for every rule that is more than a shape.</p>
+        </div>
+
+        <div class="table-scroll">
+          <table class="cost outcomes">
+            <thead>
+              <tr>
+                <th scope="col">What you want</th>
+                {cols.map((k) => (
+                  <th scope="col" class:list={[k === 'zodvex' && 'th-zodvex']}>{colName[k]}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {outcomes.map((r) => (
+                <tr>
+                  <th scope="row">{r.outcome}</th>
+                  {cols.map((k) => (
+                    <td class:list={[k === 'zodvex' && 'td-zodvex']}>
+                      <span class="effort" data-effort={r[k].effort}>{effortLabel[r[k].effort]}</span>
+                      <span class="cell-text">{r[k].note}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- what DIY actually means -->
+        <div class="diy">
+          <div>
+            <span class="tag">Building it yourself</span>
+            <h3 class="cost-title">Zod codecs get you the argument boundary. The rest is a library.</h3>
+            <p class="section-lede">
+              Zod can express "a number that is a Date in code". What it cannot do is reach into
+              Convex's database, index builder, scheduler and React hooks. A do-it-yourself version
+              that works everywhere needs all of this, and needs it to stay typed.
+            </p>
+          </div>
+          <ol class="diy-list">
+            {diyChecklist.map(([what, detail]) => (
+              <li><strong>{what}</strong><span>{detail}</span></li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── compare ───────────────────────── -->
+    <section class="section theme-light compare" id="compare" data-before="convex">
+      <div class="wrap">
+        <span class="tag">Side by side</span>
+        <h2 class="section-title">The same app, written both ways</h2>
+        <p class="section-lede">
+          Five everyday tasks. On the left, what you write today. On the right, the same thing
+          with zodvex. Highlighted lines are where the work moves from you to the library.
+        </p>
+      </div>
+
+      <div class="toggle-bar">
+        <div class="wrap toggle-inner">
+          <div class="seg" role="group" aria-label="Compare against">
+            <span class="seg-label">Compare against</span>
+            <button type="button" data-set-before="convex" aria-pressed="true">Convex</button>
+            <button type="button" data-set-before="helpers" aria-pressed="false">Convex + convex-helpers/zod</button>
+          </div>
+          <nav class="jump" aria-label="Scenarios">
+            {scenarios.map((s, i) => (
+              <a href={`#${s.id}`}><span>{String(i + 1).padStart(2, '0')}</span> {s.title}</a>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      <div class="wrap">
+        {scenarios.map((s, i) => <Compare scenario={s} index={i} />)}
+      </div>
+    </section>
+
+    <!-- ───────────────────────── zen ───────────────────────── -->
+    <section class="section theme-dark" id="zen">
+      <div class="wrap">
+        <span class="tag tag-yellow">Zen</span>
+        <h2 class="section-title">The Zen of zodvex</h2>
+        <p class="section-lede">
+          zodvex is opinionated. These are the guidelines that keep a project in the pit of
+          success, and the reasons behind each one.
+        </p>
+
+        <div class="zen">
+          {zen.map((g) => (
+            <div class="zen-group">
+              <h3 class="zen-group-title">{g.group}</h3>
+              <div class="zen-principles">
+                {g.principles.map((p) => (
+                  <article class="principle">
+                    <h4>{p.title}</h4>
+                    <p>{p.body}</p>
+                    <dl class="dos">
+                      {p.dos.map(([d, why]) => (
+                        <div>
+                          <dt>{d}</dt>
+                          <dd>{why}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p class="serif-line">Write the schema once. Trust it everywhere.</p>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── get started ───────────────────────── -->
+    <section class="section theme-light" id="start">
+      <div class="wrap">
+        <span class="tag">Get started</span>
+        <h2 class="section-title">Three files, then just write functions</h2>
+        <p class="section-lede">
+          Two of them you write once and rarely touch again. The third is where you live.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-head"><span class="num">1</span><h3>Define your models</h3></div>
+            <p>Client-safe, so the same file feeds React forms and types.</p>
+            <CodeBlock code={quickstartModels} file="convex/models.ts" />
+          </div>
+          <div class="step">
+            <div class="step-head"><span class="num">2</span><h3>Wire it up once</h3></div>
+            <p>Build the Convex schema from your models and get builders with a codec-aware <code>ctx.db</code>.</p>
+            <CodeBlock code={quickstartWire} file="convex/schema.ts · convex/functions.ts" />
+          </div>
+          <div class="step">
+            <div class="step-head"><span class="num">3</span><h3>Write functions</h3></div>
+            <p>Arguments and returns are Zod. Rows are decoded on the way out and encoded on the way in.</p>
+            <CodeBlock code={quickstartFn} file="convex/events.ts" />
+          </div>
+        </div>
+
+        <div class="start-links">
+          <a class="btn btn-primary" href={`${GITHUB}/tree/main/examples/quickstart`} target="_blank" rel="noopener">Runnable quickstart</a>
+          <a class="btn" href={`${GITHUB}/tree/main/examples/task-manager`} target="_blank" rel="noopener">Full example: codegen, rules, triggers</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── docs ───────────────────────── -->
+    <section class="section theme-dark" id="docs">
+      <div class="wrap">
+        <span class="tag">Docs</span>
+        <h2 class="section-title">Guides</h2>
+        <p class="section-lede">
+          The reference guides live in the repository today. Each one is short and example-first.
+        </p>
+        <ul class="guides">
+          {guides.map(([name, slug, blurb]) => (
+            <li>
+              <a href={guide(slug)} target="_blank" rel="noopener">
+                <strong>{name}</strong>
+                <span>{blurb}</span>
+              </a>
+            </li>
+          ))}
+          <li>
+            <a href={`${GITHUB}/blob/main/README.md`} target="_blank" rel="noopener">
+              <strong>README</strong>
+              <span>The full pitch, install, supported types</span>
+            </a>
+          </li>
+          <li>
+            <a href={`${GITHUB}/blob/main/MIGRATION.md`} target="_blank" rel="noopener">
+              <strong>Migration guide</strong>
+              <span>What changed in each release, plus <code>npx zodvex migrate</code></span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer theme-dark">
+    <div class="wrap footer-inner">
+      <div>
+        <strong>zodvex</strong> · MIT · built for the
+        <a href="https://www.convex.dev/" target="_blank" rel="noopener">Convex</a> ecosystem.
+        Thanks to <a href="https://github.com/get-convex/convex-helpers" target="_blank" rel="noopener">convex-helpers</a> for the early foundations.
+      </div>
+      <div class="footer-links">
+        <a href={GITHUB} target="_blank" rel="noopener">GitHub</a>
+        <a href={NPM} target="_blank" rel="noopener">npm</a>
+        <a href={`${GITHUB}/blob/main/CHANGELOG.md`} target="_blank" rel="noopener">Changelog</a>
+        <a href={`${GITHUB}/blob/main/docs/roadmap.md`} target="_blank" rel="noopener">Roadmap</a>
+      </div>
+    </div>
+  </footer>
+</Base>
+
+<script>
+  // "Compare against" switch for the before pane.
+  const compare = document.getElementById('compare')
+  const buttons = compare?.querySelectorAll<HTMLButtonElement>('[data-set-before]') ?? []
+  const setBefore = (value: string) => {
+    if (!compare) return
+    compare.dataset.before = value
+    buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.setBefore === value)))
+    try { localStorage.setItem('zodvex-before', value) } catch {}
+  }
+  buttons.forEach((b) => b.addEventListener('click', () => setBefore(b.dataset.setBefore!)))
+  try {
+    const saved = localStorage.getItem('zodvex-before')
+    if (saved === 'convex' || saved === 'helpers') setBefore(saved)
+  } catch {}
+
+  // Copy command rows.
+  document.querySelectorAll<HTMLElement>('[data-copy]').forEach((el) => {
+    const btn = el.querySelector('button')
+    btn?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(el.dataset.copy ?? '')
+        el.classList.add('copied')
+        setTimeout(() => el.classList.remove('copied'), 1400)
+      } catch {}
+    })
+  })
+</script>
+
+<style>
+  /* nav */
+  .nav {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: saturate(140%) blur(12px);
+    -webkit-backdrop-filter: saturate(140%) blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 1.5rem; height: 4rem; }
+  .brand { display: inline-flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.1rem; letter-spacing: -0.01em; }
+  .brand svg { border-radius: 6px; }
+  .links { display: flex; gap: 0.25rem; margin-left: auto; font-size: 0.93rem; font-weight: 500; }
+  .links a { padding: 0.5rem 0.65rem; color: var(--n-white); }
+  .links a:hover { color: var(--n4); }
+  .nav-actions { display: flex; align-items: center; gap: 0.5rem; }
+  .pill-link {
+    display: inline-flex; align-items: center; height: 2.25rem; padding: 0 0.9rem;
+    border-radius: 999px; border: 1px solid var(--line-strong);
+    font-size: 0.86rem; font-weight: 500; color: var(--n-white);
+  }
+  .pill-link:hover { background: var(--surface-2); }
+  .pill-solid { background: var(--n-white); color: var(--n12); border-color: transparent; }
+  .pill-solid:hover { background: var(--n3); }
+  @media (max-width: 760px) {
+    .links { display: none; }
+    .nav-actions { margin-left: auto; }
+  }
+
+  /* hero */
+  .hero {
+    position: relative;
+    padding: clamp(4.5rem, 10vw, 8rem) 0 clamp(3rem, 6vw, 5rem);
+    overflow: hidden;
+    background:
+      radial-gradient(900px 420px at 18% -10%, rgba(141, 38, 118, 0.35), transparent 65%),
+      radial-gradient(700px 380px at 85% 0%, rgba(238, 52, 47, 0.22), transparent 65%),
+      linear-gradient(180deg, #1a0f0f 0%, #141414 70%);
+  }
+  .hero-inner { position: relative; }
+  h1 {
+    font-size: clamp(2.75rem, 7vw, 5rem);
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+    margin: 0 0 1.25rem;
+    max-width: 14ch;
+    color: var(--n-white);
+  }
+  .lede {
+    font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+    font-weight: 300;
+    line-height: 1.4;
+    color: var(--n3);
+    max-width: 62ch;
+    margin: 0 0 1.75rem;
+    text-wrap: pretty;
+  }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-bottom: 1rem; }
+
+  .pipeline {
+    list-style: none; padding: 0;
+    margin: 3.25rem 0 0.75rem;
+    display: flex; flex-wrap: wrap; gap: 0.75rem 0;
+    align-items: stretch;
+  }
+  .pipeline li {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+    flex: 1 1 130px;
+    padding: 0 0.5rem;
+  }
+  .pipeline li + li::before {
+    content: '';
+    position: absolute; left: -0.6rem; top: 1.05rem;
+    width: 1.2rem; height: 1px;
+    background: var(--n7);
+  }
+  .node {
+    font: 500 0.82rem/1 var(--font-mono);
+    padding: 0.6rem 0.85rem;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: var(--n11);
+    color: var(--n-white);
+    white-space: nowrap;
+  }
+  .pipeline small { color: var(--yellow); font: 500 0.72rem/1.2 var(--font-mono); text-align: center; }
+  .pipeline-caption { margin: 0; color: var(--n6); font-size: 0.92rem; }
+  @media (max-width: 640px) {
+    .pipeline li + li::before { display: none; }
+  }
+
+  /* overview */
+  .overview { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 3rem; align-items: start; }
+  .overview > * { min-width: 0; }
+  @media (max-width: 900px) { .overview { grid-template-columns: minmax(0, 1fr); } }
+  .overview-copy p { color: var(--fg-2); font-size: 1.05rem; line-height: 1.55; margin: 0 0 1rem; max-width: 58ch; text-wrap: pretty; }
+  .not-box {
+    margin-top: 1.5rem;
+    padding: 1rem 1.1rem;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    font-size: 0.93rem;
+    line-height: 1.5;
+    color: var(--fg-2);
+  }
+  .not-box strong { color: var(--fg); }
+  .layers { margin: 0; display: grid; gap: 0.75rem; }
+  .layer { padding: 1.1rem 1.2rem; border-radius: 12px; background: var(--milk); border: 1px solid var(--line); }
+  .layer dt { display: flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.35rem; }
+  .layer-n {
+    display: inline-grid; place-items: center;
+    width: 1.5rem; height: 1.5rem; border-radius: 4px;
+    font: 700 0.7rem/1 var(--font-pixel);
+    background: var(--n12); color: var(--n-white);
+  }
+  .layer dd { margin: 0; color: var(--fg-2); font-size: 0.95rem; line-height: 1.5; }
+
+  /* handled */
+  .handled-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 3rem; align-items: start; }
+  .handled-grid > * { min-width: 0; }
+  @media (max-width: 900px) { .handled-grid { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; } }
+  .claims { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+  .claims li { display: flex; gap: 0.85rem; align-items: flex-start; font-size: 1.02rem; line-height: 1.45; color: var(--n4); }
+  .claims strong { color: var(--n-white); }
+  .check {
+    flex: none;
+    display: inline-grid; place-items: center;
+    width: 1.5rem; height: 1.5rem; border-radius: 999px;
+    background: var(--green-soft); color: var(--n12);
+    font-size: 0.8rem; font-weight: 700;
+    margin-top: 0.1rem;
+  }
+
+  .cost-head { margin-top: 4rem; }
+  .cost-title { font-size: clamp(1.4rem, 2.4vw, 1.85rem); letter-spacing: -0.02em; margin: 0 0 0.6rem; max-width: 28ch; text-wrap: balance; }
+
+  .table-scroll { overflow-x: auto; margin-top: 1.75rem; border: 1px solid var(--line); border-radius: 12px; background: var(--n13); }
+  .cost { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed; }
+  .cost th, .cost td { padding: 0.85rem 1rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  .cost thead th { font: 500 0.66rem/1.3 var(--font-pixel); letter-spacing: 0.06em; text-transform: uppercase; color: var(--n6); background: var(--n12); }
+  .cost thead th:first-child, .cost tbody th { width: 15rem; }
+  .cost tbody th { font-weight: 600; color: var(--n-white); font-size: 0.95rem; line-height: 1.35; }
+  .cost tbody tr:last-child th, .cost tbody tr:last-child td { border-bottom: 0; }
+  .cost tfoot th, .cost tfoot td { border-top: 1px solid var(--line-strong); border-bottom: 0; background: var(--n12); }
+  .cost tfoot th { font-weight: 600; color: var(--n-white); }
+  .th-zodvex, .td-zodvex { background: rgba(114, 192, 67, 0.07); }
+  .th-zodvex { color: var(--green-soft) !important; }
+  .cell-code {
+    display: block;
+    margin: 0.5rem 0 0.4rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 6px;
+    background: var(--n12);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--n2);
+    font-size: 0.78rem;
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+  .cell-text { display: block; color: var(--n6); margin-top: 0.4rem; line-height: 1.45; font-size: 0.86rem; }
+  .tally { color: var(--n5); }
+  .tally b { color: var(--n-white); font-weight: 700; }
+  .td-zodvex .tally b { color: var(--green-soft); }
+  .effort {
+    display: inline-block;
+    font: 500 0.62rem/1 var(--font-pixel);
+    letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 0.3rem 0.45rem; border-radius: 4px;
+    border: 1px solid var(--line-strong); color: var(--n6);
+  }
+  .effort[data-effort='manual'] { color: var(--red-soft); border-color: var(--red-soft); }
+  .effort[data-effort='partial'] { color: var(--yellow); border-color: var(--yellow); }
+  .effort[data-effort='auto'] { color: var(--green-soft); border-color: var(--green-soft); }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem; margin: 0.9rem 0 0; font-size: 0.85rem; color: var(--n6); }
+  .legend .effort { margin-left: 0.6rem; }
+  .legend .effort:first-child { margin-left: 0; }
+
+  .diy { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 3rem; margin-top: 4.5rem; padding-top: 3rem; border-top: 1px solid var(--line); }
+  .diy > * { min-width: 0; }
+  @media (max-width: 900px) { .diy { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; } }
+  .diy-list { margin: 0; padding: 0; list-style: none; counter-reset: diy; display: grid; gap: 0.6rem; }
+  .diy-list li { counter-increment: diy; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.25rem 0.75rem; padding: 0.9rem 1rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+  .diy-list li::before { content: counter(diy, decimal-leading-zero); font: 500 0.7rem/1.6 var(--font-pixel); color: var(--yellow); grid-row: span 2; }
+  .diy-list strong { color: var(--n-white); font-size: 0.95rem; }
+  .diy-list span { grid-column: 2; color: var(--n6); font-size: 0.88rem; line-height: 1.5; }
+
+  /* compare */
+  .compare { padding-bottom: 2rem; }
+  .toggle-bar {
+    position: sticky; top: 4rem; z-index: 10;
+    margin-top: 2rem;
+    background: rgba(249, 247, 238, 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+  .toggle-inner { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: 0.7rem 0; }
+  .seg { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--milk); }
+  .seg-label { font: 500 0.62rem/1 var(--font-pixel); text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); padding: 0 0.6rem; }
+  .seg button {
+    font: 500 0.84rem/1 var(--font-sans);
+    height: 2rem; padding: 0 0.85rem; border-radius: 999px;
+    border: 1px solid transparent; background: transparent; color: var(--fg-2); cursor: pointer;
+  }
+  .seg button[aria-pressed='true'] { background: var(--n12); color: var(--n-white); }
+  .jump { display: flex; gap: 0.25rem 1rem; flex-wrap: wrap; margin-left: auto; font-size: 0.86rem; color: var(--fg-2); }
+  .jump a:hover { color: var(--fg); }
+  .jump span { font-family: var(--font-pixel); font-size: 0.62rem; color: var(--fg-3); margin-right: 0.1rem; }
+  @media (max-width: 900px) { .jump { display: none; } }
+
+  /* zen */
+  .zen { display: grid; gap: 2.5rem; margin-top: 2.5rem; }
+  .zen-group { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 1.5rem; padding-top: 2rem; border-top: 1px solid var(--line); }
+  @media (max-width: 800px) { .zen-group { grid-template-columns: minmax(0, 1fr); gap: 0.75rem; } }
+  .zen-group-title { font: 500 0.72rem/1.3 var(--font-pixel); text-transform: uppercase; letter-spacing: 0.06em; color: var(--yellow); margin-top: 0.4rem; }
+  .zen-principles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  @media (max-width: 800px) { .zen-principles { grid-template-columns: minmax(0, 1fr); } }
+  .principle { padding: 1.4rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+  .principle h4 { font-size: 1.2rem; margin: 0 0 0.6rem; letter-spacing: -0.015em; }
+  .principle p { margin: 0 0 1rem; color: var(--n5); font-size: 0.95rem; line-height: 1.55; text-wrap: pretty; }
+  .dos { margin: 0; display: grid; gap: 0.7rem; }
+  .dos dt { font-weight: 600; font-size: 0.93rem; color: var(--n-white); }
+  .dos dt::before { content: '→ '; color: var(--yellow); }
+  .dos dd { margin: 0.15rem 0 0 1.1rem; font-size: 0.9rem; color: var(--n6); line-height: 1.5; }
+  .serif-line {
+    margin: 3.5rem 0 0;
+    text-align: center;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
+    color: var(--n-white);
+    letter-spacing: -0.01em;
+  }
+
+  /* steps */
+  .steps { display: grid; gap: 2rem; margin-top: 2.25rem; }
+  .step { min-width: 0; }
+  .step p { margin: 0 0 0.9rem; color: var(--fg-2); }
+  .step-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
+  .step-head .num { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 4px; background: var(--n12); color: var(--n-white); font: 700 0.8rem/1 var(--font-pixel); }
+  .step-head h3 { margin: 0; font-size: 1.2rem; }
+  .start-links { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2rem; }
+
+  /* guides */
+  .guides { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+  @media (max-width: 700px) { .guides { grid-template-columns: minmax(0, 1fr); } }
+  .guides a { display: grid; gap: 0.2rem; padding: 0.95rem 1.1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--fg); transition: background 0.15s ease; }
+  .guides a:hover { background: var(--surface-2); }
+  .guides span { color: var(--n6); font-size: 0.9rem; }
+
+  /* footer */
+  .footer { border-top: 1px solid var(--line); padding: 2rem 0 3rem; color: var(--n6); font-size: 0.9rem; }
+  .footer-inner { display: flex; flex-wrap: wrap; gap: 1rem 2rem; justify-content: space-between; }
+  .footer a { color: var(--n-white); }
+  .footer a:hover { color: var(--n4); }
+  .footer-links { display: flex; gap: 1.25rem; }
+</style>

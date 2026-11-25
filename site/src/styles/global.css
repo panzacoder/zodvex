@@ -1,0 +1,206 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Design language: modelled on convex.dev — near-black neutrals, warm
+   off-white ("seashell") light sections, the red / yellow / plum brand
+   triad used sparingly, pill buttons, pixel-font micro labels, and code
+   always on dark panels.
+   ───────────────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: dark;
+
+  /* palette (convex.dev tokens) */
+  --n-white: #ffffff;
+  --n1: #f6f6f6; --n2: #f1f1f1; --n3: #e5e5e5; --n4: #d7d7d7; --n5: #c2c2c2;
+  --n6: #a9a9ac; --n7: #8b8b8e; --n8: #6d6d70; --n9: #4f4f52; --n10: #38383a;
+  --n11: #292929; --n12: #141414; --n13: #111111; --n-black: #000000;
+  --seashell: #f9f7ee; --milk: #fffdf4; --eggshell: #f3ecdb; --alabaster: #f6f3e5;
+  --armadillo: #473e36; --raisin: #262321;
+  --red: #ee342f; --red-soft: #f15d59; --red-tint: #fcd6d5;
+  --yellow: #f3b01c; --yellow-soft: #f8d077; --yellow-tint: #fdefd2;
+  --plum: #8d2676; --plum-soft: #d7b3cf; --plum-tint: #f4e9f1;
+  --green: #4fb014; --green-soft: #72c043; --green-tint: #e5f3dc;
+
+  /* type */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-pixel: 'Silkscreen', 'IBM Plex Mono', monospace;
+  --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+
+  --max: 1200px;
+  --radius: 12px;
+  --radius-sm: 6px;
+
+  /* code panels are always dark */
+  --code-bg: var(--n12);
+  --code-head-bg: var(--n13);
+  --code-line: rgba(255, 255, 255, 0.1);
+}
+
+/* section themes — components only use these names */
+.theme-dark {
+  --bg: var(--n12);
+  --fg: var(--n-white);
+  --fg-2: var(--n6);
+  --fg-3: var(--n7);
+  --line: rgba(255, 255, 255, 0.12);
+  --line-strong: rgba(255, 255, 255, 0.22);
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-2: rgba(255, 255, 255, 0.09);
+  --btn-bg: var(--n-white);
+  --btn-fg: var(--n12);
+  --bad: var(--red-soft);
+  --good: var(--green-soft);
+  --note: var(--yellow-soft);
+  --accent: var(--yellow);
+  background: var(--bg);
+  color: var(--fg);
+  color-scheme: dark;
+}
+.theme-light {
+  --bg: var(--seashell);
+  --fg: var(--n11);
+  --fg-2: var(--armadillo);
+  --fg-3: var(--n8);
+  --line: rgba(20, 20, 20, 0.12);
+  --line-strong: rgba(20, 20, 20, 0.24);
+  --surface: rgba(20, 20, 20, 0.05);
+  --surface-2: rgba(20, 20, 20, 0.09);
+  --btn-bg: var(--n12);
+  --btn-fg: var(--n-white);
+  --bad: var(--red);
+  --good: #3d9210;
+  --note: #c98a0a;
+  --accent: var(--plum);
+  background: var(--bg);
+  color: var(--fg);
+  color-scheme: light;
+}
+
+/* ───────────────────────── base ───────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; background: var(--n12); }
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--n12);
+  color: var(--n-white);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a { color: inherit; text-decoration: none; }
+h1, h2, h3, h4 { line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+code, kbd, pre { font-family: var(--font-mono); }
+p code, li code, td code, th code, dd code {
+  font-size: 0.86em;
+  padding: 0.08em 0.35em;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; border-radius: 4px; }
+::selection { background: rgba(243, 176, 28, 0.45); }
+
+.wrap { width: min(100% - 2.5rem, var(--max)); margin-inline: auto; }
+.section { padding: clamp(3.5rem, 8vw, 6.5rem) 0; }
+
+/* pixel-font micro label, like "Trusted by" / "Enterprise Ready" on convex.dev */
+.tag {
+  display: inline-block;
+  font-family: var(--font-pixel);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--fg);
+  margin-bottom: 1.1rem;
+}
+.tag-red { color: var(--red-soft); border-color: var(--red-soft); }
+.tag-yellow { color: var(--yellow); border-color: var(--yellow); }
+.tag-green { color: var(--good); border-color: var(--good); }
+
+.section-title {
+  font-size: clamp(2rem, 3.6vw, 2.5rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.9rem;
+  max-width: 24ch;
+  text-wrap: balance;
+}
+.section-lede { color: var(--fg-2); font-size: 1.08rem; line-height: 1.5; max-width: 60ch; margin: 0; text-wrap: pretty; }
+
+/* pill buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  height: 2.75rem;
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  font-weight: 500; font-size: 0.95rem;
+  color: var(--fg);
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  text-align: center;
+  max-width: 100%;
+}
+.btn:hover { background: var(--surface-2); }
+.btn-primary { background: var(--btn-bg); color: var(--btn-fg); border-color: transparent; }
+.btn-primary:hover { background: var(--btn-bg); filter: brightness(0.92); }
+
+/* install / command rows — dark on every section */
+.cmd {
+  display: inline-flex; align-items: center; gap: 0.75rem;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--n12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--n-white);
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  max-width: 100%;
+}
+.cmd code { white-space: nowrap; overflow-x: auto; }
+.cmd .prompt { color: var(--yellow); margin-right: 0.35rem; }
+.cmd .copy {
+  display: inline-grid; place-items: center;
+  width: 1.9rem; height: 1.9rem; border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15); background: var(--n11); color: var(--n5); cursor: pointer;
+}
+.cmd .copy:hover { color: var(--n-white); border-color: var(--n7); }
+.cmd.copied .copy { color: var(--green-soft); border-color: var(--green-soft); }
+
+/* ───────────────────────── shiki ───────────────────────── */
+pre.astro-code, pre.shiki {
+  margin: 0;
+  max-width: 100%;
+  padding: 0.85rem 0;
+  overflow-x: auto;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  background: var(--code-bg) !important;
+  color: var(--n4);
+  tab-size: 2;
+}
+pre.astro-code code, pre.shiki code {
+  display: block;
+  min-width: max-content;
+  font-family: var(--font-mono);
+}
+.astro-code .line, .shiki .line {
+  display: inline-block;
+  width: 100%;
+  min-width: max-content;
+  padding: 0 1rem;
+  border-left: 3px solid transparent;
+}
+.line.hl-bad  { background: rgba(241, 93, 89, 0.14);  border-left-color: var(--red-soft); }
+.line.hl-good { background: rgba(114, 192, 67, 0.14); border-left-color: var(--green-soft); }
+.line.hl-note { background: rgba(248, 208, 119, 0.14); border-left-color: var(--yellow-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .btn { transition: none; }
+}
