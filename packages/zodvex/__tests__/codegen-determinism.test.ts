@@ -314,3 +314,86 @@ describe('codegen determinism', () => {
     expect(result.js).not.toMatch(/bounded/)
   })
 })
+
+// A sensitive()-style codec as apps write it: the inner schema sits under an
+// object wire field, and the runtime side is a z.custom() instance check.
+class Field {
+  constructor(readonly value: unknown) {}
+}
+const wrapped = (inner: z.ZodType) =>
+  zx.codec(
+    z.object({ value: inner.nullable() }),
+    z.custom<Field>(d => d instanceof Field),
+    {
+      decode: (w: any) => new Field(w.value),
+      encode: (r: any) => ({ value: r.value })
+    }
+  )
+
+const resolveArg = (fnCodec: z.ZodType, codecs: CodecForGeneration[]) => {
+  const functions: DiscoveredFunction[] = [
+    {
+      functionPath: 'mod:run',
+      exportName: 'run',
+      sourceFile: 'mod.ts',
+      zodArgs: z.object({ payload: fnCodec }),
+      zodReturns: undefined
+    }
+  ]
+  const functionCodecs: FunctionEmbeddedCodec[] = [
+    {
+      codec: fnCodec,
+      functionExportName: 'run',
+      functionSourceFile: 'mod.ts',
+      schemaSource: 'zodArgs',
+      accessPath: '.shape.payload'
+    }
+  ]
+  return generateApiFile(functions, [], codecs, [], functionCodecs).js
+}
+
+describe('fingerprints of codecs with nested wire schemas', () => {
+  it('distinguishes checks below the top level of the wire schema', () => {
+    // 'content' sorts first, so only the nested max() can rule it out.
+    const js = resolveArg(wrapped(z.string().max(100)), [
+      { exportName: 'content', sourceFile: 'codecs/aaa.ts', schema: wrapped(z.string().max(4000)) },
+      { exportName: 'email', sourceFile: 'codecs/bbb.ts', schema: wrapped(z.string().email()) },
+      { exportName: 'name', sourceFile: 'codecs/zzz.ts', schema: wrapped(z.string().max(100)) }
+    ])
+    expect(js).toMatch(/\bname\b/)
+    expect(js).not.toMatch(/\bcontent\b/)
+    expect(js).not.toMatch(/\bemail\b/)
+  })
+
+  it('still matches a structurally identical twin', () => {
+    const js = resolveArg(wrapped(z.string().min(1).max(100)), [
+      {
+        exportName: 'name',
+        sourceFile: 'codecs/name.ts',
+        schema: wrapped(z.string().min(1).max(100))
+      }
+    ])
+    expect(js).toMatch(/\bname\b/)
+  })
+
+  it('hard-errors instead of guessing when the codec has a refinement', () => {
+    // Refinement predicates can close over config, so their source cannot prove two match.
+    const nonBlank = () => z.string().refine(t => t.trim().length > 0)
+    expect(() =>
+      resolveArg(wrapped(nonBlank()), [
+        { exportName: 'plain', sourceFile: 'codecs/plain.ts', schema: wrapped(z.string()) },
+        { exportName: 'twin', sourceFile: 'codecs/twin.ts', schema: wrapped(nonBlank()) }
+      ])
+    ).toThrow(/no importable reference/)
+  })
+
+  it('resolves a refined codec by identity when it is exported', () => {
+    const nonBlank = wrapped(z.string().refine(t => t.trim().length > 0))
+    const js = resolveArg(nonBlank, [
+      { exportName: 'plain', sourceFile: 'codecs/plain.ts', schema: wrapped(z.string()) },
+      { exportName: 'nonBlank', sourceFile: 'codecs/nonBlank.ts', schema: nonBlank }
+    ])
+    expect(js).toMatch(/\bnonBlank\b/)
+    expect(js).not.toMatch(/\bplain\b/)
+  })
+})

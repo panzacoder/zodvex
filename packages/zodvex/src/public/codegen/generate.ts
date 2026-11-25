@@ -38,23 +38,21 @@ const __lazy = (key, build) => {
 export type GeneratedFile = { js: string; dts: string }
 
 /**
- * Produces a structural fingerprint for a ZodCodec by serializing its
- * wire (in) and runtime (out) schemas. Two factory-created codec instances
- * with the same arguments produce the same fingerprint, enabling dedup
- * even when object identity differs.
+ * Produces a structural fingerprint for a ZodCodec, so two factory-created
+ * instances built with the same arguments match even though their identities
+ * differ. Returns '' when the codec cannot be fingerprinted, which leaves it
+ * resolvable only by identity or brand.
  *
- * The wire/runtime schemas are serialized via zodToSource, then suffixed
- * with a stable representation of any checks (`.max(n)`, `.min(n)`, etc.)
- * so that `sensitive(z.string())` and `sensitive(z.string().max(100))`
- * land on distinct fingerprints. Without this, codecs that differ only by
- * a constraint collide and the ambiguity-resolution path can't tell them
- * apart by structure alone.
+ * The fingerprint covers the whole wire (in) and runtime (out) schema trees,
+ * including checks on nested fields: `sensitive(z.string().max(100))` keeps its
+ * bound on the wire object's `value` field, not at the top level, and must not
+ * collide with `sensitive(z.string().max(4000))`.
  *
- * The transform bodies (decode/encode) are folded in too: two codecs with the
- * same wire+runtime shape but different transform logic must NOT share a
- * fingerprint, or the ambiguity path could reference a behaviorally-wrong
- * codec. `.toString()` discriminates transform source (a residual gap remains
- * for identical source with different captured closure config — documented).
+ * Functions (transforms, default `when` guards, z.custom() predicates) are
+ * compared by `.toString()`; a residual gap remains for identical source with
+ * different captured closure config. Refinements (`.refine()`, `.superRefine()`,
+ * `.check()`) are the exception: their predicates routinely close over config
+ * (limits, allow-lists), so a codec carrying one is never matched by structure.
  */
 function fingerprintCodec(schema: $ZodType): string {
   if (!(schema instanceof $ZodCodec)) return ''
@@ -64,39 +62,83 @@ function fingerprintCodec(schema: $ZodType): string {
     transform?: unknown
     reverseTransform?: unknown
   }
+  const wire = fingerprintTree(def.in)
+  const runtime = fingerprintTree(def.out)
+  if (wire === null || runtime === null) return ''
   const transform = typeof def.transform === 'function' ? def.transform.toString() : ''
   const reverse = typeof def.reverseTransform === 'function' ? def.reverseTransform.toString() : ''
-  return `${fingerprintLeaf(def.in)}|${fingerprintLeaf(def.out)}|${transform}|${reverse}`
+  return `${zodToSource(def.in)}#${wire}|${zodToSource(def.out)}#${runtime}|${transform}|${reverse}`
 }
 
-function fingerprintLeaf(schema: $ZodType): string {
-  return `${zodToSource(schema)}#${fingerprintChecks(schema)}`
-}
+/** Thrown inside the tree walk when a schema cannot be compared by structure. */
+const UNCOMPARABLE = Symbol('zodvex.fingerprint.uncomparable')
 
-function fingerprintChecks(schema: $ZodType): string {
-  const checks = (schema as any)?._zod?.def?.checks
-  if (!Array.isArray(checks) || checks.length === 0) return ''
-  const parts: string[] = []
-  for (const check of checks) {
-    const def = (check as any)?._zod?.def
-    if (!def) continue
-    const checkType = def.check ?? def.type ?? 'check'
-    // Stringify only the data that distinguishes one check from another —
-    // numeric bounds, regex sources, format names. Skip non-serializable
-    // fields (functions, error contributors) so the fingerprint stays stable.
-    const data: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(def)) {
-      if (k === 'check' || k === 'type' || k === 'error' || k === 'message') continue
-      const t = typeof v
-      if (t === 'string' || t === 'number' || t === 'boolean' || v === null) {
-        data[k] = v
-      } else if (v instanceof RegExp) {
-        data[k] = v.source
-      }
-    }
-    parts.push(`${checkType}(${JSON.stringify(data)})`)
+/** Serializes a schema tree for fingerprinting; null when it cannot be compared. */
+function fingerprintTree(schema: $ZodType): string | null {
+  try {
+    return serializeSchema(schema, new Set())
+  } catch (error) {
+    if (error === UNCOMPARABLE) return null
+    throw error
   }
-  return parts.sort().join('&')
+}
+
+// Error messages never change what a schema accepts.
+const IGNORED_DEF_KEYS = new Set(['error', 'message'])
+
+function serializeSchema(schema: $ZodType, path: Set<$ZodType>): string {
+  // A cycle or z.lazy() hides the subtree behind a getter we cannot compare.
+  if (path.has(schema)) throw UNCOMPARABLE
+  const def = schema._zod.def as unknown as Record<string, unknown>
+  if (def.type === 'lazy') throw UNCOMPARABLE
+  path.add(schema)
+  const parts: string[] = []
+  for (const key of Object.keys(def).sort()) {
+    if (IGNORED_DEF_KEYS.has(key)) continue
+    const value =
+      key === 'checks' ? serializeChecks(def.checks, path) : serializeValue(def[key], path)
+    parts.push(`${key}=${value}`)
+  }
+  path.delete(schema)
+  return `{${parts.join(',')}}`
+}
+
+/** Checks in declaration order, since an overwrite (`.trim()`) before or after a bound differs. */
+function serializeChecks(checks: unknown, path: Set<$ZodType>): string {
+  if (!Array.isArray(checks)) return '[]'
+  const parts = checks.map(check => {
+    const def = (check as any)?._zod?.def as Record<string, unknown> | undefined
+    if (!def) return '?'
+    if (def.check === 'custom') throw UNCOMPARABLE
+    const fields = Object.keys(def)
+      .sort()
+      .filter(key => !IGNORED_DEF_KEYS.has(key))
+      .map(key => `${key}=${serializeValue(def[key], path)}`)
+    return `(${fields.join(',')})`
+  })
+  return `[${parts.join('&')}]`
+}
+
+function serializeValue(value: unknown, path: Set<$ZodType>): string {
+  if (value instanceof $ZodType) return serializeSchema(value, path)
+  if (typeof value === 'function') return `fn:${value.toString()}`
+  if (typeof value === 'bigint') return `${value}n`
+  if (typeof value === 'symbol') return value.toString()
+  if (value === undefined) return 'undefined'
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (value instanceof RegExp) return `re:/${value.source}/${value.flags}`
+  if (value instanceof Date) return `date:${value.toISOString()}`
+  if (Array.isArray(value)) return `[${value.map(v => serializeValue(v, path)).join(',')}]`
+  const proto = Object.getPrototypeOf(value)
+  // Class instances (Set, Map, user classes) carry state we cannot read generically.
+  if (proto !== Object.prototype && proto !== null) throw UNCOMPARABLE
+  const entries = Object.keys(value)
+    .sort()
+    .map(
+      key =>
+        `${JSON.stringify(key)}:${serializeValue((value as Record<string, unknown>)[key], path)}`
+    )
+  return `{${entries.join(',')}}`
 }
 
 /**
@@ -530,7 +572,8 @@ export function generateApiFile(
       const list = undiscoverable.map(u => `  - ${u.fn}() at ${u.path}`).join('\n')
       throw new Error(
         `[zodvex] ${undiscoverable.length} codec(s) in function args/returns have no importable reference ` +
-          `(not exported standalone, not embedded in a model). The generated client cannot encode or decode ` +
+          `(not exported standalone, not embedded in a model, or refined with .refine()/.superRefine()/.check(), ` +
+          `which codegen cannot match by structure). The generated client cannot encode or decode ` +
           `them, which silently breaks the codec boundary. Export each codec standalone (or add it to a model) ` +
           `so codegen can import it:\n${list}`
       )
