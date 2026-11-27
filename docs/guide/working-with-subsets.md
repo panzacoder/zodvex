@@ -71,7 +71,7 @@ zx.docArray(UserModel)   // z.array(doc) for return types
 zx.update(UserModel)     // _id required, all other fields optional
 ```
 
-Full models also expose the same schemas eagerly as `UserModel.schema.doc` / `UserModel.schema.docArray`; prefer the `zx.*` form in new code — it works for both full and slim models.
+Full models also expose the same schemas as `UserModel.schema.doc` / `UserModel.schema.docArray`. `doc`, `base` and `insert` are built when the model is defined; `update`, `docArray` and `paginatedDoc` are built the first time they are read. Prefer the `zx.*` form in new code — it works for both full and slim models.
 
 ## TypeScript Performance Tip
 
