@@ -339,6 +339,89 @@ describe('defineZodModel', () => {
   })
 })
 
+describe('defineZodModel derived schemas', () => {
+  const DERIVED = ['update', 'docArray', 'paginatedDoc'] as const
+
+  it('builds update on first read, once', () => {
+    let shapeReads = 0
+    const fields = new Proxy(
+      { name: z.string(), email: z.string() },
+      {
+        ownKeys: target => {
+          shapeReads++
+          return Reflect.ownKeys(target)
+        }
+      }
+    )
+    const model = defineZodModel('users', fields)
+    const atDefinition = shapeReads
+
+    const first = model.schema.update
+    expect(shapeReads).toBeGreaterThan(atDefinition)
+
+    const afterFirstRead = shapeReads
+    expect(model.schema.update).toBe(first)
+    expect(shapeReads).toBe(afterFirstRead)
+  })
+
+  it('holds doc, base and insert as values and the derived schemas as getters', () => {
+    const { schema } = defineZodModel('users', { name: z.string() })
+
+    for (const key of ['doc', 'base', 'insert']) {
+      expect(Object.getOwnPropertyDescriptor(schema, key)).toHaveProperty('value')
+    }
+    for (const key of DERIVED) {
+      expect(Object.getOwnPropertyDescriptor(schema, key)?.get).toBeTypeOf('function')
+    }
+  })
+
+  it('returns the same instance on every read', () => {
+    const { schema } = defineZodModel('users', { name: z.string() })
+
+    for (const key of DERIVED) expect(schema[key]).toBe(schema[key])
+    expect(schema.docArray._zod.def.element).toBe(schema.doc)
+    expect(schema.paginatedDoc.shape.page._zod.def.element).toBe(schema.doc)
+  })
+
+  it('enumerates and spreads like a plain object', () => {
+    const { schema } = defineZodModel('users', { name: z.string() })
+
+    expect(Object.keys(schema)).toEqual([
+      'doc',
+      'base',
+      'insert',
+      'update',
+      'docArray',
+      'paginatedDoc'
+    ])
+    const copy = { ...schema }
+    for (const key of DERIVED) expect(copy[key]).toBe(schema[key])
+  })
+
+  it('shares one bundle across chained index calls', () => {
+    const model = defineZodModel('users', { name: z.string() })
+    const indexed = model.index('byName', ['name'])
+
+    expect(indexed.schema.update).toBe(model.schema.update)
+  })
+
+  it('defers the derived schemas of a union model too', () => {
+    const { schema } = defineZodModel(
+      'shapes',
+      z.union([
+        z.object({ kind: z.literal('circle'), r: z.number() }),
+        z.object({ kind: z.literal('square'), side: z.number() })
+      ])
+    )
+
+    for (const key of DERIVED) {
+      expect(Object.getOwnPropertyDescriptor(schema, key)?.get).toBeTypeOf('function')
+    }
+    expect(isZodUnion(schema.update)).toBe(true)
+    expect(schema.update).toBe(schema.update)
+  })
+})
+
 describe('defineZodModel .index()', () => {
   it('accumulates index definitions', () => {
     const model = defineZodModel('users', {

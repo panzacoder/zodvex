@@ -63,6 +63,32 @@ export function createPaginatedDocSchema(docSchema: $ZodType): z.ZodObject<any> 
   })
 }
 
+/**
+ * Completes a bundle with `update`, `docArray` and `paginatedDoc` as memoizing getters, so a
+ * model that never reads them never builds them. Own and enumerable, like the eager keys.
+ */
+function withDerivedSchemas(
+  eager: Pick<RuntimeModelSchemaBundle, 'doc' | 'base' | 'insert'>,
+  buildUpdate: () => $ZodType
+): RuntimeModelSchemaBundle {
+  const onFirstRead = (build: () => $ZodType): PropertyDescriptor => {
+    let built: $ZodType | undefined
+    return {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        built ??= build()
+        return built
+      }
+    }
+  }
+  return Object.defineProperties(eager, {
+    update: onFirstRead(buildUpdate),
+    docArray: onFirstRead(() => z.array(eager.doc)),
+    paginatedDoc: onFirstRead(() => createPaginatedDocSchema(eager.doc))
+  }) as RuntimeModelSchemaBundle
+}
+
 export function createObjectSchemaBundle<Name extends string>(
   name: Name,
   fields: $ZodShape,
@@ -70,14 +96,9 @@ export function createObjectSchemaBundle<Name extends string>(
 ): RuntimeModelSchemaBundle {
   const docSchema = addSystemFields(name, baseSchema)
 
-  return {
-    doc: docSchema,
-    base: baseSchema,
-    insert: baseSchema,
-    update: createUpdateObjectSchema(name, fields),
-    docArray: z.array(docSchema),
-    paginatedDoc: createPaginatedDocSchema(docSchema)
-  }
+  return withDerivedSchemas({ doc: docSchema, base: baseSchema, insert: baseSchema }, () =>
+    createUpdateObjectSchema(name, fields)
+  )
 }
 
 export function createSchemaUpdateSchema<Name extends string>(
@@ -107,12 +128,7 @@ export function createSchemaBundle<Name extends string>(
 ): RuntimeModelSchemaBundle {
   const docSchema = addSystemFields(name, inputSchema)
 
-  return {
-    doc: docSchema,
-    base: inputSchema,
-    insert: inputSchema,
-    update: createSchemaUpdateSchema(name, inputSchema),
-    docArray: z.array(docSchema),
-    paginatedDoc: createPaginatedDocSchema(docSchema)
-  }
+  return withDerivedSchemas({ doc: docSchema, base: inputSchema, insert: inputSchema }, () =>
+    createSchemaUpdateSchema(name, inputSchema)
+  )
 }
